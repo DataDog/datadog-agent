@@ -18,8 +18,10 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
+  gomodcache = Pathname.new("/gomodcache")
   env = {
     'GOPATH' => gopath.to_path,
+    'GOMODCACHE' => gomodcache.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
   # include embedded path (mostly for `pkg-config` binary)

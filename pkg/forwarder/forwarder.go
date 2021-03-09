@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -309,11 +310,12 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	// Disk Persistence is a core-only feature for now.
 	if storageMaxSize == 0 {
 		log.Infof("Retry queue storage on disk is disabled")
-	} else if HasFeature(options.EnabledFeatures, CoreFeatures) {
+	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
+		storagePath = path.Join(storagePath, agentFolder)
 		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, failedTransactionRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
@@ -374,6 +376,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	return f
+}
+
+func getAgentFolder(options *Options) string {
+	if HasFeature(options.EnabledFeatures, CoreFeatures) {
+		return "core"
+	}
+	return ""
 }
 
 // Start initialize and runs the forwarder.

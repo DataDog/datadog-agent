@@ -18,31 +18,11 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
 
-
-class GoModule:
-    """A Go module abstraction."""
-
-    def __init__(self, path, targets=None, condition=lambda: True):
-        if targets is None:
-            targets = ["."]
-
-        self.path = path
-        self.targets = targets
-        self.condition = condition
-
-    def full_path(self):
-        return os.path.abspath(self.path)
-
-
 PROFILE_COV = "profile.cov"
-
-DEFAULT_MODULES = [
-    GoModule(".", targets=["./pkg", "./cmd"]),
-]
-
 DEFAULT_GIT_BRANCH = 'master'
 
 
@@ -75,7 +55,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Run all the tools and tests on the given module and targets.
@@ -97,12 +77,12 @@ def test(
         if isinstance(targets, str):
             modules = [GoModule(module, targets=targets.split(','))]
         else:
-            modules = [m for m in DEFAULT_MODULES if m.path == module]
+            modules = [m for m in DEFAULT_MODULES.values() if m.path == module]
     elif isinstance(targets, str):
-        modules = GoModule(".", targets=targets.split(','))
+        modules = [GoModule(".", targets=targets.split(','))]
     else:
         print("Using default modules and targets")
-        modules = DEFAULT_MODULES
+        modules = DEFAULT_MODULES.values()
 
     build_include = (
         get_default_build_tags(build="test-with-process-tags", arch=arch)
@@ -169,8 +149,7 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes='3',
-        arch=arch,
+        python_runtimes=python_runtimes,
     )
 
     if sys.platform == 'win32':
@@ -255,7 +234,7 @@ def test(
 
 
 @task
-def lint_teamassignment(ctx):
+def lint_teamassignment(_):
     """
     Make sure PRs are assigned a team label
     """
@@ -287,7 +266,7 @@ def lint_teamassignment(ctx):
 
 
 @task
-def lint_milestone(ctx):
+def lint_milestone(_):
     """
     Make sure PRs are assigned a milestone
     """
@@ -472,7 +451,7 @@ class TestProfiler:
 
 @task
 def make_simple_gitlab_yml(
-    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+    _, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
 ):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
@@ -526,7 +505,7 @@ def make_simple_gitlab_yml(
 
 
 @task
-def make_kitchen_gitlab_yml(ctx):
+def make_kitchen_gitlab_yml(_):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
     """
@@ -589,7 +568,7 @@ def make_kitchen_gitlab_yml(ctx):
 
 
 @task
-def check_gitlab_broken_dependencies(ctx):
+def check_gitlab_broken_dependencies(_):
     """
     Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
     since this would make gitlab fail when triggering a pipeline with those jobs excluded.

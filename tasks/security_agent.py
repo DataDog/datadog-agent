@@ -9,6 +9,7 @@ from .go import generate
 from .utils import (
     REPO_PATH,
     bin_name,
+    generate_config,
     get_build_flags,
     get_git_branch_name,
     get_git_commit,
@@ -17,8 +18,8 @@ from .utils import (
     get_version,
 )
 
-BIN_DIR = os.path.join(".", "bin", "security-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("security-agent", android=False))
+BIN_DIR = os.path.join(".", "bin")
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 
@@ -45,14 +46,16 @@ def build(
     go_version=None,
     incremental_build=False,
     major_version='7',
-    arch="x64",
-    go_mod="vendor",
+    # arch is never used here; we keep it to have a
+    # consistent CLI on the build task for all agents.
+    arch="x64",  # noqa: U100
+    go_mod="mod",
     skip_assets=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
 
     # TODO use pkg/version for this
     main = "main."
@@ -104,9 +107,9 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     if not skip_assets:
-        dist_folder = os.path.join(BIN_DIR, "dist", "runtime-security.d")
-        if not os.path.exists(dist_folder):
-            os.makedirs(dist_folder)
+        dist_folder = os.path.join(BIN_DIR, "agent", "dist")
+        generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
+        shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
 @task()
@@ -153,7 +156,7 @@ def build_functional_tests(
     bundle_ebpf=True,
     static=False,
 ):
-    ldflags, gcflags, env = get_build_flags(ctx, arch=arch, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
 
     goenv = get_go_env(ctx, go_version)
     env.update(goenv)
@@ -170,7 +173,7 @@ def build_functional_tests(
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo'
 
-    cmd = 'go test -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'
 
     args = {

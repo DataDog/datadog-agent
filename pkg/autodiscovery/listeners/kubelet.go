@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -93,7 +93,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services: make(map[string]Service),
 		ticker:   time.NewTicker(config.Datadog.GetDuration("kubelet_listener_polling_interval") * time.Second),
 		stop:     make(chan bool),
-		health:   health.RegisterLiveness("ad-kubeletlistener"),
+		health:   health.RegisterReadiness("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -249,7 +249,7 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 
 			// Check for custom AD identifiers
 			adIdentifier := containerName
-			if customADIdentifier, customIDFound := common.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
+			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
 				adIdentifier = customADIdentifier
 				// Add custom check ID as AD identifier
 				svc.adIdentifiers = append(svc.adIdentifiers, customADIdentifier)

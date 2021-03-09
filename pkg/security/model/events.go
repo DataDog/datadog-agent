@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package model
 
@@ -31,14 +31,14 @@ const (
 	FileChownEventType
 	// FileUtimeEventType Utime event
 	FileUtimeEventType
-	// FileMountEventType Mount event
-	FileMountEventType
-	// FileUmountEventType Umount event
-	FileUmountEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// FileMountEventType Mount event
+	FileMountEventType
+	// FileUmountEventType Umount event
+	FileUmountEventType
 	// ForkEventType Fork event
 	ForkEventType
 	// ExecEventType Exec event
@@ -47,11 +47,25 @@ const (
 	ExitEventType
 	// InvalidateDentryEventType Dentry invalidated event
 	InvalidateDentryEventType
+	// SetuidEventType setuid event
+	SetuidEventType
+	// SetgidEventType setgid event
+	SetgidEventType
+	// CapsetEventType capset event
+	CapsetEventType
+	// ArgsEnvsEventType args and envs event
+	ArgsEnvsEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
+	// FirstDiscarderEventType first event that accepts discarders
+	FirstDiscarderEventType = FileOpenEventType
+
+	// LastDiscarderEventType last event that accepts discarders
+	LastDiscarderEventType = FileRemoveXAttrEventType
+
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -64,9 +78,6 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
 	CustomTruncatedSegmentEventType
-
-	// MaxEventRoundedUp is the closest power of 2 that is bigger than MaxEventType
-	MaxEventRoundedUp = 32
 )
 
 func (t EventType) String() string {
@@ -105,6 +116,14 @@ func (t EventType) String() string {
 		return "exit"
 	case InvalidateDentryEventType:
 		return "invalidate_dentry"
+	case SetuidEventType:
+		return "setuid"
+	case SetgidEventType:
+		return "setgid"
+	case CapsetEventType:
+		return "capset"
+	case ArgsEnvsEventType:
+		return "args_envs_dentry"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

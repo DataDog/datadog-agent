@@ -42,7 +42,7 @@ type LogSource struct {
 	// that reads log lines for this source. E.g, a sourceType == containerd and Config.Type == file means that
 	// the agent is tailing a file to read logs of a containerd container
 	sourceType SourceType
-	info       map[string]string
+	info       map[string]InfoProvider
 	// In the case that the source is overridden, keep a reference to the parent for bubbling up information about the child
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
@@ -60,7 +60,7 @@ func NewLogSource(name string, config *LogsConfig) *LogSource {
 		lock:         &sync.Mutex{},
 		Messages:     NewMessages(),
 		BytesRead:    expvar.Int{},
-		info:         make(map[string]string),
+		info:         make(map[string]InfoProvider),
 		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
@@ -104,27 +104,31 @@ func (s *LogSource) GetSourceType() SourceType {
 	return s.sourceType
 }
 
-// UpdateInfo sets the info data with a unique key
-func (s *LogSource) UpdateInfo(key string, val string) {
-	s.lock.Lock()
-	s.info[key] = val
-	s.lock.Unlock()
-}
-
-// RemoveInfo remove the info data given a unique key
-func (s *LogSource) RemoveInfo(key string) {
-	s.lock.Lock()
-	delete(s.info, key)
-	s.lock.Unlock()
-}
-
-// GetInfo returns a list of info about the source
-func (s *LogSource) GetInfo() []string {
+// RegisterInfo registers some info to display on the status page
+func (s *LogSource) RegisterInfo(i InfoProvider) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	info := make([]string, 0, len(s.info))
+	s.info[i.InfoKey()] = i
+}
+
+// GetInfo gets an InfoProvider instance by the key
+func (s *LogSource) GetInfo(key string) InfoProvider {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.info[key]
+}
+
+// GetInfoStatus returns a primitive representation of the info for the status page
+func (s *LogSource) GetInfoStatus() map[string][]string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	info := make(map[string][]string)
+
 	for _, v := range s.info {
-		info = append(info, v)
+		if len(v.Info()) == 0 {
+			continue
+		}
+		info[v.InfoKey()] = v.Info()
 	}
 	return info
 }

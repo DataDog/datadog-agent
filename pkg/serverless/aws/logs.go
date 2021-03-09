@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package aws
 
 import (
@@ -21,6 +26,8 @@ const (
 	LogTypePlatformEnd = "platform.end"
 	// LogTypePlatformReport is used for the log messages containing a report of the last invocation.
 	LogTypePlatformReport = "platform.report"
+	// LogTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
+	LogTypePlatformLogsDropped = "platform.logsDropped"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -37,7 +44,7 @@ type LogMessage struct {
 type PlatformObjectRecord struct {
 	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
 	Version   string           // present in LogTypePlatformStart only
-	Metrics   ReportLogMetrics // pretesent in LogTypePlatformReport only
+	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
 }
 
 // ReportLogMetrics contains metrics found in a LogTypePlatformReport log

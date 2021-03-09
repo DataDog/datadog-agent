@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker,windows
 
@@ -65,9 +65,9 @@ func TestGetFileSourceOnWindows(t *testing.T) {
 				serviceNameFunc: tt.sFunc,
 			}
 			fileSource := l.getFileSource(tt.container, tt.source)
-			assert.Equal(t, config.FileType, fileSource.Config.Type)
-			assert.Equal(t, tt.container.service.Identifier, fileSource.Config.Identifier)
-			assert.Equal(t, tt.wantServiceName, fileSource.Config.Service)
+			assert.Equal(t, config.FileType, fileSource.source.Config.Type)
+			assert.Equal(t, tt.container.service.Identifier, fileSource.source.Config.Identifier)
+			assert.Equal(t, tt.wantServiceName, fileSource.source.Config.Service)
 		})
 	}
 }

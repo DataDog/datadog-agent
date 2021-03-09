@@ -95,60 +95,16 @@ if [ -z ${AGENT_VERSION+x} ]; then
   popd
 fi
 
-cp kitchen-azure-common.yml kitchen.yml
-
-## check to see if we want the windows-installer tester instead
-if [[ $1 == "windows-install-test" ]]; then
-  cat kitchen-azure-winstall.yml >> kitchen.yml
-fi
-
-if [[ $1 == "windows-npm-install-test" ]]; then
-  cat kitchen-azure-windows-npm-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "windows-npm-driver-test" ]]; then
-  cat kitchen-azure-windows-npmdriver.yml >> kitchen.yml
-fi
-
-if [[ $1 == "chef-test" ]]; then
-  cat kitchen-azure-chef-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "step-by-step-test" ]]; then
-  cat kitchen-azure-step-by-step-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "install-script-test" ]]; then
-  cat kitchen-azure-install-script-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "upgrade5-test" ]]; then
-  cat kitchen-azure-upgrade5-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "upgrade6-test" ]]; then
-  cat kitchen-azure-upgrade6-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "upgrade7-test" ]]; then
-  cat kitchen-azure-upgrade7-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "security-agent-test" ]]; then
-  cat kitchen-azure-security-agent-test.yml >> kitchen.yml
-fi
-
-if [[ $1 == "security-agent-stress" ]]; then
-  cat kitchen-azure-security-agent-stress.yml >> kitchen.yml
-fi
-
-if [[ $1 == "system-probe-test" ]]; then
-  cat kitchen-azure-system-probe-test.yml >> kitchen.yml
-fi
+invoke -e kitchen.genconfig --platform=$KITCHEN_PLATFORM --osversions=$KITCHEN_OSVERS --provider=azure --testfiles=$1
 
 bundle exec kitchen diagnose --no-instances --loader
+
+## copy the generated kitchen.yml to the .kitchen directory so it'll be included
+## in the artifacts (for debugging when necessary)
+cp kitchen.yml ./.kitchen/generated_kitchen.yml
 
 rm -rf cookbooks
 rm -f Berksfile.lock
 berks vendor ./cookbooks
 bundle exec kitchen test '^dd*.*-azure$' -c -d always
+

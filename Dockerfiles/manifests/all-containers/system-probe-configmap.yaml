@@ -16,8 +16,12 @@ data:
       enable_tcp_queue_length: false
       enable_oom_kill: false
       collect_dns_stats: false
+      max_tracked_connections: 65536
+      conntrack_max_state_size: 131072
+    network_config:
+      enabled: true
     runtime_security_config:
-      enabled: false
+      enabled: true
       debug: false
       socket: /var/run/sysprobe/runtime-security.sock
       policies:

@@ -75,8 +75,7 @@ func fetchEc2Tags() ([]string, error) {
 // for testing purposes
 var fetchTags = fetchEc2Tags
 
-// GetTags grabs the host tags from the EC2 api
-func GetTags() ([]string, error) {
+func fetchTagsFromCache() ([]string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
@@ -87,13 +86,22 @@ func GetTags() ([]string, error) {
 			log.Infof("unable to get tags from aws, returning cached tags: %s", err)
 			return ec2Tags.([]string), nil
 		}
-		return nil, log.Warnf("unable to get tags from aws and cache is empty: %s", err)
+		return nil, fmt.Errorf("unable to get tags from aws and cache is empty: %s", err)
 	}
 
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
 	return tags, nil
+}
+
+// GetTags grabs the host tags from the EC2 api
+func GetTags() ([]string, error) {
+	tags, err := fetchTagsFromCache()
+	if err != nil {
+		log.Warn(err.Error())
+	}
+	return tags, err
 }
 
 type ec2Identity struct {

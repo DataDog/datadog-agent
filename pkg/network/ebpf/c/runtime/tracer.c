@@ -2,12 +2,14 @@
 
 #include "tracer-events.h"
 #include "tracer-maps.h"
+#include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "syscalls.h"
 #include "http.h"
 #include "ip.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
@@ -17,6 +19,7 @@
 #include <linux/version.h>
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <net/route.h>
 #include <net/tcp_states.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
@@ -28,30 +31,19 @@
 # error "kernel version not included?"
 #endif
 
-static __always_inline __u32 get_netns_from_sock(struct sock* skp) {
-    __u32 net_ns_inum = 0;
-#ifdef CONFIG_NET_NS
-    #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net);
-        if (!skc_net) {
-            return 0;
-        }
-        #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->proc_inum);
-        #else
-            bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-        #endif
-    #else
-        struct net *skc_net = NULL;
-        bpf_probe_read(&skc_net, sizeof(skc_net), &skp->sk_net.net);
-        if (!skc_net) {
-            return 0;
-        }
-        bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), &skc_net->ns.inum);
-    #endif
+static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
+    if (!rt) return 0;
+    __be32 hop = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+    bpf_probe_read(&hop, sizeof(hop), &rt->rt_gateway);
+#else
+    u8 family;
+    bpf_probe_read(&family, sizeof(family), &rt->rt_gw_family);
+    if (family == AF_INET) {
+        bpf_probe_read(&hop, sizeof(hop), &rt->rt_gw4);
+    }
 #endif
-    return net_ns_inum;
+    return hop;
 }
 
 static __always_inline __u16 read_sport(struct sock* skp) {
@@ -74,7 +66,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    t->netns = get_netns_from_sock(skp);
+    t->netns = get_netns(&skp->sk_net);
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &skp->sk_family);
 
@@ -92,15 +84,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 #ifdef FEATURE_IPV6_ENABLED
     else if (family == AF_INET6) {
         // TODO cleanup? having it split on 64 bits is not nice for kernel reads
-        __be32 v6src[4] = {};
-        __be32 v6dst[4] = {};
-        bpf_probe_read(&v6src, sizeof(v6src), skp->sk_v6_rcv_saddr.in6_u.u6_addr32);
-        bpf_probe_read(&v6dst, sizeof(v6dst), skp->sk_v6_daddr.in6_u.u6_addr32);
-
-        if (t->saddr_h == 0) bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), v6src);
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), v6src + 2);
-        if (t->daddr_h == 0) bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), v6dst);
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), v6dst + 2);
+        read_in6_addr(&t->saddr_h, &t->saddr_l, &skp->sk_v6_rcv_saddr);
+        read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
@@ -150,93 +135,6 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
-}
-
-static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir) {
-    conn_stats_ts_t* val;
-
-    // initialize-if-no-exist the connection stat, and load it
-    conn_stats_ts_t empty = {};
-    __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
-    val = bpf_map_lookup_elem(&conn_stats, t);
-
-    // If already in our map, increment size in-place
-    if (val != NULL) {
-        if (sent_bytes) {
-            __sync_fetch_and_add(&val->sent_bytes, sent_bytes);
-        }
-        if (recv_bytes) {
-            __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
-        }
-        val->timestamp = ts;
-
-        if (dir != CONN_DIRECTION_UNKNOWN) {
-            val->direction = dir;
-        } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
-            u8* state = NULL;
-            port_binding_t pb = {};
-            pb.port = t->sport;
-            if (t->metadata & CONN_TYPE_TCP) {
-                pb.net_ns = t->netns;
-                state = bpf_map_lookup_elem(&port_bindings, &pb);
-            } else {
-                state = bpf_map_lookup_elem(&udp_port_bindings, &pb);
-            }
-            val->direction = (state != NULL) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
-        }
-    }
-}
-
-static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
-    // query stats without the PID from the tuple
-    __u32 pid = t->pid;
-    t->pid = 0;
-
-    // initialize-if-no-exist the connetion state, and load it
-    tcp_stats_t empty = {};
-    bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
-
-    tcp_stats_t* val = bpf_map_lookup_elem(&tcp_stats, t);
-    t->pid = pid;
-    if (val == NULL) {
-        return;
-    }
-
-    if (stats.retransmits > 0) {
-        __sync_fetch_and_add(&val->retransmits, stats.retransmits);
-    }
-
-    if (stats.rtt > 0) {
-        // For more information on the bit shift operations see:
-        // https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-        val->rtt = stats.rtt >> 3;
-        val->rtt_var = stats.rtt_var >> 2;
-    }
-
-    if (stats.state_transitions > 0) {
-        val->state_transitions |= stats.state_transitions;
-    }
-}
-
-static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir) {
-    u64 ts = bpf_ktime_get_ns();
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir);
-    return 0;
-}
-
-static __always_inline int handle_retransmit(struct sock* sk, int segs) {
-    conn_tuple_t t = {};
-    u64 zero = 0;
-
-    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
-
-    return 0;
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
@@ -339,6 +237,7 @@ int kretprobe__tcp_close(struct pt_regs* ctx) {
     return 0;
 }
 
+#ifdef FEATURE_IPV6_ENABLED
 SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
@@ -348,8 +247,49 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
-        increment_telemetry_count(udp_send_missed);
-        return 0;
+// commit: https://github.com/torvalds/linux/commit/26879da58711aa604a1b866cbeedd7e0f78f90ad
+// changed the arguments to ip6_make_skb and introduced the struct ipcm6_cookie
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
+#else
+        struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
+#endif
+        read_in6_addr(&t.saddr_h, &t.saddr_l, &fl6->saddr);
+        read_in6_addr(&t.daddr_h, &t.daddr_l, &fl6->daddr);
+
+        if (!(t.saddr_h || t.saddr_l)) {
+            log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t.saddr_l, t.saddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+        if (!(t.daddr_h || t.daddr_l)) {
+            log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t.daddr_l, t.daddr_h);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+            t.metadata |= CONN_V4;
+            t.saddr_h = 0;
+            t.daddr_h = 0;
+            t.saddr_l = (u32)(t.saddr_l >> 32);
+            t.daddr_l = (u32)(t.daddr_l >> 32);
+        } else {
+            t.metadata |= CONN_V6;
+        }
+
+        bpf_probe_read(&t.sport, sizeof(t.sport), &fl6->fl6_sport);
+        bpf_probe_read(&t.dport, sizeof(t.dport), &fl6->fl6_dport);
+
+        if (t.sport == 0 || t.dport == 0) {
+            log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t.sport, t.dport);
+            increment_telemetry_count(udp_send_missed);
+            return 0;
+        }
+
+        t.sport = bpf_ntohs(t.sport);
+        t.dport = bpf_ntohs(t.dport);
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
@@ -358,6 +298,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
 
     return 0;
 }
+#endif
 
 // Note: This is used only in the UDP send path.
 SEC("kprobe/ip_make_skb")
@@ -531,7 +472,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING);
 
     port_binding_t pb = {};
-    pb.net_ns = t.netns;
+    pb.netns = t.netns;
     pb.port = t.sport;
     __u8 state = PORT_LISTENING;
     bpf_map_update_elem(&port_bindings, &pb, &state, BPF_NOEXIST);
@@ -554,15 +495,15 @@ int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
         return 0;
     }
 
-    port_binding_t t = { .net_ns = 0, .port = 0 };
-    t.net_ns = get_netns_from_sock(skp);
+    port_binding_t t = { .netns = 0, .port = 0 };
+    t.netns = get_netns(&skp->sk_net);
     t.port = lport;
     __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
     if (val != NULL) {
         bpf_map_delete_elem(&port_bindings, &t);
     }
 
-    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.net_ns, t.port);
+    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.netns, t.port);
     return 0;
 }
 
@@ -595,7 +536,7 @@ int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
     port_binding_t t = {};
-    t.net_ns = 0;
+    t.netns = 0;
     t.port = lport;
     bpf_map_delete_elem(&udp_port_bindings, &t);
 
@@ -694,7 +635,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u16 sin_port = args->port;
     __u8 port_state = PORT_LISTENING;
     port_binding_t t = {};
-    t.net_ns = 0; // don't have net ns info in this context
+    t.netns = 0; // don't have net ns info in this context
     t.port = sin_port;
     bpf_map_update_elem(&udp_port_bindings, &t, &port_state, BPF_ANY);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
@@ -763,6 +704,67 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     return 0;
 }
+
+SEC("kprobe/ip_route_output_flow")
+int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
+    struct net *net = (struct net*) PT_REGS_PARM1(ctx);
+    struct flowi4* fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    ip_route_flow_t flow = {};
+    flow.fl = fl4;
+    flow.netns = get_netns(&net);
+    bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
+    log_debug("kprobe/ip_route_output_flow: pid_tgid: %u\n", pid_tgid);
+
+    return 0;
+}
+
+SEC("kretprobe/ip_route_output_flow")
+int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // Retrieve socket pointer from kprobe via pid/tgid
+    ip_route_flow_t *flow = (ip_route_flow_t*) bpf_map_lookup_elem(&ip_route_output_flows, &pid_tgid);
+    if (!flow) {
+        return 0;
+    }
+
+    // Make sure we clean up that pointer reference
+    bpf_map_delete_elem(&ip_route_output_flows, &pid_tgid);
+
+    struct rtable *rt = (struct rtable*)PT_REGS_RC(ctx);
+    if (IS_ERR_OR_NULL(rt)) {
+        log_debug("kretprobe/ip_route_output_flow: route is not available pid_tgid=%d\n", pid_tgid);
+        return 0;
+    }
+
+    ip_route_dest_t dest = {};
+    dest.saddr_h = 0;
+    dest.daddr_h = 0;
+    bpf_probe_read(&dest.saddr_l, sizeof(__be32), &flow->fl->saddr);
+    bpf_probe_read(&dest.daddr_l, sizeof(__be32), &flow->fl->daddr);
+    if (!dest.daddr_l) {
+        log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
+        return 0;
+    }
+    dest.netns = flow->netns;
+    dest.family = CONN_V4;
+
+    ip_route_gateway_t gw = {};
+    gw.gw_h = 0;
+    gw.family = CONN_V4;
+    gw.gw_l = rt_nexthop_bpf(rt);
+    struct dst_entry dst = {};
+    bpf_probe_read(&dst, sizeof(struct dst_entry), &(rt->dst));
+    if (dst.dev) {
+        bpf_probe_read(&gw.ifindex, sizeof(__u32), &(dst.dev->ifindex));
+    }
+
+    bpf_map_update_elem(&ip_route_dest_gateways, &dest, &gw, BPF_ANY);
+    return 0;
+}
+
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

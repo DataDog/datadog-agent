@@ -82,14 +82,14 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 	var basenameApprovers []activeApprover
 	for field, values := range approvers {
 		switch field {
-		case prefix + ".basename":
+		case prefix + ".name":
 			activeApprovers, err := approveBasenames("basename_approvers", eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
 			basenameApprovers = append(basenameApprovers, activeApprovers...)
 
-		case prefix + ".filename":
+		case prefix + ".path":
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
 				activeApprover, err := approveBasename("basename_approvers", eventType, basename)
@@ -106,7 +106,7 @@ func onNewBasenameApprovers(probe *Probe, eventType model.EventType, field strin
 
 func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
 	return func(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
-		basenameApprovers, err := onNewBasenameApprovers(probe, event, "", approvers)
+		basenameApprovers, err := onNewBasenameApprovers(probe, event, "file", approvers)
 		if err != nil {
 			return nil, err
 		}
@@ -132,10 +132,10 @@ func onNewTwoBasenamesApproversWrapper(event model.EventType, field1, field2 str
 func init() {
 	allApproversHandlers["chmod"] = onNewBasenameApproversWrapper(model.FileChmodEventType)
 	allApproversHandlers["chown"] = onNewBasenameApproversWrapper(model.FileChownEventType)
-	allApproversHandlers["link"] = onNewTwoBasenamesApproversWrapper(model.FileLinkEventType, "source", "target")
+	allApproversHandlers["link"] = onNewTwoBasenamesApproversWrapper(model.FileLinkEventType, "file", "file.destination")
 	allApproversHandlers["mkdir"] = onNewBasenameApproversWrapper(model.FileMkdirEventType)
 	allApproversHandlers["open"] = openOnNewApprovers
-	allApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "old", "new")
+	allApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "file", "file.destination")
 	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
 	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
 	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimeEventType)

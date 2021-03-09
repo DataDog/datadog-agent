@@ -19,8 +19,16 @@ typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
+    __u32 flags;
     __u8  direction;
 } conn_stats_ts_t;
+
+// Connection flags
+typedef enum {
+    CONN_L_INIT  = 1 << 0, // initial/first message sent
+    CONN_R_INIT  = 1 << 1, // reply received for initial message from remote
+    CONN_ASSURED = 1 << 2  // "3-way handshake" complete, i.e. response to initial reply sent
+} conn_flags_t;
 
 // Metadata bit masks
 // 0 << x is only for readability
@@ -189,8 +197,29 @@ typedef struct {
 } bind_syscall_args_t;
 
 typedef struct {
-    __u32 net_ns;
+    __u32 netns;
     __u16 port;
 } port_binding_t;
+
+typedef struct {
+    __u32 netns;
+    struct flowi4 * fl;
+} ip_route_flow_t;
+
+typedef struct {
+    __u64 saddr_h;
+    __u64 saddr_l;
+    __u64 daddr_h;
+    __u64 daddr_l;
+    __u32 netns;
+    __u16 family;
+} ip_route_dest_t;
+
+typedef struct {
+    __u64 gw_h;
+    __u64 gw_l;
+    __u16 family;
+    __u32 ifindex;
+} ip_route_gateway_t;
 
 #endif

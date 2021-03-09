@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"regexp"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // truncatedFlag is the flag that is added at the beginning
@@ -111,6 +113,7 @@ type MultiLineHandler struct {
 	linesLen       int
 	status         string
 	timestamp      string
+	countInfo      *config.CountInfo
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
@@ -122,6 +125,7 @@ func NewMultiLineHandler(outputChan chan *Message, newContentRe *regexp.Regexp, 
 		buffer:       bytes.NewBuffer(nil),
 		flushTimeout: flushTimeout,
 		lineLimit:    lineLimit,
+		countInfo:    config.NewCountInfo("MultiLine matches"),
 	}
 }
 
@@ -186,6 +190,7 @@ func (h *MultiLineHandler) run() {
 func (h *MultiLineHandler) process(message *Message) {
 
 	if h.newContentRe.Match(message.Content) {
+		h.countInfo.Add(1)
 		// the current line is part of a new message,
 		// send the buffer
 		h.sendBuffer()
