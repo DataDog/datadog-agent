@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -20,7 +21,12 @@ func GetDDAgentClient(ctx context.Context) (pb.AgentClient, error) {
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 
 	opts := []grpc.DialOption{
-		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.DefaultConfig}),
+		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.Config{
+			BaseDelay:  1.0 * time.Second,
+			Multiplier: 1.1,
+			Jitter:     0.2,
+			MaxDelay:   2 * time.Second,
+		}}),
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)),
 	}

@@ -37,7 +37,7 @@ const (
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
-	grpcAgentTimeout = 2 * time.Second
+	grpcAgentTimeout = 60 * time.Second
 )
 
 // Name for check performed by process-agent or system-probe
