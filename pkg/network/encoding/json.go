@@ -16,24 +16,7 @@ type jsonSerializer struct {
 }
 
 func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	agentConns := make([]*model.Connection, len(conns.Conns))
-	domainSet := make(map[string]int)
-
-	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, domainSet)
-	}
-
-	domains := make([]string, len(domainSet))
-	for k, v := range domainSet {
-		domains[v] = k
-	}
-
-	payload := connsPool.Get().(*model.Connections)
-	payload.Conns = agentConns
-	payload.Domains = domains
-	payload.Dns = FormatDNS(conns.DNS)
-	payload.Telemetry = FormatTelemetry(conns.Telemetry)
-
+	payload := modelConnections(conns)
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
 	returnToPool(payload)

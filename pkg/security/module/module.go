@@ -156,7 +156,7 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), agentLogger.DatadogAgentLogger{}))
+	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, agentLogger.DatadogAgentLogger{}))
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {
@@ -324,13 +324,17 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	// custom limiters
+	limits := make(map[rules.RuleID]Limit)
+	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 5, Burst: 10}
+
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
 		statsdClient:   statsdClient,
 		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient),
+		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
 		sigupChan:      make(chan os.Signal, 1),
 		currentRuleSet: 1,
 		ctx:            ctx,

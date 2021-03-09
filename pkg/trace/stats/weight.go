@@ -46,12 +46,11 @@ const keySamplingRateGlobal = "_sample_rate"
 // inverse of the sampling rate.
 func Weight(s *pb.Span) float64 {
 	if s == nil {
-		return 1.0
+		return 1
 	}
 	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
 	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
-		return 1.0
+		return 1
 	}
-
 	return 1.0 / sampleRate
 }

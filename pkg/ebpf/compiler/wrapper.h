@@ -13,6 +13,8 @@ $ objdump -p bin/system-probe/system-probe
 $ nm bin/system-probe/system-probe | grep GLIBC_X.XX
 */
 
+#ifdef __GLIBC__
+
 #ifdef __x86_64__
 #define GLIBC_VERS "GLIBC_2.2.5"
 #elif defined(__aarch64__)
@@ -47,6 +49,34 @@ asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
 float __wrap_ ## func (float x) {                               \
   return __ ## func ## _prior_glibc(x);                         \
 }
+
+#else
+
+// Use functions directly for non-GLIBC environments.
+
+#define symver_wrap_d1(func)                                    \
+double func(double x);                                          \
+                                                                \
+double __wrap_ ## func (double x) {                             \
+  return func(x);                                               \
+}
+
+#define symver_wrap_d2(func)                                    \
+double func(double x, double y);                                \
+                                                                \
+double __wrap_ ## func (double x, double y) {                   \
+  return func(x, y);                                            \
+}
+
+#define symver_wrap_f1(func)                                    \
+float func(float x);                                            \
+                                                                \
+float __wrap_ ## func (float x) {                               \
+  return func(x);                                               \
+}
+
+#endif
+
 
 symver_wrap_d1(exp)
 symver_wrap_d1(log)

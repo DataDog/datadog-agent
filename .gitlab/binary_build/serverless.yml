@@ -14,7 +14,7 @@ build_serverless-deb_x64:
   before_script:
     - *retrieve_linux_go_deps
   script:
-    - cd cmd/serverless && go build -a -v -tags serverless
+    - cd cmd/serverless && go build -mod=mod -a -v -tags serverless
 
 build_serverless-deb_arm64:
   stage: binary_build
@@ -24,4 +24,4 @@ build_serverless-deb_arm64:
   before_script:
     - *retrieve_linux_go_deps
   script:
-    - cd cmd/serverless && go build -a -v -tags serverless
+    - cd cmd/serverless && go build -mod=mod -a -v -tags serverless

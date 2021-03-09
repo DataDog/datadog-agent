@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var senderInstance *checkSender
@@ -40,6 +40,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
+	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string)
 }
 
 type metricStats struct {
@@ -68,6 +69,7 @@ type checkSender struct {
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
+	orchestratorOut         chan<- senderOrchestratorMetadata
 	checkTags               []string
 	service                 string
 }
@@ -83,6 +85,12 @@ type senderHistogramBucket struct {
 	bucket *metrics.HistogramBucket
 }
 
+type senderOrchestratorMetadata struct {
+	msgs        []serializer.ProcessMessageBody
+	clusterID   string
+	payloadType string
+}
+
 type checkSenderPool struct {
 	senders map[check.ID]Sender
 	m       sync.Mutex
@@ -94,7 +102,7 @@ func init() {
 	}
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket) *checkSender {
+func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata) *checkSender {
 	return &checkSender{
 		id:                 id,
 		defaultHostname:    defaultHostname,
@@ -104,6 +112,7 @@ func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMet
 		metricStats:        metricStats{},
 		priormetricStats:   metricStats{},
 		histogramBucketOut: bucketOut,
+		orchestratorOut:    orchestratorOut,
 	}
 }
 
@@ -146,7 +155,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID                       // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
 	})
 
 	return senderInstance, nil
@@ -383,6 +392,16 @@ func (s *checkSender) Event(e metrics.Event) {
 	s.metricStats.Lock.Unlock()
 }
 
+// OrchestratorMetadata submit orchestrator metadata messages
+func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
+	om := senderOrchestratorMetadata{
+		msgs:        msgs,
+		clusterID:   clusterID,
+		payloadType: payloadType,
+	}
+	s.orchestratorOut <- om
+}
+
 // changeAllSendersDefaultHostname u
 func (sp *checkSenderPool) changeAllSendersDefaultHostname(hostname string) {
 	sp.m.Lock()
@@ -411,7 +430,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	defer sp.m.Unlock()
 
 	err := aggregatorInstance.registerSender(id)
-	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn)
+	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
 	sp.senders[id] = sender
 	return sender, err
 }

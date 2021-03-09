@@ -161,7 +161,7 @@ func (k *KubeASCheck) Run() error {
 	}
 	// API Server client initialisation on first run
 	if k.ac == nil {
-		// We start the API Server Client.
+		// Using GetAPIClient (no wait) as check we'll naturally retry with each check run
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
 			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck

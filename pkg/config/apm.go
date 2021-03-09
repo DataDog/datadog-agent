@@ -43,6 +43,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
+	config.SetKnown("apm_config.sync_flushing")
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
@@ -77,6 +78,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
+	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                   //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
 

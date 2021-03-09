@@ -307,6 +307,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -365,7 +367,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory. This should
+	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
+	// is 10s), otherwise we won't be able to sample unseen counter as
+	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
@@ -532,6 +540,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_include", []string{})
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_exclude", []string{})
+
+	// Cloud Foundry CC
+	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_id", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
+	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 60)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
 
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
@@ -675,6 +692,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
+	config.BindEnvAndSetDefault("clc_runner_id", "")
 	config.BindEnvAndSetDefault("clc_runner_host", "") // must be set using the Kubernetes downward API
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
@@ -794,6 +812,7 @@ func InitConfig(config Config) {
 	config.SetKnown("network_config.enabled")
 	config.SetKnown("network_config.enable_http_monitoring")
 	config.SetKnown("network_config.ignore_conntrack_init_failure")
+	config.SetKnown("network_config.enable_gateway_lookup")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -832,6 +851,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1267,11 +1287,6 @@ func setNumWorkers(config Config) {
 	if wTracemalloc {
 		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
 		numWorkers = 1
-	}
-
-	if numWorkers > MaxNumWorkers {
-		numWorkers = MaxNumWorkers
-		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, MaxNumWorkers)
 	}
 
 	// update config with the actual effective number of workers

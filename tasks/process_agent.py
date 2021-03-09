@@ -133,6 +133,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run("cp bin/system-probe/system-probe {to}".format(to=docker_context + "/system-probe"))
         ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
         ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
+        ctx.run("cp pkg/ebpf/bytecode/build/runtime/*.c {to}".format(to=docker_context))
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image

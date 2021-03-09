@@ -11,3 +11,7 @@ package ec2
 func GetTags() ([]string, error) {
 	return []string{}, nil
 }
+
+func fetchTagsFromCache() ([]string, error) {
+	return []string{}, nil
+}

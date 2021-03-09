@@ -45,3 +45,33 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 
 	return jSerializer
 }
+
+func modelConnections(conns *network.Connections) *model.Connections {
+	agentConns := make([]*model.Connection, len(conns.Conns))
+	domainSet := make(map[string]int)
+	routeIndex := make(map[string]RouteIdx)
+
+	for i, conn := range conns.Conns {
+		agentConns[i] = FormatConnection(conn, domainSet, routeIndex)
+	}
+
+	domains := make([]string, len(domainSet))
+	for k, v := range domainSet {
+		domains[v] = k
+	}
+
+	routes := make([]*model.Route, len(routeIndex))
+	for _, v := range routeIndex {
+		routes[v.Idx] = &v.Route
+	}
+
+	payload := connsPool.Get().(*model.Connections)
+	payload.Conns = agentConns
+	payload.Domains = domains
+	payload.Dns = FormatDNS(conns.DNS)
+	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
+	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
+	payload.Routes = routes
+
+	return payload
+}

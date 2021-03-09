@@ -8,6 +8,7 @@
 package secret
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -176,7 +177,7 @@ func (f *fixture) run(t *testing.T) *Controller {
 
 func (f *fixture) populateCache(secrets ...*corev1.Secret) {
 	for _, s := range secrets {
-		_, _ = f.client.CoreV1().Secrets(s.Namespace).Create(s)
+		_, _ = f.client.CoreV1().Secrets(s.Namespace).Create(context.TODO(), s, metav1.CreateOptions{})
 	}
 }
 

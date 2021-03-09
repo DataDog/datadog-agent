@@ -8,6 +8,7 @@
 package mutate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -190,7 +191,7 @@ func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*unstru
 
 	log.Tracef("Cache miss while getting owner '%s'", infoID)
 	metrics.GetOwnerCacheMiss.Inc(info.gvr.Resource)
-	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(info.name, metav1.GetOptions{})
+	ownerObj, err := dc.Resource(info.gvr).Namespace(ns).Get(context.TODO(), info.name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
