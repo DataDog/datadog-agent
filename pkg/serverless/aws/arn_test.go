@@ -96,43 +96,35 @@ func (m mockedSTSAPI) GetCallerIdentity(in *sts.GetCallerIdentityInput) (*sts.Ge
 
 func TestFetchFunctionARNFromEnv(t *testing.T) {
 	t.Cleanup(resetState)
-
-	svc := mockedSTSAPI{
-		Resp: sts.GetCallerIdentityOutput{
-			Account: aws.String("123456789012"),
-			Arn:     aws.String(""),
-			UserId:  aws.String(""),
-		},
-	}
 	os.Setenv(regionEnvVar, "us-east-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
-	arn, err := FetchFunctionARNFromEnv(svc)
+	arn, err := FetchFunctionARNFromEnv("123456789012")
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-Function:7", arn)
 	assert.Nil(t, err)
 }
 
 func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
 	t.Cleanup(resetState)
-
-	svc := mockedSTSAPI{
-		Resp: sts.GetCallerIdentityOutput{
-			Account: aws.String("123456789012"),
-			Arn:     aws.String(""),
-			UserId:  aws.String(""),
-		},
-	}
 	os.Setenv(regionEnvVar, "us-gov-west-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
-	arn, err := FetchFunctionARNFromEnv(svc)
+	arn, err := FetchFunctionARNFromEnv("123456789012")
 	assert.Equal(t, "arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:my-Function:7", arn)
 	assert.Nil(t, err)
 }
 
 func TestFetchFunctionARNFromEnvChina(t *testing.T) {
 	t.Cleanup(resetState)
+	os.Setenv(regionEnvVar, "cn-east-1")
+	os.Setenv(functionNameEnvVar, "my-Function")
+	os.Setenv(qualifierEnvVar, "7")
+	arn, err := FetchFunctionARNFromEnv("123456789012")
+	assert.Equal(t, "arn:aws-cn:lambda:cn-east-1:123456789012:function:my-Function:7", arn)
+	assert.Nil(t, err)
+}
 
+func TestFetchAccountID(t *testing.T) {
 	svc := mockedSTSAPI{
 		Resp: sts.GetCallerIdentityOutput{
 			Account: aws.String("123456789012"),
@@ -140,11 +132,8 @@ func TestFetchFunctionARNFromEnvChina(t *testing.T) {
 			UserId:  aws.String(""),
 		},
 	}
-	os.Setenv(regionEnvVar, "cn-east-1")
-	os.Setenv(functionNameEnvVar, "my-Function")
-	os.Setenv(qualifierEnvVar, "7")
-	arn, err := FetchFunctionARNFromEnv(svc)
-	assert.Equal(t, "arn:aws-cn:lambda:cn-east-1:123456789012:function:my-Function:7", arn)
+	result, err := FetchAccountID(svc)
+	assert.Equal(t, "123456789012", result)
 	assert.Nil(t, err)
 }
 

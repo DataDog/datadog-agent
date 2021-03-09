@@ -232,7 +232,8 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// read configuration from the environment vars
 	// --------------------------------------------
 	svc := sts.New(session.New())
-	functionARN, err := aws.FetchFunctionARNFromEnv(svc)
+	accountID, _ := aws.FetchAccountID(svc)
+	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
 	if err != nil {
 		aws.SetARN(functionARN)
 	}

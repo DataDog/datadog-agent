@@ -164,14 +164,13 @@ func RestoreCurrentStateFromFile() error {
 
 // FetchFunctionARNFromEnv reconstructs the function arn from what's available
 // in the environment.
-func FetchFunctionARNFromEnv(svc stsiface.STSAPI) (string, error) {
+func FetchFunctionARNFromEnv(accountID string) (string, error) {
 	partition := "aws"
 	region := os.Getenv(regionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
 	qualifier := os.Getenv(qualifierEnvVar)
-	accountID, accountErr := fetchAccountID(svc)
 
-	if accountErr != nil || len(region) == 0 || len(functionName) == 0 {
+	if len(accountID) == 0 || len(region) == 0 || len(functionName) == 0 {
 		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s")
 	}
 
@@ -225,7 +224,7 @@ func GetARNTags() []string {
 }
 
 // FetchAccountID retrieves the AWS Lambda's account id by calling STS
-func fetchAccountID(svc stsiface.STSAPI) (string, error) {
+func FetchAccountID(svc stsiface.STSAPI) (string, error) {
 	// sts.GetCallerIdentity returns information about the current AWS credentials,
 	// (including account ID), and is one of the only AWS API methods that can't be
 	// denied via IAM.
