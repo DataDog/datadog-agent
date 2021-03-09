@@ -102,7 +102,9 @@ def build(
     """
 
     if not exclude_rtloader and not iot:
-        rtloader_make(ctx, python_runtimes=python_runtimes)
+        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
+        # in the embedded path folder because that's what is used in get_build_flags()
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(

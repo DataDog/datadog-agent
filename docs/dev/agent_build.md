@@ -51,4 +51,23 @@ We use `pkg-config` to make compilers and linkers aware of Python. If you need
 to adjust the build for your specific configuration, add or edit the files within
 the `pkg-config` folder.
 
+## Testing Agent changes in containerized environments
+
+Building an Agent Docker image from strach through an embedded build is a slow process.
+Sometimes, you may want to quickly test a change or bufix in a containerized environment (Docker, Kubernetes, ECS, etc.).
+
+One way to do it is to patch the Agent binary from official Docker image, with a simple Dockerfile:
+
+```
+FROM datadog/agent:<AGENT_VERSION>
+
+COPY agent /opt/datadog-agent/bin/agent/agent
+```
+
+However, for this to work properly, two things are important:
+- Your change needs to be done on top of `<AGENT_VERSION>` tag from our repository.
+- You need to run invoke task with proper embedded path `inv -e agent.build -e /opt/datadog-agent/embedded`.
+
+Note that this will make `invoke` to install the builds artifacts in `/opt/datadog-agent/embedded` folder. Make sure folder exists and current user has write permissions.
+
 [dev-env]: agent_dev_env.md
