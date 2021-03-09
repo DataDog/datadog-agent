@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -52,7 +53,7 @@ func (d *DockerConfigProvider) String() string {
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
-func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
+func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	var err error
 	firstCollection := false
 
@@ -70,7 +71,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	// on the first run we collect all labels, then rely on individual events to
 	// avoid listing all containers too often
 	if d.labelCache == nil || d.syncCounter == d.syncInterval {
-		containers, err = d.dockerUtil.AllContainerLabels()
+		containers, err = d.dockerUtil.AllContainerLabels(ctx)
 		if err != nil {
 			d.Unlock()
 			return []integration.Config{}, err
@@ -162,7 +163,7 @@ CONNECT:
 
 // IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
 // If listening fails, we fallback to Collecting everytime.
-func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
+func (d *DockerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
 	return (d.streaming && d.upToDate), nil

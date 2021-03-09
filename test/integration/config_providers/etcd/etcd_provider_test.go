@@ -140,6 +140,7 @@ func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
 }
 
 func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
+	ctx := context.Background()
 	config := config.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
 		TemplateDir: "/foo",
@@ -149,7 +150,7 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 		panic(err)
 	}
 
-	checks, err := p.Collect()
+	checks, err := p.Collect(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -160,6 +161,7 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 }
 
 func (suite *EtcdTestSuite) TestBadConnection() {
+	ctx := context.Background()
 	config := config.ConfigurationProviders{
 		TemplateURL: "http://127.0.0.1:1337",
 		TemplateDir: "/foo",
@@ -167,12 +169,13 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect()
+	checks, err := p.Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }
 
 func (suite *EtcdTestSuite) TestWorkingAuth() {
+	ctx := context.Background()
 	suite.toggleEtcdAuth(true)
 	config := config.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
@@ -183,12 +186,13 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect()
+	checks, err := p.Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 2, len(checks))
 }
 
 func (suite *EtcdTestSuite) TestBadAuth() {
+	ctx := context.Background()
 	suite.toggleEtcdAuth(true)
 	config := config.ConfigurationProviders{
 		TemplateURL: suite.etcdURL,
@@ -199,7 +203,7 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect()
+	checks, err := p.Collect(ctx)
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
 }

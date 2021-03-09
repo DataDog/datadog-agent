@@ -6,6 +6,7 @@
 package zookeeper
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -132,10 +133,11 @@ func (suite *ZkTestSuite) populate() error {
 }
 
 func (suite *ZkTestSuite) TestCollect() {
+	ctx := context.Background()
 	zk, err := providers.NewZookeeperConfigProvider(suite.providerConfig)
 	require.Nil(suite.T(), err)
 
-	templates, err := zk.Collect()
+	templates, err := zk.Collect(ctx)
 
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), templates, 3)

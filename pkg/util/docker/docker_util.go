@@ -266,8 +266,8 @@ func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
 
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
 // a map mapping containerID to container labels as a map[string]string
-func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {

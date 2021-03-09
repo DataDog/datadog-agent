@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -59,7 +60,7 @@ func IsFargateInstance() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTask()
+		_, err = client.GetTask(context.TODO())
 		if err != nil {
 			log.Debug(err)
 			return newBoolEntry(false)
@@ -86,7 +87,7 @@ func HasEC2ResourceTags() bool {
 			log.Debugf("failed to detect V3 metadata endpoint: %s", err)
 			return false, hasEC2ResourceTagsCacheExpiry
 		}
-		_, err = client.GetTaskWithTags()
+		_, err = client.GetTaskWithTags(context.TODO())
 		if err != nil {
 			log.Debugf("failed to get task with tags: %s", err)
 		}
@@ -104,7 +105,7 @@ func HasFargateResourceTags() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTaskWithTags()
+		_, err = client.GetTaskWithTags(context.TODO())
 		return newBoolEntry(err == nil)
 	})
 }

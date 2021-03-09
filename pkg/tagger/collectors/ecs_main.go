@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -61,7 +62,7 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		return NoCollection, err
 	}
 
-	instance, err := c.metaV1.GetInstance()
+	instance, err := c.metaV1.GetInstance(context.TODO())
 	if err != nil {
 		log.Warnf("Cannot determine ECS cluster name: %s", err)
 	}
@@ -78,7 +79,7 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 		return nil, nil, nil, nil
 	}
 
-	tasks, err := c.metaV1.GetTasks()
+	tasks, err := c.metaV1.GetTasks(context.TODO())
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
@@ -128,7 +129,7 @@ func fetchContainerTaskWithTagsV3(containerID string) (*v3.Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize client for metadata v3 API: %s", err)
 	}
-	task, err := metaV3.GetTaskWithTags()
+	task, err := metaV3.GetTaskWithTags(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task with tags from metadata v3 API: %s", err)
 	}

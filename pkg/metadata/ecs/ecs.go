@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"context"
 	"fmt"
 
 	payload "github.com/DataDog/agent-payload/gogen"
@@ -30,7 +31,7 @@ func GetPayload() (metadata.Payload, error) {
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := metaV1.GetTasks()
+	tasks, err := metaV1.GetTasks(context.TODO())
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@
 package fargate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -44,7 +45,7 @@ func getECSHost() (string, error) {
 	}
 
 	// Use the task ARN as hostname
-	taskMeta, err := client.GetTask()
+	taskMeta, err := client.GetTask(context.TODO())
 	if err != nil {
 		return "", err
 	}

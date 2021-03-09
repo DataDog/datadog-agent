@@ -8,6 +8,7 @@
 package v2
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 )
 
 func TestGetTask(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v2/metadata", "./testdata/task.json"),
@@ -103,7 +105,7 @@ func TestGetTask(t *testing.T) {
 		AvailabilityZone: "us-east-2b",
 	}
 
-	metadata, err := NewClient(ts.URL).GetTask()
+	metadata, err := NewClient(ts.URL).GetTask(ctx)
 	assert.Nil(err)
 	assert.Equal(expected, metadata)
 
@@ -117,6 +119,7 @@ func TestGetTask(t *testing.T) {
 }
 
 func TestGetTaskWithTags(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v2/metadata", "./testdata/task_with_tags.json"),
@@ -209,7 +212,7 @@ func TestGetTaskWithTags(t *testing.T) {
 		},
 	}
 
-	metadata, err := NewClient(ts.URL).GetTask()
+	metadata, err := NewClient(ts.URL).GetTask(ctx)
 	assert.Nil(err)
 	assert.Equal(expected, metadata)
 
@@ -223,6 +226,7 @@ func TestGetTaskWithTags(t *testing.T) {
 }
 
 func TestGetContainerStats(t *testing.T) {
+	ctx := context.Background()
 	assert := assert.New(t)
 
 	containerID := "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d98"
@@ -327,12 +331,12 @@ func TestGetContainerStats(t *testing.T) {
 		Network: NetStats{},
 	}
 
-	metadata, err := NewClient(ts.URL).GetContainerStats(containerID)
+	metadata, err := NewClient(ts.URL).GetContainerStats(ctx, containerID)
 	assert.Nil(err)
 	assert.Equal(expected, metadata)
 
 	// Container without stats
-	metadata, err = NewClient(ts.URL).GetContainerStats("470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42")
+	metadata, err = NewClient(ts.URL).GetContainerStats(ctx, "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42")
 	assert.NotNil(err)
 	assert.Nil(metadata)
 

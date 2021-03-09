@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -21,26 +22,26 @@ const (
 )
 
 // GetEndpointsCheckConfigs is called by the endpointscheck config provider
-func (c *DCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (c *DCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
 	// Retry on the main URL if the leader fails
 	willRetry := c.leaderClient.hasLeader()
 
-	result, err := c.doGetEndpointsCheckConfigs(nodeName)
+	result, err := c.doGetEndpointsCheckConfigs(ctx, nodeName)
 	if err != nil && willRetry {
 		log.Debugf("Got error on leader, retrying via the service: %s", err)
 		c.leaderClient.resetURL()
-		return c.doGetEndpointsCheckConfigs(nodeName)
+		return c.doGetEndpointsCheckConfigs(ctx, nodeName)
 	}
 	return result, err
 }
 
-func (c *DCAClient) doGetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (c *DCAClient) doGetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
 	var configs types.ConfigResponse
 	var err error
 
 	// https://host:port/api/v1/endpointschecks/configs/{nodeName}
 	rawURL := c.leaderClient.buildURL(dcaEndpointsChecksConfigsPath, nodeName)
-	req, err := http.NewRequest("GET", rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return configs, err
 	}

@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -151,7 +152,7 @@ func GetAgentContainerNetworkMode() (string, error) {
 // GetContainerNetworkAddresses returns internal container network address
 // representations from the container metadata retrieved at the given URL.
 func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
-	container, err := v3.NewClient(agentURL).GetContainer()
+	container, err := v3.NewClient(agentURL).GetContainer(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task from metadata v3 API: %s", err)
 	}

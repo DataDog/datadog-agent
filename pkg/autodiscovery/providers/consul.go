@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/url"
@@ -104,12 +105,12 @@ func (p *ConsulConfigProvider) String() string {
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them
-func (p *ConsulConfigProvider) Collect() ([]integration.Config, error) {
+func (p *ConsulConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs := make([]integration.Config, 0)
-	identifiers := p.getIdentifiers(p.TemplateDir)
+	identifiers := p.getIdentifiers(ctx, p.TemplateDir)
 	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
-		templates := p.getTemplates(id)
+		templates := p.getTemplates(ctx, id)
 
 		for idx := range templates {
 			templates[idx].Source = "consul:" + id
@@ -121,12 +122,14 @@ func (p *ConsulConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Consul's data.
-func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
+func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	kv := p.Client.KV()
 	adListUpdated := false
 	dateIdx := p.cache.LatestTemplateIdx
 
-	identifiers, _, err := kv.List(p.TemplateDir, nil)
+	queryOptions := &consul.QueryOptions{}
+	queryOptions = queryOptions.WithContext(ctx)
+	identifiers, _, err := kv.List(p.TemplateDir, queryOptions)
 	if err != nil {
 		return false, err
 	}
@@ -154,12 +157,14 @@ func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
 // getIdentifiers gets folders at the root of the TemplateDir
 // verifies they have the right content to be a valid template
 // and return their names.
-func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
+func (p *ConsulConfigProvider) getIdentifiers(ctx context.Context, prefix string) []string {
 	kv := p.Client.KV()
+	queryOptions := &consul.QueryOptions{}
+	queryOptions = queryOptions.WithContext(ctx)
 
 	identifiers := make([]string, 0)
 	// TODO: decide on the query parameters.
-	keys, _, err := kv.Keys(prefix, "", nil)
+	keys, _, err := kv.Keys(prefix, "", queryOptions)
 	if err != nil {
 		log.Error("Can't get templates keys from consul: ", err)
 		return identifiers
@@ -202,26 +207,26 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (p *ConsulConfigProvider) getTemplates(key string) []integration.Config {
+func (p *ConsulConfigProvider) getTemplates(ctx context.Context, key string) []integration.Config {
 	templates := make([]integration.Config, 0)
 
 	checkNameKey := buildStoreKey(key, checkNamePath)
 	initKey := buildStoreKey(key, initConfigPath)
 	instanceKey := buildStoreKey(key, instancePath)
 
-	checkNames, err := p.getCheckNames(checkNameKey)
+	checkNames, err := p.getCheckNames(ctx, checkNameKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return templates
 	}
 
-	initConfigs, err := p.getJSONValue(initKey)
+	initConfigs, err := p.getJSONValue(ctx, initKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
 		return templates
 	}
 
-	instances, err := p.getJSONValue(instanceKey)
+	instances, err := p.getJSONValue(ctx, instanceKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
@@ -230,9 +235,11 @@ func (p *ConsulConfigProvider) getTemplates(key string) []integration.Config {
 }
 
 // getValue returns value, error
-func (p *ConsulConfigProvider) getValue(key string) ([]byte, error) {
+func (p *ConsulConfigProvider) getValue(ctx context.Context, key string) ([]byte, error) {
 	kv := p.Client.KV()
-	pair, _, err := kv.Get(key, nil)
+	queryOptions := &consul.QueryOptions{}
+	queryOptions = queryOptions.WithContext(ctx)
+	pair, _, err := kv.Get(key, queryOptions)
 	if err != nil || pair == nil {
 		return nil, err
 	}
@@ -240,8 +247,8 @@ func (p *ConsulConfigProvider) getValue(key string) ([]byte, error) {
 	return pair.Value, err
 }
 
-func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
-	raw, err := p.getValue(key)
+func (p *ConsulConfigProvider) getCheckNames(ctx context.Context, key string) ([]string, error) {
+	raw, err := p.getValue(ctx, key)
 	if err != nil {
 		err := fmt.Errorf("couldn't get check names from consul: %s", err)
 		return nil, err
@@ -257,8 +264,8 @@ func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
-	rawValue, err := p.getValue(key)
+func (p *ConsulConfigProvider) getJSONValue(ctx context.Context, key string) ([][]integration.Data, error) {
+	rawValue, err := p.getValue(ctx, key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)
 		return nil, err

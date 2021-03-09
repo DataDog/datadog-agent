@@ -45,7 +45,7 @@ func (k *KubeletConfigProvider) String() string {
 
 // Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
+func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	var err error
 	if k.kubelet == nil {
 		k.kubelet, err = kubelet.GetKubeUtil()
@@ -54,7 +54,7 @@ func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := k.kubelet.GetLocalPodList(context.TODO())
+	pods, err := k.kubelet.GetLocalPodList(ctx)
 	if err != nil {
 		return []integration.Config{}, err
 	}
@@ -63,7 +63,7 @@ func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
-func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
+func (k *KubeletConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 

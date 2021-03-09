@@ -51,19 +51,19 @@ func (c *EndpointsChecksConfigProvider) String() string {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
-func (c *EndpointsChecksConfigProvider) IsUpToDate() (bool, error) {
+func (c *EndpointsChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
 // Collect retrieves endpoints checks configurations the cluster-agent dispatched to this agent
-func (c *EndpointsChecksConfigProvider) Collect() ([]integration.Config, error) {
+func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
 			return nil, err
 		}
 	}
-	reply, err := c.dcaClient.GetEndpointsCheckConfigs(c.nodeName)
+	reply, err := c.dcaClient.GetEndpointsCheckConfigs(ctx, c.nodeName)
 	if err != nil {
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once

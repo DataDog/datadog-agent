@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"context"
 	"net"
 	"time"
 
@@ -38,7 +39,7 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 		return cList, err
 	}
 
-	task, err := client.GetTask()
+	task, err := client.GetTask(context.TODO())
 	if err != nil || len(task.Containers) == 0 {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
@@ -70,7 +71,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 			return err
 		}
 
-		stats, err := client.GetContainerStats(ctr.ID)
+		stats, err := client.GetContainerStats(context.TODO(), ctr.ID)
 		if err != nil {
 			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue

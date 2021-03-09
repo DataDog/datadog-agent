@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -87,15 +88,19 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
-		l.refreshServices(true)
+		ctx, cancel := context.WithCancel(context.Background())
+		l.refreshServices(ctx, true)
 		for {
 			select {
 			case <-l.stop:
 				l.health.Deregister() //nolint:errcheck
+				cancel()
 				return
-			case <-l.health.C:
+			case nextPing := <-l.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), nextPing)
 			case <-l.t.C:
-				l.refreshServices(false)
+				l.refreshServices(ctx, false)
 			}
 		}
 	}()
@@ -109,8 +114,8 @@ func (l *ECSListener) Stop() {
 // refreshServices queries the task metadata endpoint for fresh info
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
-func (l *ECSListener) refreshServices(firstRun bool) {
-	meta, err := l.client.GetTask()
+func (l *ECSListener) refreshServices(ctx context.Context, firstRun bool) {
+	meta, err := l.client.GetTask(ctx)
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return

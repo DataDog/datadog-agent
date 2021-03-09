@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -66,7 +67,7 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // Collect scans provided paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into a CheckConfig
 // instance
-func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
+func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
 	defaultConfigs := []integration.Config{}
@@ -133,7 +134,7 @@ func (c *FileConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate is not implemented for the file Providers as the files are not meant to change very often.
-func (c *FileConfigProvider) IsUpToDate() (bool, error) {
+func (c *FileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 

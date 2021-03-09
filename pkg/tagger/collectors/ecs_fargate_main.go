@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -65,7 +66,7 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 // Pull looks for new containers and computes deletions
 func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := c.client.GetTask()
+	taskMeta, err := c.client.GetTask(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -97,7 +98,7 @@ func (c *ECSFargateCollector) Pull() error {
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
 func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := c.client.GetTask()
+	taskMeta, err := c.client.GetTask(context.TODO())
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

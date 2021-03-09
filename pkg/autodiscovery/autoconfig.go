@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"sync"
@@ -213,7 +214,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
 
 	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect()
+		cfgs, err := pd.provider.Collect(context.TODO())
 		if err != nil {
 			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
 		}

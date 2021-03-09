@@ -7,6 +7,7 @@ package autodiscovery
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -29,7 +30,7 @@ type MockProvider struct {
 	collectCounter int
 }
 
-func (p *MockProvider) Collect() ([]integration.Config, error) {
+func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
 }
@@ -38,7 +39,7 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
-func (p *MockProvider) IsUpToDate() (bool, error) {
+func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
