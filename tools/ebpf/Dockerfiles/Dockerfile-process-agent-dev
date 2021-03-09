@@ -1,5 +1,6 @@
 ARG AGENT_BASE=datadog/agent:latest
 FROM $AGENT_BASE
+ARG CORE_AGENT_DEST
 
 # include some useful dev tools since this will be used or development
 RUN apt-get update -y && apt-get install -y jq conntrack netcat dnsutils iproute2 net-tools
@@ -13,13 +14,9 @@ ENV LD_LIBRARY_PATH /opt/datadog-agent/embedded/lib
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
 COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
 
-# If the core agent binary is present in this temporary build directory, use it to replace
-# the base image's core agent binary
-# If it's not present, we'll just copy tmp_file to /tmp_agent_dir and then delete /tmp_agent_dir.
-# This is necessary because the COPY command must copy at least 1 file or the build with fail
-COPY *agent *tmp_file /tmp_agent_dir/
-RUN cp /tmp_agent_dir/agent /opt/datadog-agent/bin/agent/agent 2>/dev/null || true
-RUN rm -rf /tmp_agent_dir
+# if you want to replace the base image's core agent binary, set $CORE_AGENT_DEST to 
+# /opt/datadog-agent/bin/agent/agent; otherwise, set it to /dev/null
+COPY agent $CORE_AGENT_DEST
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/

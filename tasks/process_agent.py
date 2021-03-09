@@ -133,10 +133,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run("cp bin/system-probe/system-probe {to}".format(to=docker_context + "/system-probe"))
         if include_agent_binary:
             ctx.run("cp bin/agent/agent {to}".format(to=docker_context + "/agent"))
+            core_agent_dest="/opt/datadog-agent/bin/agent/agent"
         else:
-            # this is necessary so that the docker build doesn't fail while attempting to copy bin/agent/agent
-            # see Dockerfile-process-agent-dev for more details
-            ctx.run("touch {tmp_dir}/tmp_file".format(tmp_dir=docker_context))
+            # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
+            ctx.run("touch {tmp_dir}/agent".format(tmp_dir=docker_context))
+            core_agent_dest="/dev/null"
 
         ctx.run("cp pkg/ebpf/bytecode/build/*.o {to}".format(to=docker_context))
         ctx.run("cp pkg/ebpf/bytecode/build/runtime/*.c {to}".format(to=docker_context))
@@ -144,8 +145,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
             ctx.run(
-                "docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} .".format(
-                    image=image, base_image=base_image
+                "docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} --build-arg CORE_AGENT_DEST={core_agent_dest} .".format(
+                    image=image, base_image=base_image, core_agent_dest=core_agent_dest
                 )
             )
 
