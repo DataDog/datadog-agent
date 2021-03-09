@@ -169,7 +169,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
