@@ -54,20 +54,6 @@ const (
 	TCPQueueLengthCheckName = "TCP queue length"
 )
 
-// Name for check performed by process-agent or system-probe
-const (
-	ProcessCheckName     = "process"
-	RTProcessCheckName   = "rtprocess"
-	ContainerCheckName   = "container"
-	RTContainerCheckName = "rtcontainer"
-	ConnectionsCheckName = "connections"
-	PodCheckName         = "pod"
-
-	NetworkCheckName        = "Network"
-	OOMKillCheckName        = "OOM Kill"
-	TCPQueueLengthCheckName = "TCP queue length"
-)
-
 var (
 	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
 	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
