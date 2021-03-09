@@ -168,7 +168,7 @@ func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
 }
 
 func (m *Monitor) GetStats() map[string]interface{} {
-	currentTime, telemetryData := m.telemetry.getStats()
+	currentTime, telemetryData := m.telemetry.get()
 	return map[string]interface{}{
 		"current_time": currentTime,
 		"telemetry":    telemetryData,

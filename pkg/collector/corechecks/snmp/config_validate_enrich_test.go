@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,17 +10,21 @@ import (
 
 func Test_validateEnrichMetrics(t *testing.T) {
 	tests := []struct {
-		name    string
-		metrics []metricsConfig
-		errors  []string
+		name            string
+		metrics         []metricsConfig
+		expectedErrors  []string
+		expectedMetrics []metricsConfig
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
 			metrics: []metricsConfig{
 				{},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
+			},
+			expectedMetrics: []metricsConfig{
+				{},
 			},
 		},
 		{
@@ -41,7 +46,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"table symbol and scalar symbol cannot be both provided",
 			},
 		},
@@ -65,7 +70,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
 				"table symbol and scalar symbol cannot be both provided",
 			},
@@ -79,7 +84,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
 			},
 		},
@@ -100,7 +105,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"symbol name missing: name=`` oid=`1.2`",
 				"symbol oid missing: name=`abc` oid=``",
 			},
@@ -129,7 +134,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"symbol name missing: name=`` oid=`1.2.3`",
 				"symbol oid missing: name=`abc` oid=``",
 			},
@@ -147,8 +152,8 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					MetricTags: metricTagConfigList{},
 				},
 			},
-			errors: []string{
-				"column symbols [{1.2 abc}] doesn't have a 'metric_tags' section",
+			expectedErrors: []string{
+				"column symbols [{1.2 abc  <nil>}] doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -175,7 +180,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"symbol name missing: name=`` oid=`1.2.3`",
 				"symbol oid missing: name=`abc` oid=``",
 			},
@@ -201,7 +206,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"`tags` mapping must be provided if `match` (`([a-z])`) is defined",
 			},
 		},
@@ -229,7 +234,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"cannot compile `match` (`([a-z)`)",
 			},
 		},
@@ -260,17 +265,98 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			errors: []string{
+			expectedErrors: []string{
 				"transform rule end should be greater than start. Invalid rule",
+			},
+		},
+		{
+			name: "compiling extract_value",
+			metrics: []metricsConfig{
+				{
+					Symbol: symbolConfig{
+						OID:          "1.2.3",
+						Name:         "myMetric",
+						ExtractValue: `(\d+)C`,
+					},
+				},
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:          "1.2",
+							Name:         "hey",
+							ExtractValue: `(\d+)C`,
+						},
+					},
+					MetricTags: metricTagConfigList{
+						metricTagConfig{
+							Column: symbolConfig{
+								OID:          "1.2.3",
+								Name:         "abc",
+								ExtractValue: `(\d+)C`,
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedMetrics: []metricsConfig{
+				{
+					Symbol: symbolConfig{
+						OID:                 "1.2.3",
+						Name:                "myMetric",
+						ExtractValue:        `(\d+)C`,
+						extractValuePattern: regexp.MustCompile(`(\d+)C`),
+					},
+				},
+				{
+					Symbols: []symbolConfig{
+						{
+							OID:                 "1.2",
+							Name:                "hey",
+							ExtractValue:        `(\d+)C`,
+							extractValuePattern: regexp.MustCompile(`(\d+)C`),
+						},
+					},
+					MetricTags: metricTagConfigList{
+						metricTagConfig{
+							Column: symbolConfig{
+								OID:                 "1.2.3",
+								Name:                "abc",
+								ExtractValue:        `(\d+)C`,
+								extractValuePattern: regexp.MustCompile(`(\d+)C`),
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "error compiling extract_value",
+			metrics: []metricsConfig{
+				{
+					Symbol: symbolConfig{
+						OID:          "1.2.3",
+						Name:         "myMetric",
+						ExtractValue: "[{",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"cannot compile `extract_value`",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			errors := validateEnrichMetrics(tt.metrics)
-			assert.Equal(t, len(tt.errors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
+			assert.Equal(t, len(tt.expectedErrors), len(errors), fmt.Sprintf("ERRORS: %v", errors))
 			for i := range errors {
-				assert.Contains(t, errors[i], tt.errors[i])
+				assert.Contains(t, errors[i], tt.expectedErrors[i])
+			}
+			if tt.expectedMetrics != nil {
+				assert.Equal(t, tt.expectedMetrics, tt.metrics)
 			}
 		})
 	}

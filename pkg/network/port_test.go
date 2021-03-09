@@ -17,7 +17,7 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-var testRootNs uint64
+var testRootNs uint32
 
 func TestMain(m *testing.M) {
 	rootNs, err := util.GetRootNetNamespace("/proc")

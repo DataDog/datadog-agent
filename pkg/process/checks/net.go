@@ -60,7 +60,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 }
 
 // Name returns the name of the ConnectionsCheck.
-func (c *ConnectionsCheck) Name() string { return "connections" }
+func (c *ConnectionsCheck) Name() string { return config.ConnectionsCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ConnectionsCheck) RealTime() bool { return false }
@@ -87,10 +87,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	tel := c.diffTelemetry(conns.Telemetry)
+	connTel := c.diffTelemetry(conns.ConnTelemetry)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, tel, conns.Domains), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -166,7 +166,8 @@ func batchConnections(
 	cxs []*model.Connection,
 	dns map[string]*model.DNSEntry,
 	networkID string,
-	telemetry *model.CollectorConnectionsTelemetry,
+	connTelemetry *model.CollectorConnectionsTelemetry,
+	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
@@ -234,7 +235,8 @@ func batchConnections(
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {
-			cc.Telemetry = telemetry
+			cc.ConnTelemetry = connTelemetry
+			cc.CompilationTelemetryByAsset = compilationTelemetry
 		}
 		batches = append(batches, cc)
 

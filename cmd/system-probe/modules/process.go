@@ -22,7 +22,7 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 var Process = api.Factory{
 	Name: "process",
 	Fn: func(agentConfig *config.AgentConfig) (api.Module, error) {
-		if !agentConfig.CheckIsEnabled(config.ProcessModule) {
+		if !agentConfig.CheckIsEnabled(config.ProcessModuleCheckName) {
 			log.Infof("Process module disabled")
 			return nil, api.ErrNotEnabled
 		}

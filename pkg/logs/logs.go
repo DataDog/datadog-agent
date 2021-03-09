@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -174,13 +175,15 @@ func Stop() {
 }
 
 // Flush flushes synchronously the running instance of the Logs Agent.
-func Flush() {
+// Use a WithTimeout context in order to have a flush that can be cancelled.
+func Flush(ctx context.Context) {
 	log.Info("Triggering a flush in the logs-agent")
 	if IsAgentRunning() {
 		if agent != nil {
-			agent.Flush()
+			agent.Flush(ctx)
 		}
 	}
+	log.Debug("Flush in the logs-agent done.")
 }
 
 // IsAgentRunning returns true if the logs-agent is running.

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -30,9 +31,18 @@ func newFailedTransactionRemovalPolicy(
 	rootPath string,
 	outdatedFileDayCount int,
 	telemetry failedTransactionRemovalPolicyTelemetry) (*failedTransactionRemovalPolicy, error) {
-	if err := os.MkdirAll(rootPath, 0755); err != nil {
+	if err := os.MkdirAll(rootPath, 0700); err != nil {
 		return nil, err
 	}
+
+	permission, err := filesystem.NewPermission()
+	if err != nil {
+		return nil, err
+	}
+	if err := permission.RestrictAccessToUser(rootPath); err != nil {
+		return nil, err
+	}
+
 	telemetry.addNewRemovalPolicyCount()
 
 	return &failedTransactionRemovalPolicy{

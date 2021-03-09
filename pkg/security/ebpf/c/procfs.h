@@ -1,15 +1,10 @@
 #ifndef _GETATTR_H_
 #define _GETATTR_H_
 
-struct inode_info_entry_t {
-    u32 mount_id;
-    u32 overlay_numlower;
-};
-
 struct bpf_map_def SEC("maps/inode_info_cache") inode_info_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
-    .value_size = sizeof(struct inode_info_entry_t),
+    .value_size = sizeof(struct file_t),
     .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
@@ -21,14 +16,21 @@ int kretprobe__get_task_exe_file(struct pt_regs *ctx) {
 
     struct dentry *dentry = get_file_dentry(file);
 
-    u64 inode = get_dentry_ino(dentry);
-    u32 overlay_numlower = get_overlay_numlower(dentry);
+    u32 flags = 0;
     u32 mount_id = get_file_mount_id(file);
+    u64 inode = get_dentry_ino(dentry);
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_ino(dentry, &inode, &flags);
+    }
 
-    struct inode_info_entry_t entry = {
-        .mount_id = mount_id,
-        .overlay_numlower = overlay_numlower,
+    struct file_t entry = {
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .flags = flags,
     };
+    fill_file_metadata(dentry, &entry.metadata);
 
     bpf_map_update_elem(&inode_info_cache, &inode, &entry, BPF_ANY);
 

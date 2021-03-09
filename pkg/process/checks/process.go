@@ -57,7 +57,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the ProcessCheck.
-func (p *ProcessCheck) Name() string { return "process" }
+func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }

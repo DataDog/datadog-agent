@@ -51,7 +51,12 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 		enabled[probes.InetBindRet] = struct{}{}
 
 		if c.CollectIPv6Conns {
-			enabled[probes.IP6MakeSkb] = struct{}{}
+			if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
+				enabled[probes.IP6MakeSkbPre470] = struct{}{}
+			} else {
+				enabled[probes.IP6MakeSkb] = struct{}{}
+			}
+
 			enabled[probes.Inet6Bind] = struct{}{}
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}
