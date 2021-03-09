@@ -37,7 +37,7 @@ const (
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
-	grpcAgentTimeout = 60 * time.Second
+	defaultGRPCConnectionTimeout = 60 * time.Second
 )
 
 // Name for check performed by process-agent or system-probe
@@ -157,6 +157,8 @@ type AgentConfig struct {
 
 	// Windows-specific config
 	Windows WindowsConfig
+
+	grpcConnectionTimeout time.Duration
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.
@@ -285,6 +287,8 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			EnableMonotonicCount: false,
 			DriverBufferSize:     1024,
 		},
+
+		grpcConnectionTimeout: defaultGRPCConnectionTimeout,
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -384,7 +388,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if cfg.HostName == "" {
 		// lookup hostname if there is no config override
-		if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
+		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -580,7 +584,7 @@ func isAffirmative(value string) (bool, error) {
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
-func getHostname(ddAgentBin string) (string, error) {
+func getHostname(ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
 	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
 	if fargate.IsFargateInstance() {
 		hostname, err := fargate.GetFargateHost()
@@ -591,7 +595,7 @@ func getHostname(ddAgentBin string) (string, error) {
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(grpc.GetDDAgentClient)
+	hostname, err := getHostnameFromGRPC(grpc.GetDDAgentClient, grpcConnectionTimeout)
 	if err == nil {
 		return hostname, nil
 	}
@@ -634,8 +638,8 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error)) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
+func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), grpcConnectionTimeout)
 	defer cancel()
 
 	ddAgentClient, err := grpcClientFn(ctx)
