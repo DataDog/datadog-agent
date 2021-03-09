@@ -13,8 +13,13 @@ ENV LD_LIBRARY_PATH /opt/datadog-agent/embedded/lib
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
 COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
 
-# comment out the below if you don't want the replace the base image's core agent binary
-COPY agent /opt/datadog-agent/bin/agent/agent
+# If the core agent binary is present in this temporary build directory, use it to replace
+# the base image's core agent binary
+# If it's not present, we'll just copy tmp_file to /tmp_agent_dir and then delete /tmp_agent_dir.
+# This is necessary because the COPY command must copy at least 1 file or the build with fail
+COPY *agent *tmp_file /tmp_agent_dir/
+RUN cp /tmp_agent_dir/agent /opt/datadog-agent/bin/agent/agent 2>/dev/null || true
+RUN rm -rf /tmp_agent_dir
 
 COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
 COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
