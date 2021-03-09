@@ -542,7 +542,7 @@ func createDNSFilters() ([]C.struct__filterDefinition, error) {
 			af:               windows.AF_INET,
 			remotePort:       53,
 			v4InterfaceIndex: (C.ulonglong)(iface.Index),
-			direction:        C.DIRECTION_OUTPUT,
+			direction:        C.DIRECTION_OUTBOUND,
 		})
 
 		filters = append(filters, C.struct__filterDefinition{
