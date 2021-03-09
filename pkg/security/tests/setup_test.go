@@ -26,6 +26,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
@@ -218,6 +219,47 @@ func getInode(t *testing.T, path string) uint64 {
 	}
 
 	return stats.Ino
+}
+
+func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
+	t.Helper()
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong mode")
+	}
+	assert.Equal(t, strconv.FormatUint(uint64(actualMode), 8), strconv.FormatUint(uint64(expectedMode), 8), msgAndArgs...)
+}
+
+func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
+	t.Helper()
+	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
+}
+
+func assertNearTime(t *testing.T, event time.Time) {
+	t.Helper()
+	now := time.Now()
+	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
+		t.Errorf("expected time close to %s, got %s", now, event)
+	}
+}
+
+func assertTriggeredRule(t *testing.T, r *eval.Rule, id string) {
+	t.Helper()
+	assert.Equal(t, r.ID, id, "wrong triggered rule")
+}
+
+func assertReturnValue(t *testing.T, retval, expected int64) {
+	t.Helper()
+	assert.Equal(t, retval, expected, "wrong return value")
+}
+
+func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Equal(t, fieldValue, value, msgAndArgs...)
+	}
 }
 
 func setTestConfig(dir string, opts testOpts) error {
@@ -712,6 +754,8 @@ func applyUmask(fileMode int) int {
 }
 
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	t.Helper()
+
 	if testEnvironment != DockerEnvironment {
 		return
 	}

@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/avast/retry-go"
 	"github.com/freddierice/go-losetup"
 	"github.com/pkg/errors"
 )
@@ -106,26 +107,26 @@ func newTestDriveWithMountPoint(fsType string, mountOpts []string, mountPoint st
 	}, nil
 }
 
+func (td *testDrive) lsof() string {
+	lsofCmd := exec.Command("lsof", td.mountPoint)
+	output, _ := lsofCmd.CombinedOutput()
+	return string(output)
+}
+
 func (td *testDrive) Unmount() error {
 	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
-	if err := unmountCmd.Run(); err != nil {
-		lsofCmd := exec.Command("lsof", td.mountPoint)
-		output, _ := lsofCmd.CombinedOutput()
-		return errors.Wrapf(err, "failed to unmount filesystem (%s)", string(output))
-	}
-
-	return nil
+	return unmountCmd.Run()
 }
 
 func (td *testDrive) Close() {
 	if err := td.Unmount(); err != nil {
-		fmt.Print(err)
+		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
 	}
 	if err := td.dev.Detach(); err != nil {
-		fmt.Print(err)
+		fmt.Printf("failed to detach test drive: %s (lsof: %s)", err, td.lsof())
 	}
-	if err := td.dev.Remove(); err != nil {
-		fmt.Print(err)
+	if err := retry.Do(td.dev.Remove); err != nil {
+		fmt.Printf("failed to remove test drive: %s (lsof: %s)", err, td.lsof())
 	}
 	os.Remove(td.file.Name())
 	os.Remove(td.mountPoint)

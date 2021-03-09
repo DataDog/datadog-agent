@@ -22,8 +22,8 @@ import (
 	"github.com/iceber/iouring-go"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -56,21 +56,10 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open flag O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0755 {
-				t.Errorf("expected open mode 0755, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0755)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -88,21 +77,10 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open mode O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0711 {
-				t.Errorf("expected open mode 0711, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -128,28 +106,17 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open mode O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0711 {
-				t.Errorf("expected open mode 0711, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
 	t.Run("creat", func(t *testing.T) {
-		fd, _, errno := syscall.Syscall(syscall.SYS_CREAT, uintptr(testFilePtr), 0, 0)
+		fd, _, errno := syscall.Syscall(syscall.SYS_CREAT, uintptr(testFilePtr), 0711, 0)
 		if errno != 0 {
 			t.Fatal(error(errno))
 		}
@@ -160,17 +127,10 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %d", flags)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -201,17 +161,9 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, get %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC {
-				t.Errorf("expected open mode O_CREAT|O_WRONLY|O_TRUNC, got %s", model.OpenFlags(flags))
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -244,17 +196,9 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags != syscall.O_CREAT {
-				t.Errorf("expected open mode O_RDWR, got %d", flags)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -301,21 +245,11 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags&syscall.O_CREAT == 0 {
-				t.Errorf("expected open mode O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0747 {
-				t.Errorf("expected open mode 0707, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			// O_LARGEFILE is added by io_uring during __io_openat_prep
+			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0747)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -347,21 +281,11 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
-
-			if flags := event.Open.Flags; flags&syscall.O_CREAT == 0 {
-				t.Errorf("expected open mode O_CREAT, got %d", flags)
-			}
-
-			if mode := event.Open.Mode; mode != 0711 {
-				t.Errorf("expected open mode 0711, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			// O_LARGEFILE is added by io_uring during __io_openat_prep
+			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
+			assertRights(t, uint16(event.Open.Mode), 0711)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
@@ -383,7 +307,7 @@ func TestOpenMetadata(t *testing.T) {
 	defer test.Close()
 
 	fileMode := 0o447
-	expectedMode := applyUmask(fileMode)
+	expectedMode := uint16(applyUmask(fileMode))
 	testFile, _, err := test.CreateWithOptions("test-open", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
@@ -403,22 +327,12 @@ func TestOpenMetadata(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "open" {
-				t.Errorf("expected open event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assertRights(t, uint16(event.Open.File.Mode), expectedMode)
+			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
-			if int(event.Open.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected mode %d, got %d", expectedMode, int(event.Open.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Open.File.MTime.After(now) || event.Open.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Open.File.MTime)
-			}
-
-			if event.Open.File.CTime.After(now) || event.Open.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Open.File.CTime)
-			}
+			assertNearTime(t, event.Open.File.MTime)
+			assertNearTime(t, event.Open.File.CTime)
 		}
 	})
 }
