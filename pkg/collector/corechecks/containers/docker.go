@@ -28,12 +28,14 @@ import (
 	cmetrics "github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
 const (
 	dockerCheckName = "docker"
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
+	DockerRestart   = "docker.restart"
 )
 
 type DockerConfig struct {
@@ -160,11 +162,17 @@ func (d *DockerCheck) Run() error {
 	}
 
 	du, err := docker.GetDockerUtil()
-	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-		d.Warnf("Error initialising check: %s", err)
-		return err
+	if (config.IsContainerized()) {
+		if err != nil {
+			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+			d.Warnf("Error initialising check: %s", err)
+			return err
+		}
+	} else {
+		log.Debugf("Agent is not running in container, skipping the Docker check")
+		return nil
 	}
+
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())

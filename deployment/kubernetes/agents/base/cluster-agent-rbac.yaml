@@ -13,6 +13,7 @@ rules:
   - pods
   - nodes
   - componentstatuses
+  - secrets
   - configmaps
   - persistentvolumes
   - persistentvolumeclaims

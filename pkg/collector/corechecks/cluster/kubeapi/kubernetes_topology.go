@@ -141,6 +141,11 @@ func (t *TopologyCheck) Run() error {
 			componentChannel,
 			commonClusterCollector,
 		),
+		// Register Secret Component Collector
+		collectors.NewSecretCollector(
+			componentChannel,
+			commonClusterCollector,
+		),
 		// Register DaemonSet Component Collector
 		collectors.NewDaemonSetCollector(
 			componentChannel,

@@ -45,3 +45,8 @@
         AGENT_VERSION: "{{ agent_current_branch }}"
         DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+    - name: Wait a bit for the agent to start
+      pause:
+        seconds: 15
+    - name: Restart the container to throw event
+      command: docker container restart nginx-1

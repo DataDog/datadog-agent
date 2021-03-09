@@ -201,6 +201,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="configmap",
             external_id_assert_fn=lambda v: cluster_agent_configmap_match.findall(v)
         )
+        # 1 cluster agent secret stackstate-auth-token
+        cluster_agent_secret_match = re.compile("urn:kubernetes:/{}:{}:secret/"
+                                                "stackstate-auth-token".format(cluster_name, namespace))
+        assert _find_component(
+            json_data=json_data,
+            type_name="secret",
+            external_id_assert_fn=lambda v: cluster_agent_secret_match.findall(v)
+        )
         # 1 node agent config map sts-agent-config
         agent_configmap_match = re.compile("urn:kubernetes:/{}:{}:configmap/"
                                            "sts-agent-config".format(cluster_name, namespace))
@@ -430,6 +438,15 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="uses",
             external_id_assert_fn=lambda eid:  pod_uses_configmap_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent" % (cluster_name, namespace))
+        #  pod uses_value secret cluster-agent -> stackstate-auth-token
+        pod_uses_secret_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent-.*->"
+                                           "urn:kubernetes:/%s:%s:secret/stackstate-auth-token" %
+                                           (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="uses_value",
+            external_id_assert_fn=lambda eid:  pod_uses_secret_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-cluster-agent" % (cluster_name, namespace))
         #  pod uses configmap node-agent -> sts-agent-config
         pod_uses_configmap_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-agent-.*->"
                                               "urn:kubernetes:/%s:%s:configmap/sts-agent-config" %
@@ -470,14 +487,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
             external_id_assert_fn=lambda eid:  agent_container_mounts_volume_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/stackstate-agent" % (cluster_name, namespace))
         # hello job controls hello pod
-        job_controls_match = re.compile("urn:kubernetes:/%s:%s:job/hello-.*->"
-                                        "urn:kubernetes:/%s:%s:pod/hello-.*" %
+        job_controls_match = re.compile("urn:kubernetes:/%s:%s:job/countdown->"
+                                        "urn:kubernetes:/%s:%s:pod/countdown-.*" %
                                         (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="controls",
             external_id_assert_fn=lambda eid:  job_controls_match.findall(eid)
-        ).startswith("urn:kubernetes:/%s:%s:job/hello" % (cluster_name, namespace))
+        ).startswith("urn:kubernetes:/%s:%s:job/countdown" % (cluster_name, namespace))
 
         # assert process agent data
         stackstate_cluster_agent_process_match = re.compile("%s" % stackstate_cluster_agent_container_external_id)

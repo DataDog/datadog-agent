@@ -1,10 +1,58 @@
 # StackState Agent v2 releases
 
-## 2.10.0 (???)
+## 2.11.0 (xxxx-xx-xx)
+
+**Improvements**
+
+  - Added support to map user defined stackstate-environment tags or config to the environments object
+  - Added support to map user defined stackstate-layer tags or config to the layer object
+  - Added support to map user defined stackstate-domain tags or config to the domain object
+  - Added support to map user defined stackstate-identifiers tags or config to the identifiers array
+
+
+## 2.10.0 (2021-02-25)
+
+**Features**
+
+- Docker Integration
+  - The Docker integration is enabled by default for linux and dockerized installations which will produce docker-specific telemetry. [(STAC-11903)](https://stackstate.atlassian.net/browse/STAC-11903)
+    - StackState will create a DEVIATING health state for spurious restarts on a container.
+- Disk Integration
+  - The Disk integration is enabled by default which will produce topology and telemetry related to disk usage of the agent host. [(STAC-11902)](https://stackstate.atlassian.net/browse/STAC-11902)
+    - StackState will create a DEVIATING health state on a host when disk space reaches 80% and CRITICAL at 100%.
+
+**Improvements**
+
+- Integrations:
+  - Added support to configure Process Agent using `sts_url` [(STAC-11215)](https://stackstate.atlassian.net/browse/STAC-11215)
+  - Provide default url for install script [(STAC-11215)](https://stackstate.atlassian.net/browse/STAC-11215)
+- Nagios Integration:
+  - Added event stream for passive service state events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream for service notification events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream for service flapping events [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+  - Added event stream check for host flapping alerts [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+- vSphere:
+  - Topology and properties collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+  - Events collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+  - Metrics collection [(STAC-11133)](https://stackstate.atlassian.net/browse/STAC-11133)
+- Zabbix:
+  - Replace `yaml.safe_load` with `json.loads` [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+  - Move stop snapshot from finally block and use StackPackInstance [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+  - Send OK Service Check if successful [(STAC-11470)](https://stackstate.atlassian.net/browse/STAC-11470)
+- Kubernetes Integration
+  - Show Kubernetes secret resources as components in StackState [(STAC-12034)](https://stackstate.atlassian.net/browse/STAC-12034)
+  - Show Kubernetes namespaces as components in StackState [(STAC-11382)](https://stackstate.atlassian.net/browse/STAC-11382)
+  - Show ExternalName of Kubernetes services as components in StackState [(STAC-11523)](https://stackstate.atlassian.net/browse/STAC-11523)
 
 **Bugfix**
+
 - Integrations:
   - Agent Integrations are not tagged with Check instance tags [(STAC-11453)](https://stackstate.atlassian.net/browse/STAC-11453)
+  - Don't create Job - Pod relations from Pods that finished running [(STAC-11490)](https://stackstate.atlassian.net/browse/STAC-11521)
+  - Process Agent restart bug fixed for older kernel versions
+- Nagios:
+  - Shows correct check name in Event details [(STAC-11119)](https://stackstate.atlassian.net/browse/STAC-11119)
+
 
 ## 2.9.0 (2020-12-18)
 

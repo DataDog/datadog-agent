@@ -1,0 +1,52 @@
+{
+    "name": "StackState Agent",
+    "dockerFile": "Dockerfile",
+    "extensions": [
+        "golang.go",
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        "redhat.vscode-yaml",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "shardulm94.trailing-spaces", // Show trailing spaces
+        "Gruntfuggly.todo-tree", // Highlights TODO comments
+    ],
+    "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
+    "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
+    "postCreateCommand": "pip2 install -r requirements.txt",
+    "settings": {
+        "go.buildTags": "kubeapiserver,cpython,kubelet,etcd,docker,zk",
+        "go.testFlags": [
+            "-v"
+        ],
+        "gopls": {
+            "buildFlags": [
+                "-tags=kubeapiserver,cpython,kubelet,etcd,docker,zk"
+            ],
+        },
+        "[go]": {
+            "editor.formatOnSave": true,
+            "editor.codeActionsOnSave": {
+                "source.organizeImports": true,
+            },
+            // Optional: Disable snippets, as they conflict with completion ranking.
+            "editor.snippetSuggestions": "none"
+        },
+        "[go.mod]": {
+            "editor.formatOnSave": true,
+            "editor.codeActionsOnSave": {
+                "source.organizeImports": true,
+            },
+        },
+        "go.autocompleteUnimportedPackages": true,
+        "go.gotoSymbol.includeImports": true,
+        "go.gotoSymbol.includeGoroot": true,
+        "go.buildOnSave": "workspace",
+        "go.lintOnSave": "workspace",
+        "go.vetOnSave": "workspace",
+        "editor.formatOnSave": true,
+        "go.coverOnSingleTest": true,
+        "go.coverOnSingleTestFile": true,
+    }
+}

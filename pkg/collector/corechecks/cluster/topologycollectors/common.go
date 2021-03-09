@@ -22,6 +22,7 @@ type ClusterTopologyCommon interface {
 	initTags(meta metav1.ObjectMeta) map[string]string
 	buildClusterExternalID() string
 	buildConfigMapExternalID(namespace, configMapName string) string
+	buildSecretExternalID(namespace, secretName string) string
 	buildNamespaceExternalID(namespaceName string) string
 	buildContainerExternalID(namespace, podName, containerName string) string
 	buildDaemonSetExternalID(namespace, daemonSetName string) string
@@ -152,6 +153,11 @@ func (c *clusterTopologyCommon) buildStatefulSetExternalID(namespace, statefulSe
 // buildConfigMapExternalID creates the urn external identifier for a cluster config map
 func (c *clusterTopologyCommon) buildConfigMapExternalID(namespace, configMapName string) string {
 	return c.urn.BuildConfigMapExternalID(namespace, configMapName)
+}
+
+// buildSecretExternalID creates the urn external identifier for a cluster secret
+func (c *clusterTopologyCommon) buildSecretExternalID(namespace, secretName string) string {
+	return c.urn.BuildSecretExternalID(namespace, secretName)
 }
 
 // buildNamespaceExternalID creates the urn external identifier for a cluster namespace
