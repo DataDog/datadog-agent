@@ -66,7 +66,7 @@ func GetQualifier() string {
 	return currentARN.qualifier
 }
 
-// GetColdStart returns whether the current execution is a cold start
+// GetColdStart returns whether the current invocation is a cold start
 // Thread-safe
 func GetColdStart() bool {
 	currentColdStart.Lock()
@@ -165,13 +165,13 @@ func RestoreCurrentStateFromFile() error {
 // FetchFunctionARNFromEnv reconstructs the function arn from what's available
 // in the environment.
 func FetchFunctionARNFromEnv(svc stsiface.STSAPI) (string, error) {
+	partition := "aws"
 	region := os.Getenv(regionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
 	qualifier := os.Getenv(qualifierEnvVar)
-	accountID := fetchAccountID(svc)
-	partition := "aws"
+	accountID, accountErr := fetchAccountID(svc)
 
-	if len(accountID) == 0 || len(region) == 0 || len(functionName) == 0 {
+	if accountErr != nil || len(region) == 0 || len(functionName) == 0 {
 		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s")
 	}
 
@@ -225,7 +225,7 @@ func GetARNTags() []string {
 }
 
 // FetchAccountID retrieves the AWS Lambda's account id by calling STS
-func fetchAccountID(svc stsiface.STSAPI) string {
+func fetchAccountID(svc stsiface.STSAPI) (string, error) {
 	// sts.GetCallerIdentity returns information about the current AWS credentials,
 	// (including account ID), and is one of the only AWS API methods that can't be
 	// denied via IAM.
@@ -237,12 +237,10 @@ func fetchAccountID(svc stsiface.STSAPI) string {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			default:
-				log.Errorf("Couldn't get account ID: %s", aerr.Error())
+				return "", log.Errorf("Couldn't get account ID: %s", aerr.Error())
 			}
-		} else {
-			log.Errorf("Couldn't get account ID: %s", err.Error())
 		}
-		return ""
+		return "", log.Errorf("Couldn't get account ID: %s", err.Error())
 	}
-	return *result.Account
+	return *result.Account, nil
 }
