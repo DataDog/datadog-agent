@@ -17,9 +17,9 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 	"unsafe"
 
+	"github.com/iceber/iouring-go"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
@@ -99,20 +99,21 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
+
 			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
+				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.file.container_path")
 		}
 	})
 
-	t.Run("openat2", func(t *testing.T) {
-		openHow := unix.OpenHow{
-			Flags: unix.O_CREAT,
-			Mode:  0711,
-		}
+	openHow := unix.OpenHow{
+		Flags: unix.O_CREAT,
+		Mode:  0711,
+	}
 
+	t.Run("openat2", func(t *testing.T) {
 		fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
 		if errno != 0 {
 			if errno == unix.ENOSYS {
@@ -138,6 +139,7 @@ func TestOpen(t *testing.T) {
 			if mode := event.Open.Mode; mode != 0711 {
 				t.Errorf("expected open mode 0711, got %#o", mode)
 			}
+
 			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
 				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
@@ -251,7 +253,114 @@ func TestOpen(t *testing.T) {
 			}
 
 			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Open.File.Inode, inode)
+				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
+			}
+
+			testContainerPath(t, event, "open.file.container_path")
+		}
+	})
+
+	t.Run("io_uring", func(t *testing.T) {
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+
+		prepRequest, err := iouring.Openat(unix.AT_FDCWD, testFile, syscall.O_CREAT, 0747)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+		if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
+			t.Fatal(err)
+		}
+
+		result := <-ch
+		fd, err := result.ReturnInt()
+		if err != nil {
+			if err != syscall.EBADF {
+				t.Fatal(err)
+			}
+			t.Skip("openat not supported by io_uring")
+		}
+		defer iour.Close()
+
+		if fd < 0 {
+			t.Fatalf("failed to open file with io_uring: %d", fd)
+		}
+
+		if err := unix.Close(fd); err != nil {
+			t.Error(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags&syscall.O_CREAT == 0 {
+				t.Errorf("expected open mode O_CREAT, got %d", flags)
+			}
+
+			if mode := event.Open.Mode; mode != 0747 {
+				t.Errorf("expected open mode 0707, got %#o", mode)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
+			}
+
+			testContainerPath(t, event, "open.file.container_path")
+		}
+
+		// same with openat2
+
+		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
+			t.Fatal(err)
+		}
+
+		result = <-ch
+		fd, err = result.ReturnInt()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if fd < 0 {
+			t.Fatalf("failed to open file with io_uring: %d", fd)
+		}
+
+		defer unix.Close(fd)
+
+		event, _, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if event.GetType() != "open" {
+				t.Errorf("expected open event, got %s", event.GetType())
+			}
+
+			if flags := event.Open.Flags; flags&syscall.O_CREAT == 0 {
+				t.Errorf("expected open mode O_CREAT, got %d", flags)
+			}
+
+			if mode := event.Open.Mode; mode != 0711 {
+				t.Errorf("expected open mode 0711, got %#o", mode)
+			}
+
+			if inode := getInode(t, testFile); inode != event.Open.File.Inode {
+				t.Errorf("expected inode %d, got %d", event.Open.File.Inode, inode)
 			}
 
 			testContainerPath(t, event, "open.file.container_path")
