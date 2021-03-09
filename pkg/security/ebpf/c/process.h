@@ -15,7 +15,7 @@ struct proc_cache_t {
     char comm[TASK_COMM_LEN];
 };
 
-static __attribute__((always_inline)) u32 copy_tty_name(char dst[TTY_NAME_LEN], char src[TTY_NAME_LEN]) {
+static __attribute__((always_inline)) u32 copy_tty_name(char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
     if (src[0] == 0) {
         return 0;
     }

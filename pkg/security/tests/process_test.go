@@ -129,8 +129,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
+				t.Errorf("expected inode %d, got %d", event.ResolveProcessCacheEntry().FileFields.Inode, inode)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
@@ -251,8 +251,10 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		// not working on centos8
-		t.Skip()
+		kv, err := probe.NewKernelVersion()
+		if err == nil && kv.IsSuseKernel() {
+			t.Skip()
+		}
 
 		executable := "/usr/bin/cat"
 		if resolved, err := os.Readlink(executable); err == nil {
@@ -276,12 +278,12 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
 			}
 
-			if name, _ := event.GetFieldValue("process.tty_name"); name.(string) == "" {
-				t.Error("not able to get a tty name")
+			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
+				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
