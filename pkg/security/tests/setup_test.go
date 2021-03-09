@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -31,12 +32,14 @@ import (
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -505,11 +508,17 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 
 type tracePipeLogger struct {
 	*TracePipe
-	stop chan struct{}
+	stop       chan struct{}
+	executable string
 }
 
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
-	if event.PID == strconv.Itoa(os.Getpid()) {
+	// for some reason, the event task is resolved to "<...>"
+	// so we check that event.PID is the ID of a task of the running process
+	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	_, err := os.Stat(taskPath)
+
+	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
 		log.Debug(event.Raw)
 	}
 }
@@ -547,9 +556,15 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		return nil, err
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
 	logger := &tracePipeLogger{
-		TracePipe: tracePipe,
-		stop:      make(chan struct{}),
+		TracePipe:  tracePipe,
+		stop:       make(chan struct{}),
+		executable: filepath.Base(executable),
 	}
 	logger.Start()
 
