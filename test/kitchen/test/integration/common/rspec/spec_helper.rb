@@ -775,6 +775,7 @@ shared_examples_for 'an Agent that is removed' do
     it 'should not make changes to system files' do
       exclude = [
             'C:/Windows/Assembly/Temp/',
+            'C:/Windows/Assembly/Tmp/',
             'C:/Windows/Temp/',
             'C:/Windows/Prefetch/',
             'C:/Windows/Installer/',
