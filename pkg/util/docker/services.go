@@ -48,7 +48,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 
 		// add the serviceId filter for Tasks
 		taskFilter := filters.NewArgs()
-		taskFilter.Add("ServiceID", s.ID)
+		taskFilter.Add("service", s.ID)
 		// list the tasks for that service
 		tasks, err := d.cli.TaskList(ctx, types.TaskListOptions{Filters: taskFilter})
 
