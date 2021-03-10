@@ -36,7 +36,6 @@ func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) S
 	for i := range trace {
 		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
 	}
-
 	// Now sort, dedupe then merge all the hashes to build the signature
 	sortHashes(spanHashes)
 

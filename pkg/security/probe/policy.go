@@ -20,9 +20,9 @@ type PolicyFlag uint8
 
 // Policy modes
 const (
-	PolicyModeAccept PolicyMode = iota + 1
+	PolicyModeNoFilter PolicyMode = iota
+	PolicyModeAccept
 	PolicyModeDeny
-	PolicyModeNoFilter
 )
 
 // Policy flags

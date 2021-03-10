@@ -17,22 +17,23 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestProbeMonitor(t *testing.T) {
 	var truncatedParents, truncatedSegment string
-	for i := 0; i <= probe.MaxPathDepth; i++ {
+	for i := 0; i <= model.MaxPathDepth; i++ {
 		truncatedParents += "a/"
 	}
-	for i := 0; i <= probe.MaxSegmentLength+1; i++ {
+	for i := 0; i <= model.MaxSegmentLength+1; i++ {
 		truncatedSegment += "a"
 	}
 
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.filename =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
 	}
 
 	probeMonitorOpts := testOpts{}
@@ -59,7 +60,7 @@ func TestProbeMonitor(t *testing.T) {
 		}
 		defer test.Close()
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomRulesetLoadedEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, model.CustomRulesetLoadedEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -80,7 +81,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedSegmentFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedSegmentEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedSegmentEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -101,7 +102,7 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedParentsFile)
 		defer syscall.Close(int(fd))
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, probe.CustomTruncatedParentsEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -115,7 +116,7 @@ func TestProbeMonitor(t *testing.T) {
 func TestNoisyProcess(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.filename =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
@@ -144,7 +145,7 @@ func TestNoisyProcess(t *testing.T) {
 			_ = os.Remove(file)
 		}
 
-		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, probe.CustomNoisyProcessEventType.String())
+		ruleEvent, err := test.GetProbeCustomEvent(1*time.Second, model.CustomNoisyProcessEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {

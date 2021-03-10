@@ -27,13 +27,15 @@ func NewOffsetManager() *manager.Manager {
 			{Section: string(probes.TCPGetSockOpt)},
 			{Section: string(probes.TCPv6Connect)},
 			{Section: string(probes.IPMakeSkb)},
+			{Section: string(probes.IP6MakeSkb)},
+			{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
 			{Section: string(probes.TCPv6ConnectReturn), KProbeMaxActive: maxActive},
 		},
 	}
 }
 
-func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
-	return &manager.Manager{
+func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
 			{Name: string(probes.TcpStatsMap)},
@@ -91,6 +93,20 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler) *manager.Manager {
 			{Section: string(probes.Inet6BindRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.SocketDnsFilter)},
 			{Section: string(probes.SocketHTTPFilter)},
+			{Section: string(probes.IPRouteOutputFlow)},
+			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
 		},
 	}
+
+	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
+	// do that with #ifdefs inline. Thus the following probes should only be declared as existing in the prebuilt
+	// tracer.
+	if !runtimeTracer {
+		mgr.Probes = append(mgr.Probes,
+			&manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"},
+			&manager.Probe{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
+		)
+	}
+
+	return mgr
 }

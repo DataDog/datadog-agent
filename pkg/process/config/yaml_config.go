@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,6 +62,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnableHTTPMonitoring = config.Datadog.GetBool("network_config.enable_http_monitoring")
 	}
 
+	if config.Datadog.IsSet("network_config.ignore_conntrack_init_failure") {
+		a.IgnoreConntrackInitFailure = config.Datadog.GetBool("network_config.ignore_conntrack_init_failure")
+	}
+
 	if config.Datadog.GetBool(key(spNS, "enabled")) {
 		a.EnableSystemProbe = true
 	}
@@ -77,7 +81,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// The full path to the location of the unix socket where connections will be accessed
 	if socketPath := config.Datadog.GetString(key(spNS, "sysprobe_socket")); socketPath != "" {
-		a.SystemProbeAddress = socketPath
+		if err := ValidateSysprobeSocket(socketPath); err != nil {
+			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
+		} else {
+			a.SystemProbeAddress = socketPath
+		}
 	}
 
 	if config.Datadog.IsSet(key(spNS, "enable_conntrack")) {
@@ -161,18 +169,18 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
 	}
 
-	if config.Datadog.GetBool(key(spNS, "process.enabled")) {
+	if config.Datadog.GetBool(key(spNS, "process_config.enabled")) {
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, ProcessModule)
+		a.EnabledChecks = append(a.EnabledChecks, ProcessModuleCheckName)
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
 		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "OOM Kill")
+		a.EnabledChecks = append(a.EnabledChecks, OOMKillCheckName)
 	}
 
 	if config.Datadog.GetBool("runtime_security_config.enabled") {
@@ -193,17 +201,17 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	// Enable network and connections check
 	if config.Datadog.GetBool("network_config.enabled") {
 		log.Info(fmt.Sprintf("network_config.enabled detected: enabling system-probe with network module running."))
-		a.EnabledChecks = append(a.EnabledChecks, "connections", "Network")
+		a.EnabledChecks = append(a.EnabledChecks, ConnectionsCheckName, NetworkCheckName)
 		a.EnableSystemProbe = true // system-probe is implicitly enabled if networks is enabled
 	} else if config.Datadog.IsSet(key(spNS, "enabled")) && config.Datadog.GetBool(key(spNS, "enabled")) && !config.Datadog.IsSet(key("network_config", "enabled")) {
-		// This case exists to preserve backwards compatibility. If system_probe.enabled is explicitlty set to true, and there is no network_config block,
+		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
 		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
-		a.EnabledChecks = append(a.EnabledChecks, "Network", "connections")
+		a.EnabledChecks = append(a.EnabledChecks, NetworkCheckName, ConnectionsCheckName)
 		a.EnableSystemProbe = true
 	}
 
-	if !a.Enabled && util.StringInSlice(a.EnabledChecks, "connections") {
+	if !a.Enabled && util.StringInSlice(a.EnabledChecks, ConnectionsCheckName) {
 		log.Info("enabling process-agent for connections check as the system-probe is enabled")
 		a.Enabled = true
 	}
@@ -212,7 +220,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(spNS, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString(key(spNS, "profiling.site"))
 		a.ProfilingURL = config.Datadog.GetString(key(spNS, "profiling.profile_dd_url"))
-		a.ProfilingAPIKey = config.Datadog.GetString(key(spNS, "profiling.api_key"))
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString(key(spNS, "profiling.api_key")))
 		a.ProfilingEnvironment = config.Datadog.GetString(key(spNS, "profiling.env"))
 	}
 	a.EnableRuntimeCompiler = config.Datadog.GetBool(key(spNS, "enable_runtime_compiler"))
@@ -222,6 +230,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.IsSet(key(spNS, "runtime_compiler_output_dir")) {
 		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
+	}
+
+	if config.Datadog.IsSet("network_config.enable_gateway_lookup") {
+		a.EnableGatewayLookup = config.Datadog.GetBool("network_config.enable_gateway_lookup")
 	}
 
 	return nil
@@ -243,7 +255,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.APIEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		a.APIEndpoints[0].APIKey = config.Datadog.GetString(key)
+		a.APIEndpoints[0].APIKey = config.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if config.Datadog.IsSet("hostname") {
@@ -289,11 +301,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
-	a.setCheckInterval(ns, "container", "container")
-	a.setCheckInterval(ns, "container_realtime", "rtcontainer")
-	a.setCheckInterval(ns, "process", "process")
-	a.setCheckInterval(ns, "process_realtime", "rtprocess")
-	a.setCheckInterval(ns, "connections", "connections")
+	a.setCheckInterval(ns, "container", ContainerCheckName)
+	a.setCheckInterval(ns, "container_realtime", RTContainerCheckName)
+	a.setCheckInterval(ns, "process", ProcessCheckName)
+	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
+	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
 
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
@@ -380,8 +392,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 				return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 			}
 			for _, k := range apiKeys {
-				a.APIEndpoints = append(a.APIEndpoints, api.Endpoint{
-					APIKey:   k,
+				a.APIEndpoints = append(a.APIEndpoints, apicfg.Endpoint{
+					APIKey:   config.SanitizeAPIKey(k),
 					Endpoint: u,
 				})
 			}
@@ -394,7 +406,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
 		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
-		a.ProfilingAPIKey = config.Datadog.GetString("api_key")
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
 	}
 

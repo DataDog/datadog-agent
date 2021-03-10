@@ -51,10 +51,26 @@ type batch C.batch_t
 
 /* port_binding_t
 __u32 pid;
-__u32 net_ns;
+__u32 netns;
 __u16 port;
 */
 type portBindingTuple C.port_binding_t
+
+/* ip_route_gateway_t
+__u64 gw_h;
+__u64 gw_l;
+__u16 family;
+__u32 ifindex;
+*/
+type ipRouteGateway C.ip_route_gateway_t
+
+/* ip_route_dest_t
+__u64 daddr_h;
+__u64 daddr_l;
+__u32 netns;
+__u16 family;
+*/
+type ipRouteDest C.ip_route_dest_t
 
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
@@ -80,7 +96,7 @@ func ipPortFromAddr(addr net.Addr) (net.IP, int) {
 	return nil, 0
 }
 
-func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
+func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, error) {
 	saddr := conn.LocalAddr()
 	shost, sport := ipPortFromAddr(saddr)
 
@@ -88,6 +104,7 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	dhost, dport := ipPortFromAddr(daddr)
 
 	ct := &ConnTuple{
+		netns: C.__u32(netns),
 		pid:   C.__u32(pid),
 		sport: C.__u16(sport),
 		dport: C.__u16(dport),
@@ -120,13 +137,28 @@ func connTupleFromConn(conn net.Conn, pid uint32) (*ConnTuple, error) {
 	return ct, nil
 }
 
-func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
-	ct := &ConnTuple{
-		pid:   C.__u32(pid),
-		netns: C.__u32(netns),
-		sport: C.__u16(sport),
-		dport: C.__u16(dport),
+func toConnTupleFromConnectionStats(ct *ConnTuple, stats *network.ConnectionStats) error {
+	return toConnTuple(ct, int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func connTupleFromConnectionStats(stats *network.ConnectionStats) *ConnTuple {
+	return newConnTuple(int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func newConnTuple(pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
+	ct := &ConnTuple{}
+	if err := toConnTuple(ct, pid, netns, saddr, daddr, sport, dport, proto); err != nil {
+		return nil
 	}
+	return ct
+}
+
+func toConnTuple(ct *ConnTuple, pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) error {
+	ct.pid = C.__u32(pid)
+	ct.netns = C.__u32(netns)
+	ct.sport = C.__u16(sport)
+	ct.dport = C.__u16(dport)
+	ct.metadata = 0
 	sbytes := saddr.Bytes()
 	dbytes := daddr.Bytes()
 	if len(sbytes) == 4 {
@@ -142,7 +174,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
 		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
-		return nil
+		return fmt.Errorf("unknown address type")
 	}
 
 	switch proto {
@@ -151,8 +183,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 	case network.UDP:
 		ct.metadata |= C.CONN_TYPE_UDP
 	}
-
-	return ct
+	return nil
 }
 
 func (t *ConnTuple) isTCP() bool {
@@ -224,6 +255,8 @@ func (t *ConnTuple) String() string {
 __u64 sent_bytes;
 __u64 recv_bytes;
 __u64 timestamp;
+__u32 flags;
+__u8  direction;
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -239,36 +272,16 @@ __u32 tcp_sent_miscounts;
 */
 type kernelTelemetry C.telemetry_t
 
-const ConnCloseBatchSize = int(C.CONN_CLOSED_BATCH_SIZE)
-
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime uint64, timeout uint64) bool {
 	return latestTime > timeout+uint64(cs.timestamp)
 }
 
-func toBatch(data []byte) *batch {
-	return (*batch)(unsafe.Pointer(&data[0]))
+func (cs *ConnStatsWithTimestamp) isAssured() bool {
+	return uint(cs.flags)&C.CONN_ASSURED > 0
 }
 
-// ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
-// The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func ExtractBatchInto(buffer []network.ConnectionStats, b *batch, start, end int) []network.ConnectionStats {
-	if start >= end || end > ConnCloseBatchSize {
-		return nil
-	}
-
-	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_conn_t
-	for i := start; i < end; i++ {
-		ct := Conn(*(*C.conn_t)(unsafe.Pointer(current)))
-
-		tup := ConnTuple(ct.tup)
-		cst := ConnStatsWithTimestamp(ct.conn_stats)
-		tst := TCPStats(ct.tcp_stats)
-
-		buffer = append(buffer, connStats(&tup, &cst, &tst))
-		current += C.sizeof_conn_t
-	}
-
-	return buffer
+func toBatch(data []byte) *batch {
+	return (*batch)(unsafe.Pointer(&data[0]))
 }
 
 func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) network.ConnectionStats {
@@ -287,6 +300,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 	stats := network.ConnectionStats{
 		Pid:                uint32(t.pid),
 		Type:               connType(metadata),
+		Direction:          connDirection(uint8(s.direction)),
 		Family:             family,
 		NetNS:              uint32(t.netns),
 		Source:             source,
@@ -326,6 +340,48 @@ func connFamily(m uint) network.ConnectionFamily {
 	return network.AFINET6
 }
 
-func isPortClosed(state uint8) bool {
-	return state == C.PORT_CLOSED
+func connDirection(m uint8) network.ConnectionDirection {
+	switch m {
+	case C.CONN_DIRECTION_INCOMING:
+		return network.INCOMING
+	case C.CONN_DIRECTION_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.OUTGOING
+	}
+}
+
+func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
+	d := &ipRouteDest{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
+	sbytes := source.Bytes()
+	dbytes := dest.Bytes()
+	switch len(dbytes) {
+	case 4:
+		d.family = C.CONN_V4
+		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
+		d.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
+	case 16:
+		d.family = C.CONN_V6
+		d.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		d.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		d.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		d.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
+	}
+
+	return d
+}
+
+func (g *ipRouteGateway) gateway() util.Address {
+	switch g.family {
+	case C.CONN_V4:
+		return util.V4Address(uint32(g.gw_l))
+	case C.CONN_V6:
+		return util.V6Address(uint64(g.gw_l), uint64(g.gw_h))
+	}
+
+	return nil
+}
+
+func (g *ipRouteGateway) ifIndex() int {
+	return int(g.ifindex)
 }

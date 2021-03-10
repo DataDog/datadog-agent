@@ -13,19 +13,25 @@ struct chmod_event_t {
     u32 padding;
 };
 
+int __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->setattr.dentry, EVENT_CHMOD);
+}
+
 int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
+    struct policy_t policy = fetch_policy(EVENT_CHMOD);
+    if (is_discarded_by_process(policy.mode, EVENT_CHMOD)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_CHMOD,
+        .policy = policy,
         .setattr = {
             .mode = mode
         }
     };
 
-    cache_syscall(&syscall, EVENT_CHMOD);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_CHMOD)) {
-        pop_syscall(SYSCALL_CHMOD);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -53,12 +59,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
 
     struct chmod_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .mount_id = syscall->setattr.path_key.mount_id,
-            .inode = syscall->setattr.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
-            .path_id = syscall->setattr.path_key.path_id,
-        },
+        .file = syscall->setattr.file,
         .padding = 0,
         .mode = syscall->setattr.mode,
     };

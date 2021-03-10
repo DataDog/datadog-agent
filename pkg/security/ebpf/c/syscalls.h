@@ -6,54 +6,54 @@
 
 #define FSTYPE_LEN 16
 
-struct ktimeval {
-    long tv_sec;
-    long tv_nsec;
+struct str_array_ref_t {
+    u32 id;
+    u8 truncated;
 };
 
 struct syscall_cache_t {
     struct policy_t policy;
-
     u64 type;
+    u32 discarded;
 
     union {
         struct {
             int flags;
             umode_t mode;
             struct dentry *dentry;
-            struct path_key_t path_key;
+            struct file_t file;
         } open;
 
         struct {
             umode_t mode;
             struct dentry *dentry;
             struct path *path;
-            struct path_key_t path_key;
+            struct file_t file;
         } mkdir;
 
         struct {
-            struct path_key_t path_key;
-            int overlay_numlower;
+            struct dentry *dentry;
+            struct file_t file;
             int flags;
         } unlink;
 
         struct {
-            struct path_key_t path_key;
-            int overlay_numlower;
+            struct dentry *dentry;
+            struct file_t file;
         } rmdir;
 
         struct {
-            struct path_key_t src_key;
+            struct file_t src_file;
             unsigned long src_inode;
             struct dentry *src_dentry;
-            struct path_key_t target_key;
-            int src_overlay_numlower;
+            struct dentry *target_dentry;
+            struct file_t target_file;
         } rename;
 
         struct {
             struct dentry *dentry;
             struct path *path;
-            struct path_key_t path_key;
+            struct file_t file;
             union {
                 umode_t mode;
                 struct {
@@ -80,22 +80,30 @@ struct syscall_cache_t {
         } umount;
 
         struct {
-            struct path_key_t src_key;
+            struct file_t src_file;
             struct path *target_path;
+            struct dentry *src_dentry;
             struct dentry *target_dentry;
-            struct path_key_t target_key;
-            int src_overlay_numlower;
+            struct file_t target_file;
         } link;
 
         struct {
             struct dentry *dentry;
-            struct path_key_t path_key;
+            struct file_t file;
             const char *name;
-        } setxattr;
+        } xattr;
 
         struct {
             u8 is_thread;
         } clone;
+
+        struct {
+            struct dentry *dentry;
+            struct file_t file;
+            struct str_array_ref_t args;
+            struct str_array_ref_t envs;
+            u8 is_parsed;
+        } exec;
     };
 };
 
@@ -108,20 +116,17 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
     .namespace = "",
 };
 
-// cache_syscall checks the event policy in order to see if the syscall struct can be cached
-void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall, u64 event_type) {
+struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
     struct policy_t *policy = bpf_map_lookup_elem(&filter_policy, &event_type);
     if (policy) {
-        syscall->policy.mode = policy->mode;
-        syscall->policy.flags = policy->flags;
-    } else {
-        syscall->policy.mode = NO_FILTER;
+        return *policy;
     }
+    struct policy_t empty_policy = { };
+    return empty_policy;
+}
 
-#ifdef DEBUG
-        bpf_printk("cache/syscall policy for %d is %d\n", event_type, syscall->policy.mode);
-#endif
-
+// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
@@ -142,6 +147,30 @@ struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u64 type) {
         return syscall;
     }
     return NULL;
+}
+
+int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
+    u64 key = bpf_get_current_pid_tgid();
+    bpf_map_delete_elem(&syscalls, &key);
+    return 0;
+}
+
+int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *syscall) {
+    syscall->discarded = 1;
+    return 0;
+}
+
+int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
+    if (syscall->policy.mode == NO_FILTER)
+        return 0;
+
+    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
+
+    if (syscall->policy.mode == DENY) {
+        pass_to_userspace = check_approvers(syscall);
+    }
+
+    return !pass_to_userspace;
 }
 
 #endif

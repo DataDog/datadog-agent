@@ -105,7 +105,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, logLevel, "off")
+			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err
@@ -128,7 +128,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			s := serializer.NewSerializer(common.Forwarder)
+			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 			common.LoadComponents(config.Datadog.GetString("confd_path"))

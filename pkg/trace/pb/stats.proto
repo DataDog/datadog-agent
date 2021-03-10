@@ -6,6 +6,13 @@ package pb;
 
 // protoc --gogofaster_out=. -I $GOPATH/src -I . stats.proto
 
+// StatsPayload is the payload used to send stats from the agent to the backend.
+message StatsPayload {
+	string agentHostname = 1;
+	string agentEnv = 2;
+	repeated ClientStatsPayload stats = 3 [(gogoproto.nullable) = false];
+}
+
 // TODO(gbbr): doc
 message ClientStatsPayload {
 	string hostname = 1;
@@ -35,4 +42,5 @@ message ClientGroupedStats {
 	bytes okSummary = 10;
 	bytes errorSummary = 11;
 	bool synthetics = 12;
+	uint64 topLevelHits = 13;
 }

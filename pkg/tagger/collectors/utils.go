@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	lowCardinalityString          = "low"
-	orchestratorCardinalityString = "orchestrator"
-	highCardinalityString         = "high"
-	unknownCardinalityString      = "unknown"
+	lowCardinalityString               = "low"
+	orchestratorCardinalityString      = "orchestrator"
+	shortOrchestratorCardinalityString = "orch"
+	highCardinalityString              = "high"
+	unknownCardinalityString           = "unknown"
 )
 
 // StringToTagCardinality extracts a TagCardinality from a string.
@@ -18,7 +19,7 @@ func StringToTagCardinality(c string) (TagCardinality, error) {
 	switch strings.ToLower(c) {
 	case highCardinalityString:
 		return HighCardinality, nil
-	case orchestratorCardinalityString:
+	case shortOrchestratorCardinalityString, orchestratorCardinalityString:
 		return OrchestratorCardinality, nil
 	case lowCardinalityString:
 		return LowCardinality, nil

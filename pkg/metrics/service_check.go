@@ -84,6 +84,7 @@ type ServiceCheck struct {
 	Tags        []string           `json:"tags"`
 	OriginID    string             `json:"-"`
 	K8sOriginID string             `json:"-"`
+	Cardinality string             `json:"-"`
 }
 
 // ServiceChecks represents a list of service checks ready to be serialize
@@ -187,6 +188,11 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		n += batchSize
 	}
 	return splitPayloads, nil
+}
+
+// MarshalSplitCompress not implemented
+func (sc ServiceChecks) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("ServiceChecks MarshalSplitCompress is not implemented")
 }
 
 func (sc ServiceCheck) String() string {

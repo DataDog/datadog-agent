@@ -13,19 +13,25 @@ struct mkdir_event_t {
     u32 padding;
 };
 
+int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->mkdir.dentry, EVENT_MKDIR);
+}
+
 long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
+    struct policy_t policy = fetch_policy(EVENT_MKDIR);
+    if (is_discarded_by_process(policy.mode, EVENT_MKDIR)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = SYSCALL_MKDIR,
+        .policy = policy,
         .mkdir = {
             .mode = mode
         }
     };
 
-    cache_syscall(&syscall, EVENT_MKDIR);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_MKDIR)) {
-        pop_syscall(SYSCALL_MKDIR);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -51,7 +57,11 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     }
 
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);;
-    syscall->mkdir.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
+    syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
+
+    if (filter_syscall(syscall, mkdir_approvers)) {
+        return discard_syscall(syscall);
+    }
 
     return 0;
 }
@@ -66,24 +76,20 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
         return 0;
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
-    set_path_key_inode(syscall->mkdir.dentry, &syscall->mkdir.path_key, 0);
+    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
-    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
+    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
     if (ret == DENTRY_DISCARDED) {
         return 0;
     }
 
     struct mkdir_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->mkdir.path_key.ino,
-            .mount_id = syscall->mkdir.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
-            .path_id = syscall->mkdir.path_key.path_id,
-        },
+        .file = syscall->mkdir.file,
         .mode = syscall->mkdir.mode,
     };
 
+    fill_file_metadata(syscall->mkdir.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 

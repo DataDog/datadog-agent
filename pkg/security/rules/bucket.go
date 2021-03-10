@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/pkg/errors"
 )
 
 // RuleBucket groups rules with the same event type
@@ -21,7 +22,7 @@ type RuleBucket struct {
 func (rb *RuleBucket) AddRule(rule *Rule) error {
 	for _, r := range rb.rules {
 		if r.ID == rule.ID {
-			return ErrDuplicateRuleID{ID: r.ID}
+			return &ErrRuleLoad{Definition: rule.Definition, Err: errors.New("multiple definition with the same ID")}
 		}
 	}
 

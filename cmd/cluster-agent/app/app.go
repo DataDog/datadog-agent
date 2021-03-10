@@ -10,12 +10,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/fatih/color"
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
 	v1 "k8s.io/api/core/v1"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
+	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -33,11 +36,12 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -93,9 +97,10 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath    string
-	flagNoColor bool
-	stopCh      chan struct{}
+	confPath              string
+	flagNoColor           bool
+	stopCh                chan struct{}
+	orchestratorForwarder *forwarder.DefaultForwarder
 )
 
 func init() {
@@ -108,12 +113,16 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	// we'll search for a config file named `datadog-cluster.yaml`
+	// Starting Cluster Agent sequence
+	// Initialization order is important for multiple reasons, see comments
+
+	// Reading configuration as mostly everything can depend on config variables
 	config.Datadog.SetConfigName("datadog-cluster")
 	err := common.SetupConfig(confPath)
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
+
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
@@ -124,9 +133,6 @@ func start(cmd *cobra.Command, args []string) error {
 		// this will prevent any logging on file
 		logFile = ""
 	}
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel() // Calling cancel twice is safe
 
 	err = config.SetupLogger(
 		loggerName,
@@ -142,10 +148,27 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil
 	}
+
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel() // Calling cancel twice is safe
+
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", telemetry.Handler())
+	go func() {
+		port := config.Datadog.GetInt("metrics_port")
+		err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating telemetry server on port %v: %v", port, err)
+		}
+	}()
 
 	// Setup healthcheck port
 	var healthPort = config.Datadog.GetInt("health_port")
@@ -157,7 +180,21 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// get hostname
+	// Starting server early to ease investigations
+	if err = api.StartServer(); err != nil {
+		return log.Errorf("Error while starting agent API, exiting: %v", err)
+	}
+
+	// Getting connection to APIServer, it's done before Hostname resolution
+	// as hostname resolution may call APIServer
+	log.Info("Waiting to obtain APIClient connection")
+	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
+	if err != nil {
+		return log.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+	}
+	log.Infof("Got APIClient connection")
+
+	// Get hostname as aggregator requires hostname
 	hostname, err := util.GetHostname()
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -177,17 +214,15 @@ func start(cmd *cobra.Command, args []string) error {
 	forwarderOpts.DisableAPIKeyChecking = true
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	// setup the orchestrator forwarder
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Start() //nolint:errcheck
+	}
+	s := serializer.NewSerializer(f, orchestratorForwarder)
 
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
-
-	log.Infof("Datadog Cluster Agent is now running.")
-
-	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
-	if err != nil {
-		return log.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
-	}
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -232,22 +267,6 @@ func start(cmd *cobra.Command, args []string) error {
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}
-
-		// TODO: move rest of the controllers out of the apiserver package
-		orchestratorCtx := orchestrator.ControllerContext{
-			IsLeaderFunc:                 le.IsLeader,
-			UnassignedPodInformerFactory: apiCl.UnassignedPodInformerFactory,
-			InformerFactory:              apiCl.InformerFactory,
-			Client:                       apiCl.Cl,
-			StopCh:                       stopCh,
-			Hostname:                     hostname,
-			ClusterName:                  clusterName,
-			ConfigPath:                   confPath,
-		}
-		err = orchestrator.StartController(orchestratorCtx)
-		if err != nil {
-			log.Errorf("Could not start orchestrator controller: %v", err)
-		}
 	} else {
 		log.Info("Orchestrator explorer is disabled")
 	}
@@ -276,29 +295,21 @@ func start(cmd *cobra.Command, args []string) error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	var clusterCheckHandler *clusterchecks.Handler
 	if config.Datadog.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err = setupClusterCheck(mainCtx)
-		if err != nil {
-			log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		if err == nil {
+			api.ModifyRouter(func(r *mux.Router) {
+				dcav1.Install(r.PathPrefix("/api/v1").Subrouter(), clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+			})
+		} else {
+			log.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
 	} else {
 		log.Debug("Cluster check Autodiscovery disabled")
 	}
 
-	// Start the cmd HTTPS server
-	// We always need to start it, even with nil clusterCheckHandler
-	// as it's also used to perform the agent commands (e.g. agent status)
-	sc := clusteragent.ServerContext{
-		ClusterCheckHandler: clusterCheckHandler,
-	}
-	if err = api.StartServer(sc); err != nil {
-		return log.Errorf("Error while starting agent API, exiting: %v", err)
-	}
-
 	wg := sync.WaitGroup{}
-
 	// Autoscaler Controller Goroutine
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
@@ -306,7 +317,7 @@ func start(cmd *cobra.Command, args []string) error {
 		go func() {
 			defer wg.Done()
 
-			errServ := custommetrics.RunServer(mainCtx)
+			errServ := custommetrics.RunServer(mainCtx, apiCl)
 			if errServ != nil {
 				log.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
@@ -344,6 +355,8 @@ func start(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	log.Infof("All components started. Cluster Agent now running.")
+
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
@@ -365,6 +378,14 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if stopCh != nil {
 		close(stopCh)
+	}
+
+	// stopping forwarders
+	if f != nil {
+		f.Stop()
+	}
+	if orchestratorForwarder != nil {
+		orchestratorForwarder.Stop()
 	}
 
 	log.Info("See ya!")

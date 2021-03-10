@@ -1,7 +1,7 @@
 """
 Agent namespaced tasks
 """
-from __future__ import print_function
+
 
 import datetime
 import glob
@@ -23,6 +23,7 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .utils import (
     REPO_PATH,
     bin_name,
+    generate_config,
     get_build_flags,
     get_version,
     get_version_numeric_only,
@@ -39,6 +40,7 @@ AGENT_CORECHECKS = [
     "containerd",
     "cpu",
     "cri",
+    "snmp",
     "docker",
     "file_handle",
     "go_expvar",
@@ -79,7 +81,6 @@ def build(
     build_exclude=None,
     iot=False,
     development=True,
-    precompile_only=False,
     skip_assets=False,
     embedded_path=None,
     rtloader_root=None,
@@ -89,7 +90,7 @@ def build(
     python_runtimes='3',
     arch='x64',
     exclude_rtloader=False,
-    go_mod="vendor",
+    go_mod="mod",
     windows_sysprobe=False,
 ):
     """
@@ -112,7 +113,6 @@ def build(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        arch=arch,
     )
 
     if sys.platform == 'win32':
@@ -130,7 +130,7 @@ def build(
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         build_maj, build_min, build_patch = ver.split(".")
 
         command = "windmc --target {target_arch} -r cmd/agent cmd/agent/agentmsg.mc ".format(target_arch=windres_target)
@@ -184,34 +184,24 @@ def build(
     )
 
     # Render the Agent configuration file template
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-
     build_type = "agent-py3"
     if iot:
         build_type = "iot-agent"
     elif has_both_python(python_runtimes):
         build_type = "agent-py2py3"
 
-    args = {
-        "go_file": "./pkg/config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": "./cmd/agent/dist/datadog.yaml",
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 
     # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32' or windows_sysprobe:
-        cmd = "go run ./pkg/config/render_config.go system-probe ./pkg/config/config_template.yaml ./cmd/agent/dist/system-probe.yaml"
-        ctx.run(cmd, env=env)
+        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, iot=iot, windows_sysprobe=windows_sysprobe)
 
 
 @task
-def refresh_assets(ctx, build_tags, development=True, iot=False, windows_sysprobe=False):
+def refresh_assets(_, build_tags, development=True, iot=False, windows_sysprobe=False):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -270,7 +260,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx):
+def system_tests(_):
     """
     Run the system testsuite.
     """
@@ -317,7 +307,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for the Agent
     """
@@ -349,6 +339,94 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
     for prefix in prefixes:
         ctx.run("{} {}".format(go_cmd, prefix))
+
+
+def get_omnibus_env(
+    ctx,
+    skip_sign=False,
+    release_version="nightly",
+    major_version='7',
+    python_runtimes='3',
+    hardened_runtime=False,
+    system_probe_bin=None,
+    libbcc_tarball=None,
+    with_bcc=True,
+):
+    env = load_release_versions(ctx, release_version)
+
+    if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
+        # get certificate and password from ssm
+        pfxfile = get_signing_cert(ctx)
+        pfxpass = get_pfx_pass(ctx)
+        env['SIGN_PFX'] = str(pfxfile)
+        env['SIGN_PFX_PW'] = str(pfxpass)
+
+    if sys.platform == 'darwin':
+        # Target MacOS 10.12
+        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+
+    if skip_sign:
+        env['SKIP_SIGN_MAC'] = 'true'
+    if hardened_runtime:
+        env['HARDENED_RUNTIME_MAC'] = 'true'
+
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version)
+    env['MAJOR_VERSION'] = major_version
+    env['PY_RUNTIMES'] = python_runtimes
+    if with_bcc:
+        env['WITH_BCC'] = 'true'
+    if system_probe_bin:
+        env['SYSTEM_PROBE_BIN'] = system_probe_bin
+    if libbcc_tarball:
+        env['LIBBCC_TARBALL'] = libbcc_tarball
+
+    return env
+
+
+def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info"):
+    with ctx.cd("omnibus"):
+        overrides_cmd = ""
+        if base_dir:
+            overrides_cmd = "--override=base_dir:{}".format(base_dir)
+
+        omnibus = "bundle exec omnibus"
+        if sys.platform == 'win32':
+            omnibus = "bundle exec omnibus.bat"
+        elif sys.platform == 'darwin':
+            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
+            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
+            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
+
+        if omnibus_s3_cache:
+            populate_s3_cache = "--populate-s3-cache"
+        else:
+            populate_s3_cache = ""
+
+        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
+        args = {
+            "omnibus": omnibus,
+            "task": task,
+            "project_name": target_project,
+            "log_level": log_level,
+            "overrides": overrides_cmd,
+            "populate_s3_cache": populate_s3_cache,
+        }
+
+        ctx.run(cmd.format(**args), env=env)
+
+
+def bundle_install_omnibus(ctx, gem_path=None, env=None):
+    with ctx.cd("omnibus"):
+        # make sure bundle install starts from a clean state
+        try:
+            os.remove("Gemfile.lock")
+        except Exception:
+            pass
+
+        cmd = "bundle install"
+        if gem_path:
+            cmd += " --path {}".format(gem_path)
+        ctx.run(cmd, env=env)
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -388,108 +466,109 @@ def omnibus_build(
         deps_end = datetime.datetime.now()
         deps_elapsed = deps_end - deps_start
 
-    # omnibus config overrides
-    overrides = []
-
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-    if base_dir:
-        overrides.append("base_dir:{}".format(base_dir))
 
-    overrides_cmd = ""
-    if overrides:
-        overrides_cmd = "--override=" + " ".join(overrides)
+    env = get_omnibus_env(
+        ctx,
+        skip_sign=skip_sign,
+        release_version=release_version,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        hardened_runtime=hardened_runtime,
+        system_probe_bin=system_probe_bin,
+        libbcc_tarball=libbcc_tarball,
+        with_bcc=with_bcc,
+    )
 
-    with ctx.cd("omnibus"):
-        # make sure bundle install starts from a clean state
-        try:
-            os.remove("Gemfile.lock")
-        except Exception:
-            pass
+    target_project = "agent"
+    if iot:
+        target_project = "iot-agent"
+    elif agent_binaries:
+        target_project = "agent-binaries"
 
-        env = load_release_versions(ctx, release_version)
+    bundle_start = datetime.datetime.now()
+    bundle_install_omnibus(ctx, gem_path, env)
+    bundle_done = datetime.datetime.now()
+    bundle_elapsed = bundle_done - bundle_start
 
-        cmd = "bundle install"
-        if gem_path:
-            cmd += " --path {}".format(gem_path)
+    omnibus_start = datetime.datetime.now()
+    omnibus_run_task(
+        ctx=ctx,
+        task="build",
+        target_project=target_project,
+        base_dir=base_dir,
+        env=env,
+        omnibus_s3_cache=omnibus_s3_cache,
+        log_level=log_level,
+    )
+    omnibus_done = datetime.datetime.now()
+    omnibus_elapsed = omnibus_done - omnibus_start
 
-        bundle_start = datetime.datetime.now()
-        ctx.run(cmd, env=env)
+    print("Build component timing:")
+    if not skip_deps:
+        print("Deps:    {}".format(deps_elapsed))
+    print("Bundle:  {}".format(bundle_elapsed))
+    print("Omnibus: {}".format(omnibus_elapsed))
 
-        bundle_done = datetime.datetime.now()
-        bundle_elapsed = bundle_done - bundle_start
-        target_project = "agent"
-        if iot:
-            target_project = "iot-agent"
-        elif agent_binaries:
-            target_project = "agent-binaries"
 
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
+@task
+def omnibus_manifest(
+    ctx,
+    platform=None,
+    arch=None,
+    iot=False,
+    agent_binaries=False,
+    log_level="info",
+    base_dir=None,
+    gem_path=None,
+    skip_sign=False,
+    release_version="nightly",
+    major_version='7',
+    python_runtimes='3',
+    hardened_runtime=False,
+    system_probe_bin=None,
+    libbcc_tarball=None,
+    with_bcc=True,
+):
+    # base dir (can be overridden through env vars, command line takes precedence)
+    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
-        args = {
-            "omnibus": omnibus,
-            "project_name": target_project,
-            "log_level": log_level,
-            "overrides": overrides_cmd,
-            "populate_s3_cache": "",
-        }
-        pfxfile = None
-        try:
-            if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-                # get certificate and password from ssm
-                pfxfile = get_signing_cert(ctx)
-                pfxpass = get_pfx_pass(ctx)
-                # hack for now.  Remove `sign_windows, and set sign_pfx`
-                env['SIGN_PFX'] = "{}".format(pfxfile)
-                env['SIGN_PFX_PW'] = "{}".format(pfxpass)
+    env = get_omnibus_env(
+        ctx,
+        skip_sign=skip_sign,
+        release_version=release_version,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        hardened_runtime=hardened_runtime,
+        system_probe_bin=system_probe_bin,
+        libbcc_tarball=libbcc_tarball,
+        with_bcc=with_bcc,
+    )
 
-            if sys.platform == 'darwin':
-                # Target MacOS 10.12
-                env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+    target_project = "agent"
+    if iot:
+        target_project = "iot-agent"
+    elif agent_binaries:
+        target_project = "agent-binaries"
 
-            if omnibus_s3_cache:
-                args['populate_s3_cache'] = " --populate-s3-cache "
-            if skip_sign:
-                env['SKIP_SIGN_MAC'] = 'true'
-            if hardened_runtime:
-                env['HARDENED_RUNTIME_MAC'] = 'true'
+    bundle_install_omnibus(ctx, gem_path, env)
 
-            env['PACKAGE_VERSION'] = get_version(
-                ctx, include_git=True, url_safe=True, major_version=major_version, env=env
-            )
-            env['MAJOR_VERSION'] = major_version
-            env['PY_RUNTIMES'] = python_runtimes
-            if with_bcc:
-                env['WITH_BCC'] = 'true'
-            if system_probe_bin is not None:
-                env['SYSTEM_PROBE_BIN'] = system_probe_bin
-            if libbcc_tarball is not None:
-                env['LIBBCC_TARBALL'] = libbcc_tarball
-            omnibus_start = datetime.datetime.now()
-            ctx.run(cmd.format(**args), env=env)
-            omnibus_done = datetime.datetime.now()
-            omnibus_elapsed = omnibus_done - omnibus_start
+    task = "manifest"
+    if platform is not None:
+        task += " --platform-family={} --platform={} ".format(platform, platform)
+    if arch is not None:
+        task += " --architecture={} ".format(arch)
 
-        except Exception:
-            if pfxfile:
-                os.remove(pfxfile)
-            raise
-
-        if pfxfile:
-            os.remove(pfxfile)
-
-        print("Build compoonent timing:")
-        if not skip_deps:
-            print("Deps:    {}".format(deps_elapsed))
-        print("Bundle:  {}".format(bundle_elapsed))
-        print("Omnibus: {}".format(omnibus_elapsed))
+    omnibus_run_task(
+        ctx=ctx,
+        task=task,
+        target_project=target_project,
+        base_dir=base_dir,
+        env=env,
+        omnibus_s3_cache=False,
+        log_level=log_level,
+    )
 
 
 @task

@@ -1,9 +1,7 @@
 #ifndef _CONTAINER_H_
 #define _CONTAINER_H_
 
-#include "defs.h"
-
-static __attribute__((always_inline)) u32 copy_container_id(char dst[CONTAINER_ID_LEN], char src[CONTAINER_ID_LEN]) {
+static __attribute__((always_inline)) u32 copy_container_id(char src[CONTAINER_ID_LEN], char dst[CONTAINER_ID_LEN]) {
     if (src[0] == 0) {
         return 0;
     }
@@ -14,12 +12,6 @@ static __attribute__((always_inline)) u32 copy_container_id(char dst[CONTAINER_I
         dst[i] = src[i];
     }
     return CONTAINER_ID_LEN;
-}
-
-static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
-    if (entry) {
-        copy_container_id(context->container_id, entry->container.container_id);
-    }
 }
 
 #endif

@@ -77,6 +77,7 @@
 /cmd/agent/app/integrations*.go         @trishankatdatadog @DataDog/agent-integrations @DataDog/agent-core
 /cmd/agent/clcrunnerapi/                @DataDog/container-integrations @DataDog/agent-core
 /cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/infrastructure-integrations
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -145,6 +146,7 @@
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
+/pkg/collector/corechecks/snmp/         @DataDog/infrastructure-integrations
 /pkg/collector/corechecks/system/       @DataDog/agent-platform
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
@@ -159,7 +161,7 @@
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
-/pkg/logs/                              @DataDog/logs-intake @DataDog/agent-core
+/pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/agent-integrations @DataDog/agent-core
 /pkg/metadata/ecs/                      @DataDog/networks
 /pkg/metadata/kubernetes/               @DataDog/networks
@@ -208,4 +210,5 @@
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/networks
 /tools/gdb/                             @DataDog/agent-core
+/tools/retry_file_dump/                 @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform

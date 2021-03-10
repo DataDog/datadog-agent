@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const emptyCtrID = ""
@@ -35,7 +34,7 @@ type ProcessCheck struct {
 
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
-	lastProcs       map[int32]*process.FilledProcess
+	lastProcs       map[int32]*procutil.Process
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
@@ -58,7 +57,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the ProcessCheck.
-func (p *ProcessCheck) Name() string { return "process" }
+func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
@@ -229,7 +228,7 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
-	procs, lastProcs map[int32]*process.FilledProcess,
+	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
@@ -249,14 +248,14 @@ func fmtProcesses(
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
-			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, fp.CpuTime, lastProcs[fp.Pid].CpuTime, syst2, syst1),
-			CreateTime:             fp.CreateTime,
-			OpenFdCount:            fp.OpenFdCount,
-			State:                  model.ProcessState(model.ProcessState_value[fp.Status]),
-			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
+			Memory:                 formatMemory(fp.Stats),
+			Cpu:                    formatCPU(fp.Stats, fp.Stats.CPUTime, lastProcs[fp.Pid].Stats.CPUTime, syst2, syst1),
+			CreateTime:             fp.Stats.CreateTime,
+			OpenFdCount:            fp.Stats.OpenFdCount,
+			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
+			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
 		}
 		_, ok := procsByCtr[proc.ContainerId]
@@ -271,7 +270,7 @@ func fmtProcesses(
 	return procsByCtr
 }
 
-func formatCommand(fp *process.FilledProcess) *model.Command {
+func formatCommand(fp *procutil.Process) *model.Command {
 	return &model.Command{
 		Args:   fp.Cmdline,
 		Cwd:    fp.Cwd,
@@ -282,8 +281,8 @@ func formatCommand(fp *process.FilledProcess) *model.Command {
 	}
 }
 
-func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nill for Mac
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+	// This will be nil for Mac
 	if fp.IOStat == nil {
 		return &model.IOStat{}
 	}
@@ -292,26 +291,23 @@ func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before 
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
-	// Reading 0 as a counter means the file could not be opened due to permissions. We distinguish this from a real 0 in rates.
-	var readRate float32
-	readRate = -1
-	if fp.IOStat.ReadCount != 0 {
-		readRate = calculateRate(fp.IOStat.ReadCount, lastIO.ReadCount, before)
+	// Reading -1 as counter means the file could not be opened due to permissions.
+	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
+	readRate := float32(-1)
+	if fp.IOStat.ReadCount >= 0 {
+		readRate = calculateRate(uint64(fp.IOStat.ReadCount), uint64(lastIO.ReadCount), before)
 	}
-	var writeRate float32
-	writeRate = -1
-	if fp.IOStat.WriteCount != 0 {
-		writeRate = calculateRate(fp.IOStat.WriteCount, lastIO.WriteCount, before)
+	writeRate := float32(-1)
+	if fp.IOStat.WriteCount >= 0 {
+		writeRate = calculateRate(uint64(fp.IOStat.WriteCount), uint64(lastIO.WriteCount), before)
 	}
-	var readBytesRate float32
-	readBytesRate = -1
-	if fp.IOStat.ReadBytes != 0 {
-		readBytesRate = calculateRate(fp.IOStat.ReadBytes, lastIO.ReadBytes, before)
+	readBytesRate := float32(-1)
+	if fp.IOStat.ReadBytes >= 0 {
+		readBytesRate = calculateRate(uint64(fp.IOStat.ReadBytes), uint64(lastIO.ReadBytes), before)
 	}
-	var writeBytesRate float32
-	writeBytesRate = -1
-	if fp.IOStat.WriteBytes != 0 {
-		writeBytesRate = calculateRate(fp.IOStat.WriteBytes, lastIO.WriteBytes, before)
+	writeBytesRate := float32(-1)
+	if fp.IOStat.WriteBytes >= 0 {
+		writeBytesRate = calculateRate(uint64(fp.IOStat.WriteBytes), uint64(lastIO.WriteBytes), before)
 	}
 	return &model.IOStat{
 		ReadRate:       readRate,
@@ -321,7 +317,7 @@ func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before 
 	}
 }
 
-func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
+func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 	ms := &model.MemoryStat{
 		Rss:  fp.MemInfo.RSS,
 		Vms:  fp.MemInfo.VMS,
@@ -342,8 +338,8 @@ func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
 // for multiple collections.
 func skipProcess(
 	cfg *config.AgentConfig,
-	fp *process.FilledProcess,
-	lastProcs map[int32]*process.FilledProcess,
+	fp *procutil.Process,
+	lastProcs map[int32]*procutil.Process,
 ) bool {
 	if len(fp.Cmdline) == 0 {
 		return true
@@ -366,7 +362,7 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {
 		if p, ok := p.lastProcs[pid]; ok {
-			createTimeForPID[pid] = p.CreateTime
+			createTimeForPID[pid] = p.Stats.CreateTime
 		}
 	}
 	return createTimeForPID

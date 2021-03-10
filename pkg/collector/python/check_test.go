@@ -15,8 +15,32 @@ func TestRunCheck(t *testing.T) {
 	testRunCheck(t)
 }
 
+func TestInitCheckWithRuntimeNotInitialized(t *testing.T) {
+	testInitiCheckWithRuntimeNotInitialized(t)
+}
+
+func TestRunCheckWithRuntimeNotInitialized(t *testing.T) {
+	testRunCheckWithRuntimeNotInitializedError(t)
+}
+
 func TestRunErrorNil(t *testing.T) {
 	testRunErrorNil(t)
+}
+
+func TestCheckCancel(t *testing.T) {
+	testCheckCancel(t)
+}
+
+func TestCheckCancelWhenRuntimeUnloaded(t *testing.T) {
+	testCheckCancelWhenRuntimeUnloaded(t)
+}
+
+func TestFinalizer(t *testing.T) {
+	testFinalizer(t)
+}
+
+func TestFinalizerWhenRuntimeUnloaded(t *testing.T) {
+	testFinalizerWhenRuntimeUnloaded(t)
 }
 
 func TestRunErrorReturn(t *testing.T) {

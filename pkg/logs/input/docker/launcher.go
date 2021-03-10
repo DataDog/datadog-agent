@@ -28,6 +28,11 @@ const (
 	backoffMaxDuration     = 60 * time.Second
 )
 
+type sourceInfoPair struct {
+	source *config.LogSource
+	info   *config.MappedInfo
+}
+
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
 type Launcher struct {
 	pipelineProvider   pipeline.Provider
@@ -43,16 +48,17 @@ type Launcher struct {
 	erroredContainerID chan string
 	lock               *sync.Mutex
 	collectAllSource   *config.LogSource
+	collectAllInfo     *config.MappedInfo
 	readTimeout        time.Duration               // client read timeout to set on the created tailer
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 
-	tailFromFile           bool                         // If true docker will be tailed from the corresponding log file
-	fileSourcesByContainer map[string]*config.LogSource // Keep track of locally generated sources
-	sources                *config.LogSources           // To schedule file source when taileing container from file
+	forceTailingFromFile   bool                      // will ignore known offset and always tail from file
+	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
+	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile bool) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
 	if !shouldRetry {
 		if _, err := dockerutil.GetDockerUtil(); err != nil {
 			return nil, err
@@ -69,9 +75,10 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
 		serviceNameFunc:        input.ServiceNameFromTags,
-		sources:                sources,
+		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
-		fileSourcesByContainer: make(map[string]*config.LogSource),
+		fileSourcesByContainer: make(map[string]sourceInfoPair),
+		collectAllInfo:         config.NewMappedInfo("Container Info"),
 	}
 
 	if tailFromFile {
@@ -195,6 +202,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 
 	if l.collectAllSource == nil {
 		l.collectAllSource = source
+		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 	}
 
 	shortName, err := container.getShortImageName()
@@ -204,7 +212,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		return source
 	}
 
-	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from the Docker socket", ShortContainerID(containerID), shortName, container.container.Created))
+	l.collectAllInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from the Docker socket", ShortContainerID(containerID), shortName, container.container.Created))
 
 	newSource := newOverridenSource(standardService, shortName, source.Status)
 	newSource.ParentSource = source
@@ -212,12 +220,20 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 }
 
 // getFileSource create a new file source with the image short name if the source is ContainerCollectAll
-func (l *Launcher) getFileSource(container *Container, source *config.LogSource) *config.LogSource {
+func (l *Launcher) getFileSource(container *Container, source *config.LogSource) sourceInfoPair {
 	containerID := container.service.Identifier
+
+	// If containerCollectAll is set - we use the global collectAllInfo, otherwise we create a new info for this source
+	var sourceInfo *config.MappedInfo
 
 	// Populate the collectAllSource if we don't have it yet
 	if source.Name == config.ContainerCollectAll && l.collectAllSource == nil {
 		l.collectAllSource = source
+		l.collectAllSource.RegisterInfo(l.collectAllInfo)
+		sourceInfo = l.collectAllInfo
+	} else {
+		sourceInfo = config.NewMappedInfo("Container Info")
+		source.RegisterInfo(sourceInfo)
 	}
 
 	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(containerID))
@@ -228,7 +244,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	// Update parent source with additional information
-	source.UpdateInfo(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
+	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
 
 	var serviceName string
 	if source.Name != config.ContainerCollectAll && source.Config.Service != "" {
@@ -239,18 +255,20 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		serviceName = shortName
 	}
 
-	// New file source
+	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
-		Identifier: containerID,
-		Path:       l.getPath(containerID),
-		Service:    serviceName,
-		Source:     shortName,
-		Type:       config.FileType,
+		Type:            config.FileType,
+		Identifier:      containerID,
+		Path:            l.getPath(containerID),
+		Service:         serviceName,
+		Source:          shortName,
+		Tags:            source.Config.Tags,
+		ProcessingRules: source.Config.ProcessingRules,
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status
 	fileSource.ParentSource = source
-	return fileSource
+	return sourceInfoPair{source: fileSource, info: sourceInfo}
 }
 
 // getPath returns the file path of the container log to tail.
@@ -280,11 +298,26 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
-	if l.tailFromFile {
+	if l.shouldTailFromFile(container) {
 		l.scheduleFileSource(container, source)
 	} else {
 		l.startSocketTailer(container, source)
 	}
+}
+
+func (l *Launcher) shouldTailFromFile(container *Container) bool {
+	if !l.tailFromFile {
+		return false
+	}
+	// Unsure this one is really useful, user could be instructed to clean up the registry
+	if l.forceTailingFromFile {
+		return true
+	}
+	// Check if there is a known offset for that container, if so keep tailing
+	// the container from the docker socket
+	registryID := fmt.Sprintf("docker:%s", container.service.Identifier)
+	offset := l.registry.GetOffset(registryID)
+	return offset == ""
 }
 
 func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSource) {
@@ -293,20 +326,14 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
-	// fileSource is a new source using the original source as its parent
-	fileSource := l.getFileSource(container, source)
-	// Keep source for later unscheduling
-	l.fileSourcesByContainer[containerID] = fileSource
-	l.sources.AddSource(fileSource)
+	// fileSource is a new source using the original source as its parent - keep track for later unscheduling
+	l.fileSourcesByContainer[containerID] = l.getFileSource(container, source)
 }
 
 func (l *Launcher) unscheduleFileSource(containerID string) {
-	if fileSource, exists := l.fileSourcesByContainer[containerID]; exists {
-		if fileSource.ParentSource != nil {
-			fileSource.ParentSource.RemoveInfo(containerID)
-		}
+	if sourcePair, exists := l.fileSourcesByContainer[containerID]; exists {
+		sourcePair.info.RemoveMessage(containerID)
 		delete(l.fileSourcesByContainer, containerID)
-		l.sources.RemoveSource(fileSource)
 	}
 }
 
@@ -357,7 +384,7 @@ func (l *Launcher) stopSocketTailer(containerID string) {
 		// No-op if the tailer source came from AD
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
-			l.collectAllSource.RemoveInfo(containerID)
+			l.collectAllInfo.RemoveMessage(containerID)
 		}
 		go tailer.Stop()
 		l.removeTailer(containerID)
@@ -377,7 +404,7 @@ func (l *Launcher) restartTailer(containerID string) {
 		source = oldTailer.source
 		if l.collectAllSource != nil {
 			l.collectAllSource.RemoveInput(containerID)
-			l.collectAllSource.RemoveInfo(containerID)
+			l.collectAllInfo.RemoveMessage(containerID)
 		}
 		oldTailer.Stop()
 		l.removeTailer(containerID)

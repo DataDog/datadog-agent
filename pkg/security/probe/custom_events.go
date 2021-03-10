@@ -13,8 +13,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -38,7 +40,7 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-func newCustomEvent(eventType EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
+func newCustomEvent(eventType model.EventType, marshalFunc func() ([]byte, error)) *CustomEvent {
 	return &CustomEvent{
 		eventType:   eventType,
 		marshalFunc: marshalFunc,
@@ -47,7 +49,7 @@ func newCustomEvent(eventType EventType, marshalFunc func() ([]byte, error)) *Cu
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType   EventType
+	eventType   model.EventType
 	tags        []string
 	marshalFunc func() ([]byte, error)
 }
@@ -72,7 +74,7 @@ func (ce *CustomEvent) GetType() string {
 }
 
 // GetEventType returns the event type
-func (ce *CustomEvent) GetEventType() EventType {
+func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
@@ -100,18 +102,18 @@ func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 // EventLostRead is the event used to report lost events detected from user space
 // easyjson:json
 type EventLostRead struct {
-	Timestamp time.Time     `json:"date"`
-	Name      string        `json:"map"`
-	Lost      map[int]int64 `json:"per_cpu"`
+	Timestamp time.Time `json:"date"`
+	Name      string    `json:"map"`
+	Lost      int64     `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*rules.Rule, *CustomEvent) {
+func NewEventLostReadEvent(mapName string, lost int64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
-		}), newCustomEvent(CustomLostReadEventType, EventLostRead{
+		}), newCustomEvent(model.CustomLostReadEventType, EventLostRead{
 			Name:      mapName,
-			Lost:      perCPU,
+			Lost:      lost,
 			Timestamp: time.Now(),
 		}.MarshalJSON)
 }
@@ -119,40 +121,140 @@ func NewEventLostReadEvent(mapName string, perCPU map[int]int64) (*rules.Rule, *
 // EventLostWrite is the event used to report lost events detected from kernel space
 // easyjson:json
 type EventLostWrite struct {
-	Timestamp time.Time                 `json:"date"`
-	Name      string                    `json:"map"`
-	Lost      map[string]map[int]uint64 `json:"per_event_per_cpu"`
+	Timestamp time.Time         `json:"date"`
+	Name      string            `json:"map"`
+	Lost      map[string]uint64 `json:"per_event"`
 }
 
 // NewEventLostWriteEvent returns the rule and a populated custom event for a lost_events_write event
-func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]map[int]uint64) (*rules.Rule, *CustomEvent) {
+func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
-		}), newCustomEvent(CustomLostWriteEventType, EventLostWrite{
+		}), newCustomEvent(model.CustomLostWriteEventType, EventLostWrite{
 			Name:      mapName,
 			Lost:      perEventPerCPU,
 			Timestamp: time.Now(),
 		}.MarshalJSON)
 }
 
+// RulesIgnored holds the errors
+type RulesIgnored struct {
+	Errors *multierror.Error
+}
+
+// MarshalJSON custom marshaller
+func (r *RulesIgnored) MarshalJSON() ([]byte, error) {
+	if r.Errors == nil {
+		return nil, nil
+	}
+
+	var errs []interface{}
+
+	for _, err := range r.Errors.Errors {
+		if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+			errs = append(errs,
+				struct {
+					ID     string `json:"id"`
+					Reason string `json:"reason"`
+				}{
+					ID:     rerr.Definition.ID,
+					Reason: rerr.Err.Error(),
+				})
+		}
+	}
+
+	return json.Marshal(errs)
+}
+
+// UnmarshalJSON empty unmarshaller
+func (r *RulesIgnored) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+// PoliciesIgnored holds the errors
+type PoliciesIgnored struct {
+	Errors *multierror.Error
+}
+
+// MarshalJSON custom marshaller
+func (r *PoliciesIgnored) MarshalJSON() ([]byte, error) {
+	if r.Errors == nil {
+		return nil, nil
+	}
+
+	var errs []interface{}
+
+	for _, err := range r.Errors.Errors {
+		if perr, ok := err.(*rules.ErrPolicyLoad); ok {
+			errs = append(errs,
+				struct {
+					Name   string `json:"name"`
+					Reason string `json:"reason"`
+				}{
+					Name:   perr.Name,
+					Reason: perr.Err.Error(),
+				})
+		}
+	}
+
+	return json.Marshal(errs)
+}
+
+// UnmarshalJSON empty unmarshaller
+func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+// RuleSetLoaded holds the rules
+type RuleSetLoaded struct {
+	Rules map[eval.RuleID]*eval.Rule
+}
+
+// MarshalJSON custom marshaller
+func (r *RuleSetLoaded) MarshalJSON() ([]byte, error) {
+	var loaded []interface{}
+
+	for id, rule := range r.Rules {
+		loaded = append(loaded,
+			struct {
+				ID         string `json:"id"`
+				Expression string `json:"expression"`
+			}{
+				ID:         id,
+				Expression: rule.Expression,
+			})
+	}
+
+	return json.Marshal(loaded)
+}
+
+// UnmarshalJSON empty unmarshaller
+func (r *RuleSetLoaded) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp time.Time         `json:"date"`
-	Policies  map[string]string `json:"policies"`
-	Rules     []rules.RuleID    `json:"rules"`
-	Macros    []rules.MacroID   `json:"macros"`
+	Timestamp       time.Time         `json:"date"`
+	Policies        map[string]string `json:"policies"`
+	PoliciesIgnored *PoliciesIgnored  `json:"policies_ignored,omitempty"`
+	Macros          []rules.MacroID   `json:"macros_loaded"`
+	Rules           *RuleSetLoaded    `json:"rules_loaded"`
+	RulesIgnored    *RulesIgnored     `json:"rules_ignored,omitempty"`
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(loadedPolicies map[string]string, loadedRules []rules.RuleID, loadedMacros []rules.MacroID) (*rules.Rule, *CustomEvent) {
+func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
-		}), newCustomEvent(CustomRulesetLoadedEventType, RulesetLoadedEvent{
-			Timestamp: time.Now(),
-			Policies:  loadedPolicies,
-			Rules:     loadedRules,
-			Macros:    loadedMacros,
+		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
+			Timestamp:       time.Now(),
+			Policies:        rs.ListPolicies(),
+			PoliciesIgnored: &PoliciesIgnored{Errors: err},
+			Rules:           &RuleSetLoaded{Rules: rs.GetRules()},
+			Macros:          rs.ListMacroIDs(),
+			RulesIgnored:    &RulesIgnored{Errors: err},
 		}.MarshalJSON)
 }
 
@@ -169,17 +271,17 @@ type NoisyProcessEvent struct {
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(eventType EventType,
+func NewNoisyProcessEvent(eventType model.EventType,
 	count uint64,
 	threshold int64,
 	controlPeriod time.Duration,
 	discardedUntil time.Time,
-	process *ProcessCacheEntry,
+	process *model.ProcessCacheEntry,
 	resolvers *Resolvers,
 	timestamp time.Time) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: NoisyProcessRuleID,
-		}), newCustomEvent(CustomNoisyProcessEventType, NoisyProcessEvent{
+		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
 			Timestamp:      timestamp,
 			Event:          eventType.String(),
 			Count:          count,
@@ -190,14 +292,14 @@ func NewNoisyProcessEvent(eventType EventType,
 		}.MarshalJSON)
 }
 
-func resolutionErrorToEventType(err error) EventType {
+func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case ErrTruncatedParents:
-		return CustomTruncatedParentsEventType
+		return model.CustomTruncatedParentsEventType
 	case ErrTruncatedSegment:
-		return CustomTruncatedSegmentEventType
+		return model.CustomTruncatedSegmentEventType
 	default:
-		return UnknownEventType
+		return model.UnknownEventType
 	}
 }
 

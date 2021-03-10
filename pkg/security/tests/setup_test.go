@@ -11,10 +11,12 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -54,6 +56,9 @@ system_probe_config:
 
 runtime_security_config:
   enabled: true
+  fim_enabled: true
+  custom_sensitive_words:
+    - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
@@ -459,6 +464,26 @@ func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
 	return tm.st.Path(filename)
 }
 
+func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
+	testFile, testFilePtr, err := tm.st.Path(filename)
+	if err != nil {
+		return testFile, testFilePtr, err
+	}
+
+	// Create file
+	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
+	if errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	syscall.Close(int(fd))
+
+	// Chown the file
+	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	return testFile, testFilePtr, err
+}
+
 func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	testFile, testPtr, err := tm.st.Path(filename)
 	if err != nil {
@@ -482,6 +507,12 @@ type tracePipeLogger struct {
 	stop chan struct{}
 }
 
+func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
+	if event.PID == strconv.Itoa(os.Getpid()) {
+		log.Debug(event.Raw)
+	}
+}
+
 func (l *tracePipeLogger) Start() {
 	channelEvents, channelErrors := l.Channel()
 
@@ -489,9 +520,12 @@ func (l *tracePipeLogger) Start() {
 		for {
 			select {
 			case <-l.stop:
+				for len(channelEvents) > 0 {
+					l.handleEvent(<-channelEvents)
+				}
 				return
 			case event := <-channelEvents:
-				log.Debug(event.Raw)
+				l.handleEvent(event)
 			case err := <-channelErrors:
 				log.Error(err)
 			}
@@ -500,6 +534,8 @@ func (l *tracePipeLogger) Start() {
 }
 
 func (l *tracePipeLogger) Stop() {
+	time.Sleep(time.Millisecond * 200)
+
 	l.stop <- struct{}{}
 	l.Close()
 }
@@ -515,6 +551,8 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		stop:      make(chan struct{}),
 	}
 	logger.Start()
+
+	time.Sleep(time.Millisecond * 200)
 
 	return logger, nil
 }
@@ -593,11 +631,11 @@ var logInitilialized bool
 
 func (t *simpleTest) swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 	if logger == nil {
-		logFormat := "%Ns [%LEVEL] %Func:%Line %Msg\n"
+		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
 
 		var err error
 
-		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, seelog.TraceLvl, logFormat)
+		logger, err = seelog.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
 		if err != nil {
 			return 0, err
 		}
@@ -630,6 +668,9 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			return nil, err
 		}
 		t.toRemove = true
+		if err := os.Chmod(t.root, 0o711); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := t.load(macros, rules); err != nil {
@@ -637,6 +678,19 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 
 	return t, nil
+}
+
+// systemUmask caches the system umask between tests
+var systemUmask int
+
+func applyUmask(fileMode int) int {
+	if systemUmask == 0 {
+		// Get the system umask to compute the right access mode
+		systemUmask = unix.Umask(0)
+		// the previous line overrides the system umask, change it back
+		_ = unix.Umask(systemUmask)
+	}
+	return fileMode &^ systemUmask
 }
 
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
@@ -654,29 +708,60 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 }
 
-// waitForOpenProbeEvent returns the first open event with the provided filename.
-// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
-// contain a rule on "open.filename"
-func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
-	exhaust := time.After(time.Second)
-
-	var event *probe.Event
+func (tm *testModule) flushChannels(duration time.Duration) {
+	timeout := time.After(duration)
 	for {
 		select {
-		case e := <-test.probeHandler.GetActiveEventsChan():
-			if value, _ := e.GetFieldValue("open.filename"); value == filename {
-				event = e
-			}
-		case <-test.discarders:
-		case <-exhaust:
-			if event != nil {
-				return event, nil
+		case <-tm.discarders:
+		case <-tm.probeHandler.GetActiveEventsChan():
+		case <-timeout:
+			return
+		}
+	}
+}
+
+func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.Event, error) {
+	timeout := time.After(5 * time.Second)
+
+	for {
+		select {
+		case discarder := <-test.discarders:
+			v, _ := discarder.event.GetFieldValue(key)
+			if v == value {
+				test.flushChannels(time.Second)
+				return discarder.event.(*sprobe.Event), nil
 			}
 		case <-timeout:
 			return nil, errors.New("timeout")
 		}
 	}
+}
+
+// waitForProbeEvent returns the first open event with the provided filename.
+// WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
+// contain a rule on "open.filename"
+func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.Event, error) {
+	timeout := time.After(3 * time.Second)
+
+	for {
+		select {
+		case e := <-test.probeHandler.GetActiveEventsChan():
+			if v, _ := e.GetFieldValue(key); v == value {
+				test.flushChannels(time.Second)
+				return e, nil
+			}
+		case <-timeout:
+			return nil, errors.New("timeout")
+		}
+	}
+}
+
+func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
+	return waitForDiscarder(test, "open.file.path", filename)
+}
+
+func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
+	return waitForProbeEvent(test, "open.file.path", filename)
 }
 
 func TestEnv(t *testing.T) {

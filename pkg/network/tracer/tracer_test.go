@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,15 +27,17 @@ import (
 	"time"
 	"unsafe"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +54,6 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -143,6 +145,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PInetBindMisses",
 			"PInet6BindHits",
 			"PInet6BindMisses",
+			"PIp6MakeSkbHits",
+			"PIp6MakeSkbMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
 			"RTcpCloseHits",
@@ -424,7 +428,7 @@ func TestTCPRemoveEntries(t *testing.T) {
 	tcpMp, err := tr.getMap(probes.TcpStatsMap)
 	require.NoError(t, err)
 
-	key, err := connTupleFromConn(c, 0)
+	key, err := connTupleFromConn(c, 0, 0)
 	require.NoError(t, err)
 	stats := new(TCPStats)
 	err = tcpMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
@@ -561,7 +565,8 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	assert.Equal(t, 1, connsWithRetransmits)
 
 	// Test if telemetry measuring PID collisions is correct
-	assert.Equal(t, int64(numProcesses-1), atomic.LoadInt64(&tr.pidCollisions))
+	// >= because there can be other connections going on during CI that increase pidCollisions
+	assert.GreaterOrEqual(t, atomic.LoadInt64(&tr.pidCollisions), int64(numProcesses-1))
 }
 
 func TestTCPRTT(t *testing.T) {
@@ -674,6 +679,10 @@ func TestTCPShortlived(t *testing.T) {
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	config := testConfig()
 	config.CollectIPv6Conns = true
 
@@ -972,47 +981,6 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 		}
 		return false
 	}, "Unable to find UDP connection to 127.0.0.1:80")
-}
-
-func TestTooSmallBPFMap(t *testing.T) {
-	// Enable BPF-based system probe with BPF maps size = 1
-	config := testConfig()
-	config.MaxTrackedConnections = 1
-
-	tr, err := NewTracer(config)
-	require.NoError(t, err)
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	err = server.Run(doneChan)
-	require.NoError(t, err)
-	defer close(doneChan)
-
-	// Connect to server two times
-	// Write clientMessageSize to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	// Second time
-	c2, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
-	require.NoError(t, err)
-	defer c2.Close()
-	_, err = c2.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-
-	connections := getConnections(t, tr)
-	// we should only have one connection returned
-	assert.Len(t, connections.Conns, 1)
 }
 
 func TestIsExpired(t *testing.T) {
@@ -1787,7 +1755,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(googlePublicDNSIPv4), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1806,6 +1774,10 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
@@ -1819,6 +1791,39 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestUnconnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	cfg := testConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	linkLocal, err := getIPv6LinkLocalAddress()
+	require.NoError(t, err)
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	conn, err := net.ListenUDP("udp6", linkLocal)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
@@ -1920,6 +1925,68 @@ func TestConnectionClobber(t *testing.T) {
 	require.Equal(t, preCap, cap(tr.buffer))
 }
 
+func TestTCPDirection(t *testing.T) {
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			t.Logf("received http request from %s", req.RemoteAddr)
+			io.Copy(ioutil.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	srv.SetKeepAlivesEnabled(false)
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
+
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	// Send a HTTP request to the test server
+	client := new(nethttp.Client)
+	resp, err := client.Get("http://" + serverAddr + "/test")
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	// Iterate through active connections until we find connection created above
+	var outgoingConns []network.ConnectionStats
+	var incomingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if len(outgoingConns) == 0 {
+			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+			})
+		}
+		if len(incomingConns) == 0 {
+			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			})
+		}
+
+		return len(outgoingConns) == 1 && len(incomingConns) == 1
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+
+	// Verify connection directions
+	conn := outgoingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	conn = incomingConns[0]
+	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1937,7 +2004,7 @@ func TestHTTPStats(t *testing.T) {
 		return
 	}
 
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
@@ -1957,6 +2024,7 @@ func TestHTTPStats(t *testing.T) {
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
 	}
+	srv.SetKeepAlivesEnabled(false)
 	go func() {
 		_ = srv.ListenAndServe()
 	}()
@@ -1973,24 +2041,26 @@ func TestHTTPStats(t *testing.T) {
 
 	// Iterate through active connections until we find connection created above
 	var matchingConns []network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
 		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
 			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
 		})
 
 		return len(matchingConns) == 1
-	}, 2*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
 	conn := matchingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
 	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
 	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0)) // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats.Count(1)) // 200
-	assert.Equal(t, 0, httpReqStats.Count(2)) // 300
-	assert.Equal(t, 0, httpReqStats.Count(3)) // 400
-	assert.Equal(t, 0, httpReqStats.Count(4)) // 500
+	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
+	// it sees both sides of the req/resp so will register two 200s
+	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
+	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
+	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
+	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
@@ -2013,7 +2083,7 @@ func setupDNAT(t *testing.T) {
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
-	runCommands(t, cmds)
+	testutil.RunCommands(t, cmds, false)
 }
 
 func teardownDNAT(t *testing.T) {
@@ -2024,20 +2094,7 @@ func teardownDNAT(t *testing.T) {
 		// clear out the conntrack table
 		"conntrack -F",
 	}
-	runCommands(t, cmds)
-}
-
-func runCommands(t *testing.T, cmds []string) {
-	t.Helper()
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
-		}
-	}
+	testutil.RunCommands(t, cmds, true)
 }
 
 func testConfig() *config.Config {
@@ -2049,15 +2106,209 @@ func testConfig() *config.Config {
 	return cfg
 }
 
+func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	queryMsg.RecursionDesired = true
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+	require.NoError(t, err)
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	require.NoError(t, err)
+
+	return dnsClientAddr, dnsServerAddr
+}
+
+func TestGatewayLookupNotEnabled(t *testing.T) {
+	t.Run("gateway lookup not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+}
+
+func TestGatewayLookupEnabled(t *testing.T) {
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NotNil(t, tr)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)\s+src`)
+
+	cmd := exec.Command("ip", "route", "get", "8.8.8.8")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+
+	matches := ipRouteGetOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	dev := string(matches[1])
+
+	ipRouteLinkOut := regexp.MustCompile(`(\d+):.+`)
+
+	out, err = exec.Command("ip", "link", "show", dev).CombinedOutput()
+	require.NoError(t, err, "ip link command output: %s", out)
+	matches = ipRouteLinkOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	ifindex := string(matches[1])
+
+	ifs, err := net.Interfaces()
+	require.NoError(t, err)
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		for _, i := range ifs {
+			if hwAddr.String() == i.HardwareAddr.String() {
+				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
+			}
+		}
+
+		return network.Subnet{Alias: "subnet"}, nil
+	}
+
+	getConnections(t, tr)
+
+	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+		return ok
+	}, 2*time.Second, time.Second)
+
+	require.NotNil(t, conn.Via)
+	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%s", ifindex))
+}
+
+func TestConnectionAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return genPayload(serverMessageSize)
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// do two exchanges to make the connection "assured"
+	for i := 0; i < 2; i++ {
+		_, err = c.Write(genPayload(clientMessageSize))
+		require.NoError(t, err)
+
+		buf := make([]byte, serverMessageSize)
+		_, err = c.Read(buf)
+		require.NoError(t, err)
+	}
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes > 0
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+
+	// verify the connection is marked as assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.True(t, stats.isAssured())
+}
+
+func TestConnectionNotAssured(t *testing.T) {
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	// register test as client
+	getConnections(t, tr)
+
+	server := NewUDPServer(func(b []byte, n int) []byte {
+		return nil
+	})
+
+	done := make(chan struct{})
+	server.Run(done, clientMessageSize)
+	defer close(done)
+
+	c, err := net.DialTimeout("udp", server.address, time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0 && conn.MonotonicRecvBytes == 0
+	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+
+	// verify the connection is marked as not assured
+	connMp, err := tr.getMap(probes.ConnMap)
+	require.NoError(t, err)
+	defer connMp.Close()
+	key, err := connTupleFromConn(c, conn.Pid, conn.NetNS)
+	stats := &ConnStatsWithTimestamp{}
+	err = connMp.Lookup(unsafe.Pointer(key), unsafe.Pointer(stats))
+	require.NoError(t, err)
+	require.False(t, stats.isAssured())
+}
+
 func TestSelfConnect(t *testing.T) {
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr, err := NewTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	getConnections(t, tr)
@@ -2069,8 +2320,9 @@ func TestSelfConnect(t *testing.T) {
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		cmd.Stdout = stdOutWriter
-		require.NoError(t, cmd.Start())
+		err := cmd.Start()
 		close(started)
+		require.NoError(t, err)
 		if err := cmd.Wait(); err != nil {
 			status := cmd.ProcessState.Sys().(syscall.WaitStatus)
 			require.Equal(t, syscall.SIGKILL, status.Signal(), "fork.py output: %s", stderr.String())
@@ -2108,5 +2360,67 @@ func TestSelfConnect(t *testing.T) {
 		t.Logf("connections: %v", conns)
 		return len(conns) == 1
 	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 1")
+}
 
+func TestNewConntracker(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	cfg := testConfig()
+
+	mockCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return netlink.NewMockConntracker(ctrl), nil
+	}
+
+	errCreator := func(_ *config.Config) (netlink.Conntracker, error) {
+		return nil, assert.AnError
+	}
+
+	mockConntracker := netlink.NewMockConntracker(ctrl)
+	noopConntracker := netlink.NewNoOpConntracker()
+
+	tests := []struct {
+		conntrackEnabled  bool
+		ignoreInitFailure bool
+		creator           func(*config.Config) (netlink.Conntracker, error)
+
+		conntracker netlink.Conntracker
+		err         error
+	}{
+		{false, false, mockCreator, noopConntracker, nil},
+		{true, true, mockCreator, mockConntracker, nil},
+		{true, true, errCreator, noopConntracker, nil},
+		{true, false, mockCreator, mockConntracker, nil},
+		{true, false, errCreator, nil, assert.AnError},
+	}
+
+	for _, te := range tests {
+		cfg.EnableConntrack = te.conntrackEnabled
+		cfg.IgnoreConntrackInitFailure = te.ignoreInitFailure
+		c, err := newConntracker(cfg, te.creator)
+		if te.conntracker != nil {
+			require.IsType(t, te.conntracker, c)
+		} else {
+			require.Nil(t, c)
+		}
+
+		if te.err != nil {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestUDPConnExpiryTimeout(t *testing.T) {
+	streamTimeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout_stream", 0).Get()
+	require.NoError(t, err)
+	timeout, err := sysctl.NewInt("/proc", "net/netfilter/nf_conntrack_udp_timeout", 0).Get()
+	require.NoError(t, err)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
+	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
 }

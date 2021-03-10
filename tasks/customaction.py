@@ -1,7 +1,7 @@
 """
 customaction namespaced tasks
 """
-from __future__ import print_function
+
 
 import os
 import shutil
@@ -28,7 +28,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
+    ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
         build_maj=build_maj, build_min=build_min, build_patch=build_patch
@@ -62,16 +62,19 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    srcdll = None
-    if arch is not None and arch == "x86":
-        srcdll = "{}\\cal\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    else:
-        srcdll = "{}\\cal\\x64\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    shutil.copy2(srcdll, BIN_PATH)
+    artefacts = [
+        "customaction.dll",
+        "customaction.pdb",
+    ]
+    for artefact in artefacts:
+        if arch is not None and arch == "x86":
+            shutil.copy2("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
+        else:
+            shutil.copy2("{}\\cal\\x64\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
 
 
 @task
-def clean(ctx, arch="x64", debug=False):
+def clean(_, arch="x64", debug=False):
     configuration = "Release"
     if debug:
         configuration = "Debug"

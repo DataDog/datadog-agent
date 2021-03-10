@@ -25,6 +25,9 @@ const (
 	// DefaultClockTicks is the default number of clock ticks per second
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
+
+	// More than 5760 to work around https://golang.org/issue/24015.
+	blockSize = 8192
 )
 
 var (
@@ -136,10 +139,15 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
 		if p.withPermission {
-			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
-			stats.IOStat = &IOCountersStat{} // use default value
+			stats.IOStat = &IOCountersStat{
+				ReadCount:  -1,
+				WriteCount: -1,
+				ReadBytes:  -1,
+				WriteBytes: -1,
+			} // use -1 values to represent "no permission"
 		}
 		statsByPID[pid] = stats
 	}
@@ -197,7 +205,12 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
 			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
 		} else {
-			proc.Stats.IOStat = &IOCountersStat{} // use default values
+			proc.Stats.IOStat = &IOCountersStat{
+				ReadCount:  -1,
+				WriteCount: -1,
+				ReadBytes:  -1,
+				WriteBytes: -1,
+			} // use -1 values to represent "no permission"
 		}
 		procsByPID[pid] = proc
 	}
@@ -299,7 +312,12 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
 
-	io := &IOCountersStat{}
+	io := &IOCountersStat{
+		ReadBytes:  -1,
+		ReadCount:  -1,
+		WriteBytes: -1,
+		WriteCount: -1,
+	}
 
 	if err = p.ensurePathReadable(path); err != nil {
 		return io
@@ -339,22 +357,22 @@ func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
 	switch key {
 	case "syscr":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.ReadCount = v
 		}
 	case "syscw":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.WriteCount = v
 		}
 	case "read_bytes":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.ReadBytes = v
 		}
 	case "write_bytes":
-		v, err := strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
 		if err == nil {
 			io.WriteBytes = v
 		}
@@ -642,6 +660,40 @@ func (p *Probe) getFDCount(pidPath string) int32 {
 		return -1
 	}
 	return int32(len(names))
+}
+
+// getFDCountImproved gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
+// this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
+func (p *Probe) getFDCountImproved(pidPath string) int32 {
+	path := filepath.Join(pidPath, "fd")
+
+	if err := p.ensurePathReadable(path); err != nil {
+		return -1
+	}
+
+	d, err := os.Open(path)
+	if err != nil {
+		return -1
+	}
+	defer d.Close()
+
+	b := make([]byte, blockSize)
+	count := 0
+
+	for i := 0; ; i++ {
+		n, err := syscall.ReadDirent(int(d.Fd()), b)
+		if err != nil {
+			return -1
+		}
+		if n <= 0 {
+			break
+		}
+
+		_, numDirs := countDirent(b[:n])
+		count += numDirs
+	}
+
+	return int32(count)
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.

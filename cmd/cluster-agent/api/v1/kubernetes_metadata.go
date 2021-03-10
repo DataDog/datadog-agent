@@ -12,7 +12,7 @@ import (
 
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
 
@@ -21,6 +21,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 	r.HandleFunc("/tags/pod/{nodeName}", getPodMetadataForNode).Methods("GET")
 	r.HandleFunc("/tags/pod", getAllMetadata).Methods("GET")
 	r.HandleFunc("/tags/node/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/tags/namespace/{ns}", getNamespaceMetadata).Methods("GET")
 	r.HandleFunc("/cluster/id", getClusterID).Methods("GET")
 }
 
@@ -45,10 +46,23 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "no cached metadata found for the node localhost"
 	*/
 
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
+	cl, err := as.GetAPIClient()
+	if err != nil {
+		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getNodeMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+
 	vars := mux.Vars(r)
 	var labelBytes []byte
 	nodeName := vars["nodeName"]
-	nodeLabels, err := as.GetNodeLabels(nodeName)
+	nodeLabels, err := as.GetNodeLabels(cl, nodeName)
 	if err != nil {
 		log.Errorf("Could not retrieve the node labels of %s: %v", nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -83,6 +97,65 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 		strconv.Itoa(http.StatusNotFound),
 	)
 	w.Write([]byte(fmt.Sprintf("Could not find labels on the node: %s", nodeName)))
+}
+
+// getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels
+func getNamespaceMetadata(w http.ResponseWriter, r *http.Request) {
+	/*
+		Input
+			localhost:5001/api/v1/tags/namespace/default
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: ["label1:value1", "label2:value2"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "no cached metadata found for the namespace default"
+	*/
+
+	vars := mux.Vars(r)
+	var labelBytes []byte
+	nsName := vars["ns"]
+	nsLabels, err := as.GetNamespaceLabels(nsName)
+	if err != nil {
+		log.Errorf("Could not retrieve the namespace labels of %s: %v", nsName, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getNamespaceMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	labelBytes, err = json.Marshal(nsLabels)
+	if err != nil {
+		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiRequests.Inc(
+			"getNamespaceMetadata",
+			strconv.Itoa(http.StatusInternalServerError),
+		)
+		return
+	}
+	if len(labelBytes) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(labelBytes)
+		apiRequests.Inc(
+			"getNamespaceMetadata",
+			strconv.Itoa(http.StatusOK),
+		)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	apiRequests.Inc(
+		"getNamespaceMetadata",
+		strconv.Itoa(http.StatusNotFound),
+	)
+	w.Write([]byte(fmt.Sprintf("Could not find labels on the namespace: %s", nsName)))
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.
@@ -203,6 +276,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
 	log.Trace("Computing metadata map on all nodes")
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
@@ -248,7 +323,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
 func getClusterID(w http.ResponseWriter, r *http.Request) {
-	// bootstrap client
+	// As HTTP query handler, we do not retry getting the APIServer
+	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck

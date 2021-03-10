@@ -10,12 +10,15 @@ package probe
 import (
 	"context"
 	"os"
+	"path"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,6 +68,134 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 	resolvers.ProcessResolver = processResolver
 
 	return resolvers, nil
+}
+
+// resolveBasename resolves the inode to a filename
+func (r *Resolvers) resolveBasename(e *model.FileFields) string {
+	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+}
+
+// resolveContainerPath resolves the inode to a path relative to the container
+func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
+	containerPath, _, _, err := r.MountResolver.GetMountPath(e.MountID)
+	if err != nil {
+		return ""
+	}
+	return containerPath
+}
+
+// resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
+	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
+	if pathStr == dentryPathKeyNotFound || err != nil {
+		return pathStr, err
+	}
+
+	_, mountPath, rootPath, err := r.MountResolver.GetMountPath(e.MountID)
+	if err == nil {
+		if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
+			pathStr = strings.Replace(pathStr, rootPath, "", 1)
+		}
+		pathStr = path.Join(mountPath, pathStr)
+	}
+
+	return pathStr, err
+}
+
+// ResolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
+	path, _ := r.resolveInode(&e.FileFields)
+	return path
+}
+
+// ResolveUser resolves the user id of the file to a username
+func (r *Resolvers) ResolveUser(e *model.FileFields) string {
+	if len(e.User) == 0 {
+		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveGroup resolves the group id of the file to a group name
+func (r *Resolvers) ResolveGroup(e *model.FileFields) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
+// ResolveCredentialsUser resolves the user id of the process to a username
+func (r *Resolvers) ResolveCredentialsUser(e *model.Credentials) string {
+	if len(e.User) == 0 {
+		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveCredentialsGroup resolves the group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsGroup(e *model.Credentials) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
+// ResolveCredentialsEUser resolves the effective user id of the process to a username
+func (r *Resolvers) ResolveCredentialsEUser(e *model.Credentials) string {
+	if len(e.EUser) == 0 {
+		e.EUser, _ = r.UserGroupResolver.ResolveUser(int(e.EUID))
+	}
+	return e.EUser
+}
+
+// ResolveCredentialsEGroup resolves the effective group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsEGroup(e *model.Credentials) string {
+	if len(e.EGroup) == 0 {
+		e.EGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.EGID))
+	}
+	return e.EGroup
+}
+
+// ResolveCredentialsFSUser resolves the file-system user id of the process to a username
+func (r *Resolvers) ResolveCredentialsFSUser(e *model.Credentials) string {
+	if len(e.FSUser) == 0 {
+		e.FSUser, _ = r.UserGroupResolver.ResolveUser(int(e.FSUID))
+	}
+	return e.FSUser
+}
+
+// ResolveCredentialsFSGroup resolves the file-system group id of the process to a group name
+func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
+	if len(e.FSGroup) == 0 {
+		e.FSGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.FSGID))
+	}
+	return e.FSGroup
+}
+
+// ResolveProcessContextUser resolves the user id of the process to a username
+func (r *Resolvers) ResolveProcessContextUser(p *model.ProcessContext) string {
+	if len(p.User) == 0 {
+		p.User, _ = r.UserGroupResolver.ResolveUser(int(p.UID))
+	}
+	return p.User
+}
+
+// ResolveProcessContextGroup resolves the group id of the process to a group name
+func (r *Resolvers) ResolveProcessContextGroup(p *model.ProcessContext) string {
+	if len(p.Group) == 0 {
+		p.Group, _ = r.UserGroupResolver.ResolveGroup(int(p.GID))
+	}
+	return p.Group
+}
+
+// ResolveFilesystem resolves the filesystem a file resides in
+func (r *Resolvers) ResolveFilesystem(f *model.FileFields) string {
+	return r.MountResolver.GetFilesystem(f.MountID)
+}
+
+// ResolveInUpperLayer resolves whether the file is in an upper layer
+func (r *Resolvers) ResolveInUpperLayer(f *model.FileFields) bool {
+	return f.Flags&model.UpperLayer != 0
 }
 
 // Start the resolvers

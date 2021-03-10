@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,11 +16,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,18 +37,32 @@ const (
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
-	// TODO: define all check name constants here instead of hard-code strings everywhere to better track them
+	grpcAgentTimeout = 2 * time.Second
+)
 
-	// ProcessModule is the process collection module ran by system-probe
-	ProcessModule = "process_module"
+// Name for check performed by process-agent or system-probe
+const (
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	PodCheckName         = "pod"
+
+	NetworkCheckName        = "Network"
+	OOMKillCheckName        = "OOM Kill"
+	TCPQueueLengthCheckName = "TCP queue length"
+	ProcessModuleCheckName  = "Process Module"
 )
 
 var (
-	processChecks   = []string{"process", "rtprocess"}
-	containerChecks = []string{"container", "rtcontainer"}
+	processChecks   = []string{ProcessCheckName, RTProcessCheckName}
+	containerChecks = []string{ContainerCheckName, RTContainerCheckName}
 )
 
 type proxyFunc func(*http.Request) (*url.URL, error)
+
+type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // WindowsConfig stores all windows-specific configuration for the process-agent and system-probe.
 type WindowsConfig struct {
@@ -68,7 +85,7 @@ type WindowsConfig struct {
 type AgentConfig struct {
 	Enabled              bool
 	HostName             string
-	APIEndpoints         []api.Endpoint
+	APIEndpoints         []apicfg.Endpoint
 	LogFile              string
 	LogLevel             string
 	LogToConsole         bool
@@ -111,6 +128,7 @@ type AgentConfig struct {
 	EnableConntrack                bool
 	ConntrackMaxStateSize          int
 	ConntrackRateLimit             int
+	IgnoreConntrackInitFailure     bool
 	EnableConntrackAllNamespaces   bool
 	SystemProbeDebugPort           int
 	ClosedChannelSize              int
@@ -121,6 +139,7 @@ type AgentConfig struct {
 	EnableRuntimeCompiler          bool
 	KernelHeadersDirs              []string
 	RuntimeCompilerOutputDir       string
+	EnableGatewayLookup            bool
 
 	// Orchestrator config
 	Orchestrator *oconfig.OrchestratorConfig
@@ -194,7 +213,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 
 	ac := &AgentConfig{
 		Enabled:      canAccessContainers, // We'll always run inside of a container.
-		APIEndpoints: []api.Endpoint{{Endpoint: processEndpoint}},
+		APIEndpoints: []apicfg.Endpoint{{Endpoint: processEndpoint}},
 		LogFile:      defaultLogFilePath,
 		LogLevel:     "info",
 		LogToConsole: false,
@@ -232,6 +251,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ClosedChannelSize:            500,
 		ConntrackMaxStateSize:        defaultMaxTrackedConnections * 2,
 		ConntrackRateLimit:           500,
+		IgnoreConntrackInitFailure:   false,
 		EnableConntrackAllNamespaces: true,
 		OffsetGuessThreshold:         400,
 		EnableTracepoints:            false,
@@ -239,6 +259,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		CollectDNSDomains:            false,
 		EnableRuntimeCompiler:        false,
 		RuntimeCompilerOutputDir:     defaultRuntimeCompilerOutputDir,
+		EnableGatewayLookup:          false,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -246,12 +267,12 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			"process":     10 * time.Second,
-			"rtprocess":   2 * time.Second,
-			"container":   10 * time.Second,
-			"rtcontainer": 2 * time.Second,
-			"connections": 30 * time.Second,
-			"pod":         10 * time.Second,
+			ProcessCheckName:     10 * time.Second,
+			RTProcessCheckName:   2 * time.Second,
+			ContainerCheckName:   10 * time.Second,
+			RTContainerCheckName: 2 * time.Second,
+			ConnectionsCheckName: 30 * time.Second,
+			PodCheckName:         10 * time.Second,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -335,7 +356,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		return nil, err
 	}
 
-	if err := cfg.Orchestrator.LoadYamlConfig(yamlPath); err != nil {
+	if err := cfg.Orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
@@ -363,13 +384,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	if cfg.HostName == "" {
-		if fargate.IsFargateInstance() {
-			if hostname, err := fargate.GetFargateHost(); err == nil {
-				cfg.HostName = hostname
-			} else {
-				log.Errorf("Cannot get Fargate host: %v", err)
-			}
-		} else if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
+		// lookup hostname if there is no config override
+		if hostname, err := getHostname(cfg.DDAgentBin); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -392,7 +408,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	// activate the pod collection if enabled and we have the cluster name set
 	if cfg.Orchestrator.OrchestrationCollectionEnabled {
 		if cfg.Orchestrator.KubeClusterName != "" {
-			cfg.EnabledChecks = append(cfg.EnabledChecks, "pod")
+			cfg.EnabledChecks = append(cfg.EnabledChecks, PodCheckName)
 		} else {
 			log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
 		}
@@ -510,9 +526,9 @@ func loadSysProbeEnvVariables() {
 		{"DD_SYSTEM_PROBE_ENABLED", "system_probe_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLED", "network_config.enabled"},
 		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "network_config.enable_http_monitoring"},
-		{"DD_SYSPROBE_SOCKET", "system_probe_config.sysprobe_socket"},
 		{"DD_SYSTEM_PROBE_CONNTRACK_IGNORE_ENOBUFS", "system_probe_config.conntrack_ignore_enobufs"},
 		{"DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES", "system_probe_config.enable_conntrack_all_namespaces"},
+		{"DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "network_config.ignore_conntrack_init_failure"},
 		{"DD_DISABLE_TCP_TRACING", "system_probe_config.disable_tcp"},
 		{"DD_DISABLE_UDP_TRACING", "system_probe_config.disable_udp"},
 		{"DD_DISABLE_IPV6_TRACING", "system_probe_config.disable_ipv6"},
@@ -528,10 +544,19 @@ func loadSysProbeEnvVariables() {
 		{"DD_ENABLE_RUNTIME_COMPILER", "system_probe_config.enable_runtime_compiler"},
 		{"DD_KERNEL_HEADER_DIRS", "system_probe_config.kernel_header_dirs"},
 		{"DD_RUNTIME_COMPILER_OUTPUT_DIR", "system_probe_config.runtime_compiler_output_dir"},
-		{"DD_SYSTEM_PROBE_PROCESS_ENABLED", "system_probe_config.process.enabled"},
+		{"DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "network_config.enable_gateway_lookup"},
+		{"DD_SYSTEM_PROBE_PROCESS_ENABLED", "system_probe_config.process_config.enabled"},
 	} {
 		if v, ok := os.LookupEnv(variable.env); ok {
 			config.Datadog.Set(variable.cfg, v)
+		}
+	}
+
+	if v, ok := os.LookupEnv("DD_SYSPROBE_SOCKET"); ok {
+		if err := ValidateSysprobeSocket(v); err != nil {
+			log.Errorf("Could not parse DD_SYSPROBE_SOCKET: %s", err)
+		} else {
+			config.Datadog.Set(key(spNS, "sysprobe_socket"), v)
 		}
 	}
 }
@@ -555,15 +580,43 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-// getHostname shells out to obtain the hostname used by the infra agent
-// falling back to os.Hostname() if it is unavailable
+// getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
+// via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ddAgentBin string) (string, error) {
-	cmd := exec.Command(ddAgentBin, "hostname")
+	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
+	if fargate.IsFargateInstance() {
+		hostname, err := fargate.GetFargateHost()
+		if err == nil {
+			return hostname, nil
+		}
+		log.Errorf("failed to get Fargate host: %v", err)
+	}
+
+	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
+	hostname, err := getHostnameFromGRPC(grpc.GetDDAgentClient)
+	if err == nil {
+		return hostname, nil
+	}
+	log.Errorf("failed to get hostname from grpc: %v", err)
+
+	// If the hostname is not set then we fallback to use the agent binary
+	hostname, err = getHostnameFromCmd(ddAgentBin, exec.Command)
+	if err == nil {
+		return hostname, nil
+	}
+	log.Errorf("failed to get hostname from cmd: %v", err)
+
+	return os.Hostname()
+}
+
+// getHostnameCmd shells out to obtain the hostname used by the infra agent
+func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
+	cmd := cmdFn(ddAgentBin, "hostname")
 
 	// Copying all environment variables to child process
 	// Windows: Required, so the child process can load DLLs, etc.
 	// Linux:   Optional, but will make use of DD_HOSTNAME and DOCKER_DD_AGENT if they exist
-	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -571,18 +624,34 @@ func getHostname(ddAgentBin string) (string, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %v", err)
-		return os.Hostname()
+		return "", err
 	}
 
 	hostname := strings.TrimSpace(stdout.String())
-
 	if hostname == "" {
-		log.Infof("error retrieving dd-agent hostname, falling back to os.Hostname(): %s", stderr.String())
-		return os.Hostname()
+		return "", fmt.Errorf("error retrieving dd-agent hostname %s", stderr.String())
 	}
 
-	return hostname, err
+	return hostname, nil
+}
+
+// getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
+func getHostnameFromGRPC(grpcClientFn func(ctx context.Context) (pb.AgentClient, error)) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), grpcAgentTimeout)
+	defer cancel()
+
+	ddAgentClient, err := grpcClientFn(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
+	}
+	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
+
+	if err != nil {
+		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
+	}
+
+	log.Debugf("retrieved hostname:%s from datadog agent via grpc", reply.Hostname)
+	return reply.Hostname, nil
 }
 
 // proxyFromEnv parses out the proxy configuration from the ENV variables in a
