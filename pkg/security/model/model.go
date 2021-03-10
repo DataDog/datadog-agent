@@ -331,6 +331,16 @@ type FileFields struct {
 	Flags   int32  `field:"-"`
 }
 
+// GetInLowerLayer returns whether a file is in a lower layer
+func (f *FileFields) GetInLowerLayer() bool {
+	return f.Flags&LowerLayer != 0
+}
+
+// GetInUpperLayer returns whether a file is in the upper layer
+func (f *FileFields) GetInUpperLayer() bool {
+	return f.Flags&UpperLayer != 0
+}
+
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields

@@ -187,11 +187,12 @@ type EventSerializer struct {
 }
 
 func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
-	if r.ResolveFilesystem(f) != "overlay" {
+	lowerLayer := f.GetInLowerLayer()
+	upperLayer := f.GetInUpperLayer()
+	if !lowerLayer && !upperLayer {
 		return nil
 	}
-	b := r.ResolveInUpperLayer(f)
-	return &b
+	return &upperLayer
 }
 
 func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
@@ -245,7 +246,7 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          r.ResolveFilesystem(&process.FileFields),
+		Filesystem:          r.MountResolver.GetFilesystem(process.FileFields.MountID),
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,

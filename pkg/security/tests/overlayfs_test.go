@@ -55,43 +55,43 @@ func TestOverlayFS(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
-			Expression: `open.file.path in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/create.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/linked.txt"]`,
+			Expression: `open.file.path in ["{{.Root}}/bind/read.txt", "{{.Root}}/bind/override.txt", "{{.Root}}/bind/create.txt", "{{.Root}}/bind/new.txt", "{{.Root}}/bind/truncate.txt", "{{.Root}}/bind/linked.txt"]`,
 		},
 		{
 			ID:         "test_rule_unlink",
-			Expression: `unlink.file.path in ["{{.Root}}/merged/read.txt", "{{.Root}}/merged/override.txt", "{{.Root}}/merged/renamed.txt", "{{.Root}}/merged/new.txt", "{{.Root}}/merged/chmod.txt", "{{.Root}}/merged/utimes.txt", "{{.Root}}/merged/chown.txt", "{{.Root}}/merged/xattr.txt", "{{.Root}}/merged/truncate.txt", "{{.Root}}/merged/link.txt", "{{.Root}}/merged/linked.txt"]`,
+			Expression: `unlink.file.path in ["{{.Root}}/bind/read.txt", "{{.Root}}/bind/override.txt", "{{.Root}}/bind/renamed.txt", "{{.Root}}/bind/new.txt", "{{.Root}}/bind/chmod.txt", "{{.Root}}/bind/utimes.txt", "{{.Root}}/bind/chown.txt", "{{.Root}}/bind/xattr.txt", "{{.Root}}/bind/truncate.txt", "{{.Root}}/bind/link.txt", "{{.Root}}/bind/linked.txt"]`,
 		},
 		{
 			ID:         "test_rule_rename",
-			Expression: `rename.file.path == "{{.Root}}/merged/create.txt"`,
+			Expression: `rename.file.path == "{{.Root}}/bind/create.txt"`,
 		},
 		{
 			ID:         "test_rule_rmdir",
-			Expression: `rmdir.file.path == "{{.Root}}/merged/dir"`,
+			Expression: `rmdir.file.path == "{{.Root}}/bind/dir"`,
 		},
 		{
 			ID:         "test_rule_chmod",
-			Expression: `chmod.file.path == "{{.Root}}/merged/chmod.txt"`,
+			Expression: `chmod.file.path == "{{.Root}}/bind/chmod.txt"`,
 		},
 		{
 			ID:         "test_rule_mkdir",
-			Expression: `mkdir.file.path == "{{.Root}}/merged/mkdir"`,
+			Expression: `mkdir.file.path == "{{.Root}}/bind/mkdir"`,
 		},
 		{
 			ID:         "test_rule_utimes",
-			Expression: `utimes.file.path == "{{.Root}}/merged/utimes.txt"`,
+			Expression: `utimes.file.path == "{{.Root}}/bind/utimes.txt"`,
 		},
 		{
 			ID:         "test_rule_chown",
-			Expression: `chown.file.path == "{{.Root}}/merged/chown.txt"`,
+			Expression: `chown.file.path == "{{.Root}}/bind/chown.txt"`,
 		},
 		{
 			ID:         "test_rule_xattr",
-			Expression: `setxattr.file.path == "{{.Root}}/merged/xattr.txt"`,
+			Expression: `setxattr.file.path == "{{.Root}}/bind/xattr.txt"`,
 		},
 		{
 			ID:         "test_rule_link",
-			Expression: `link.file.path == "{{.Root}}/merged/linked.txt"`,
+			Expression: `link.file.path == "{{.Root}}/bind/linked.txt"`,
 		},
 	}
 
@@ -122,7 +122,7 @@ func TestOverlayFS(t *testing.T) {
 	}
 
 	// create dir in lower
-	testDir, _, err := test.Path("lower/dir")
+	testDir, _, err := test.Path("lower", "dir")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +139,21 @@ func TestOverlayFS(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	mountPoint, _, err := testDrive.Path("bind")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(mountPoint)
+
+	if err := os.Mkdir(mountPoint, 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := syscall.Mount(testMerged, mountPoint, "bind", syscall.MS_BIND, ""); err != nil {
+		t.Fatalf("could not create bind mount: %s", err)
+	}
+	defer syscall.Unmount(mountPoint, syscall.MNT_DETACH)
+
 	// wait until the mount event is reported until the event ordered bug is fixed
 	time.Sleep(2 * time.Second)
 
@@ -149,7 +164,7 @@ func TestOverlayFS(t *testing.T) {
 	// open a file in lower in RDONLY and check that open/unlink inode are valid from userspace
 	// perspective and equals
 	t.Run("read-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/read.txt")
+		testFile, _, err := test.Path("bind/read.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +204,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("override-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/override.txt")
+		testFile, _, err := test.Path("bind/override.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,7 +244,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("create-upper", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/new.txt")
+		testFile, _, err := test.Path("bind/new.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -269,12 +284,12 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rename-lower", func(t *testing.T) {
-		oldFile, _, err := test.Path("merged/create.txt")
+		oldFile, _, err := test.Path("bind/create.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		newFile, _, err := test.Path("merged/renamed.txt")
+		newFile, _, err := test.Path("bind/renamed.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -317,7 +332,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("rmdir-lower", func(t *testing.T) {
-		testDir, _, err := test.Path("merged/dir")
+		testDir, _, err := test.Path("bind/dir")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -339,7 +354,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chmod-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/chmod.txt")
+		testFile, _, err := test.Path("bind/chmod.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -375,7 +390,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("mkdir-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/mkdir")
+		testFile, _, err := test.Path("bind/mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -396,7 +411,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("utimes-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/utimes.txt")
+		testFile, _, err := test.Path("bind/utimes.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -432,7 +447,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("chown-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/chown.txt")
+		testFile, _, err := test.Path("bind/chown.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -468,7 +483,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("xattr-lower", func(t *testing.T) {
-		testFile, testFilePtr, err := test.Path("merged/xattr.txt")
+		testFile, testFilePtr, err := test.Path("bind/xattr.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -512,7 +527,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("truncate-lower", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/truncate.txt")
+		testFile, _, err := test.Path("bind/truncate.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -548,12 +563,12 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("link-lower", func(t *testing.T) {
-		testSrc, _, err := test.Path("merged/linked.txt")
+		testSrc, _, err := test.Path("bind/linked.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		testTarget, _, err := test.Path("merged/link.txt")
+		testTarget, _, err := test.Path("bind/link.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -606,7 +621,7 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("invalidate-discarder", func(t *testing.T) {
-		testFile, _, err := test.Path("merged/discarded.txt")
+		testFile, _, err := test.Path("bind/discarded.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -639,7 +654,7 @@ func TestOverlayFS(t *testing.T) {
 		}
 
 		// remove another file which should generate a global discarder invalidation
-		testInvalidator, _, err := test.Path("merged/invalidator.txt")
+		testInvalidator, _, err := test.Path("bind/invalidator.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
