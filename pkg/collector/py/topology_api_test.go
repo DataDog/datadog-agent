@@ -23,36 +23,38 @@ func TestComponentTopology(t *testing.T) {
 	instance := topology.Instance{Type: "type", URL: "url"}
 	components, relations := getAgentIntegrationTopology(t, instance)
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: true,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components: []topology.Component{
-				{
-					ExternalID: "myid",
-					Type:       topology.Type{Name: "mytype"},
-					Data: topology.Data{
-						"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
-						"key":          "value",
-						"intlist":      []interface{}{int64(1)}, "emptykey": map[string]interface{}{},
-						"tags": []interface{}{
-							fmt.Sprintf("integration-type:%s", instance.Type),
-							fmt.Sprintf("integration-url:%s", instance.URL),
+	assert.ObjectsAreEqualValues(
+		batcher.Topologies(map[check.ID]topology.Topology{
+			"testtopology:c3d960f8ff8a5c55": {
+				StartSnapshot: true,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components: []topology.Component{
+					{
+						ExternalID: "myid",
+						Type:       topology.Type{Name: "mytype"},
+						Data: topology.Data{
+							"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
+							"key":          "value",
+							"intlist":      []interface{}{int64(1)}, "emptykey": map[string]interface{}{},
+							"tags": []interface{}{
+								fmt.Sprintf("integration-type:%s", instance.Type),
+								fmt.Sprintf("integration-url:%s", instance.URL),
+							},
 						},
 					},
 				},
+				Relations: []topology.Relation{},
 			},
-			Relations: []topology.Relation{},
+			"type:url": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+				Components:    components,
+				Relations:     relations,
+			},
 		},
-		"type:url": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
-			Components:    components,
-			Relations:     relations,
-		},
-	}), expectedTopology)
+	), expectedTopology)
 }
 
 func TestRelationTopology(t *testing.T) {
@@ -66,35 +68,37 @@ func TestRelationTopology(t *testing.T) {
 	instance := topology.Instance{Type: "type", URL: "url"}
 	components, relations := getAgentIntegrationTopology(t, instance)
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations: []topology.Relation{
-				{
-					ExternalID: "source-mytype-target",
-					SourceID:   "source",
-					TargetID:   "target",
-					Type:       topology.Type{Name: "mytype"},
-					Data: map[string]interface{}{
-						"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
-						"key":          "value",
-						"intlist":      []interface{}{int64(1)},
-						"emptykey":     map[string]interface{}{},
+	assert.ObjectsAreEqualValues(
+		batcher.Topologies(map[check.ID]topology.Topology{
+			"testtopology:c3d960f8ff8a5c55": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations: []topology.Relation{
+					{
+						ExternalID: "source-mytype-target",
+						SourceID:   "source",
+						TargetID:   "target",
+						Type:       topology.Type{Name: "mytype"},
+						Data: map[string]interface{}{
+							"nestedobject": map[string]interface{}{"nestedkey": "nestedValue"},
+							"key":          "value",
+							"intlist":      []interface{}{int64(1)},
+							"emptykey":     map[string]interface{}{},
+						},
 					},
 				},
 			},
+			"type:url": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+				Components:    components,
+				Relations:     relations,
+			},
 		},
-		"type:url": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
-			Components:    components,
-			Relations:     relations,
-		},
-	}), expectedTopology)
+	), expectedTopology)
 }
 
 func TestStartSnapshotCheck(t *testing.T) {
@@ -108,22 +112,24 @@ func TestStartSnapshotCheck(t *testing.T) {
 	instance := topology.Instance{Type: "type", URL: "url"}
 	components, relations := getAgentIntegrationTopology(t, instance)
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: true,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+	assert.ObjectsAreEqualValues(
+		batcher.Topologies(map[check.ID]topology.Topology{
+			"testtopology:c3d960f8ff8a5c55": {
+				StartSnapshot: true,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
+			"type:url": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+				Components:    components,
+				Relations:     relations,
+			},
 		},
-		"type:url": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
-			Components:    components,
-			Relations:     relations,
-		},
-	}), expectedTopology)
+	), expectedTopology)
 }
 
 func TestStopSnapshotCheck(t *testing.T) {
@@ -137,22 +143,24 @@ func TestStopSnapshotCheck(t *testing.T) {
 	instance := topology.Instance{Type: "type", URL: "url"}
 	components, relations := getAgentIntegrationTopology(t, instance)
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"testtopology:c3d960f8ff8a5c55": {
-			StartSnapshot: false,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+	assert.ObjectsAreEqualValues(
+		batcher.Topologies(map[check.ID]topology.Topology{
+			"testtopology:c3d960f8ff8a5c55": {
+				StartSnapshot: false,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
+			"type:url": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+				Components:    components,
+				Relations:     relations,
+			},
 		},
-		"type:url": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
-			Components:    components,
-			Relations:     relations,
-		},
-	}), expectedTopology)
+	), expectedTopology)
 }
 
 func TestAgentIntegration(t *testing.T) {
@@ -167,181 +175,183 @@ func TestAgentIntegration(t *testing.T) {
 	instance := topology.Instance{Type: "type", URL: "url"}
 	components, relations := getAgentIntegrationTopology(t, instance)
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"testcheck_agent_integration:c3d960f8ff8a5c55": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "agent", URL: "integrations"},
-			Components: append(components, []topology.Component{
-				{
-					ExternalID: "urn:example:/host:this_host",
-					Type:       topology.Type{Name: "Host"},
-					Data: topology.Data{
-						"name":   "this-host",
-						"labels": []interface{}{"host:this_host", "region:eu-west-1"},
-						"tags": []interface{}{
-							fmt.Sprintf("integration-type:%s", instance.Type),
-							fmt.Sprintf("integration-url:%s", instance.URL),
-						},
-						"layer":       "Hosts",
-						"environment": "Production",
-						"checks": []interface{}{
-							map[string]interface{}{
-								"stream_id":                       int64(-1),
-								"max_window":                      int64(300000),
-								"name":                            "Max CPU Usage (Average)",
-								"deviating_value":                 int64(65),
-								"is_metric_maximum_average_check": int64(1),
-								"critical_value":                  int64(80),
+	assert.ObjectsAreEqualValues(
+		batcher.Topologies(map[check.ID]topology.Topology{
+			"testcheck_agent_integration:c3d960f8ff8a5c55": {
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "agent", URL: "integrations"},
+				Components: append(components, []topology.Component{
+					{
+						ExternalID: "urn:example:/host:this_host",
+						Type:       topology.Type{Name: "Host"},
+						Data: topology.Data{
+							"name":   "this-host",
+							"labels": []interface{}{"host:this_host", "region:eu-west-1"},
+							"tags": []interface{}{
+								fmt.Sprintf("integration-type:%s", instance.Type),
+								fmt.Sprintf("integration-url:%s", instance.URL),
 							},
-							map[string]interface{}{
-								"name":                         "Max CPU Usage (Last)",
-								"deviating_value":              int64(75),
-								"is_metric_maximum_last_check": int64(1),
-								"critical_value":               int64(90),
-								"stream_id":                    int64(-1),
-								"max_window":                   int64(300000),
-							},
-							map[string]interface{}{
-								"deviating_value":                 int64(10),
-								"is_metric_minimum_average_check": int64(1),
-								"critical_value":                  int64(5),
-								"stream_id":                       int64(-1),
-								"max_window":                      int64(300000),
-								"name":                            "Min CPU Usage (Average)",
-							},
-							map[string]interface{}{
-								"is_metric_minimum_last_check": int64(1),
-								"critical_value":               int64(15),
-								"stream_id":                    int64(-1),
-								"max_window":                   int64(300000),
-								"name":                         "Min CPU Usage (Last)",
-								"deviating_value":              int64(20),
-							},
-						},
-						"metrics": []interface{}{
-							map[string]interface{}{
-								"unit_of_measure": "Percentage",
-								"name":            "Host CPU Usage",
-								"conditions": []interface{}{
-									map[string]interface{}{"value": "this-host", "key": "tags.hostname"},
+							"layer":       "Hosts",
+							"environment": "Production",
+							"checks": []interface{}{
+								map[string]interface{}{
+									"stream_id":                       int64(-1),
+									"max_window":                      int64(300000),
+									"name":                            "Max CPU Usage (Average)",
+									"deviating_value":                 int64(65),
+									"is_metric_maximum_average_check": int64(1),
+									"critical_value":                  int64(80),
 								},
-								"aggregation":  "MEAN",
-								"metric_field": "host.cpu.usage",
-								"priority":     "HIGH",
-								"stream_id":    int64(-1),
-							},
-						},
-						"domain":      "Webshop",
-						"identifiers": []interface{}{"another_identifier_for_this_host"}},
-				},
-				{
-					ExternalID: "urn:example:/application:some_application",
-					Type:       topology.Type{Name: "Application"},
-					Data: topology.Data{
-						"labels": []interface{}{"application:some_application", "region:eu-west-1", "hosted_on:this-host"},
-						"tags": []interface{}{
-							fmt.Sprintf("integration-type:%s", instance.Type),
-							fmt.Sprintf("integration-url:%s", instance.URL),
-						},
-						"environment": "Production",
-						"version":     "0.2.0",
-						"name":        "some-application",
-						"layer":       "Applications",
-						"checks": []interface{}{
-							map[string]interface{}{
-								"max_window":                    int64(300000),
-								"name":                          "OK vs Error Responses (Maximum)",
-								"deviating_value":               int64(50),
-								"is_metric_maximum_ratio_check": int64(1),
-								"numerator_stream_id":           int64(-2),
-								"denominator_stream_id":         int64(-1),
-								"critical_value":                int64(75),
-							},
-							map[string]interface{}{
-								"name":                               "Error Response 99th Percentile",
-								"deviating_value":                    int64(50),
-								"is_metric_maximum_percentile_check": int64(1),
-								"percentile":                         int64(99),
-								"critical_value":                     int64(70),
-								"stream_id":                          int64(-2),
-								"max_window":                         int64(300000),
-							},
-							map[string]interface{}{
-								"numerator_stream_id":          int64(-2),
-								"denominator_stream_id":        int64(-1),
-								"critical_value":               int64(75),
-								"max_window":                   int64(300000),
-								"name":                         "OK vs Error Responses (Failed)",
-								"deviating_value":              int64(50),
-								"is_metric_failed_ratio_check": int64(1),
-							},
-							map[string]interface{}{
-								"stream_id":                          int64(-1),
-								"max_window":                         int64(300000),
-								"name":                               "Success Response 99th Percentile",
-								"deviating_value":                    int64(10),
-								"is_metric_minimum_percentile_check": int64(1),
-								"percentile":                         int64(99),
-								"critical_value":                     int64(5),
-							},
-							map[string]interface{}{
-								"is_event_tag_as_health_check": int64(1),
-								"name":                         "Health Check",
-								"stream_id":                    int64(-3),
-								"tag_name":                     "status",
-							},
-						},
-						"events": []interface{}{
-							map[string]interface{}{
-								"conditions": []interface{}{
-									map[string]interface{}{"key": "status", "value": "RUNNING"},
-									map[string]interface{}{"key": "tags.application", "value": "some-application"},
+								map[string]interface{}{
+									"name":                         "Max CPU Usage (Last)",
+									"deviating_value":              int64(75),
+									"is_metric_maximum_last_check": int64(1),
+									"critical_value":               int64(90),
+									"stream_id":                    int64(-1),
+									"max_window":                   int64(300000),
 								},
-								"name":      "Health",
-								"stream_id": int64(-3),
-							},
-						},
-						"metrics": []interface{}{
-							map[string]interface{}{
-								"priority":        "HIGH",
-								"stream_id":       int64(-1),
-								"unit_of_measure": "Count",
-								"name":            "2xx Responses",
-								"conditions": []interface{}{
-									map[string]interface{}{"value": "some_application", "key": "tags.application"},
-									map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
+								map[string]interface{}{
+									"deviating_value":                 int64(10),
+									"is_metric_minimum_average_check": int64(1),
+									"critical_value":                  int64(5),
+									"stream_id":                       int64(-1),
+									"max_window":                      int64(300000),
+									"name":                            "Min CPU Usage (Average)",
 								},
-								"aggregation":  "MEAN",
-								"metric_field": "2xx.responses",
-							},
-							map[string]interface{}{
-								"conditions": []interface{}{
-									map[string]interface{}{"value": "some_application", "key": "tags.application"},
-									map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
+								map[string]interface{}{
+									"is_metric_minimum_last_check": int64(1),
+									"critical_value":               int64(15),
+									"stream_id":                    int64(-1),
+									"max_window":                   int64(300000),
+									"name":                         "Min CPU Usage (Last)",
+									"deviating_value":              int64(20),
 								},
-								"aggregation":     "MEAN",
-								"metric_field":    "5xx.responses",
-								"priority":        "HIGH",
-								"stream_id":       int64(-2),
-								"unit_of_measure": "Count",
-								"name":            "5xx Responses",
 							},
-						},
-						"domain":      "Webshop",
-						"identifiers": []interface{}{"another_identifier_for_some_application"},
+							"metrics": []interface{}{
+								map[string]interface{}{
+									"unit_of_measure": "Percentage",
+									"name":            "Host CPU Usage",
+									"conditions": []interface{}{
+										map[string]interface{}{"value": "this-host", "key": "tags.hostname"},
+									},
+									"aggregation":  "MEAN",
+									"metric_field": "host.cpu.usage",
+									"priority":     "HIGH",
+									"stream_id":    int64(-1),
+								},
+							},
+							"domain":      "Webshop",
+							"identifiers": []interface{}{"another_identifier_for_this_host"}},
 					},
-				},
-			}...),
-			Relations: append(relations, topology.Relation{
-				ExternalID: "urn:example:/application:some_application-IS_HOSTED_ON-urn:example:/host:this_host",
-				SourceID:   "urn:example:/application:some_application",
-				TargetID:   "urn:example:/host:this_host",
-				Type:       topology.Type{Name: "IS_HOSTED_ON"},
-				Data:       map[string]interface{}{},
-			}),
+					{
+						ExternalID: "urn:example:/application:some_application",
+						Type:       topology.Type{Name: "Application"},
+						Data: topology.Data{
+							"labels": []interface{}{"application:some_application", "region:eu-west-1", "hosted_on:this-host"},
+							"tags": []interface{}{
+								fmt.Sprintf("integration-type:%s", instance.Type),
+								fmt.Sprintf("integration-url:%s", instance.URL),
+							},
+							"environment": "Production",
+							"version":     "0.2.0",
+							"name":        "some-application",
+							"layer":       "Applications",
+							"checks": []interface{}{
+								map[string]interface{}{
+									"max_window":                    int64(300000),
+									"name":                          "OK vs Error Responses (Maximum)",
+									"deviating_value":               int64(50),
+									"is_metric_maximum_ratio_check": int64(1),
+									"numerator_stream_id":           int64(-2),
+									"denominator_stream_id":         int64(-1),
+									"critical_value":                int64(75),
+								},
+								map[string]interface{}{
+									"name":                               "Error Response 99th Percentile",
+									"deviating_value":                    int64(50),
+									"is_metric_maximum_percentile_check": int64(1),
+									"percentile":                         int64(99),
+									"critical_value":                     int64(70),
+									"stream_id":                          int64(-2),
+									"max_window":                         int64(300000),
+								},
+								map[string]interface{}{
+									"numerator_stream_id":          int64(-2),
+									"denominator_stream_id":        int64(-1),
+									"critical_value":               int64(75),
+									"max_window":                   int64(300000),
+									"name":                         "OK vs Error Responses (Failed)",
+									"deviating_value":              int64(50),
+									"is_metric_failed_ratio_check": int64(1),
+								},
+								map[string]interface{}{
+									"stream_id":                          int64(-1),
+									"max_window":                         int64(300000),
+									"name":                               "Success Response 99th Percentile",
+									"deviating_value":                    int64(10),
+									"is_metric_minimum_percentile_check": int64(1),
+									"percentile":                         int64(99),
+									"critical_value":                     int64(5),
+								},
+								map[string]interface{}{
+									"is_event_tag_as_health_check": int64(1),
+									"name":                         "Health Check",
+									"stream_id":                    int64(-3),
+									"tag_name":                     "status",
+								},
+							},
+							"events": []interface{}{
+								map[string]interface{}{
+									"conditions": []interface{}{
+										map[string]interface{}{"key": "status", "value": "RUNNING"},
+										map[string]interface{}{"key": "tags.application", "value": "some-application"},
+									},
+									"name":      "Health",
+									"stream_id": int64(-3),
+								},
+							},
+							"metrics": []interface{}{
+								map[string]interface{}{
+									"priority":        "HIGH",
+									"stream_id":       int64(-1),
+									"unit_of_measure": "Count",
+									"name":            "2xx Responses",
+									"conditions": []interface{}{
+										map[string]interface{}{"value": "some_application", "key": "tags.application"},
+										map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
+									},
+									"aggregation":  "MEAN",
+									"metric_field": "2xx.responses",
+								},
+								map[string]interface{}{
+									"conditions": []interface{}{
+										map[string]interface{}{"value": "some_application", "key": "tags.application"},
+										map[string]interface{}{"value": "eu-west-1", "key": "tags.region"},
+									},
+									"aggregation":     "MEAN",
+									"metric_field":    "5xx.responses",
+									"priority":        "HIGH",
+									"stream_id":       int64(-2),
+									"unit_of_measure": "Count",
+									"name":            "5xx Responses",
+								},
+							},
+							"domain":      "Webshop",
+							"identifiers": []interface{}{"another_identifier_for_some_application"},
+						},
+					},
+				}...),
+				Relations: append(relations, topology.Relation{
+					ExternalID: "urn:example:/application:some_application-IS_HOSTED_ON-urn:example:/host:this_host",
+					SourceID:   "urn:example:/application:some_application",
+					TargetID:   "urn:example:/host:this_host",
+					Type:       topology.Type{Name: "IS_HOSTED_ON"},
+					Data:       map[string]interface{}{},
+				}),
+			},
 		},
-	}), expectedTopology)
+	), expectedTopology)
 }
 
 func getAgentIntegrationTopology(t *testing.T, instance topology.Instance) ([]topology.Component, []topology.Relation) {
