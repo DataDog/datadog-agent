@@ -15,7 +15,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 )
 
 // ListSwarmServices gets a list of all swarm services on the current node using the Docker APIs.
@@ -39,8 +38,11 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 	}
 	ret := make([]*containers.SwarmService, 0, len(services))
 	for _, s := range services {
-		activeNodes, err := getActiveNodes(ctx, d.cli)
+		activeNodes, err := d.getActiveNodes(ctx)
 		if err != nil {
+			log.Errorf("Error getting active nodes: %s", err)
+		}
+		if activeNodes == nil {
 			log.Warnf("No active nodes found")
 		}
 
@@ -52,7 +54,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 
 		desired := uint64(0)
 		running := uint64(0)
-		container := swarm.ContainerStatus{}
+		container := &swarm.ContainerStatus{}
 		// Replicated services have `Spec.Mode.Replicated.Replicas`, which should give this value.
 		if s.Spec.Mode.Replicated != nil {
 			desired = *s.Spec.Mode.Replicated.Replicas
@@ -62,13 +64,18 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			// TODO: this should only be needed for "global" services. Replicated
 			// services have `Spec.Mode.Replicated.Replicas`, which should give this value.
 			if task.DesiredState != swarm.TaskStateShutdown {
+				log.Infof("Task having service ID %s got desired tasks for global mode", task.ServiceID)
 				desired++
 			}
 			if _, nodeActive := activeNodes[task.NodeID]; nodeActive && task.Status.State == swarm.TaskStateRunning {
+				log.Infof("Task having service ID %s is running", task.ServiceID)
 				running++
 			}
-
-			container = task.Status.ContainerStatus
+			container = &task.Status.ContainerStatus
+			log.Infof("Got container status with value %s", container)
+		}
+		if (container == nil){
+			container = &(tasks[0].Status.ContainerStatus)
 		}
 		log.Infof("Service %s has %d desired and %d running tasks", s.Spec.Name, desired, running)
 
@@ -84,7 +91,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			PreviousSpec:   s.PreviousSpec,
 			Endpoint:       s.Endpoint,
 			UpdateStatus:   s.UpdateStatus,
-			Container: 		container,
+			Container: 		*container,
 			DesiredTasks: 	desired,
 			RunningTasks: 	running,
 		}
@@ -95,8 +102,8 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 	return ret, nil
 }
 
-func getActiveNodes(ctx context.Context, c client.NodeAPIClient) (map[string]struct{}, error) {
-	nodes, err := c.NodeList(ctx, types.NodeListOptions{})
+func (d *DockerUtil) getActiveNodes(ctx context.Context) (map[string]struct{}, error) {
+	nodes, err := d.cli.NodeList(ctx, types.NodeListOptions{})
 	if err != nil {
 		return nil, err
 	}
