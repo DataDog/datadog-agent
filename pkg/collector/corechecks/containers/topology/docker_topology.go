@@ -3,10 +3,12 @@ package topology
 import (
 	"errors"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 )
 
@@ -63,14 +65,14 @@ func (dt *DockerTopologyCollector) BuildContainerTopology(du *docker.DockerUtil)
 }
 
 // BuildSwarmTopology collects and produces all docker swarm topology
-func (dt *DockerTopologyCollector) BuildSwarmTopology(du *docker.DockerUtil) error {
+func (dt *DockerTopologyCollector) BuildSwarmTopology(du *docker.DockerUtil, metrics aggregator.Sender) error {
 	sender := batcher.GetBatcher()
 	if sender == nil {
 		return errors.New("no batcher instance available, skipping BuildSwarmTopology")
 	}
 
 	// collect all swarm services as topology components
-	swarmServices, err := dt.collectSwarmServices(du)
+	swarmServices, err := dt.collectSwarmServices(du, metrics)
 	if err != nil {
 		return err
 	}
@@ -115,16 +117,18 @@ func (dt *DockerTopologyCollector) collectContainers(du *docker.DockerUtil) ([]*
 }
 
 // collectSwarmServices collects swarm services from the docker util and produces topology.Component
-func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil) ([]*topology.Component, error) {
-	sList, err := du.ListSwarmServices()
+func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, sender aggregator.Sender) ([]*topology.Component, error) {
+	sList, err := du.ListSwarmServices(sender)
 	if err != nil {
 		return nil, err
 	}
 
 	containerComponents := make([]*topology.Component, 0)
+	swarmServiceRelations := make([]*topology.Relation, 0)
 	for _, s := range sList {
+		sourceExternalID := fmt.Sprintf("urn:%s:/%s", swarmServiceType, s.ID)
 		containerComponent := &topology.Component{
-			ExternalID: fmt.Sprintf("urn:%s:/%s", swarmServiceType, s.ID),
+			ExternalID: sourceExternalID,
 			Type:       topology.Type{Name: swarmServiceType},
 			Data: topology.Data{
 				"name":         s.Name,
@@ -149,6 +153,17 @@ func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil) (
 		}
 
 		containerComponents = append(containerComponents, containerComponent)
+
+		log.Infof("Creating a relation for service %s with container %s", s.Name, s.Container.ContainerID)
+		targetExternalID := fmt.Sprintf("urn:%s:/%s", containerType, s.Container.ContainerID)
+		swarmServiceRelation := &topology.Relation{
+			ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
+			SourceID:   sourceExternalID,
+			TargetID:   targetExternalID,
+			Type: 		topology.Type{Name: "creates"},
+			Data: 		topology.Data{},
+		}
+		swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
 	}
 
 	return containerComponents, nil
