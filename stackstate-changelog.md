@@ -1,6 +1,14 @@
 # StackState Agent v2 releases
 
-## 2.11.0 (2021-02-25)
+## 2.11.0 (xxxx-xx-xx)
+
+**Improvements**
+
+  - Added support to map user defined stackstate-environment tags or config to the environments object
+  - Added support to map user defined stackstate-layer tags or config to the layer object
+  - Added support to map user defined stackstate-domain tags or config to the domain object
+  - Added support to map user defined stackstate-identifiers tags or config to the identifiers array
+
 
 ## 2.10.0 (2021-02-25)
 

@@ -53,3 +53,4 @@ STS_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/stackstate.yaml
 ## Install
 
 Installation instructions are available on the [StackState docs site](https://docs.stackstate.com/stackpacks/integrations/agent).
+
