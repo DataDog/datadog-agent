@@ -467,6 +467,18 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	}
 }
 
+// SetTTY resolves TTY and cache the result
+func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+	if pce.TTYName == "" {
+		tty := utils.PidTTY(int32(pce.Pid))
+		if tty == "" {
+			tty = "null"
+		}
+		pce.TTYName = tty
+	}
+	return pce.TTYName
+}
+
 // Get returns the cache entry for a specified pid
 func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()

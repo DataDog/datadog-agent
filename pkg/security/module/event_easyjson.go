@@ -29,7 +29,7 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule(in *jle
 	out.AgentContext = new(AgentContext)
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -121,7 +121,7 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule1(in *jl
 	}
 	in.Delim('{')
 	for !in.IsDelim('}') {
-		key := in.UnsafeString()
+		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		if in.IsNull() {
 			in.Skip()
@@ -154,12 +154,12 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityModule1(out *j
 		out.RawString(prefix[1:])
 		out.String(string(in.RuleID))
 	}
-	{
+	if in.PolicyName != "" {
 		const prefix string = ",\"policy_name\":"
 		out.RawString(prefix)
 		out.String(string(in.PolicyName))
 	}
-	{
+	if in.PolicyVersion != "" {
 		const prefix string = ",\"policy_version\":"
 		out.RawString(prefix)
 		out.String(string(in.PolicyVersion))

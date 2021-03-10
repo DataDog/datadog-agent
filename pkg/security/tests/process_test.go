@@ -16,6 +16,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -85,6 +86,10 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_rule_args",
 			Expression: `exec.args in ["-al"]`,
+		},
+		{
+			ID:         "test_rule_tty",
+			Expression: `open.file.path == "{{.Root}}/test-process-tty" && open.flags & O_CREAT == 0`,
 		},
 	}
 
@@ -251,24 +256,48 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		kv, err := probe.NewKernelVersion()
-		if err == nil && kv.IsSuseKernel() {
-			t.Skip()
+		testFile, _, err := test.Path("test-process-tty")
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		executable := "/usr/bin/cat"
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		executable := "/usr/bin/tail"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
 		} else {
 			if os.IsNotExist(err) {
-				executable = "/bin/cat"
+				executable = "/bin/tail"
 			}
 		}
 
-		cmd := exec.Command("script", "/dev/null", "-c", executable+" "+testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			t.Error(err)
-		}
+		var wg sync.WaitGroup
+
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+
+			time.Sleep(2 * time.Second)
+			cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
+			if err := cmd.Start(); err != nil {
+				t.Error(err)
+				return
+			}
+			time.Sleep(2 * time.Second)
+
+			cmd.Process.Kill()
+			cmd.Wait()
+		}()
+		defer wg.Wait()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
