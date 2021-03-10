@@ -10,7 +10,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
@@ -20,8 +19,8 @@ import (
 )
 
 // ListSwarmServices gets a list of all swarm services on the current node using the Docker APIs.
-func (d *DockerUtil) ListSwarmServices(sender aggregator.Sender) ([]*containers.SwarmService, error) {
-	sList, err := d.dockerSwarmServices(sender)
+func (d *DockerUtil) ListSwarmServices() ([]*containers.SwarmService, error) {
+	sList, err := d.dockerSwarmServices()
 	if err != nil {
 		return nil, fmt.Errorf("could not get docker swarm services: %s", err)
 	}
@@ -30,7 +29,7 @@ func (d *DockerUtil) ListSwarmServices(sender aggregator.Sender) ([]*containers.
 }
 
 // dockerSwarmServices returns all the swarm services in the swarm cluster
-func (d *DockerUtil) dockerSwarmServices(sender aggregator.Sender) ([]*containers.SwarmService, error) {
+func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	defer cancel()
 
@@ -40,7 +39,6 @@ func (d *DockerUtil) dockerSwarmServices(sender aggregator.Sender) ([]*container
 	}
 	ret := make([]*containers.SwarmService, 0, len(services))
 	for _, s := range services {
-		tags := []string{nil}
 		activeNodes, err := getActiveNodes(ctx, d.cli)
 		if err != nil {
 			log.Warnf("No active nodes found")
@@ -87,10 +85,9 @@ func (d *DockerUtil) dockerSwarmServices(sender aggregator.Sender) ([]*container
 			Endpoint:       s.Endpoint,
 			UpdateStatus:   s.UpdateStatus,
 			Container: 		container,
+			DesiredTasks: 	desired,
+			RunningTasks: 	running,
 		}
-
-		sender.Gauge("docker.service.running_replicas", float64(running), "", append(tags, "serviceName:"+s.Spec.Name))
-		sender.Gauge("docker.service.desired_replicas", float64(desired), "", append(tags, "serviceName:"+s.Spec.Name))
 
 		ret = append(ret, service)
 	}

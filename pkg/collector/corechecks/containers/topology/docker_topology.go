@@ -118,7 +118,7 @@ func (dt *DockerTopologyCollector) collectContainers(du *docker.DockerUtil) ([]*
 
 // collectSwarmServices collects swarm services from the docker util and produces topology.Component
 func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, sender aggregator.Sender) ([]*topology.Component, error) {
-	sList, err := du.ListSwarmServices(sender)
+	sList, err := du.ListSwarmServices()
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +126,7 @@ func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, s
 	containerComponents := make([]*topology.Component, 0)
 	swarmServiceRelations := make([]*topology.Relation, 0)
 	for _, s := range sList {
+		tags := []string{nil}
 		sourceExternalID := fmt.Sprintf("urn:%s:/%s", swarmServiceType, s.ID)
 		containerComponent := &topology.Component{
 			ExternalID: sourceExternalID,
@@ -164,6 +165,10 @@ func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, s
 			Data: 		topology.Data{},
 		}
 		swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
+
+		sender.Gauge("docker.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Spec.Name))
+		sender.Gauge("docker.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Spec.Name))
+
 	}
 
 	return containerComponents, nil

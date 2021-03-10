@@ -95,6 +95,8 @@ type SwarmService struct {
 	Endpoint       swarm.Endpoint     `json:",omitempty"`
 	UpdateStatus   swarm.UpdateStatus `json:",omitempty"`
 	Container 	   swarm.ContainerStatus
+	DesiredTasks   uint64
+	RunningTasks   uint64
 }
 
 
