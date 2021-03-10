@@ -143,6 +143,8 @@ func runAgent(exit <-chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
+
 	// Register stats endpoint
 	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
 		stats := loader.GetStats()
