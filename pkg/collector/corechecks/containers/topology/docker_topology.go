@@ -126,7 +126,7 @@ func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, s
 	containerComponents := make([]*topology.Component, 0)
 	swarmServiceRelations := make([]*topology.Relation, 0)
 	for _, s := range sList {
-		tags := []string{nil}
+		tags := make([]string, 0)
 		sourceExternalID := fmt.Sprintf("urn:%s:/%s", swarmServiceType, s.ID)
 		containerComponent := &topology.Component{
 			ExternalID: sourceExternalID,
