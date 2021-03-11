@@ -318,7 +318,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_and_invalid_profiles_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_invalid_conf.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
