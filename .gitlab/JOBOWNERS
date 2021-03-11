@@ -1,4 +1,4 @@
-*               @DataDog/agent-platfrom
+*                       @DataDog/agent-platfrom
 
 # Unit test notifications are handled separately
 # for more fine-grained control

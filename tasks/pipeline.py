@@ -169,9 +169,11 @@ def notify_failure(_, notification_type="merge"):
             message += "\n(Test message, the real message would be sent to {})".format(GITHUB_SLACK_MAP[owner])
             send_slack_message("#agent-pipeline-notifications", message)
         else:
-            message = """The owner `{}` is not mapped to any slack channel. Please check for typos
+            message = """The owner `{owner}` is not mapped to any slack channel. Please check for typos
 in the JOBOWNERS file and/or add them to the Github <-> Slack map.
-Jobs they own:"""
+Jobs they own:""".format(
+                owner=owner
+            )
             for job in jobs:
                 message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
                     url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
