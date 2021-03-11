@@ -1,4 +1,5 @@
-package docker_swarm
+
+package dockerswarm
 
 import (
 	yaml "gopkg.in/yaml.v2"
@@ -7,31 +8,32 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/topologycollectors"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+// const for swarm check
 const (
-	SwarmCheckName = "docker-swarm"
+	SwarmCheckName = "docker_swarm"
 	SwarmServiceCheck = "swarm.service"
 )
-
+// SwarmConfig have boolean flag to collect topology
 type SwarmConfig struct {
 	// sts
 	CollectSwarmTopology     bool `yaml:"collect_swarm_topology"`
 }
 
-// DockerCheck grabs docker metrics
+// SwarmCheck grabs Swarm topology and replica metrics
 type SwarmCheck struct {
 	core.CheckBase
 	instance                    *SwarmConfig
 	dockerHostname              string
 	// sts
-	topologyCollector *topologycollectors.SwarmTopologyCollector
+	topologyCollector 			*SwarmTopologyCollector
 }
 
+// Run executes the check
 func (s *SwarmCheck) Run() error {
 	sender, err := aggregator.GetSender(s.ID())
 	if err != nil {
@@ -48,6 +50,8 @@ func (s *SwarmCheck) Run() error {
 			log.Errorf("Could not collect swarm topology: %s", err)
 			return err
 		}
+	} else {
+		log.Infof("Swarm check is not enabled to collect topology")
 	}
 
 	sender.Commit()
@@ -57,7 +61,7 @@ func (s *SwarmCheck) Run() error {
 
 func (c *SwarmConfig) Parse(data []byte) error {
 	// default values
-	c.CollectSwarmTopology = true
+	c.CollectSwarmTopology = false
 
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -84,13 +88,12 @@ func (s *SwarmCheck) Configure(config, initConfig integration.Data) error {
 	return nil
 }
 
-
 // SwarmFactory is exported for integration testing
 func SwarmFactory() check.Check {
 	return &SwarmCheck{
 		CheckBase:         core.NewCheckBase(SwarmCheckName),
 		instance:          &SwarmConfig{},
-		topologyCollector: topologycollectors.MakeSwarmTopologyCollector(),
+		topologyCollector: MakeSwarmTopologyCollector(),
 	}
 }
 

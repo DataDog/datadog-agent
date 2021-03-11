@@ -1,4 +1,9 @@
-package topologycollectors
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2019 Datadog, Inc.
+
+package dockerswarm
 
 import (
 	"errors"
@@ -6,24 +11,24 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	docker_swarm "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/docker-swarm"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
+
 const (
 	SwarmTopologyCheckName = "swarm_topology"
 	swarmServiceType        = "swarm-service"
 )
 
-// DockerTopologyCollector contains the checkID and topology instance for the docker topology check
+// SwarmTopologyCollector contains the checkID and topology instance for the swarm topology check
 type SwarmTopologyCollector struct {
 	corechecks.CheckTopologyCollector
 }
 
-// MakeDockerTopologyCollector returns a new instance of DockerTopologyCollector
+// MakeSwarmTopologyCollector returns a new instance of SwarmTopologyCollector
 func MakeSwarmTopologyCollector() *SwarmTopologyCollector {
 	return &SwarmTopologyCollector{
 		corechecks.MakeCheckTopologyCollector(SwarmTopologyCheckName, topology.Instance{
@@ -64,7 +69,7 @@ func (dt *SwarmTopologyCollector) BuildSwarmTopology(metrics aggregator.Sender) 
 func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(docker_swarm.SwarmServiceCheck, metrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(SwarmServiceCheck, metrics.ServiceCheckCritical, "", nil, err.Error())
 		log.Warnf("Error initialising check: %s", err)
 		return nil, nil, err
 	}
@@ -107,8 +112,8 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 
 		swarmServiceComponents = append(swarmServiceComponents, swarmServiceComponent)
 
-		// ------------ Create a component structure for Swarm Task Container
 		for _, taskContainer := range s.TaskContainers {
+			// ------------ Create a component structure for Swarm Task Container
 			targetExternalID := fmt.Sprintf("urn:container:/%s", taskContainer.ContainerStatus.ContainerID)
 			taskContainerComponent := &topology.Component{
 				ExternalID: targetExternalID,
@@ -122,6 +127,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 				},
 			}
 			taskContainerComponents = append(taskContainerComponents, taskContainerComponent)
+			// ------------ Create a relation structure for Swarm Service and Task Container
 			log.Infof("Creating a relation for service %s with container %s", s.Name, taskContainer.Name)
 			swarmServiceRelation := &topology.Relation{
 				ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
@@ -134,8 +140,8 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 		}
 
 
-		sender.Gauge("docker.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
-		sender.Gauge("docker.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
+		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
+		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
 
 	}
 	// Append TaskContainer components to same Service Component list
