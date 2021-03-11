@@ -11,7 +11,7 @@ def check_failed_status(project_name, pipeline_id):
     jobs = gitlab.all_jobs(project_name, pipeline_id)
 
     # Get instances of failed jobs
-    failed_jobs = {job["name"]: [job] for job in jobs if job["status"] == "failed"}
+    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
 
     # Group jobs per name
     for job in jobs:
@@ -31,6 +31,7 @@ def check_failed_status(project_name, pipeline_id):
             "stage": jobs[-1]["stage"],
             "status": jobs[-1]["status"],
             "allow_failure": jobs[-1]["allow_failure"],
+            "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
         }
         final_failed_jobs.append(final_status)
@@ -56,14 +57,16 @@ Failed jobs:""".format(
 
     for job in failed_jobs:
         if job["status"] == "failed" and not job["allow_failure"]:
-            message += "\n {name} (stage: {stage}, after {retries} retries)".format(
-                name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
+            message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
+                url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
             )
+
     return message
 
 
 def send_message(recipient, message):
-    subprocess.run(['postmessage', '"{}"'.format(recipient), '"{}"'.format(message)])
+    output = subprocess.check_output(["postmessage", recipient, message])
+    print(output)
 
 
 if __name__ == "__main__":
