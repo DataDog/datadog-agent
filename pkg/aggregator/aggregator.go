@@ -470,7 +470,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 		}
 
 		tags := append(extra.Tags, agg.tags(false)...)
-		if agg.allowedTags != nil {
+		if agg.allowedTags != nil && len(agg.allowedTags) > 0 {
 			filteredTags := make([]string, 0, len(tags))
 			for _, tag := range tags {
 				s := strings.Split(tag, ":")
