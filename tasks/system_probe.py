@@ -299,15 +299,19 @@ def kitchen_test(ctx, target=None):
                     images[image] = platform
 
     if not (target in images):
-        print("please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n%s" % (list(images.keys())))
+        print(
+            "please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n%s"
+            % (list(images.keys()))
+        )
         raise Exit(code=1)
 
     with ctx.cd(KITCHEN_DIR):
-        ctx.run("inv kitchen.genconfig --platform {platform} --osversions {target} --provider vagrant --testfiles system-probe-test".format(
-            target=target,
-            platform=images[target]
-        ))
-        ctx.run("kitchen test", env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox")
+        ctx.run(
+            "inv kitchen.genconfig --platform {platform} --osversions {target} --provider vagrant --testfiles system-probe-test".format(
+                target=target, platform=images[target]
+            )
+        )
+        ctx.run("kitchen test", env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"})
 
 
 @task
