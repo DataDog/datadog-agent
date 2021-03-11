@@ -18,7 +18,9 @@ driver:
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
   subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
-  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] || null %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= null %>
+  spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] ||= 'on-demand' %>
+  block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= 60 %>
   tags:
     created-by: test-kitchen
     creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "kitchen-user" %>
