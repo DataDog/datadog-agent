@@ -150,6 +150,7 @@ build do
   else
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
   if linux?

@@ -8,6 +8,7 @@
 package webhook
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -236,7 +237,7 @@ func (c *Controller) createWebhook(secret *corev1.Secret) error {
 		},
 		Webhooks: c.newWebhooks(secret),
 	}
-	_, err := c.clientSet.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Create(webhook)
+	_, err := c.clientSet.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Create(context.TODO(), webhook, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		log.Infof("Webhook %s already exists", webhook.GetName())
 		return nil
@@ -248,7 +249,7 @@ func (c *Controller) createWebhook(secret *corev1.Secret) error {
 func (c *Controller) updateWebhook(secret *corev1.Secret, webhook *admiv1beta1.MutatingWebhookConfiguration) error {
 	webhook = webhook.DeepCopy()
 	webhook.Webhooks = c.newWebhooks(secret)
-	_, err := c.clientSet.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Update(webhook)
+	_, err := c.clientSet.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Update(context.TODO(), webhook, metav1.UpdateOptions{})
 	return err
 }
 

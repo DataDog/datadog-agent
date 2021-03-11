@@ -32,6 +32,7 @@ import (
 
 const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
+	maximumWaitForAPIServer   = 10 * time.Second
 )
 
 // KSMConfig contains the check config parameters
@@ -188,7 +189,12 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithAllowDenyList(allowDenyList)
 
-	c, err := apiserver.GetAPIClient()
+	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
+	// So we are waiting for a reasonable amount of time here in case.
+	// We cannot wait forever as there's no way to be notified of shutdown
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+	defer apiCancel()
+	c, err := apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
 		return err
 	}
@@ -259,17 +265,18 @@ func (k *KSMCheck) Cancel() {
 func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
-			if metadataMetricsRegex.MatchString(metricFamily.Name) {
-				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
-				continue
-			}
+			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
+			}
+			if metadataMetricsRegex.MatchString(metricFamily.Name) {
+				// metadata metrics are only used by the check for label joins
+				// they shouldn't be forwarded to Datadog
+				continue
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {

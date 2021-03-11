@@ -57,14 +57,16 @@ type sourceTags struct {
 type tagStore struct {
 	sync.RWMutex
 
-	store    map[string]*entityTags
-	toDelete map[string]struct{} // set emulation
+	store     map[string]*entityTags
+	toDelete  map[string]struct{} // set emulation
+	telemetry map[string]map[string]float64
 
 	subscriber *subscriber.Subscriber
 }
 
 func newTagStore() *tagStore {
 	return &tagStore{
+		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*entityTags),
 		toDelete:   make(map[string]struct{}),
 		subscriber: subscriber.NewSubscriber(),
@@ -137,11 +139,6 @@ func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
 		return fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
 	}
 
-	if !found {
-		prefix, _ := containers.SplitEntityName(info.Entity)
-		telemetry.StoredEntities.Inc(info.Source, prefix)
-	}
-
 	storedTags.cacheValid = false
 	storedTags.sourceTags[info.Source] = sourceTags{
 		lowCardTags:          info.LowCardTags,
@@ -151,6 +148,35 @@ func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
 	}
 
 	return nil
+}
+
+func (s *tagStore) collectTelemetry() {
+	// our telemetry package does not seem to have a way to reset a Gauge,
+	// so we need to keep track of all the labels we use, and re-set them
+	// to zero after we're done to ensure a new run of collectTelemetry
+	// will not forget to clear them if they disappear.
+
+	s.Lock()
+	defer s.Unlock()
+
+	for _, entityTags := range s.store {
+		prefix, _ := containers.SplitEntityName(entityTags.entityID)
+
+		for source := range entityTags.sourceTags {
+			if _, ok := s.telemetry[prefix]; !ok {
+				s.telemetry[prefix] = make(map[string]float64)
+			}
+
+			s.telemetry[prefix][source]++
+		}
+	}
+
+	for prefix, sources := range s.telemetry {
+		for source, storedEntities := range sources {
+			telemetry.StoredEntities.Set(storedEntities, source, prefix)
+			s.telemetry[prefix][source] = 0
+		}
+	}
 }
 
 func (s *tagStore) subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
@@ -194,15 +220,12 @@ func (s *tagStore) prune() error {
 			continue
 		}
 
-		prefix, _ := containers.SplitEntityName(entity)
-
 		for source := range storedTags.toDelete {
 			if _, ok := storedTags.sourceTags[source]; !ok {
 				continue
 			}
 
 			delete(storedTags.sourceTags, source)
-			telemetry.StoredEntities.Dec(source, prefix)
 		}
 
 		if len(storedTags.sourceTags) == 0 {

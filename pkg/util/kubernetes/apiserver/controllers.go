@@ -10,20 +10,19 @@ package apiserver
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
-	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
-	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	wpa_informers "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
-
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/dynamic"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
+	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
 )
 
 type startFunc func(ControllerContext, chan error)
@@ -57,8 +56,8 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 type ControllerContext struct {
 	informers          map[InformerName]cache.SharedInformer
 	InformerFactory    informers.SharedInformerFactory
-	WPAClient          wpa_client.Interface
-	WPAInformerFactory wpa_informers.SharedInformerFactory
+	WPAClient          dynamic.Interface
+	WPAInformerFactory dynamic_informer.DynamicSharedInformerFactory
 	DDClient           dd_client.Interface
 	DDInformerFactory  dd_informers.SharedInformerFactory
 	Client             kubernetes.Interface

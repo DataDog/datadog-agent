@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"math"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -9,6 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
+
+const maxRoutes = math.MaxInt32
 
 var connsPool = sync.Pool{
 	New: func() interface{} {
@@ -22,8 +25,14 @@ var connPool = sync.Pool{
 	},
 }
 
+// RouteIdx stores the route and the index into the route collection for a route
+type RouteIdx struct {
+	Idx   int32
+	Route model.Route
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -50,6 +59,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int) *m
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
@@ -82,8 +92,8 @@ var telemetryPool = sync.Pool{
 	},
 }
 
-// FormatTelemetry converts telemetry from its internal representation to a protobuf message
-func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
+// FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
 	if tel == nil {
 		return nil
 	}
@@ -102,6 +112,23 @@ func FormatTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTeleme
 	return t
 }
 
+// FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
+func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilationTelemetry) map[string]*model.RuntimeCompilationTelemetry {
+	if telByAsset == nil {
+		return nil
+	}
+
+	ret := make(map[string]*model.RuntimeCompilationTelemetry)
+	for asset, tel := range telByAsset {
+		t := &model.RuntimeCompilationTelemetry{}
+		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
+		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
+		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
+		ret[asset] = t
+	}
+	return ret
+}
+
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
@@ -113,7 +140,7 @@ func returnToPool(c *model.Connections) {
 			dnsPool.Put(e)
 		}
 	}
-	telemetryPool.Put(c.Telemetry)
+	telemetryPool.Put(c.ConnTelemetry)
 	connsPool.Put(c)
 }
 
@@ -191,6 +218,36 @@ func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}
+}
+
+func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
+	if v == nil || routes == nil {
+		return -1
+	}
+
+	if len(routes) == maxRoutes {
+		return -1
+	}
+
+	k := routeKey(v)
+	if len(k) == 0 {
+		return -1
+	}
+
+	if idx, ok := routes[k]; ok {
+		return idx.Idx
+	}
+
+	routes[k] = RouteIdx{
+		Idx:   int32(len(routes)),
+		Route: model.Route{Subnet: &model.Subnet{Alias: v.Subnet.Alias}},
+	}
+
+	return int32(len(routes)) - 1
+}
+
+func routeKey(v *network.Via) string {
+	return v.Subnet.Alias
 }
 
 func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {

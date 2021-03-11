@@ -94,6 +94,7 @@ type Event struct {
 	EventType      string         `json:"event_type,omitempty"`
 	OriginID       string         `json:"-"`
 	K8sOriginID    string         `json:"-"`
+	Cardinality    string         `json:"-"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling
@@ -194,6 +195,11 @@ func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		n += batchSize
 	}
 	return splitPayloads, nil
+}
+
+// MarshalSplitCompress not implemented
+func (events Events) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("Events MarshalSplitCompress is not implemented")
 }
 
 // Implements StreamJSONMarshaler.

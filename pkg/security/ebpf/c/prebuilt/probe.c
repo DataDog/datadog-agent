@@ -14,6 +14,7 @@
 #include "exec.h"
 #include "process.h"
 #include "container.h"
+#include "commit_creds.h"
 #include "overlayfs.h"
 #include "exec.h"
 #include "setattr.h"
@@ -64,10 +65,6 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
 
         send_event(ctx, EVENT_INVALIDATE_DENTRY, event);
     }
-}
-
-void __attribute__((always_inline)) invalidate_path_key(struct pt_regs *ctx, struct path_key_t *key, int send_invalidate_event) {
-    invalidate_inode(ctx, key->mount_id, key->ino, send_invalidate_event);
 }
 
 __u32 _version SEC("version") = 0xFFFFFFFE;

@@ -208,7 +208,7 @@ func main() {
 	SetHostname("foo")
 
 	f := &forwarderBenchStub{}
-	s := serializer.NewSerializer(f)
+	s := serializer.NewSerializer(f, nil)
 
 	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", time.Duration(*flushIval)*time.Second)
 

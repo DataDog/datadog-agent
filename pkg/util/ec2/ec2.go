@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -149,6 +150,42 @@ func GetNetworkID() (string, error) {
 	}
 }
 
+// Subnet stores information about an AWS subnet
+type Subnet struct {
+	ID   string
+	Cidr string
+}
+
+// GetSubnetForHardwareAddr returns info about the subnet associated with a hardware
+// address (mac address) on the current host
+func GetSubnetForHardwareAddr(hwAddr net.HardwareAddr) (subnet Subnet, err error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		err = fmt.Errorf("cloud provider is disabled by configuration")
+		return
+	}
+
+	if len(hwAddr) == 0 {
+		err = fmt.Errorf("could not get subnet for empty hw addr")
+		return
+	}
+
+	var resp string
+	resp, err = getMetadataItem(fmt.Sprintf("/network/interfaces/macs/%s/subnet-id", hwAddr))
+	if err != nil {
+		return
+	}
+
+	subnet.ID = strings.TrimSpace(resp)
+
+	resp, err = getMetadataItem(fmt.Sprintf("/network/interfaces/macs/%s/subnet-ipv4-cidr-block", hwAddr))
+	if err != nil {
+		return
+	}
+
+	subnet.Cidr = strings.TrimSpace(resp)
+	return
+}
+
 // GetNTPHosts returns the NTP hosts for EC2 if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
 func GetNTPHosts() []string {
@@ -190,9 +227,9 @@ func GetClusterName() (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	tags, err := GetTags()
+	tags, err := fetchTagsFromCache()
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)
+		return "", err
 	}
 
 	return extractClusterName(tags)

@@ -53,3 +53,8 @@ func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
 func (s *MockSerializer) SendJSONToV1Intake(data interface{}) error {
 	return s.Called(data).Error(0)
 }
+
+// SendOrchestratorMetadata serializes & send orchestrator metadata payloads
+func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
+}

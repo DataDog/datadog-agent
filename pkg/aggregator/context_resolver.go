@@ -65,6 +65,15 @@ func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey
 }
 
+func (cr *ContextResolver) get(key ckey.ContextKey) (*Context, bool) {
+	ctx, found := cr.contextsByKey[key]
+	return ctx, found
+}
+
+func (cr *ContextResolver) length() int {
+	return len(cr.contextsByKey)
+}
+
 // updateTrackedContext updates the last seen timestamp on a given context key
 func (cr *ContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
 	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {

@@ -25,7 +25,7 @@ import (
 )
 
 func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {
-	configMap, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(le.LeaseName, metav1.GetOptions{})
+	configMap, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
 		return "", nil, err
 	}
@@ -47,21 +47,21 @@ func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {
 // If `namespace`/`election` does not exist, it is created.
 func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	// We first want to check if the ConfigMap the Leader Election is based on exists.
-	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(le.LeaseName, metav1.GetOptions{})
+	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
 	if err != nil {
 		if errors.IsNotFound(err) == false {
 			return nil, err
 		}
 
-		_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Create(&v1.ConfigMap{
+		_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Create(context.TODO(), &v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind: "ConfigMap",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: le.LeaseName,
 			},
-		})
+		}, metav1.CreateOptions{})
 		if err != nil && !errors.IsConflict(err) {
 			return nil, err
 		}

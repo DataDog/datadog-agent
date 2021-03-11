@@ -123,5 +123,5 @@ func newRuntimeMetric(name string) string {
 }
 
 func newAgentMetric(name string) string {
-	return MetricRuntimePrefix + name
+	return MetricAgentPrefix + name
 }

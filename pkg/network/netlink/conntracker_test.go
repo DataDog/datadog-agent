@@ -45,7 +45,7 @@ func TestIsNat(t *testing.T) {
 			},
 			0,
 		}
-		assert.False(t, isNAT(c))
+		assert.False(t, IsNAT(c))
 	})
 
 	t.Run("nil proto field", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestIsNat(t *testing.T) {
 			},
 			0,
 		}
-		assert.False(t, isNAT(c))
+		assert.False(t, IsNAT(c))
 	})
 
 	t.Run("nat", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestIsNat(t *testing.T) {
 			},
 			0,
 		}
-		assert.True(t, isNAT(c))
+		assert.True(t, IsNAT(c))
 	})
 }
 

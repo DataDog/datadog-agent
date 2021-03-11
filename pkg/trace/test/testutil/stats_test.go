@@ -14,6 +14,6 @@ import (
 func TestRandomBucket(t *testing.T) {
 	for i := 10; i < 100; i += 10 {
 		b := RandomBucket(i)
-		assert.False(t, b.IsEmpty())
+		assert.False(t, len(b.Stats) == 0)
 	}
 }

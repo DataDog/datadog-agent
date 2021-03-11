@@ -14,6 +14,7 @@ The leader election spawn an endless go routine to acquire the lead.
 */
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +89,7 @@ func (suite *apiserverSuite) SetupTest() {
 			require.FailNow(suite.T(), "timeout after %s", setupTimeout.String())
 
 		case <-tick.C:
-			_, err := coreClient.Pods("").List(metav1.ListOptions{Limit: 1})
+			_, err := coreClient.Pods("").List(context.TODO(), metav1.ListOptions{Limit: 1})
 			if err == nil {
 				return
 			}
@@ -173,7 +174,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	client := c.Cl.CoreV1()
 
 	require.Nil(suite.T(), err)
-	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
 	require.Nil(suite.T(), err)
 	// 1 ConfigMap
 	require.Len(suite.T(), cmList.Items, 1)

@@ -72,7 +72,7 @@ func TestMount(t *testing.T) {
 			}
 
 			// use accessor to parse properly the mount type
-			if fs := event.Mount.GetFSType(); fs != "bind" {
+			if fs := event.Mount.GetFSType(); fs != "ext4" {
 				t.Errorf("expected a bind mount, got %v", fs)
 			}
 			mntID = event.Mount.MountID
