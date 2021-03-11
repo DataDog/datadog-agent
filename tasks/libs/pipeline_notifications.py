@@ -50,7 +50,9 @@ Failed jobs:""".format(
         pipeline_id=os.getenv("CI_PIPELINE_ID"),
         commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
         commit_title=os.getenv("CI_COMMIT_TITLE"),
-        commit_url=os.getenv("COMMIT_URL"),
+        commit_url="{project_url}/commit/{commit_sha}".format(
+            project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
+        ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
         author=os.getenv("AUTHOR"),
     )
