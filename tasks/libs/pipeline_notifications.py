@@ -54,7 +54,7 @@ Failed jobs:""".format(
             project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
         ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
-        author=os.getenv("AUTHOR"),
+        author=get_git_author(),
     )
 
     for job in failed_jobs:
@@ -66,9 +66,17 @@ Failed jobs:""".format(
     return message
 
 
+def get_git_author():
+    return (
+        subprocess.check_output(["git", "show", "-s", "--format='%an'", "HEAD"])
+        .decode('utf-8')
+        .strip()
+        .replace("'", "")
+    )
+
+
 def send_message(recipient, message):
-    output = subprocess.check_output(["postmessage", recipient, message])
-    print(output)
+    subprocess.run(["postmessage", recipient, message])
 
 
 if __name__ == "__main__":
