@@ -72,14 +72,18 @@ func (dt *DockerTopologyCollector) BuildSwarmTopology(du *docker.DockerUtil, met
 	}
 
 	// collect all swarm services as topology components
-	swarmServices, err := dt.collectSwarmServices(du, metrics)
+	swarmComponents, swarmRelations, err := dt.collectSwarmServices(du, metrics)
 	if err != nil {
 		return err
 	}
 
 	// submit all collected topology components
-	for _, component := range swarmServices {
+	for _, component := range swarmComponents {
 		sender.SubmitComponent(dt.CheckID, dt.TopologyInstance, *component)
+	}
+	// submit all collected topology relations
+	for _, relation := range swarmRelations {
+		sender.SubmitRelation(dt.CheckID, dt.TopologyInstance, *relation)
 	}
 
 	sender.SubmitComplete(dt.CheckID)
@@ -117,10 +121,10 @@ func (dt *DockerTopologyCollector) collectContainers(du *docker.DockerUtil) ([]*
 }
 
 // collectSwarmServices collects swarm services from the docker util and produces topology.Component
-func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, sender aggregator.Sender) ([]*topology.Component, error) {
+func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
 	sList, err := du.ListSwarmServices()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	containerComponents := make([]*topology.Component, 0)
@@ -171,5 +175,5 @@ func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, s
 
 	}
 
-	return containerComponents, nil
+	return containerComponents, swarmServiceRelations, nil
 }

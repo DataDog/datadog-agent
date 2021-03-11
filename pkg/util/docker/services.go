@@ -61,11 +61,13 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 		}
 		for _, task := range tasks {
 
-			// TODO: this should only be needed for "global" services. Replicated
-			// services have `Spec.Mode.Replicated.Replicas`, which should give this value.
-			if task.DesiredState != swarm.TaskStateShutdown {
-				log.Infof("Task having service ID %s got desired tasks for global mode", task.ServiceID)
-				desired++
+			// this should only be needed for "global" services. In future version (1.41 or up)
+			// this can be directly accessed through ServiceStatus.DesiredTasks
+			if s.Spec.Mode.Global != nil {
+				if task.DesiredState != swarm.TaskStateShutdown {
+					log.Infof("Task having service ID %s got desired tasks for global mode", task.ServiceID)
+					desired++
+				}
 			}
 			if _, nodeActive := activeNodes[task.NodeID]; nodeActive && task.Status.State == swarm.TaskStateRunning {
 				log.Infof("Task having service ID %s is running", task.ServiceID)
@@ -74,9 +76,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			container = &task.Status.ContainerStatus
 			log.Infof("Got container status with value %s", container)
 		}
-		if (container == nil){
-			container = &(tasks[0].Status.ContainerStatus)
-		}
+
 		log.Infof("Service %s has %d desired and %d running tasks", s.Spec.Name, desired, running)
 
 		service := &containers.SwarmService{
