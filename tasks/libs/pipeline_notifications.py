@@ -3,8 +3,6 @@ import subprocess
 from collections import defaultdict
 from pprint import pprint
 
-from codeowners import CodeOwners
-
 from .common.gitlab import Gitlab
 
 
@@ -45,6 +43,8 @@ def get_failed_jobs(project_name, pipeline_id):
 
 
 def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
+    from codeowners import CodeOwners
+
     with open(owners_file, 'r') as f:
         owners = CodeOwners(f.read())
 
