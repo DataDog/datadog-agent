@@ -72,6 +72,7 @@ type checkSender struct {
 	orchestratorOut         chan<- senderOrchestratorMetadata
 	checkTags               []string
 	service                 string
+	allowedTags             map[string]bool
 }
 
 type senderMetricSample struct {
@@ -113,6 +114,10 @@ func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMet
 		priormetricStats:   metricStats{},
 		histogramBucketOut: bucketOut,
 		orchestratorOut:    orchestratorOut,
+		allowedTags: map[string]bool{
+			"host": true,
+			"name": true,
+		},
 	}
 }
 
@@ -240,7 +245,13 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
 
-	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	filteredTags := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if _, ok := s.allowedTags[tag]; ok {
+			filteredTags = append(filteredTags, tag)
+		}
+	}
+	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", filteredTags)
 
 	metricSample := &metrics.MetricSample{
 		Name:            metric,
