@@ -1,10 +1,14 @@
+import os
 import re
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.gitlab import Gitlab
+from .libs.common.gitlab import Gitlab
+from .libs.pipeline_notifications import check_failed_status, prepare_global_failure_message, send_message
 from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
+
+# Tasks to trigger pipelines
 
 
 @task
@@ -126,3 +130,22 @@ def wait_for_pipeline_from_ref(gitlab, project_name, ref):
     else:
         print("No pipelines found for {ref}".format(ref=ref))
         raise Exit(code=1)
+
+
+# Tasks to trigger pipeline notifications
+
+
+@task
+def notify_failure(_, notification_type="merge"):
+    """
+    Send failure notifications for the current pipeline. CI-only task.
+    """
+    header = ""
+    if notification_type == "merge":
+        header = ":host-red: :merged: Merge"
+    elif notification_type == "deploy":
+        header = ":host-red: :rocket: Deploy"
+
+    failed_jobs = check_failed_status("DataDog/datadog-agent", os.getenv("CI_PIPELINE_ID"))
+    message = prepare_global_failure_message(header, failed_jobs)
+    send_message("#agent-pipeline-notifications", message)

@@ -2,7 +2,7 @@ import os
 import subprocess
 from pprint import pprint
 
-from common.gitlab import Gitlab
+from .common.gitlab import Gitlab
 
 
 def check_failed_status(project_name, pipeline_id):
@@ -41,7 +41,7 @@ def check_failed_status(project_name, pipeline_id):
     return final_failed_jobs
 
 
-def prepare_failure_message(header, failed_jobs):
+def prepare_global_failure_message(header, failed_jobs):
     message = """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
 {commit_title} (<{commit_url}|{commit_short_sha}>) by {author}
 Failed jobs:""".format(
@@ -76,10 +76,4 @@ def get_git_author():
 
 
 def send_message(recipient, message):
-    subprocess.run(["postmessage", recipient, message])
-
-
-if __name__ == "__main__":
-    failed_jobs = check_failed_status("DataDog/datadog-agent", os.getenv("CI_PIPELINE_ID"))
-    message = prepare_failure_message(":host-red: :merged: Merge", failed_jobs)
-    send_message("#agent-pipeline-notifications", message)
+    subprocess.run(["postmessage", recipient, message], check=True)
