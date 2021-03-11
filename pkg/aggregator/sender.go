@@ -8,6 +8,7 @@ package aggregator
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +73,7 @@ type checkSender struct {
 	orchestratorOut         chan<- senderOrchestratorMetadata
 	checkTags               []string
 	service                 string
+	allowedTags             map[string]interface{}
 }
 
 type senderMetricSample struct {
@@ -102,7 +104,7 @@ func init() {
 	}
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata) *checkSender {
+func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata, allowedTags map[string]interface{}) *checkSender {
 	return &checkSender{
 		id:                 id,
 		defaultHostname:    defaultHostname,
@@ -113,6 +115,7 @@ func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMet
 		priormetricStats:   metricStats{},
 		histogramBucketOut: bucketOut,
 		orchestratorOut:    orchestratorOut,
+		allowedTags:        allowedTags,
 	}
 }
 
@@ -155,7 +158,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID                       // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn, nil)
 	})
 
 	return senderInstance, nil
@@ -239,6 +242,17 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
+
+	if s.allowedTags != nil {
+		filteredTags := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			p := strings.Split(tag, ":")
+			if _, ok := s.allowedTags[p[0]]; ok {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+		tags = filteredTags
+	}
 
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 
@@ -430,7 +444,15 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	defer sp.m.Unlock()
 
 	err := aggregatorInstance.registerSender(id)
-	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn)
+	sender := newCheckSender(id,
+		aggregatorInstance.hostname,
+		aggregatorInstance.checkMetricIn,
+		aggregatorInstance.serviceCheckIn,
+		aggregatorInstance.eventIn,
+		aggregatorInstance.checkHistogramBucketIn,
+		aggregatorInstance.orchestratorMetadataIn,
+		aggregatorInstance.allowedTags,
+	)
 	sp.senders[id] = sender
 	return sender, err
 }

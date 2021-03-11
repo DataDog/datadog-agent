@@ -8,6 +8,7 @@ package aggregator
 import (
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -225,6 +226,7 @@ type BufferedAggregator struct {
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	allowedTags             map[string]interface{}
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -270,6 +272,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 		agentName:               agentName,
 		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:               tagger.AgentTags,
+		allowedTags:             config.Datadog.GetStringMap("tag_whitelist"),
 	}
 
 	return aggregator
@@ -319,7 +322,7 @@ func (agg *BufferedAggregator) AddAgentStartupTelemetry(agentVersion string) {
 	metric := &metrics.MetricSample{
 		Name:       fmt.Sprintf("datadog.%s.started", agg.agentName),
 		Value:      1,
-		Tags:       agg.tags(true),
+		Tags:       agg.tags(true), // ignore
 		Host:       agg.hostname,
 		Mtype:      metrics.CountType,
 		SampleRate: 1,
@@ -467,6 +470,17 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 		}
 
 		tags := append(extra.Tags, agg.tags(false)...)
+		if agg.allowedTags != nil {
+			filteredTags := make([]string, 0, len(tags))
+			for _, tag := range tags {
+				s := strings.Split(tag, ":")
+				if _, ok := agg.allowedTags[s[0]]; ok {
+					filteredTags = append(filteredTags, tag)
+				}
+			}
+			tags = filteredTags
+		}
+
 		newSerie := &metrics.Serie{
 			Name:           extra.Name,
 			Tags:           tags,
@@ -494,7 +508,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	series = append(series, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           agg.tags(true),
+		Tags:           agg.tags(true), // ignore
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -504,7 +518,7 @@ func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series
 	series = append(series, &metrics.Serie{
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(split.GetPayloadDrops()), Ts: float64(start.Unix())}},
-		Tags:           agg.tags(false),
+		Tags:           agg.tags(false), // ignore
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -574,7 +588,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    metrics.ServiceCheckOK,
-		Tags:      agg.tags(false),
+		Tags:      agg.tags(false), // ignore
 		Host:      agg.hostname,
 	})
 

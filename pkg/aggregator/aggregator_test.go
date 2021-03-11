@@ -267,6 +267,104 @@ func TestRecurentSeries(t *testing.T) {
 
 }
 
+func TestFilteredTag(t *testing.T) {
+	resetAggregator()
+	config.Datadog.Set("tag_whitelist", map[string]interface{}{"toto": nil})
+	s := &serializer.MockSerializer{}
+	agg := NewBufferedAggregator(s, "hostname", DefaultFlushInterval)
+
+	// Add two recurrentSeries
+	AddRecurrentSeries(&metrics.Serie{
+		Name:   "some.metric.1",
+		Points: []metrics.Point{{Value: 21}},
+		Tags:   []string{"tag:1", "tag:2", "toto:test"},
+		MType:  metrics.APIGaugeType,
+	})
+	AddRecurrentSeries(&metrics.Serie{
+		Name:           "some.metric.2",
+		Points:         []metrics.Point{{Value: 22}},
+		Tags:           nil,
+		Host:           "non default host",
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "non default SourceTypeName",
+	})
+
+	start := time.Now()
+
+	agentUp := metrics.ServiceChecks{{
+		CheckName: "datadog.agent.up",
+		Status:    metrics.ServiceCheckOK,
+		Ts:        start.Unix(),
+		Host:      agg.hostname,
+		Tags:      []string{},
+	}}
+
+	series := metrics.Series{&metrics.Serie{
+		Name:           "some.metric.1",
+		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
+		Tags:           []string{"tag:1", "tag:2", "toto:test"},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           "some.metric.2",
+		Points:         []metrics.Point{{Value: 22, Ts: float64(start.Unix())}},
+		Tags:           nil,
+		Host:           "non default host",
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "non default SourceTypeName",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		Tags:           []string{},
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}}
+
+	filteredSerie := metrics.Series{&metrics.Serie{
+		Name:           series[0].Name,
+		Points:         series[0].Points,
+		Tags:           []string{"toto:test"},
+		Host:           series[0].Host,
+		MType:          series[0].MType,
+		SourceTypeName: series[0].SourceTypeName,
+	}, &metrics.Serie{
+		Name:           series[1].Name,
+		Points:         series[1].Points,
+		Tags:           []string{},
+		Host:           series[1].Host,
+		MType:          series[1].MType,
+		SourceTypeName: series[1].SourceTypeName,
+	}, &metrics.Serie{
+		Name:           series[2].Name,
+		Points:         series[2].Points,
+		Tags:           series[2].Tags,
+		Host:           series[2].Host,
+		MType:          series[2].MType,
+		SourceTypeName: series[2].SourceTypeName,
+	}, &metrics.Serie{
+		Name:           series[3].Name,
+		Points:         series[3].Points,
+		Tags:           series[3].Tags,
+		Host:           series[3].Host,
+		MType:          series[3].MType,
+		SourceTypeName: series[3].SourceTypeName,
+	}}
+
+	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	s.On("SendSeries", filteredSerie).Return(nil).Times(1)
+	agg.Flush(start, true)
+	s.AssertCalled(t, "SendSeries", filteredSerie)
+}
+
 func TestTags(t *testing.T) {
 	tests := []struct {
 		name                    string
