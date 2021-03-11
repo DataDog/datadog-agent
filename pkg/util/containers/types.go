@@ -99,6 +99,8 @@ type SwarmService struct {
 	RunningTasks   uint64
 }
 
+// SwarmTask represents a Swarm TaskContainer definition
+// sts
 type SwarmTask struct {
 	ID             string
 	Name           string

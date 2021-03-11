@@ -59,6 +59,7 @@ func (s *SwarmCheck) Run() error {
 
 }
 
+// Parse the config
 func (c *SwarmConfig) Parse(data []byte) error {
 	// default values
 	c.CollectSwarmTopology = false

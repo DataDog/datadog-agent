@@ -17,7 +17,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
-
+// const for check name and component type
 const (
 	SwarmTopologyCheckName = "swarm_topology"
 	swarmServiceType        = "swarm-service"
