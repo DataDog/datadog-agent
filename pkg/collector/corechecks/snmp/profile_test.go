@@ -289,7 +289,7 @@ func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	assert.Nil(t, defaultProfiles)
 }
 
-func Test_loadDefaultProfiles_invalidProfile(t *testing.T) {
+func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
@@ -308,4 +308,30 @@ func Test_loadDefaultProfiles_invalidProfile(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
 	assert.Equal(t, profileDefinitionMap{}, defaultProfiles)
+}
+
+func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
+	// Valid profiles should be returned even if some profiles are invalid
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_and_invalid_profiles_conf.d"))
+	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+	globalProfileConfigMap = nil
+
+	defaultProfiles, err := loadDefaultProfiles()
+
+	for _, profile := range defaultProfiles {
+		normalizeMetrics(profile.Metrics)
+	}
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-big-ip-invalid`"), logs)
+	assert.Equal(t, mockProfilesDefinitions(), defaultProfiles)
 }
