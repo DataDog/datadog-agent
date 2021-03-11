@@ -307,9 +307,7 @@ def kitchen_test(ctx, target=None):
             target=target,
             platform=images[target]
         ))
-        # In-place editting varies across different `sed` versions, so we write to a temporary file
-        ctx.run("sed '/provider:/d' kitchen.yml > kitchen.temp && mv kitchen.temp kitchen.yml")
-        ctx.run("kitchen test")
+        ctx.run("kitchen test", env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox")
 
 
 @task
