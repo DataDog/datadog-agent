@@ -10,16 +10,15 @@ package tests
 import (
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 
-	"github.com/cobaugh/osrelease"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -42,10 +41,11 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 }
 
 func TestOverlayFS(t *testing.T) {
-	sles12 := false
-	osrelease, err := osrelease.Read()
+	var sles12 bool
+
+	kv, err := probe.NewKernelVersion()
 	if err == nil {
-		sles12 = osrelease["NAME"] == "SLES" && strings.HasPrefix(osrelease["VERSION_ID"], "12")
+		sles12 = kv.IsSLES12Kernel()
 	}
 
 	if testEnvironment == DockerEnvironment || sles12 {

@@ -530,10 +530,14 @@ func newEventSerializer(event *Event) *EventSerializer {
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
-			Destination: &FileSerializer{
-				Mode: &event.Open.Mode,
-			},
 		}
+
+		if event.Open.Flags&syscall.O_CREAT > 0 {
+			s.FileEventSerializer.Destination = &FileSerializer{
+				Mode: &event.Open.Mode,
+			}
+		}
+
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
 	case model.FileMkdirEventType:

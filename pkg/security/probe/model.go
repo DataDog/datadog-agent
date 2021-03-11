@@ -246,7 +246,7 @@ func (ev *Event) ResolveProcessCookie(e *model.Process) int {
 func (ev *Event) ResolveProcessTTY(e *model.Process) string {
 	if e.TTYName == "" && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.TTYName = entry.TTYName
+			e.TTYName = ev.resolvers.ProcessResolver.SetTTY(entry)
 		}
 	}
 	return e.TTYName
