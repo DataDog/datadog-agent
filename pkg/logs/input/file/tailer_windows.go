@@ -89,10 +89,10 @@ func (t *Tailer) readAvailable() (int, error) {
 func (t *Tailer) read() (int, error) {
 	n, err := t.readAvailable()
 	if err == io.EOF || os.IsNotExist(err) {
-		return 0, nil
+		return n, nil
 	} else if err != nil {
 		t.file.Source.Status.Error(err)
-		return 0, log.Error("Err: ", err)
+		return n, log.Error("Err: ", err)
 	}
 	return n, nil
 }
