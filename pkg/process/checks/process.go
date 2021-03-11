@@ -92,6 +92,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
 		procutil.WithPermission(true)(p.probe)
 	} else {
+		procutil.WithPermission(false)(p.probe)
 		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
 			sysProbeUtil = pu
 		} else if p.notInitializedLogLimit.ShouldLog() {

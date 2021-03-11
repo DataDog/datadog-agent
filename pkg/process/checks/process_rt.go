@@ -69,6 +69,7 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
 		procutil.WithPermission(true)(r.probe)
 	} else {
+		procutil.WithPermission(false)(r.probe)
 		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
 			sysProbeUtil = pu
 		} else if r.notInitializedLogLimit.ShouldLog() {
