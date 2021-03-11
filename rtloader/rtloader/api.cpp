@@ -411,6 +411,16 @@ void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
 }
 
+void set_get_pid_cb(rtloader_t *rtloader, cb_get_pid_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetPidCb(cb);
+}
+
+void set_get_create_time_cb(rtloader_t *rtloader, cb_get_create_time_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetCreateTimeCb(cb);
+}
+
 void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetTracemallocEnabledCb(cb);
@@ -494,4 +504,24 @@ void set_get_connection_info_cb(rtloader_t *rtloader, cb_get_connection_info_t c
 void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setIsExcludedCb(cb);
+}
+
+/*
+ * topology API
+ */
+void set_submit_component_cb(rtloader_t *rtloader, cb_submit_component_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitComponentCb(cb);
+}
+void set_submit_relation_cb(rtloader_t *rtloader, cb_submit_relation_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitRelationCb(cb);
+}
+void set_submit_start_snapshot_cb(rtloader_t *rtloader, cb_submit_start_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitStartSnapshotCb(cb);
+}
+void set_submit_stop_snapshot_cb(rtloader_t *rtloader, cb_submit_stop_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitStopSnapshotCb(cb);
 }

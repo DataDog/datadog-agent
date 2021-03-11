@@ -7,13 +7,12 @@ package agent
 
 import (
 	"context"
-	"github.com/StackVista/stackstate-agent/pkg/features"
 	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/event"
 	"github.com/StackVista/stackstate-agent/pkg/trace/filters"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
-	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter"
+	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter" //sts
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics/timing"
 	"github.com/StackVista/stackstate-agent/pkg/trace/obfuscate"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
@@ -44,7 +43,7 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
-	SpanInterpreterEngine *interpreter.SpanInterpreterEngine
+	SpanInterpreterEngine *interpreter.SpanInterpreterEngine //sts
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -58,9 +57,6 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
-
-	// Features Supported by the StackState Backend
-	SupportedFeatures *features.Features
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -84,7 +80,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		TraceWriter:           writer.NewTraceWriter(conf, out),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
 		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
-		SpanInterpreterEngine: interpreter.NewSpanInterpreterEngine(conf),
+		SpanInterpreterEngine: interpreter.NewSpanInterpreterEngine(conf), //sts
 		In:                    in,
 		Out:                   out,
 		conf:                  conf,
@@ -144,7 +140,6 @@ func (a *Agent) loop() {
 			a.ErrorsScoreSampler.Stop()
 			a.PrioritySampler.Stop()
 			a.EventProcessor.Stop()
-			a.SupportedFeatures.Stop()
 			return
 		}
 	}
@@ -195,9 +190,10 @@ func (a *Agent) Process(t *api.Trace) {
 	for _, span := range t.Spans {
 		a.obfuscator.Obfuscate(span)
 		Truncate(span)
-		a.SpanInterpreterEngine.Interpret(span)
 	}
 	a.Replacer.Replace(t.Spans)
+
+	t = a.SpanInterpreterEngine.Interpret(t) //sts
 
 	{
 		// this section sets up any necessary tags on the root:

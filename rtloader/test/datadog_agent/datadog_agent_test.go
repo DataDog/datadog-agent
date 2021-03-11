@@ -140,6 +140,58 @@ func TestGetClustername(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestGetPid(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		pid = datadog_agent.get_pid()
+		if sys.version_info.major == 2:
+			assert type(pid) == type(b"")
+		else:
+			assert type(pid) == type(u"")
+		f.write(pid)
+	`, tmpfile.Name())
+
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "1" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestGetCreateTime(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		create_time = datadog_agent.get_create_time()
+		if sys.version_info.major == 2:
+			assert type(create_time) == type(b"")
+		else:
+			assert type(create_time) == type(u"")
+		f.write(create_time)
+	`, tmpfile.Name())
+
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "123456789" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestGetTracemallocEnabled(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()

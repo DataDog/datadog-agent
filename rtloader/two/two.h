@@ -96,6 +96,8 @@ public:
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
     void setGetClusternameCb(cb_get_clustername_t);
+    void setGetPidCb(cb_get_pid_t);
+    void setGetCreateTimeCb(cb_get_create_time_t);
     void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t);
     void setLogCb(cb_log_t);
     void setSetCheckMetadataCb(cb_set_check_metadata_t);
@@ -118,6 +120,12 @@ public:
 
     // containers
     void setIsExcludedCb(cb_is_excluded_t);
+
+    // topology
+    void setSubmitComponentCb(cb_submit_component_t);
+    void setSubmitRelationCb(cb_submit_relation_t);
+    void setSubmitStartSnapshotCb(cb_submit_start_snapshot_t);
+    void setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t);
 
 private:
     //! initPythonHome member.

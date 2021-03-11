@@ -113,6 +113,10 @@ typedef void (*cb_headers_t)(char **);
 typedef void (*cb_get_hostname_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
+// (pid)
+typedef void (*cb_get_pid_t)(char **);
+// (create_time)
+typedef void (*cb_get_create_time_t)(char **);
 // (tracemalloc_enabled)
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
@@ -153,6 +157,22 @@ typedef void (*cb_get_connection_info_t)(char **);
 //
 // (container_name, image_name, namespace, bool_result)
 typedef int (*cb_is_excluded_t)(char *, char *, char *);
+
+// topology
+//
+typedef struct instance_key_s {
+    char *type_;  //type is a reserved keyword in Go
+    char *url;
+} instance_key_t;
+
+// (check_id, instance_key, component_id, component_type, data)
+typedef void (*cb_submit_component_t)(char *, instance_key_t *, char *, char *, char *);
+// (check_id, instance_key, source_id, target_id, relation_type, data)
+typedef void (*cb_submit_relation_t)(char *, instance_key_t *, char *, char *, char *, char *);
+// (check_id, instance_key)
+typedef void (*cb_submit_start_snapshot_t)(char *, instance_key_t *);
+// (check_id, instance_key)
+typedef void (*cb_submit_stop_snapshot_t)(char *, instance_key_t *);
 
 #ifdef __cplusplus
 }

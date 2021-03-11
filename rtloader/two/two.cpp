@@ -18,6 +18,7 @@
 #include "stringutils.h"
 #include "tagger.h"
 #include "util.h"
+#include "topology.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -114,6 +115,7 @@ bool Two::init()
     Py2_init_tagger();
     Py2_init_kubeutil();
     Py2_init_containers();
+    Py2_init_topology();
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
@@ -828,6 +830,16 @@ void Two::setGetClusternameCb(cb_get_clustername_t cb)
     _set_get_clustername_cb(cb);
 }
 
+void Two::setGetPidCb(cb_get_pid_t cb)
+{
+    _set_get_pid_cb(cb);
+}
+
+void Two::setGetCreateTimeCb(cb_get_create_time_t cb)
+{
+    _set_get_create_time_cb(cb);
+}
+
 void Two::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 {
     _set_tracemalloc_enabled_cb(cb);
@@ -887,6 +899,29 @@ void Two::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 {
     _set_obfuscate_sql_cb(cb);
 }
+
+
+// topology
+void Two::setSubmitComponentCb(cb_submit_component_t cb)
+{
+    _set_submit_component_cb(cb);
+}
+
+void Two::setSubmitRelationCb(cb_submit_relation_t cb)
+{
+    _set_submit_relation(cb);
+}
+
+void Two::setSubmitStartSnapshotCb(cb_submit_start_snapshot_t cb)
+{
+    _set_submit_start_snapshot(cb);
+}
+
+void Two::setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t cb)
+{
+    _set_submit_stop_snapshot(cb);
+}
+//
 
 // Python Helpers
 

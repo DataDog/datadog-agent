@@ -84,6 +84,12 @@ def test_cluster_agent_base_topology(host, ansible_var):
         with open("./topic-topo-process-agents-k8s.json", 'w') as f:
             json.dump(process_json_data, f, indent=4)
 
+        # 1 namespace
+        assert _find_component(
+            json_data=json_data,
+            type_name="namespace",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace)),
+        )
         # TODO make sure we identify the 2 different ec2 instances using i-*
         # 2 nodes
         assert _component_data(
@@ -157,6 +163,19 @@ def test_cluster_agent_base_topology(host, ansible_var):
             cluster_name=cluster_name,
             identifiers_assert_fn=lambda identifiers: next(x for x in identifiers if x.startswith("urn:endpoint:/%s:" % cluster_name))
         )
+        # 1 externalname service with associated external-service component
+        assert _find_component(
+            json_data=json_data,
+            type_name="service",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:%s:service/"
+                                                             "google-service" % (cluster_name, namespace)),
+        )
+        assert _find_component(
+            json_data=json_data,
+            type_name="external-service",
+            external_id_assert_fn=lambda eid: eid.startswith("urn:kubernetes:/%s:%s:external-service/"
+                                                             "google-service" % (cluster_name, namespace))
+        )
         # 1 config map aws-auth
         configmap_match = re.compile("urn:kubernetes:/{}:{}:configmap/aws-auth"
                                      .format(cluster_name, "kube-system"))
@@ -165,6 +184,7 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="configmap",
             external_id_assert_fn=lambda v: configmap_match.findall(v)
         )
+
         # 1 node agent config map sts-agent-config
         agent_configmap_match = re.compile("urn:kubernetes:/{}:{}:configmap/sts-agent-config"
                                            .format(cluster_name, namespace))
@@ -189,6 +209,14 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="configmap",
             external_id_assert_fn=lambda v: agent_configmap_match.findall(v)
         )
+        # 1 volume cgroups
+        volume_match = re.compile("urn:kubernetes:/{}:{}:volume/cgroups".format(cluster_name, namespace))
+        assert _find_component(
+            json_data=json_data,
+            type_name="volume",
+            external_id_assert_fn=lambda v: volume_match.findall(v)
+        )
+
         # 1 replicaset cluster-agent
         replicaset_match = re.compile("urn:kubernetes:/{}:{}:replicaset/"
                                       "stackstate-cluster-agent-.*".format(cluster_name, namespace))
@@ -384,10 +412,10 @@ def test_cluster_agent_base_topology(host, ansible_var):
             type_name="claims",
             external_id_assert_fn=lambda eid:  pod_claims_volume_match.findall(eid)
         ).startswith("urn:kubernetes:/%s:%s:pod/mehdb" % (cluster_name, namespace))
-        #  pod claims persistent-volume
+        #  pod claims HostPath volume
         pod_claims_persistent_volume_match = re.compile("urn:kubernetes:/%s:%s:pod/stackstate-agent-.*->"
-                                                        "urn:kubernetes:/%s:persistent-volume/cgroups" %
-                                                        (cluster_name, namespace, cluster_name))
+                                                        "urn:kubernetes:/%s:%s:volume/cgroups" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
         assert _relation_data(
             json_data=json_data,
             type_name="claims",
@@ -477,5 +505,59 @@ def test_cluster_agent_base_topology(host, ansible_var):
             ] if assertTag in tags]),
             containerId=stackstate_cluster_agent_container_id
         )
+        # Assert Namespace relationships
+        # Namespace -> Deployment (encloses)
+        namespace_deployment_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
+                                                         "urn:kubernetes:/%s:%s:deployment/stackstate-cluster-agent" %
+                                                         (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="encloses",
+            external_id_assert_fn=lambda eid: namespace_deployment_encloses_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
+        # Namespace -> StatefulSet (encloses)
+        namespace_statefulset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
+                                                          "urn:kubernetes:/%s:%s:statefulset/mehdb" %
+                                                          (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="encloses",
+            external_id_assert_fn=lambda eid: namespace_statefulset_encloses_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
+        # Namespace -> DaemonSet (encloses)
+        namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
+                                                        "urn:kubernetes:/%s:%s:daemonset/stackstate-agent" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="encloses",
+            external_id_assert_fn=lambda eid: namespace_daemonset_encloses_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
+        # Namespace -> ReplicaSet does not exist as managed by Deployment
+        namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
+                                                        "urn:kubernetes:/%s:%s:replicaset/stackstate-cluster-agent-.*" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="encloses",
+            external_id_assert_fn=lambda eid: namespace_daemonset_encloses_match.findall(eid)
+        ) is None
+        # Namespace -> Service (encloses)
+        namespace_daemonset_encloses_match = re.compile("urn:kubernetes:/%s:namespace/%s->"
+                                                        "urn:kubernetes:/%s:%s:service/stackstate-cluster-agent" %
+                                                        (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="encloses",
+            external_id_assert_fn=lambda eid: namespace_daemonset_encloses_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:namespace/%s" % (cluster_name, namespace))
+        external_name_service_uses_external_match = re.compile("urn:kubernetes:/%s:%s:service/google-service->"
+                                                               "urn:kubernetes:/%s:%s:external-service/google-service" %
+                                                               (cluster_name, namespace, cluster_name, namespace))
+        assert _relation_data(
+            json_data=json_data,
+            type_name="uses",
+            external_id_assert_fn=lambda eid: external_name_service_uses_external_match.findall(eid)
+        ).startswith("urn:kubernetes:/%s:%s:service/google-service" % (cluster_name, namespace))
 
     util.wait_until(wait_for_cluster_agent_components, 120, 3)

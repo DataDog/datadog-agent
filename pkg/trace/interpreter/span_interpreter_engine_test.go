@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
@@ -135,6 +136,26 @@ func TestSpanInterpreterEngine(t *testing.T) {
 			},
 		},
 		{
+			testCase: "Should interpret internal Traefik span",
+			span: pb.Span{
+				Name:    "TLSClientHeaders",
+				Service: "TraefikService",
+				Meta: map[string]string{
+					"source": "traefik",
+				},
+			},
+			expected: pb.Span{
+				Name:    "TLSClientHeaders",
+				Service: "TraefikService",
+				Meta: map[string]string{
+					"source":           "traefik",
+					"span.serviceType": "traefik",
+					"span.serviceName": "TraefikService",
+					"span.serviceURN":  "urn:service:/TraefikService",
+				},
+			},
+		},
+		{
 			testCase: "Should not interpret an already interpreted span",
 			span: pb.Span{
 				Service: "TraefikServiceName",
@@ -159,8 +180,13 @@ func TestSpanInterpreterEngine(t *testing.T) {
 		},
 	} {
 		t.Run(tc.testCase, func(t *testing.T) {
-			actual := sie.Interpret(&tc.span)
-			assert.EqualValues(t, tc.expected, *actual)
+			trace := &api.Trace{
+				Source:        nil,
+				ContainerTags: "",
+				Spans:         []*pb.Span{&tc.span},
+			}
+			actual := sie.Interpret(trace)
+			assert.EqualValues(t, tc.expected, *actual.Spans[0])
 		})
 	}
 }

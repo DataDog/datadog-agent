@@ -158,14 +158,13 @@ def test_java_traces(host):
         ]
 
         for c in components:
-            print("Running assertion for component: " + c["assertion"])
+            print("Running assertion for: " + c["assertion"])
             assert _component_data(
                 json_data=json_data,
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"],
                 data_assert_fn=c["data"],
             ) is not None
-            print("/ OK for: " + c["assertion"])
 
         relations = [
             {
@@ -218,51 +217,40 @@ def test_java_traces(host):
             },
             # traefik -> books
             {
-                "assertion": "Should find the 'calls' relation between traefik and the stackstate books app",
-                "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-books-app",
-            },
-            {
                 "assertion": "Should find the callback 'calls' relation between the stackstate books app and traefik",
-                "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service"
-                                                    ":/traefik",
+                "type": "trace_call",
+                "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service:/traefik",
             },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate books app and postgresql",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: e_id == "urn:service:/stackstate-books-app->urn:service:/postgresql:app",
             },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate books app instance and postgresql",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: re.compile(
                     r"urn:service-instance:/stackstate-books-app:/.*:.*:.*>urn:service:/postgresql:app"
                 ).findall(e_id),
             },
             # # traefik -> authors
             {
-                "assertion": "Should find the 'calls' relation between traefik and the stackstate authors app",
-                "type": "calls",
-                "external_id": lambda e_id: e_id == "urn:service:/traefik->urn:service:/stackstate-authors-app",
-            },
-            {
                 "assertion": "Should find the 'calls' relation between the stackstate authors app and a stackstate "
                              "authors app instance",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: re.compile(
                     r"urn:service:/stackstate-authors-app->urn:service-instance:/stackstate-authors-app:/.*:.*:.*"
                 ).findall(e_id),
             },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate authors app and postgresql",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: e_id == "urn:service:/stackstate-authors-app->urn:service:/postgresql:app",
             },
             {
                 "assertion": "Should find the 'calls' relation between the stackstate authors app instance and "
                              "postgresql",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: re.compile(
                     r"urn:service-instance:/stackstate-authors-app:/.*:.*:.*>urn:service:/postgresql:app"
                 ).findall(e_id),
@@ -270,7 +258,7 @@ def test_java_traces(host):
             # # callbacks ?
             {
                 "assertion": "Should find the 'calls' relation between the stackstate authors app and traefik",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: re.compile(
                     r"urn:service:/stackstate-authors-app->urn:service:/traefik"
                 ).findall(e_id),
@@ -279,7 +267,7 @@ def test_java_traces(host):
             {
                 "assertion": "Should find the 'calls' relation between the stackstate books app and the stackstate "
                              "authors app",
-                "type": "calls",
+                "type": "trace_call",
                 "external_id": lambda e_id: (
                     e_id == "urn:service:/stackstate-books-app->urn:service:/stackstate-authors-app"
                 ),
@@ -287,31 +275,11 @@ def test_java_traces(host):
         ]
 
         for i, r in enumerate(relations):
-            print("Running assertion for relation: " + r["assertion"])
+            print("Running assertion for: " + r["assertion"])
             assert _relation_data(
                 json_data=json_data,
                 type_name=r["type"],
                 external_id_assert_fn=r["external_id"],
             ) is not None
-            print("/ OK for: " + r["assertion"])
 
-        #         calls               calls        has                  is module of
-        # traefik  -->  traefik:books  -->  books  -->  books-instance     -->        books-process
-        #       calls
-        # books  -->  postgres
-        #                calls
-        # books-instance  -->  postgres
-
-        #        ?          calls                 calls          has                    is module of
-        # books -> traefik  -->   traefik:authors  -->  authors  -->  authors-instance     -->        authors-process
-        #                   calls
-        #             books  -->  traefik:authors
-        #         calls
-        # authors  -->  postgres
-        #                  calls
-        # authors-instance  -->  postgres
-
-        #                 calls                          calls
-        # traefik:authors  -->  traefik -> traefik:books  -->  traefik
-
-    util.wait_until(assert_topology, 30, 3)
+    util.wait_until(assert_topology, 10, 3)

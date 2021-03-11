@@ -23,6 +23,14 @@ func TestGetClusterName(t *testing.T) {
 	testGetClusterName(t)
 }
 
+func TestGetPid(t *testing.T) {
+	testGetPid(t)
+}
+
+func TestGetCreateTime(t *testing.T) {
+	testGetCreateTime(t)
+}
+
 func TestHeaders(t *testing.T) {
 	testHeaders(t)
 }

@@ -11,13 +11,15 @@ import (
 // StatefulSetCollector implements the ClusterTopologyCollector interface.
 type StatefulSetCollector struct {
 	ComponentChan chan<- *topology.Component
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewStatefulSetCollector
-func NewStatefulSetCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewStatefulSetCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &StatefulSetCollector{
 		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -35,7 +37,9 @@ func (ssc *StatefulSetCollector) CollectorFunction() error {
 	}
 
 	for _, ss := range statefulSets {
-		ssc.ComponentChan <- ssc.statefulSetToStackStateComponent(ss)
+		component := ssc.statefulSetToStackStateComponent(ss)
+		ssc.ComponentChan <- component
+		ssc.RelationChan <- ssc.namespaceToStatefulSetStackStateRelation(ssc.buildNamespaceExternalID(ss.Namespace), component.ExternalID)
 	}
 
 	return nil
@@ -69,4 +73,15 @@ func (ssc *StatefulSetCollector) statefulSetToStackStateComponent(statefulSet v1
 	log.Tracef("Created StackState StatefulSet component %s: %v", statefulSetExternalID, component.JSONString())
 
 	return component
+}
+
+// Creates a StackState relation from a Kubernetes / OpenShift Namespace to StatefulSet relation
+func (ssc *StatefulSetCollector) namespaceToStatefulSetStackStateRelation(namespaceExternalID, statefulSetExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes namespace to stateful set relation: %s -> %s", namespaceExternalID, statefulSetExternalID)
+
+	relation := ssc.CreateRelation(namespaceExternalID, statefulSetExternalID, "encloses")
+
+	log.Tracef("Created StackState namespace -> stateful set relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }

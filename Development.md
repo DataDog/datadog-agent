@@ -1,4 +1,4 @@
-# Compiling the StackState agent using Docker
+# Compile Agent 2 using Docker
 
 Run the stackstate agent runner gitlab docker container:
 ```bash
@@ -17,7 +17,22 @@ source .gitlab-scripts/setup_env.sh && \
 inv -e agent.omnibus-build --base-dir /omnibus --skip-sign
 ```
 
-mounting your local directory into the gitlab docker container: 
+mounting your local directory into the gitlab docker container:
 ```bash
 docker run -it --name stackstate-agent-builder --mount type=bind,source="${PWD}",target=/go/src/github.com/StackVista/stackstate-agent,readonly docker.io/stackstate/stackstate-agent-runner-gitlab:deb_20190429
+```
+
+## Compile Agent 3
+
+```bash
+$ docker run -ti docker.io/stackstate/stackstate-agent-runner-gitlab:latest7 bash
+
+$ export CI_PROJECT_DIR=/go/src/github.com/StackVista/stackstate-agent && \
+  conda activate ddpy3 && \
+  mkdir -p /go/src/github.com/StackVista && \
+  cd src/github.com/StackVista && \
+  git clone https://github.com/StackVista/stackstate-agent && \
+  cd stackstate-agent && \
+  git checkout upstream-updates-7-21-round6 && \
+  inv -e agent.omnibus-build --base-dir /omnibus --skip-deps --skip-sign --major-version 2
 ```

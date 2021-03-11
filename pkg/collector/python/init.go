@@ -80,6 +80,8 @@ void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
 void GetVersion(char **);
+void GetPid(char **);
+void GetCreateTime(char **);
 void Headers(char **);
 void ReadPersistentCache(char *);
 void SetCheckMetadata(char *, char *, char *);
@@ -93,6 +95,8 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_version_cb(rtloader, GetVersion);
+	set_get_pid_cb(rtloader, GetPid);
+	set_get_create_time_cb(rtloader, GetCreateTime);
 	set_headers_cb(rtloader, Headers);
 	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
@@ -157,6 +161,23 @@ void GetKubeletConnectionInfo(char *);
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
 }
+
+//
+// topology module
+//
+
+void SubmitComponent(char *, instance_key_t *, char *, char *, char *);
+void SubmitRelation(char *, instance_key_t *, char *, char *, char *, char *);
+void SubmitStartSnapshot(char *, instance_key_t *);
+void SubmitStopSnapshot(char *, instance_key_t *);
+
+void initTopologyModule(rtloader_t *rtloader) {
+	set_submit_component_cb(rtloader, SubmitComponent);
+	set_submit_relation_cb(rtloader, SubmitRelation);
+	set_submit_start_snapshot_cb(rtloader, SubmitStartSnapshot);
+	set_submit_stop_snapshot_cb(rtloader, SubmitStopSnapshot);
+}
+
 */
 import "C"
 
@@ -337,6 +358,7 @@ func Initialize(paths ...string) error {
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
+	C.initTopologyModule(rtloader)
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
