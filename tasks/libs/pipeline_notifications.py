@@ -51,7 +51,8 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     owners_to_notify = defaultdict(list)
 
     for job in failed_jobs:
-        # Exclude jobs that failed, were retried and suceeded
+        # Exclude jobs that were retried and succeeded
+        # Also exclude jobs allowed to fail
         if job["status"] == "failed" and not job["allow_failure"]:
             job_owners = owners.of(job["name"])
             # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
@@ -86,7 +87,8 @@ def prepare_global_failure_message(header, failed_jobs):
 
     message += "\nFailed jobs:"
     for job in failed_jobs:
-        # Exclude jobs that failed, were retried and suceeded
+        # Exclude jobs that were retried and succeeded
+        # Also exclude jobs allowed to fail
         if job["status"] == "failed" and not job["allow_failure"]:
             message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
                 url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1

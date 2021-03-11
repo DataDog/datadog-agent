@@ -169,7 +169,7 @@ def notify_failure(_, notification_type="merge"):
             message += "\n(Test message, the real message would be sent to {})".format(GITHUB_SLACK_MAP[owner])
             send_slack_message("#agent-pipeline-notifications", message)
         else:
-            message = """The owner {} is not mapped to any slack channel. Please check for typos
+            message = """The owner `{}` is not mapped to any slack channel. Please check for typos
 in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 Jobs they own:"""
             for job in jobs:
