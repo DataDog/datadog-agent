@@ -13,7 +13,7 @@ import (
 )
 
 func TestConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -189,7 +189,7 @@ global_metrics:
 }
 
 func TestDefaultConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -217,7 +217,7 @@ community_string: abc
 }
 
 func TestPortConfiguration(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	// TEST Default port
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -243,7 +243,7 @@ community_string: abc
 }
 
 func TestGlobalMetricsConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -273,7 +273,7 @@ global_metrics:
 }
 
 func TestUseGlobalMetricsFalse(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -347,7 +347,7 @@ func Test_oidConfig_hasOids(t *testing.T) {
 }
 
 func Test_buildConfig(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	tests := []struct {
 		name              string
@@ -579,7 +579,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 }
 
 func TestNumberConfigsUsingStrings(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	check := Check{session: &snmpSession{}}
 	// language=yaml
 	rawInstanceConfig := []byte(`

@@ -71,13 +71,14 @@ func createMockSession() *mockSession {
 	return session
 }
 
-func setConfdPath() {
+func setConfdPathAndCleanProfiles() {
+	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
 }
 
 func TestBasicSample(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
@@ -237,7 +238,7 @@ tags:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -304,7 +305,7 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -435,7 +436,7 @@ profiles:
 }
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -574,7 +575,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	session.connectErr = fmt.Errorf("can't connect")
 	check := Check{session: session}
@@ -605,7 +606,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckID(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	// language=yaml
@@ -740,7 +741,7 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setConfdPath()
+			setConfdPathAndCleanProfiles()
 			session := createMockSession()
 			session.connectErr = tt.sessionConnError
 			check := Check{session: session}
@@ -785,7 +786,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
