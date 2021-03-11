@@ -18,10 +18,19 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const topoData = `{ "key": "value", "stringlist": ["a", "b", "c"], "boollist": [True, False], "intlist": [1], "doublelist": [0.7, 1.42], "emptykey": None, "nestedobject": { "nestedkey": "nestedValue" } }`
+const topoData = `
+{
+  "key": "value ®",
+  "stringlist": ["a", "b", "c"],
+  "boollist": [True, False],
+  "intlist": [1],
+  "doublelist": [0.7, 1.42],
+  "emptykey": None,
+  "nestedobject": {"nestedkey": "nestedValue"}
+}`
 
 func testTopoData(t *testing.T) {
-	if _data["key"] != "value" {
+	if _data["key"] != "value ®" {
 		t.Fatalf("Unexpected component data 'key' value: %s", _data["key"])
 	}
 	var stringlist = _data["stringlist"].([]interface{})
