@@ -5,7 +5,13 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.gitlab import Gitlab
-from .libs.pipeline_notifications import check_failed_status, prepare_global_failure_message, send_message
+from .libs.pipeline_notifications import (
+    find_job_owners,
+    get_failed_jobs,
+    prepare_global_failure_message,
+    prepare_team_failure_message,
+    send_slack_message,
+)
 from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 
 # Tasks to trigger pipelines
@@ -134,6 +140,8 @@ def wait_for_pipeline_from_ref(gitlab, project_name, ref):
 
 # Tasks to trigger pipeline notifications
 
+GITHUB_SLACK_MAP = {"@DataDog/agent-platform": "#agent-platform", "@DataDog/agent-core": "#agent-core"}
+
 
 @task
 def notify_failure(_, notification_type="merge"):
@@ -146,6 +154,26 @@ def notify_failure(_, notification_type="merge"):
     elif notification_type == "deploy":
         header = ":host-red: :rocket: Deploy"
 
-    failed_jobs = check_failed_status("DataDog/datadog-agent", os.getenv("CI_PIPELINE_ID"))
+    failed_jobs = get_failed_jobs("DataDog/datadog-agent", os.getenv("CI_PIPELINE_ID"))
+
+    # Take care of the global message that goes in the common channel
     message = prepare_global_failure_message(header, failed_jobs)
-    send_message("#agent-pipeline-notifications", message)
+    send_slack_message("#agent-pipeline-notifications", message)
+
+    # Take care of messages for each team
+    failed_job_owners = find_job_owners(failed_jobs)
+    for owner, jobs in failed_job_owners.items():
+        # Check if owner is defined
+        if owner in GITHUB_SLACK_MAP.keys():
+            message = prepare_team_failure_message(header, jobs)
+            message += "\n(Test message, the real message would be sent to {})".format(GITHUB_SLACK_MAP[owner])
+            send_slack_message("#agent-pipeline-notifications", message)
+        else:
+            message = """The owner {} is not mapped to any slack channel. Please check for typos
+in the JOBOWNERS file and/or add them to the Github <-> Slack map.
+Jobs they own:"""
+            for job in jobs:
+                message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
+                    url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
+                )
+            send_slack_message("#agent-pipeline-notifications", message)

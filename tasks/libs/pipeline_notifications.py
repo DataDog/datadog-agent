@@ -1,11 +1,14 @@
 import os
 import subprocess
+from collections import defaultdict
 from pprint import pprint
+
+from codeowners import CodeOwners
 
 from .common.gitlab import Gitlab
 
 
-def check_failed_status(project_name, pipeline_id):
+def get_failed_jobs(project_name, pipeline_id):
     gitlab = Gitlab()
 
     jobs = gitlab.all_jobs(project_name, pipeline_id)
@@ -41,10 +44,30 @@ def check_failed_status(project_name, pipeline_id):
     return final_failed_jobs
 
 
-def prepare_global_failure_message(header, failed_jobs):
-    message = """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
-{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}
-Failed jobs:""".format(
+def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
+    with open(owners_file, 'r') as f:
+        owners = CodeOwners(f.read())
+
+    owners_to_notify = defaultdict(list)
+
+    for job in failed_jobs:
+        # Exclude jobs that failed, were retried and suceeded
+        if job["status"] == "failed" and not job["allow_failure"]:
+            job_owners = owners.of(job["name"])
+            # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
+            # eg. [('TEAM', '@DataDog/agent-platform')]
+
+            # Ignore USERNAME owners, they're not supported (yet)
+            for owner in job_owners:
+                if owner[0] == "TEAM":
+                    owners_to_notify[owner[1]].append(job)
+
+    return owners_to_notify
+
+
+def base_message(header):
+    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
+{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
         pipeline_id=os.getenv("CI_PIPELINE_ID"),
@@ -57,11 +80,29 @@ Failed jobs:""".format(
         author=get_git_author(),
     )
 
+
+def prepare_global_failure_message(header, failed_jobs):
+    message = base_message(header)
+
+    message += "\nFailed jobs:"
     for job in failed_jobs:
+        # Exclude jobs that failed, were retried and suceeded
         if job["status"] == "failed" and not job["allow_failure"]:
             message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
                 url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
             )
+
+    return message
+
+
+def prepare_team_failure_message(header, failed_jobs):
+    message = base_message(header)
+
+    message += "\nFailed jobs you own:"
+    for job in failed_jobs:
+        message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
+            url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
+        )
 
     return message
 
@@ -75,5 +116,5 @@ def get_git_author():
     )
 
 
-def send_message(recipient, message):
+def send_slack_message(recipient, message):
     subprocess.run(["postmessage", recipient, message], check=True)

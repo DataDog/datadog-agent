@@ -1,0 +1,19 @@
+*               @DataDog/agent-platform
+
+# Unit test notifications are handled separately
+# for more fine-grained control
+
+tests_deb-x64-py2       @DataDog/multiple
+tests_deb-x64-py3       @DataDog/multiple
+tests_deb-arm64-py2     @DataDog/multiple
+tests_deb-arm64-py3     @DataDog/multiple
+tests_rpm-x64-py2       @DataDog/multiple
+tests_rpm-x64-py3       @DataDog/multiple
+tests_rpm-arm64-py2     @DataDog/multiple
+tests_rpm-arm64-py3     @DataDog/multiple
+tests_windows-x64       @DataDog/multiple
+tests_windows-x86       @DataDog/multiple
+
+kitchen_centos_sysprobe @DataDog/networks
+kitchen_debian_sysprobe @DataDog/networks
+kitchen_ubuntu_sysprobe @DataDog/networks
