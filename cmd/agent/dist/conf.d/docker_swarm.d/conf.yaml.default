@@ -1,0 +1,22 @@
+init_config:
+
+instances:
+  - ## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
+    ## environment variables to setup the connection to the server.
+    ## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
+
+    ## Data collection
+    ##
+
+    # Collect docker swarm topology
+    # Collects all docker swarm topology, currently only docker swarm services and relation with containers.
+    # Defaults to false.
+    #
+    # collect_swarm_topology: false
+
+    ## Tagging
+    ##
+    # You can add extra tags to your Docker metrics with the tags list option.
+    # Example: ["extra_tag", "env:testing"]
+    #
+    # tags: []

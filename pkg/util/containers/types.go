@@ -94,9 +94,16 @@ type SwarmService struct {
 	PreviousSpec   *swarm.ServiceSpec `json:",omitempty"`
 	Endpoint       swarm.Endpoint     `json:",omitempty"`
 	UpdateStatus   swarm.UpdateStatus `json:",omitempty"`
-	Container 	   swarm.ContainerStatus
+	TaskContainers []*SwarmTask
 	DesiredTasks   uint64
 	RunningTasks   uint64
 }
 
+type SwarmTask struct {
+	ID             string
+	Name           string
+	ContainerImage string
+	ContainerSpec  swarm.ContainerSpec    `json:",omitempty"`
+	ContainerStatus swarm.ContainerStatus `json:",omitempty"`
+}
 

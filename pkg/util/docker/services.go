@@ -37,6 +37,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 		return nil, fmt.Errorf("error listing swarm services: %s", err)
 	}
 	ret := make([]*containers.SwarmService, 0, len(services))
+	tasksComponents := make([]*containers.SwarmTask, 0)
 	for _, s := range services {
 		activeNodes, err := d.getActiveNodes(ctx)
 		if err != nil {
@@ -54,7 +55,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 
 		desired := uint64(0)
 		running := uint64(0)
-		container := &swarm.ContainerStatus{}
+
 		// Replicated services have `Spec.Mode.Replicated.Replicas`, which should give this value.
 		if s.Spec.Mode.Replicated != nil {
 			desired = *s.Spec.Mode.Replicated.Replicas
@@ -73,8 +74,14 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 				log.Infof("Task having service ID %s is running", task.ServiceID)
 				running++
 			}
-			container = &task.Status.ContainerStatus
-			log.Infof("Got container status with value %s", container)
+			taskComponent := &containers.SwarmTask{
+				ID: task.ID,
+				Name: task.Name,
+				ContainerImage: task.Spec.ContainerSpec.Image,
+				ContainerSpec: task.Spec.ContainerSpec,
+				ContainerStatus: task.Status.ContainerStatus,
+			}
+			tasksComponents = append(tasksComponents, taskComponent)
 		}
 
 		log.Infof("Service %s has %d desired and %d running tasks", s.Spec.Name, desired, running)
@@ -91,7 +98,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			PreviousSpec:   s.PreviousSpec,
 			Endpoint:       s.Endpoint,
 			UpdateStatus:   s.UpdateStatus,
-			Container: 		*container,
+			TaskContainers: tasksComponents,
 			DesiredTasks: 	desired,
 			RunningTasks: 	running,
 		}

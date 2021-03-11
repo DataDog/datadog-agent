@@ -3,19 +3,16 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
 )
 
 const (
 	dockerTopologyCheckName = "docker_topology"
 	containerType           = "container"
-	swarmServiceType        = "swarm-service"
 )
 
 // DockerTopologyCollector contains the checkID and topology instance for the docker topology check
@@ -64,33 +61,6 @@ func (dt *DockerTopologyCollector) BuildContainerTopology(du *docker.DockerUtil)
 	return nil
 }
 
-// BuildSwarmTopology collects and produces all docker swarm topology
-func (dt *DockerTopologyCollector) BuildSwarmTopology(du *docker.DockerUtil, metrics aggregator.Sender) error {
-	sender := batcher.GetBatcher()
-	if sender == nil {
-		return errors.New("no batcher instance available, skipping BuildSwarmTopology")
-	}
-
-	// collect all swarm services as topology components
-	swarmComponents, swarmRelations, err := dt.collectSwarmServices(du, metrics)
-	if err != nil {
-		return err
-	}
-
-	// submit all collected topology components
-	for _, component := range swarmComponents {
-		sender.SubmitComponent(dt.CheckID, dt.TopologyInstance, *component)
-	}
-	// submit all collected topology relations
-	for _, relation := range swarmRelations {
-		sender.SubmitRelation(dt.CheckID, dt.TopologyInstance, *relation)
-	}
-
-	sender.SubmitComplete(dt.CheckID)
-
-	return nil
-}
-
 // collectContainers collects containers from the docker util and produces topology.Component
 func (dt *DockerTopologyCollector) collectContainers(du *docker.DockerUtil) ([]*topology.Component, error) {
 	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: false, FlagExcluded: true})
@@ -118,62 +88,4 @@ func (dt *DockerTopologyCollector) collectContainers(du *docker.DockerUtil) ([]*
 	}
 
 	return containerComponents, nil
-}
-
-// collectSwarmServices collects swarm services from the docker util and produces topology.Component
-func (dt *DockerTopologyCollector) collectSwarmServices(du *docker.DockerUtil, sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
-	sList, err := du.ListSwarmServices()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	containerComponents := make([]*topology.Component, 0)
-	swarmServiceRelations := make([]*topology.Relation, 0)
-	for _, s := range sList {
-		tags := make([]string, 0)
-		sourceExternalID := fmt.Sprintf("urn:%s:/%s", swarmServiceType, s.ID)
-		containerComponent := &topology.Component{
-			ExternalID: sourceExternalID,
-			Type:       topology.Type{Name: swarmServiceType},
-			Data: topology.Data{
-				"name":         s.Name,
-				"image":        s.ContainerImage,
-				"tags":         s.Labels,
-				"version":      s.Version.Index,
-				"created":      s.CreatedAt,
-				"spec":         s.Spec,
-				"endpoint":     s.Endpoint,
-				"updateStatus": s.UpdateStatus,
-			},
-		}
-
-		// add updated time when it's present
-		if !s.UpdatedAt.IsZero() {
-			containerComponent.Data["updated"] = s.UpdatedAt
-		}
-
-		// add previous spec if there is one
-		if s.PreviousSpec != nil {
-			containerComponent.Data["previousSpec"] = s.PreviousSpec
-		}
-
-		containerComponents = append(containerComponents, containerComponent)
-
-		log.Infof("Creating a relation for service %s with container %s", s.Name, s.Container.ContainerID)
-		targetExternalID := fmt.Sprintf("urn:%s:/%s", containerType, s.Container.ContainerID)
-		swarmServiceRelation := &topology.Relation{
-			ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
-			SourceID:   sourceExternalID,
-			TargetID:   targetExternalID,
-			Type: 		topology.Type{Name: "creates"},
-			Data: 		topology.Data{},
-		}
-		swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
-
-		sender.Gauge("docker.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Spec.Name))
-		sender.Gauge("docker.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Spec.Name))
-
-	}
-
-	return containerComponents, swarmServiceRelations, nil
 }

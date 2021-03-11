@@ -366,17 +366,6 @@ func (d *DockerCheck) Run() error {
 		}
 	}
 
-	//sts
-	// Collect container topology
-	if d.instance.CollectSwarmTopology {
-		err := d.topologyCollector.BuildSwarmTopology(du, sender)
-		if err != nil {
-			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-			log.Errorf("Could not collect swarm topology: %s", err)
-			return err
-		}
-	}
-
 	sender.Commit()
 	return nil
 }
