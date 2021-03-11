@@ -58,10 +58,8 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
             # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
             # eg. [('TEAM', '@DataDog/agent-platform')]
 
-            # Ignore USERNAME owners, they're not supported (yet)
             for owner in job_owners:
-                if owner[0] == "TEAM":
-                    owners_to_notify[owner[1]].append(job)
+                owners_to_notify[owner[1]].append(job)
 
     return owners_to_notify
 
