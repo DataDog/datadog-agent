@@ -41,6 +41,7 @@
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
     KITCHEN_EC2_SUBNET: subnet-c18341ed
     KITCHEN_EC2_SG_IDS: sg-75ef800b
+    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
 
 kitchen_centos_sysprobe_x64:
   extends: .kitchen_test_system_probe_x64
