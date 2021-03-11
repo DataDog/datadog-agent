@@ -304,6 +304,7 @@ func Test_loadDefaultProfiles_invalidProfile(t *testing.T) {
 
 	w.Flush()
 	logs := b.String()
+	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
 	assert.Equal(t, profileDefinitionMap{}, defaultProfiles)
