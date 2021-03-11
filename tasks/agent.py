@@ -48,7 +48,7 @@ AGENT_CORECHECKS = [
     "cpu",
     "cri",
     "docker",
-    "docker_swarm"
+    "docker_swarm",
     "disk",
     "file_handle",
     "go_expvar",
