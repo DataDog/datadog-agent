@@ -97,6 +97,22 @@ class Gitlab(object):
         path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
         return self.make_request(path, json=True)
 
+    def all_jobs(self, project_name, pipeline_id):
+        """
+        Gets all the jobs for a pipeline.
+        """
+        jobs = []
+        page = 1
+
+        # Go through all pages
+        results = self.jobs(project_name, pipeline_id, page)
+        while len(results) != 0:
+            jobs.extend(results)
+            page += 1
+            results = self.jobs(project_name, pipeline_id, page)
+
+        return jobs
+
     def jobs(self, project_name, pipeline_id, page=1, per_page=100):
         """
         Gets one page of the jobs for a pipeline.
