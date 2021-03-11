@@ -1,11 +1,11 @@
 import contextlib
 import datetime
 import glob
+import json
 import os
 import shutil
 import sys
 import tempfile
-import json
 from subprocess import CalledProcessError, check_output
 
 from invoke import task
@@ -309,9 +309,10 @@ def kitchen_test(ctx, target=None):
         ctx.run(
             "inv kitchen.genconfig --platform {platform} --osversions {target} --provider vagrant --testfiles system-probe-test".format(
                 target=target, platform=images[target]
-            )
+            ),
+            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
         )
-        ctx.run("kitchen test", env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"})
+        ctx.run("kitchen test")
 
 
 @task
