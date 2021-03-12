@@ -120,7 +120,8 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 
 // StringArray represents an array of string values
 type StringArray struct {
-	Values []string
+	Values    []string
+	MapValues map[string]bool
 }
 
 // IntArray represents an array of integer values
@@ -130,8 +131,9 @@ type IntArray struct {
 
 // PatternArray represents an array of pattern values
 type PatternArray struct {
-	Values  []string
-	Regexps []*regexp.Regexp
+	Values    []string
+	Regexps   []*regexp.Regexp
+	MapValues map[string]bool
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
@@ -586,6 +588,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 				}
 			}
 
+			mv := make(map[string]bool)
 			if hasPatterns {
 				var regs []*regexp.Regexp
 				var reg *regexp.Regexp
@@ -593,12 +596,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 
 				for _, member := range obj.StringMembers {
 					if member.String != nil {
-						// escape wildcard
-						str := strings.ReplaceAll(*member.String, "*", "\\*")
-
-						if reg, err = patternToRegexp(str); err != nil {
-							return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
-						}
+						mv[*member.String] = true
 					} else {
 						if reg, err = patternToRegexp(*member.Pattern); err != nil {
 							return nil, nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
@@ -606,11 +604,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, in
 					}
 					regs = append(regs, reg)
 				}
-				return &PatternArray{Values: strs, Regexps: regs}, nil, obj.Pos, nil
+				return &PatternArray{Values: strs, Regexps: regs, MapValues: mv}, nil, obj.Pos, nil
 			}
 
-			sort.Strings(strs)
-			return &StringArray{Values: strs}, nil, obj.Pos, nil
+			for _, v := range strs {
+				mv[v] = true
+			}
+			return &StringArray{Values: strs, MapValues: mv}, nil, obj.Pos, nil
 		} else if obj.Ident != nil {
 			if state.macros != nil {
 				if macro, ok := state.macros[*obj.Ident]; ok {

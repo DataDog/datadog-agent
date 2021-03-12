@@ -185,8 +185,8 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 		evalFnc := func(ctx *Context) bool {
 			s := ea(ctx)
-			i := sort.SearchStrings(b.Values, s)
-			result := i < len(b.Values) && b.Values[i] == s
+
+			_, result := b.MapValues[s]
 			if not {
 				result = !result
 			}
@@ -202,8 +202,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArray, not bool, opts *Opt
 
 	ea := true
 	if !isPartialLeaf {
-		i := sort.SearchStrings(b.Values, a.Value)
-		ea = i < len(b.Values) && b.Values[i] == a.Value
+		_, ea = b.MapValues[a.Value]
 		if not {
 			ea = !ea
 		}
@@ -238,9 +237,11 @@ func StringArrayMatches(a *StringEvaluator, b *PatternArray, not bool, opts *Opt
 			s := ea(ctx)
 
 			var result bool
-			for _, reg := range b.Regexps {
-				if result = reg.MatchString(s); result {
-					break
+			if _, result = b.MapValues[s]; !result {
+				for _, reg := range b.Regexps {
+					if result = reg.MatchString(s); result {
+						break
+					}
 				}
 			}
 
@@ -259,9 +260,11 @@ func StringArrayMatches(a *StringEvaluator, b *PatternArray, not bool, opts *Opt
 
 	ea := true
 	if !isPartialLeaf {
-		for _, reg := range b.Regexps {
-			if ea = reg.MatchString(a.Value); ea {
-				break
+		if _, ea = b.MapValues[a.Value]; !ea {
+			for _, reg := range b.Regexps {
+				if ea = reg.MatchString(a.Value); ea {
+					break
+				}
 			}
 		}
 
