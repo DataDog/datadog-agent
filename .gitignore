@@ -157,3 +157,6 @@ pkg/network/netlink/testdata/message_dump*
 # serverless
 .layers
 .extension
+
+# Experimental
+go-native-plugins/
