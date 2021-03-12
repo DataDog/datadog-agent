@@ -8,6 +8,7 @@
   - Added support to map user defined stackstate-layer tags or config to the layer object
   - Added support to map user defined stackstate-domain tags or config to the domain object
   - Added support to map user defined stackstate-identifiers tags or config to the identifiers array
+  - Remove `stackstate-identifier`, `stackstate-environment`, `stackstate-layer`, `stackstate-domain` and `stackstate-identifiers` from the tags object if it has been mapped to the data object.
 
 
 ## 2.10.0 (2021-02-25)
