@@ -118,9 +118,9 @@ func (f *domainForwarder) addToTransactionContainer(t Transaction) int {
 
 	if dropCount > 0 {
 		transactionEndpointName := t.GetEndpointName()
-		transactionsDroppedByEndpoint.Add(transactionEndpointName, int64(dropCount))
-		transactionsDropped.Add(int64(dropCount))
-		tlmTxDropped.Inc(f.domain, transactionEndpointName)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, int64(dropCount))
+		TransactionsDropped.Add(int64(dropCount))
+		TlmTxDropped.Inc(f.domain, transactionEndpointName)
 	}
 	return dropCount
 }

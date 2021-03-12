@@ -23,21 +23,19 @@ import (
 )
 
 var (
-	connectionDNSSuccess               = expvar.Int{}
-	connectionConnectSuccess           = expvar.Int{}
-	transactionsExpvars                = expvar.Map{}
-	transactionsInputBytesByEndpoint   = expvar.Map{}
-	transactionsConnectionEvents       = expvar.Map{}
-	transactionsInputCountByEndpoint   = expvar.Map{}
-	transactionsDropped                = expvar.Int{}
-	transactionsDroppedByEndpoint      = expvar.Map{}
-	transactionsDroppedOnInput         = expvar.Int{}
-	transactionsRequeued               = expvar.Int{}
-	transactionsRequeuedByEndpoint     = expvar.Map{}
-	transactionsRetried                = expvar.Int{}
-	transactionsRetriedByEndpoint      = expvar.Map{}
-	transactionsRetryQueueSize         = expvar.Int{}
-	transactionsSuccessByEndpoint      = expvar.Map{}
+	connectionDNSSuccess         = expvar.Int{}
+	connectionConnectSuccess     = expvar.Int{}
+	transactionsConnectionEvents = expvar.Map{}
+
+	// TransactionsDropped expvar
+	TransactionsDropped = expvar.Int{}
+
+	// TransactionsDroppedByEndpoint expvar
+	TransactionsDroppedByEndpoint = expvar.Map{}
+
+	// TransactionsSuccessByEndpoint expvar
+	TransactionsSuccessByEndpoint = expvar.Map{}
+
 	transactionsSuccessBytesByEndpoint = expvar.Map{}
 	transactionsSuccess                = expvar.Int{}
 	transactionsErrors                 = expvar.Int{}
@@ -50,22 +48,12 @@ var (
 	transactionsHTTPErrors             = expvar.Int{}
 	transactionsHTTPErrorsByCode       = expvar.Map{}
 
-	tlmTxInputBytes = telemetry.NewCounter("transactions", "input_bytes",
-		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
 	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
-		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+
+	// TlmTxDropped telemetry
+	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
-		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
-	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
-		[]string{"domain", "endpoint"}, "Transaction requeue count")
-	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
-		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
-		[]string{"domain"}, "Retry queue size")
 	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
 		[]string{"domain", "endpoint"}, "Successful transaction count")
 	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
@@ -127,31 +115,20 @@ type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, bo
 var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
-func initTransactionExpvars() {
-	transactionsInputBytesByEndpoint.Init()
+// InitTransactionExpvars initializes the exp var for transaction.
+func InitTransactionExpvars(transactionsExpvars *expvar.Map) {
 	transactionsConnectionEvents.Init()
-	transactionsInputCountByEndpoint.Init()
-	transactionsDroppedByEndpoint.Init()
-	transactionsRequeuedByEndpoint.Init()
-	transactionsRetriedByEndpoint.Init()
-	transactionsSuccessByEndpoint.Init()
+	TransactionsDroppedByEndpoint.Init()
+	TransactionsSuccessByEndpoint.Init()
 	transactionsSuccessBytesByEndpoint.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
 	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
-	transactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
-	transactionsExpvars.Set("Dropped", &transactionsDropped)
-	transactionsExpvars.Set("DroppedByEndpoint", &transactionsDroppedByEndpoint)
-	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-	transactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("SuccessByEndpoint", &transactionsSuccessByEndpoint)
+	transactionsExpvars.Set("Dropped", &TransactionsDropped)
+	transactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
+	transactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
 	transactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
 	transactionsExpvars.Set("Success", &transactionsSuccess)
 	transactionsExpvars.Set("Errors", &transactionsErrors)
@@ -345,15 +322,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+		TransactionsDropped.Add(1)
+		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+		TransactionsDropped.Add(1)
+		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
@@ -364,7 +341,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
-	transactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
+	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
 

@@ -69,7 +69,8 @@ func init() {
 	transactionsExpvars.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initOrchestratorExpVars()
-	initTransactionExpvars()
+	InitTransactionExpvars(forwarderExpvars)
+	initExpvars()
 	initForwarderHealthExpvars()
 	initEndpointExpvars()
 }
@@ -82,7 +83,7 @@ func initEndpointExpvars() {
 	}
 
 	for _, endpoint := range endpoints {
-		transactionsSuccessByEndpoint.Set(endpoint.name, expvar.NewInt(endpoint.name))
+		TransactionsSuccessByEndpoint.Set(endpoint.name, expvar.NewInt(endpoint.name))
 	}
 }
 
