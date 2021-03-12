@@ -120,11 +120,11 @@ func TestRetryTransactions(t *testing.T) {
 	payload := []byte{1}
 	t1 := NewHTTPTransaction()
 	t1.Domain = "domain/"
-	t1.Endpoint.route = "test1"
+	t1.Endpoint.Route = "test1"
 	t1.Payload = &payload
 	t2 := NewHTTPTransaction()
 	t2.Domain = "domain/"
-	t2.Endpoint.route = "test2"
+	t2.Endpoint.Route = "test2"
 	t2.Payload = &payload
 
 	// Create blocks
@@ -244,8 +244,8 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	flushInterval = 1 * time.Minute
 
 	telemetry := transactionContainerTelemetry{}
-	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 1+2, 0, telemetry)
-	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, sortByCreatedTimeAndPriority{highPriorityFirst: true})
+	transactionContainer := newTransactionContainer(SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
+	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, SortByCreatedTimeAndPriority{HighPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -270,9 +270,9 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 }
 
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
-	sorter := sortByCreatedTimeAndPriority{highPriorityFirst: true}
+	sorter := SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := transactionContainerTelemetry{}
-	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 2, 0, telemetry)
+	transactionContainer := newTransactionContainer(SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
 
 	return newDomainForwarder("test", transactionContainer, 1, connectionResetInterval, sorter)
 }

@@ -90,7 +90,7 @@ func createHTTPTransactionCollectionTests(endpoints ...string) []Transaction {
 	for _, d := range endpoints {
 		t := NewHTTPTransaction()
 		t.Domain = domainName
-		t.Endpoint.name = d
+		t.Endpoint.Name = d
 		transactions = append(transactions, t)
 	}
 	return transactions
@@ -106,7 +106,7 @@ func getEndpointsFromTransactions(transactions []Transaction) []string {
 	var endpoints []string
 	for _, t := range transactions {
 		httpTransaction := t.(*HTTPTransaction)
-		endpoints = append(endpoints, httpTransaction.Endpoint.name)
+		endpoints = append(endpoints, httpTransaction.Endpoint.Name)
 	}
 	return endpoints
 }

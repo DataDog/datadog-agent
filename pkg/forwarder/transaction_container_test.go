@@ -118,8 +118,8 @@ func assertPayloadSizeFromExtractTransactions(
 	a.EqualValues(expectedPayloadSize, payloadSizes)
 }
 
-func createDropPrioritySorter() sortByCreatedTimeAndPriority {
-	return sortByCreatedTimeAndPriority{highPriorityFirst: false}
+func createDropPrioritySorter() SortByCreatedTimeAndPriority {
+	return SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 }
 
 func newTransactionsFileStorageTest(a *assert.Assertions) (*transactionsFileStorage, func()) {

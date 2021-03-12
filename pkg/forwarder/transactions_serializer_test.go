@@ -98,7 +98,7 @@ func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
 	payload := []byte{1, 2, 3}
 	tr := NewHTTPTransaction()
 	tr.Domain = domain
-	tr.Endpoint = endpoint{route: "route" + apiKey1, name: "name"}
+	tr.Endpoint = Endpoint{Route: "route" + apiKey1, Name: "name"}
 	tr.Headers = header
 	tr.Payload = &payload
 	tr.ErrorCount = 1

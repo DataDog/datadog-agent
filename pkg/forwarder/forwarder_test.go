@@ -132,7 +132,7 @@ func TestSubmitIfStopped(t *testing.T) {
 
 func TestCreateHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := Endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
 	payloads := Payloads{&p1, &p2}
@@ -145,10 +145,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint.route, transactions[0].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[1].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[2].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[3].Endpoint.route)
+	assert.Equal(t, endpoint.Route, transactions[0].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[1].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[2].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[3].Endpoint.Route)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
@@ -162,15 +162,15 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint.route, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
+	assert.Contains(t, transactions[0].Endpoint.Route, "api_key=api-key-1")
+	assert.Contains(t, transactions[1].Endpoint.Route, "api_key=api-key-2")
+	assert.Contains(t, transactions[2].Endpoint.Route, "api_key=api-key-1")
+	assert.Contains(t, transactions[3].Endpoint.Route, "api_key=api-key-2")
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
-	endpoint := endpoint{route: "/api/foo", name: "foo"}
+	endpoint := Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -192,14 +192,14 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-2")
+	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.route, "/api/foo?api_key=api-key-3")
+	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
@@ -208,7 +208,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := Endpoint{"/api/foo", "foo"}
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
@@ -219,7 +219,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 
 func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := Endpoint{"/api/foo", "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -365,10 +365,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -423,10 +423,10 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
