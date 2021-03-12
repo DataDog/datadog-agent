@@ -52,6 +52,9 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 		taskFilter.Add("service", s.ID)
 		// list the tasks for that service
 		tasks, err := d.cli.TaskList(ctx, types.TaskListOptions{Filters: taskFilter})
+		if err != nil {
+			log.Errorf("Error listing swarm tasks: %s", err)
+		}
 
 		desired := uint64(0)
 		running := uint64(0)
