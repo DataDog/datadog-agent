@@ -69,6 +69,7 @@ func init() {
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initOrchestratorExpVars()
 	InitTransactionExpvars(forwarderExpvars)
+	InitExpVar(forwarderExpvars)
 	initExpvars()
 	initForwarderHealthExpvars()
 	initEndpointExpvars()
@@ -269,7 +270,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
-	var optionalRemovalPolicy *failedTransactionRemovalPolicy
+	var optionalRemovalPolicy *FailedTransactionRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 
 	// Disk Persistence is a core-only feature for now.
@@ -281,11 +282,11 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		var err error
 
 		storagePath = path.Join(storagePath, agentFolder)
-		optionalRemovalPolicy, err = newFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, failedTransactionRemovalPolicyTelemetry{})
+		optionalRemovalPolicy, err = NewFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, FailedTransactionRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
 		} else {
-			filesRemoved, err := optionalRemovalPolicy.removeOutdatedFiles()
+			filesRemoved, err := optionalRemovalPolicy.RemoveOutdatedFiles()
 			if err != nil {
 				log.Errorf("Error when removing outdated files: %v", err)
 			}
@@ -307,13 +308,13 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 			var domainFolderPath string
 			var err error
 			if optionalRemovalPolicy != nil {
-				domainFolderPath, err = optionalRemovalPolicy.registerDomain(domain)
+				domainFolderPath, err = optionalRemovalPolicy.RegisterDomain(domain)
 				if err != nil {
 					log.Errorf("Retry queue storage on disk disabled. Cannot register the domain '%v': %v", domain, err)
 				}
 			}
 
-			transactionContainer := buildTransactionContainer(
+			transactionContainer := BuildTransactionContainer(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
@@ -333,7 +334,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	if optionalRemovalPolicy != nil {
-		filesRemoved, err := optionalRemovalPolicy.removeUnknownDomains()
+		filesRemoved, err := optionalRemovalPolicy.RemoveUnknownDomains()
 		if err != nil {
 			log.Errorf("Error when removing outdated files: %v", err)
 		}

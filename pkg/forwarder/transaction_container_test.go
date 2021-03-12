@@ -12,23 +12,23 @@ func TestTransactionContainerAdd(t *testing.T) {
 	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
 
-	container := newTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, transactionContainerTelemetry{})
+	container := NewTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, TransactionContainerTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
 	for _, payloadSize := range []int{10, 20, 30, 40, 15} {
-		_, err := container.add(createTransactionWithPayloadSize(payloadSize))
+		_, err := container.Add(createTransactionWithPayloadSize(payloadSize))
 		a.NoError(err)
 	}
 	a.Equal(40+15, container.getCurrentMemSizeInBytes())
-	a.Equal(2, container.getTransactionCount())
+	a.Equal(2, container.GetTransactionCount())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{40, 15})
 
-	_, err := container.add(createTransactionWithPayloadSize(5))
+	_, err := container.Add(createTransactionWithPayloadSize(5))
 	a.NoError(err)
 	a.Equal(5, container.getCurrentMemSizeInBytes())
-	a.Equal(1, container.getTransactionCount())
+	a.Equal(1, container.GetTransactionCount())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{5})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10, 20, 30})
@@ -40,11 +40,11 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
 
-	container := newTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, transactionContainerTelemetry{})
+	container := NewTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, TransactionContainerTelemetry{})
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
-		container.add(createTransactionWithPayloadSize(payloadSize))
+		container.Add(createTransactionWithPayloadSize(payloadSize))
 	}
 	a.Equal(40, container.getCurrentMemSizeInBytes())
 	a.Equal(3, s.getFilesCount())
@@ -59,16 +59,16 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 
 func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	container := newTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, transactionContainerTelemetry{})
+	container := NewTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, TransactionContainerTelemetry{})
 
 	for _, payloadSize := range []int{9, 10, 11} {
-		dropCount, err := container.add(createTransactionWithPayloadSize(payloadSize))
+		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
 		a.Equal(0, dropCount)
 		a.NoError(err)
 	}
 
 	// Drop when adding `30`
-	dropCount, err := container.add(createTransactionWithPayloadSize(30))
+	dropCount, err := container.Add(createTransactionWithPayloadSize(30))
 	a.Equal(2, dropCount)
 	a.NoError(err)
 
@@ -83,14 +83,14 @@ func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
 	defer clean()
 
 	maxMemSizeInBytes := 0
-	container := newTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, transactionContainerTelemetry{})
+	container := NewTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, TransactionContainerTelemetry{})
 
-	inMemTrDropped, err := container.add(createTransactionWithPayloadSize(10))
+	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(0, inMemTrDropped)
 
 	// `extractTransactionsForDisk` does not behave the same when there is a existing transaction.
-	inMemTrDropped, err = container.add(createTransactionWithPayloadSize(10))
+	inMemTrDropped, err = container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
 	a.Equal(1, inMemTrDropped)
 }
@@ -104,10 +104,10 @@ func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {
 
 func assertPayloadSizeFromExtractTransactions(
 	a *assert.Assertions,
-	container *transactionContainer,
+	container *TransactionContainer,
 	expectedPayloadSize []int) {
 
-	transactions, err := container.extractTransactions()
+	transactions, err := container.ExtractTransactions()
 	a.NoError(err)
 	a.Equal(0, container.getCurrentMemSizeInBytes())
 

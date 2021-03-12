@@ -75,7 +75,8 @@ var (
 	deserializeTransactionsCountTelemetry *counterExpvar
 )
 
-func init() {
+// InitExpVar initializes expvars and telementries for failed transactions.
+func InitExpVar(forwarderExpvars *expvar.Map) {
 	forwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
 	newRemovalPolicyCountTelemetry = newCounterExpvar(
 		"removal_policy",
@@ -168,38 +169,40 @@ func init() {
 		&fileStorageExpvar)
 }
 
-type failedTransactionRemovalPolicyTelemetry struct{}
+// FailedTransactionRemovalPolicyTelemetry handles the telemetry for FailedTransactionRemovalPolicy.
+type FailedTransactionRemovalPolicyTelemetry struct{}
 
-func (failedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
+func (FailedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
 	newRemovalPolicyCountTelemetry.add(1)
 }
 
-func (failedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
+func (FailedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
 	registeredDomainCountTelemetry.add(1)
 }
-func (failedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
+func (FailedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
 	outdatedFilesCountTelemetry.add(float64(count))
 }
 
-func (failedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
+func (FailedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
 	filesFromUnknownDomainCountTelemetry.add(float64(count))
 }
 
-type transactionContainerTelemetry struct{}
+// TransactionContainerTelemetry handles the telemetry for TransactionContainer
+type TransactionContainerTelemetry struct{}
 
-func (transactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
+func (TransactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
 	currentMemSizeInBytesTelemetry.set(float64(count))
 }
 
-func (transactionContainerTelemetry) setTransactionsCount(count int) {
+func (TransactionContainerTelemetry) setTransactionsCount(count int) {
 	transactionsCountTelemetry.set(float64(count))
 }
 
-func (transactionContainerTelemetry) addTransactionsDroppedCount(count int) {
+func (TransactionContainerTelemetry) addTransactionsDroppedCount(count int) {
 	transactionsDroppedCountTelemetry.add(float64(count))
 }
 
-func (transactionContainerTelemetry) incErrorsCount() {
+func (TransactionContainerTelemetry) incErrorsCount() {
 	errorsCountTelemetry.add(1)
 }
 

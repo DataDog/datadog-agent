@@ -15,37 +15,40 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type transactionStorage interface {
+// TransactionStorage is an interface to serialize / deserialize transactions
+type TransactionStorage interface {
 	Serialize([]Transaction) error
 	Deserialize() ([]Transaction, error)
 }
 
-type transactionPrioritySorter interface {
+// TransactionPrioritySorter is an interface to sort transactions.
+type TransactionPrioritySorter interface {
 	Sort([]Transaction)
 }
 
-// transactionContainer stores transactions in memory and flush them to disk when the memory
+// TransactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
-type transactionContainer struct {
+type TransactionContainer struct {
 	transactions               []Transaction
 	currentMemSizeInBytes      int
 	maxMemSizeInBytes          int
 	flushToStorageRatio        float64
-	dropPrioritySorter         transactionPrioritySorter
-	optionalTransactionStorage transactionStorage
-	telemetry                  transactionContainerTelemetry
+	dropPrioritySorter         TransactionPrioritySorter
+	optionalTransactionStorage TransactionStorage
+	telemetry                  TransactionContainerTelemetry
 	mutex                      sync.RWMutex
 }
 
-func buildTransactionContainer(
+// BuildTransactionContainer builds a new instance of TransactionContainer
+func BuildTransactionContainer(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
-	dropPrioritySorter transactionPrioritySorter,
+	dropPrioritySorter TransactionPrioritySorter,
 	domain string,
-	apiKeys []string) *transactionContainer {
-	var storage transactionStorage
+	apiKeys []string) *TransactionContainer {
+	var storage TransactionStorage
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
@@ -62,16 +65,17 @@ func buildTransactionContainer(
 		}
 	}
 
-	return newTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, transactionContainerTelemetry{})
+	return NewTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, TransactionContainerTelemetry{})
 }
 
-func newTransactionContainer(
-	dropPrioritySorter transactionPrioritySorter,
-	optionalTransactionStorage transactionStorage,
+// NewTransactionContainer creates a new instance of NewTransactionContainer
+func NewTransactionContainer(
+	dropPrioritySorter TransactionPrioritySorter,
+	optionalTransactionStorage TransactionStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	telemetry transactionContainerTelemetry) *transactionContainer {
-	return &transactionContainer{
+	telemetry TransactionContainerTelemetry) *TransactionContainer {
+	return &TransactionContainer{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
 		dropPrioritySorter:         dropPrioritySorter,
@@ -80,7 +84,7 @@ func newTransactionContainer(
 	}
 }
 
-// add adds a new transaction and flush transactions to disk if the memory limit is exceeded.
+// Add adds a new transaction and flush transactions to disk if the memory limit is exceeded.
 // The amount of transactions flushed to disk is control by
 // `flushToStorageRatio` which is the ratio of the transactions to be flushed.
 // Consider the following payload sizes 10, 20, 30, 40, 15 with `maxMemSizeInBytes=100` and
@@ -90,7 +94,7 @@ func newTransactionContainer(
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
-func (tc *transactionContainer) add(t Transaction) (int, error) {
+func (tc *TransactionContainer) Add(t Transaction) (int, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -126,11 +130,11 @@ func (tc *transactionContainer) add(t Transaction) (int, error) {
 	return inMemTransactionDroppedCount, diskErr
 }
 
-// extractTransactions extracts transactions from the container.
+// ExtractTransactions extracts transactions from the container.
 // If some transactions exist in memory extract them otherwise extract transactions
 // from the disk.
 // No transactions are in memory after calling this method.
-func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
+func (tc *TransactionContainer) ExtractTransactions() ([]Transaction, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -152,31 +156,31 @@ func (tc *transactionContainer) extractTransactions() ([]Transaction, error) {
 	return transactions, nil
 }
 
-// getCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *transactionContainer) getCurrentMemSizeInBytes() int {
+// GetCurrentMemSizeInBytes gets the current memory usage in bytes
+func (tc *TransactionContainer) getCurrentMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return tc.currentMemSizeInBytes
 }
 
-// getTransactionCount gets the number of transactions in the container
-func (tc *transactionContainer) getTransactionCount() int {
+// GetTransactionCount gets the number of transactions in the container
+func (tc *TransactionContainer) GetTransactionCount() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return len(tc.transactions)
 }
 
-// getMaxMemSizeInBytes gets the maximum memory usage for storing transactions
-func (tc *transactionContainer) getMaxMemSizeInBytes() int {
+// GetMaxMemSizeInBytes gets the maximum memory usage for storing transactions
+func (tc *TransactionContainer) GetMaxMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return tc.maxMemSizeInBytes
 }
 
-func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]Transaction {
+func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]Transaction {
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
 	var payloadsGroupToFlush [][]Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
@@ -194,7 +198,7 @@ func (tc *transactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 	return payloadsGroupToFlush
 }
 
-func (tc *transactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []Transaction {
+func (tc *TransactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []Transaction {
 	i := 0
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []Transaction

@@ -32,20 +32,20 @@ type domainForwarder struct {
 	stopRetry                 chan bool
 	stopConnectionReset       chan bool
 	workers                   []*Worker
-	transactionContainer      *transactionContainer
+	transactionContainer      *TransactionContainer
 	connectionResetInterval   time.Duration
 	internalState             uint32
 	m                         sync.Mutex // To control Start/Stop races
-	transactionPrioritySorter transactionPrioritySorter
+	transactionPrioritySorter TransactionPrioritySorter
 	blockedList               *blockedEndpoints
 }
 
 func newDomainForwarder(
 	domain string,
-	transactionContainer *transactionContainer,
+	transactionContainer *TransactionContainer,
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
-	transactionPrioritySorter transactionPrioritySorter) *domainForwarder {
+	transactionPrioritySorter TransactionPrioritySorter) *domainForwarder {
 	return &domainForwarder{
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
@@ -72,7 +72,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	var transactions []Transaction
 	var err error
 
-	transactions, err = f.transactionContainer.extractTransactions()
+	transactions, err = f.transactionContainer.ExtractTransactions()
 	if err != nil {
 		log.Errorf("Error when getting transactions from the retry queue", err)
 	}
@@ -100,18 +100,18 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 		}
 	}
 
-	transactionCount := f.transactionContainer.getTransactionCount()
+	transactionCount := f.transactionContainer.GetTransactionCount()
 	transactionsRetryQueueSize.Set(int64(transactionCount))
 	tlmTxRetryQueueSize.Set(float64(transactionCount), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt:%d for exceeding the retry queue payloads size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.transactionContainer.getMaxMemSizeInBytes(), droppedWorkerBusy)
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.transactionContainer.GetMaxMemSizeInBytes(), droppedWorkerBusy)
 	}
 }
 
 func (f *domainForwarder) addToTransactionContainer(t Transaction) int {
-	dropCount, err := f.transactionContainer.add(t)
+	dropCount, err := f.transactionContainer.Add(t)
 	if err != nil {
 		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
@@ -127,7 +127,7 @@ func (f *domainForwarder) addToTransactionContainer(t Transaction) int {
 
 func (f *domainForwarder) requeueTransaction(t Transaction) {
 	f.addToTransactionContainer(t)
-	retryQueueSize := f.transactionContainer.getTransactionCount()
+	retryQueueSize := f.transactionContainer.GetTransactionCount()
 	transactionsRequeuedByEndpoint.Add(t.GetEndpointName(), 1)
 	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(retryQueueSize))
