@@ -194,6 +194,7 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	m.cancelFnc()
 
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
