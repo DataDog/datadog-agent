@@ -124,7 +124,7 @@ func newTestTransactionsFileStorage(a *assert.Assertions, path string, maxSizeIn
 			Total:     10000,
 		}}
 	maxStorage := newForwarderMaxStorage("", disk, maxSizeInBytes, 1)
-	storage, err := newTransactionsFileStorage(NewTransactionsSerializer(domainName, nil), path, maxStorage, telemetry)
+	storage, err := newTransactionsFileStorage(NewHTTPTransactionsSerializer(domainName, nil), path, maxStorage, telemetry)
 	a.NoError(err)
 	return storage
 }

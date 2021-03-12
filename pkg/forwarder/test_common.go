@@ -64,7 +64,7 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
-func (t *testTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+func (t *testTransaction) SerializeTo(serializer TransactionsSerializer) error {
 	return nil
 }
 

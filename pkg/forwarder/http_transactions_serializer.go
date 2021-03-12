@@ -26,21 +26,21 @@ const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 
-// TransactionsSerializer serializes Transaction instances.
+// HTTPTransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
-// method `func (s *TransactionsSerializer) Add(transaction NEW_TYPE) error {`
-type TransactionsSerializer struct {
+// method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
+type HTTPTransactionsSerializer struct {
 	collection          HttpTransactionProtoCollection
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
 	domain              string
 }
 
-// NewTransactionsSerializer creates a new instance of TransactionsSerializer
-func NewTransactionsSerializer(domain string, apiKeys []string) *TransactionsSerializer {
+// NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
+func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransactionsSerializer {
 	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(apiKeys)
 
-	return &TransactionsSerializer{
+	return &HTTPTransactionsSerializer{
 		collection: HttpTransactionProtoCollection{
 			Version: transactionsSerializerVersion,
 		},
@@ -53,7 +53,7 @@ func NewTransactionsSerializer(domain string, apiKeys []string) *TransactionsSer
 // Add adds a transaction to the serializer.
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
-func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
+func (s *HTTPTransactionsSerializer) Add(transaction *HTTPTransaction) error {
 	if transaction.Domain != s.domain {
 		// This error is not supposed to happen (Sanity check).
 		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
@@ -90,14 +90,14 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 
 // GetBytesAndReset returns as bytes the serialized transactions and reset
 // the transaction collection.
-func (s *TransactionsSerializer) GetBytesAndReset() ([]byte, error) {
+func (s *HTTPTransactionsSerializer) GetBytesAndReset() ([]byte, error) {
 	out, err := proto.Marshal(&s.collection)
 	s.collection.Values = nil
 	return out, err
 }
 
 // Deserialize deserializes from bytes.
-func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, error) {
+func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, error) {
 	collection := HttpTransactionProtoCollection{}
 
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
@@ -141,11 +141,11 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, 
 	return httpTransactions, errorCount, nil
 }
 
-func (s *TransactionsSerializer) replaceAPIKeys(str string) string {
+func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
 	return s.apiKeyToPlaceholder.Replace(str)
 }
 
-func (s *TransactionsSerializer) restoreAPIKeys(str string) (string, error) {
+func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string) (string, error) {
 	newStr := s.placeholderToAPIKey.Replace(str)
 
 	if strings.Contains(newStr, placeHolderPrefix) {
@@ -154,7 +154,7 @@ func (s *TransactionsSerializer) restoreAPIKeys(str string) (string, error) {
 	return newStr, nil
 }
 
-func (s *TransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) (http.Header, error) {
+func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) (http.Header, error) {
 	headers := make(http.Header)
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
@@ -181,7 +181,7 @@ func fromTransactionPriorityProto(priority TransactionPriorityProto) (Transactio
 	}
 }
 
-func (s *TransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
+func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
 		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}

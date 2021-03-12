@@ -199,7 +199,7 @@ type Transaction interface {
 	// It forces a new implementation of `Transaction` to define how to
 	// serialize the transaction to `TransactionsSerializer` as a `Transaction`
 	// must be serializable in domainForwarder.
-	SerializeTo(*TransactionsSerializer) error
+	SerializeTo(TransactionsSerializer) error
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
@@ -363,8 +363,13 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	return resp.StatusCode, body, nil
 }
 
+// TransactionsSerializer serializes Transaction instances.
+type TransactionsSerializer interface {
+	Add(transaction *HTTPTransaction) error
+}
+
 // SerializeTo serializes the transaction using TransactionsSerializer
-func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
+func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
 	if t.StorableOnDisk {
 		return serializer.Add(t)
 	}

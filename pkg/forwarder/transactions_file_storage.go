@@ -22,7 +22,7 @@ const retryTransactionsExtension = ".retry"
 const retryFileFormat = "2006_01_02__15_04_05_"
 
 type transactionsFileStorage struct {
-	serializer         *TransactionsSerializer
+	serializer         *HTTPTransactionsSerializer
 	storagePath        string
 	maxStorage         *forwarderMaxStorage
 	filenames          []string
@@ -31,7 +31,7 @@ type transactionsFileStorage struct {
 }
 
 func newTransactionsFileStorage(
-	serializer *TransactionsSerializer,
+	serializer *HTTPTransactionsSerializer,
 	storagePath string,
 	maxStorage *forwarderMaxStorage,
 	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {

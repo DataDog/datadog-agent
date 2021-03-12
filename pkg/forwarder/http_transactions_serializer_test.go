@@ -19,10 +19,10 @@ const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
 const domain = "domain"
 
-func TestSerializeDeserialize(t *testing.T) {
+func TestHTTPSerializeDeserialize(t *testing.T) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -47,7 +47,7 @@ func TestSerializeDeserialize(t *testing.T) {
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	transaction := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer(domain, nil)
+	serializer := NewHTTPTransactionsSerializer(domain, nil)
 
 	a.NoError(serializer.Add(transaction))
 	a.NoError(serializer.Add(transaction))
@@ -66,10 +66,10 @@ func TestPartialDeserialize(t *testing.T) {
 	}
 }
 
-func TestTransactionSerializerMissingAPIKey(t *testing.T) {
+func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 
-	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}})))
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}})))
@@ -80,7 +80,7 @@ func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.NoError(err)
 	r.Equal(0, errorCount)
 
-	serializerMissingAPIKey := NewTransactionsSerializer(domain, []string{apiKey1})
+	serializerMissingAPIKey := NewHTTPTransactionsSerializer(domain, []string{apiKey1})
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(1, errorCount)
@@ -92,7 +92,7 @@ func TestHTTPTransactionFieldsCount(t *testing.T) {
 	assert.Equalf(t, 11, transactionType.NumField(),
 		"A field was added or remove from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
-			"TransactionsSerializer and then adjust this unit test.")
+			"HTTPTransactionsSerializer and then adjust this unit test.")
 }
 
 func createHTTPTransactionTests() *HTTPTransaction {
