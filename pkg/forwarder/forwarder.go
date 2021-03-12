@@ -455,8 +455,8 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint Endpoint, pay
 					t.Endpoint.Route = fmt.Sprintf("%s?api_key=%s", endpoint.Route, apiKey)
 				}
 				t.Payload = payload
-				t.priority = priority
-				t.storableOnDisk = storableOnDisk
+				t.Priority = priority
+				t.StorableOnDisk = storableOnDisk
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
@@ -465,7 +465,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint Endpoint, pay
 				}
 
 				if f.completionHandler != nil {
-					t.completionHandler = f.completionHandler
+					t.CompletionHandler = f.completionHandler
 				}
 
 				tlmTxInputCount.Inc(domain, endpoint.Name)
@@ -628,8 +628,8 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep Endpoint, payload Payload
 	expectedResponses := len(transactions)
 
 	for _, txn := range transactions {
-		txn.retryable = retryable
-		txn.attemptHandler = func(transaction *HTTPTransaction) {
+		txn.Retryable = retryable
+		txn.AttemptHandler = func(transaction *HTTPTransaction) {
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
 			} else {
@@ -638,7 +638,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep Endpoint, payload Payload
 			}
 		}
 
-		txn.completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		txn.CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
 			internalResults <- Response{
 				Domain:     transaction.Domain,
 				Body:       body,

@@ -21,15 +21,15 @@ func TestNewHTTPTransaction(t *testing.T) {
 
 	assert.NotNil(t, transaction)
 
-	assert.True(t, transaction.createdAt.After(before) || transaction.createdAt.Equal(before))
-	assert.True(t, transaction.createdAt.Before(after) || transaction.createdAt.Equal(after))
+	assert.True(t, transaction.CreatedAt.After(before) || transaction.CreatedAt.Equal(before))
+	assert.True(t, transaction.CreatedAt.Before(after) || transaction.CreatedAt.Equal(after))
 }
 
 func TestGetCreatedAt(t *testing.T) {
 	transaction := NewHTTPTransaction()
 
 	assert.NotNil(t, transaction)
-	assert.Equal(t, transaction.createdAt, transaction.GetCreatedAt())
+	assert.Equal(t, transaction.CreatedAt, transaction.GetCreatedAt())
 }
 
 func TestProcess(t *testing.T) {

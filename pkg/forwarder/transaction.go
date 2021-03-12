@@ -64,7 +64,8 @@ var (
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
-var trace = &httptrace.ClientTrace{
+// Trace is the HTTP trace.
+var Trace = &httptrace.ClientTrace{
 	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
 		if dnsInfo.Err != nil {
 			transactionsDNSErrors.Add(1)
@@ -168,21 +169,21 @@ type HTTPTransaction struct {
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
-	createdAt time.Time
-	// retryable indicates whether this transaction can be retried
-	retryable bool
+	CreatedAt time.Time
+	// Retryable indicates whether this transaction can be retried
+	Retryable bool
 
-	// storableOnDisk indicates whether this transaction can be stored on disk
-	storableOnDisk bool
+	// StorableOnDisk indicates whether this transaction can be stored on disk
+	StorableOnDisk bool
 
-	// attemptHandler will be called with a transaction before the attempting to send the request
+	// AttemptHandler will be called with a transaction before the attempting to send the request
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
-	attemptHandler HTTPAttemptHandler
-	// completionHandler will be called with a transaction after it has been successfully sent
+	AttemptHandler HTTPAttemptHandler
+	// CompletionHandler will be called with a transaction after it has been successfully sent
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
-	completionHandler HTTPCompletionHandler
+	CompletionHandler HTTPCompletionHandler
 
-	priority TransactionPriority
+	Priority TransactionPriority
 }
 
 // Transaction represents the task to process for a Worker.
@@ -204,24 +205,25 @@ type Transaction interface {
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{
-		createdAt:      time.Now(),
+		CreatedAt:      time.Now(),
 		ErrorCount:     0,
-		retryable:      true,
-		storableOnDisk: true,
+		Retryable:      true,
+		StorableOnDisk: true,
 		Headers:        make(http.Header),
 	}
-	tr.setDefaultHandlers()
+	tr.SetDefaultHandlers()
 	return tr
 }
 
-func (t *HTTPTransaction) setDefaultHandlers() {
-	t.attemptHandler = defaultAttemptHandler
-	t.completionHandler = defaultCompletionHandler
+// SetDefaultHandlers sets the default handlers for AttemptHandler and CompletionHandler
+func (t *HTTPTransaction) SetDefaultHandlers() {
+	t.AttemptHandler = defaultAttemptHandler
+	t.CompletionHandler = defaultCompletionHandler
 }
 
 // GetCreatedAt returns the creation time of the HTTPTransaction.
 func (t *HTTPTransaction) GetCreatedAt() time.Time {
-	return t.createdAt
+	return t.CreatedAt
 }
 
 // GetTarget return the url used by the transaction
@@ -232,7 +234,7 @@ func (t *HTTPTransaction) GetTarget() string {
 
 // GetPriority returns the priority
 func (t *HTTPTransaction) GetPriority() TransactionPriority {
-	return t.priority
+	return t.Priority
 }
 
 // GetEndpointName returns the name of the endpoint used by the transaction
@@ -251,17 +253,17 @@ func (t *HTTPTransaction) GetPayloadSize() int {
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
-	t.attemptHandler(t)
+	t.AttemptHandler(t)
 
 	statusCode, body, err := t.internalProcess(ctx, client)
 
-	if err == nil || !t.retryable {
-		t.completionHandler(t, statusCode, body, err)
+	if err == nil || !t.Retryable {
+		t.CompletionHandler(t, statusCode, body, err)
 	}
 
 	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
 	// Otherwise, return nil so the txn won't be retried.
-	if t.retryable {
+	if t.Retryable {
 		return err
 	}
 
@@ -363,7 +365,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 // SerializeTo serializes the transaction using TransactionsSerializer
 func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
-	if t.storableOnDisk {
+	if t.StorableOnDisk {
 		return serializer.Add(t)
 	}
 	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")

@@ -107,9 +107,9 @@ func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
 	tr.Headers = header
 	tr.Payload = &payload
 	tr.ErrorCount = 1
-	tr.createdAt = time.Now()
-	tr.retryable = true
-	tr.priority = TransactionPriorityHigh
+	tr.CreatedAt = time.Now()
+	tr.Retryable = true
+	tr.Priority = TransactionPriorityHigh
 	return tr
 }
 
@@ -117,8 +117,8 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *HTTPTransaction, tr2 *HTT
 	a.Equal(tr1.Domain, tr2.Domain)
 	a.Equal(tr1.Endpoint, tr2.Endpoint)
 	a.EqualValues(tr1.Headers, tr2.Headers)
-	a.Equal(tr1.retryable, tr2.retryable)
-	a.Equal(tr1.priority, tr2.priority)
+	a.Equal(tr1.Retryable, tr2.Retryable)
+	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
 
 	a.NotNil(tr1.Payload)
@@ -126,5 +126,5 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *HTTPTransaction, tr2 *HTT
 	a.Equal(*tr1.Payload, *tr2.Payload)
 
 	// Ignore monotonic clock
-	a.Equal(tr1.createdAt.Format(time.RFC3339), tr2.createdAt.Format(time.RFC3339))
+	a.Equal(tr1.CreatedAt.Format(time.RFC3339), tr2.CreatedAt.Format(time.RFC3339))
 }

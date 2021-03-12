@@ -59,7 +59,7 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
 	}
 
-	priority, err := toTransactionPriorityProto(transaction.priority)
+	priority, err := toTransactionPriorityProto(transaction.Priority)
 	if err != nil {
 		return err
 	}
@@ -80,8 +80,8 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 		Headers:    s.toHeaderProto(transaction.Headers),
 		Payload:    payload,
 		ErrorCount: int64(transaction.ErrorCount),
-		CreatedAt:  transaction.createdAt.Unix(),
-		Retryable:  transaction.retryable,
+		CreatedAt:  transaction.CreatedAt.Unix(),
+		Retryable:  transaction.Retryable,
 		Priority:   priority,
 	}
 	s.collection.Values = append(s.collection.Values, &transactionProto)
@@ -130,12 +130,12 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, 
 			Headers:        proto,
 			Payload:        &transaction.Payload,
 			ErrorCount:     int(transaction.ErrorCount),
-			createdAt:      time.Unix(transaction.CreatedAt, 0),
-			retryable:      transaction.Retryable,
-			storableOnDisk: true,
-			priority:       priority,
+			CreatedAt:      time.Unix(transaction.CreatedAt, 0),
+			Retryable:      transaction.Retryable,
+			StorableOnDisk: true,
+			Priority:       priority,
 		}
-		tr.setDefaultHandlers()
+		tr.SetDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
 	}
 	return httpTransactions, errorCount, nil

@@ -345,11 +345,11 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -403,11 +403,11 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -457,15 +457,15 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusInternalServerError, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
-	transactions[0].retryable = false
+	transactions[0].Retryable = false
 
 	err := f.sendHTTPTransactions(transactions)
 	require.NoError(t, err)

@@ -138,7 +138,7 @@ func (w *Worker) callProcess(t Transaction) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = httptrace.WithClientTrace(ctx, trace)
+	ctx = httptrace.WithClientTrace(ctx, Trace)
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
