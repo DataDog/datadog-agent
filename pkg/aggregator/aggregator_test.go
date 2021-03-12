@@ -254,17 +254,17 @@ func TestRecurentSeries(t *testing.T) {
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// Assert that recurrentSeries are sent on each flushed
 	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
-
+	s.AssertExpectations(t)
 }
 
 func TestTags(t *testing.T) {
