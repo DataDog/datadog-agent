@@ -234,7 +234,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	svc := sts.New(session.New())
 	accountID, _ := aws.FetchAccountID(svc)
 	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
-	if err != nil {
+	if err == nil {
 		aws.SetARN(functionARN)
 	}
 	aws.SetColdStart(true)
@@ -254,6 +254,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
 		extraTags = append(extraTags, dsdTags...)
 	}
+	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
