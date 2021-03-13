@@ -2179,8 +2179,8 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
-	require.NotNil(t, tr)
 	require.NoError(t, err)
+	require.NotNil(t, tr)
 	defer tr.Stop()
 
 	require.NotNil(t, tr.gwLookup)
