@@ -11,7 +11,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
-	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -26,15 +25,27 @@ const (
 // SwarmTopologyCollector contains the checkID and topology instance for the swarm topology check
 type SwarmTopologyCollector struct {
 	corechecks.CheckTopologyCollector
+	swarmClient SwarmClient
 }
 
 // MakeSwarmTopologyCollector returns a new instance of SwarmTopologyCollector
 func MakeSwarmTopologyCollector() *SwarmTopologyCollector {
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		log.Warnf("Error initialising docker util for SwarmTopologyCollector: %s", err)
+		return nil
+	}
+
+	return makeSwarmTopologyCollector(du)
+}
+
+func makeSwarmTopologyCollector(client SwarmClient) *SwarmTopologyCollector {
 	return &SwarmTopologyCollector{
 		corechecks.MakeCheckTopologyCollector(SwarmTopologyCheckName, topology.Instance{
 			Type: "docker-swarm",
 			URL:  "agents",
 		}),
+		client,
 	}
 }
 
@@ -67,13 +78,8 @@ func (dt *SwarmTopologyCollector) BuildSwarmTopology(metrics aggregator.Sender) 
 
 // collectSwarmServices collects swarm services from the docker util and produces topology.Component
 func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		sender.ServiceCheck(SwarmServiceCheck, metrics.ServiceCheckCritical, "", nil, err.Error())
-		log.Warnf("Error initialising check: %s", err)
-		return nil, nil, err
-	}
-	sList, err := du.ListSwarmServices()
+
+	sList, err := dt.swarmClient.ListSwarmServices()
 	if err != nil {
 		return nil, nil, err
 	}

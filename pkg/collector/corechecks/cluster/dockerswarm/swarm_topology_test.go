@@ -1,14 +1,45 @@
 package dockerswarm
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
-	"github.com/StackVista/stackstate-agent/pkg/util/containers"
-	"github.com/StackVista/stackstate-agent/pkg/util/docker"
-	"github.com/docker/docker/api/types/swarm"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"time"
+)
+
+var (
+	serviceComponent = topology.Component{
+			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
+			Type: topology.Type{
+			Name: swarmServiceType,
+			},
+			Data: topology.Data{
+				"name": 	swarmService.Name,
+				"image": 	swarmService.ContainerImage,
+				"tags": 	swarmService.Labels,
+				"version": 	swarmService.Version,
+				"created":  swarmService.CreatedAt,
+			},
+	}
+	containerComponent = topology.Component{
+			ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+			Type:       topology.Type{Name: "container"},
+			Data: 		topology.Data{
+				"TaskID": 		swarmService.TaskContainers[0].ID,
+				"name":         swarmService.TaskContainers[0].Name,
+				"image":        swarmService.TaskContainers[0].ContainerImage,
+				"status":     	swarmService.TaskContainers[0].ContainerStatus,
+			},
+	}
+	serviceRelation = topology.Relation{
+			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e-urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+			SourceID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
+			TargetID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+			Type: topology.Type{Name: "creates"},
+			Data: topology.Data{},
+	}
 )
 
 func TestMakeSwarmTopologyCollector(t *testing.T) {
@@ -21,38 +52,14 @@ func TestMakeSwarmTopologyCollector(t *testing.T) {
 	assert.Equal(t, expectedInstance, st.TopologyInstance)
 }
 
-func TestSwarmTopologyCollector_SwarmServices(t *testing.T) {
+func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	st := MakeSwarmTopologyCollector()
-	du := docker.GetDockerUtil()
-	swarmServices := []containers.SwarmService{
-		{
-			ID:             "klbo61rrhksdmc9ho3pq97t6e",
-			Name:           "agent_stackstate-agent",
-			ContainerImage: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
-			Labels: 		map[string]string{
-								"com.docker.stack.image": "docker.io/stackstate/stackstate-agent-2-test:stac-12057-swarm-topology",
-								"com.docker.stack.namespace": "agent",
-							},
-			Version:        swarm.Version{Index: uint64(136),},
-			//CreatedAt:      time.Time{"2021-03-11T08:01:46.718350483Z"},
-			CreatedAt:      time.Date(2021, time.March, 10, 23, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2021, time.March, 10, 45, 0, 0, 0, time.UTC),
-			TaskContainers: []*containers.SwarmTask{
-				{
-					ID: "qwerty12345",
-					Name: "/agent_stackstate-agent.1.skz8sp5d1y4f64qykw37mf3k2",
-					ContainerImage: "stackstate/stackstate-agent-2-test",
-					ContainerStatus: swarm.ContainerStatus{
-						ContainerID: "a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-						ExitCode: 0,
-						PID: 341,
-					},
-				},
-			},
-			DesiredTasks: 	2,
-			RunningTasks: 	2,
-		},
-	}
+
+	// Setup mock sender
+	sender := mocksender.NewMockSender(st.CheckID)
+	sender.SetupAcceptAll()
+
+	comps, relations, err := st.collectSwarmServices(sender)
 	serviceComponents := []topology.Component{
 		{
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
@@ -60,14 +67,11 @@ func TestSwarmTopologyCollector_SwarmServices(t *testing.T) {
 				Name: swarmServiceType,
 			},
 			Data: topology.Data{
-				"name": swarmServices[0].Name,
-				"image": swarmServices[0].ContainerImage,
-				"tags": swarmServices[0].Labels,
-				"version": swarmServices[0].Version,
-				"created":      swarmServices[0].CreatedAt,
-				"spec":         nil,
-				"endpoint":     nil,
-				"updateStatus": nil,
+				"name": swarmService.Name,
+				"image": swarmService.ContainerImage,
+				"tags": swarmService.Labels,
+				"version": swarmService.Version,
+				"created":      swarmService.CreatedAt,
 			},
 		},
 	}
@@ -76,11 +80,10 @@ func TestSwarmTopologyCollector_SwarmServices(t *testing.T) {
 			ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 			Type:       topology.Type{Name: "container"},
 			Data: topology.Data{
-				"TaskID": 		swarmServices[0].TaskContainers[0].ID,
-				"name":         swarmServices[0].TaskContainers[0].Name,
-				"image":        swarmServices[0].TaskContainers[0].ContainerImage,
-				"spec":			nil,
-				"status":     	swarmServices[0].TaskContainers[0].ContainerStatus,
+				"TaskID": 		swarmService.TaskContainers[0].ID,
+				"name":         swarmService.TaskContainers[0].Name,
+				"image":        swarmService.TaskContainers[0].ContainerImage,
+				"status":     	swarmService.TaskContainers[0].ContainerStatus,
 			},
 		},
 	}
@@ -89,14 +92,51 @@ func TestSwarmTopologyCollector_SwarmServices(t *testing.T) {
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e-urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 			SourceID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
 			TargetID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			Type: topology.Type{
-				Name: "creates",
-			},
+			Type: topology.Type{Name: "creates"},
 			Data: topology.Data{},
 		},
 	}
-	// To DO How to assign responses for a function for mocking
-	du.ListSwarmServices := swarmServices
+	// append container components to service components
+	serviceComponents = append(serviceComponents, containerComponents...)
+	// error should be nil
+	assert.Equal(t, err, nil)
+	// components should be serviceComponents
+	assert.Equal(t, comps, serviceComponents)
+	// relations should be serviceRelations
+	assert.Equal(t, relations, serviceRelations)
+	// check for produced metrics
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.AssertExpectations(t)
+}
 
+func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
+	st := MakeSwarmTopologyCollector()
+	// Setup mock sender
+	sender := mocksender.NewMockSender(st.CheckID)
+	sender.SetupAcceptAll()
+	// set up the mock batcher
+	mockBatcher := batcher.NewMockBatcher()
+
+	err := st.BuildSwarmTopology(sender)
+	assert.NoError(t, err)
+
+	producedTopology := mockBatcher.CollectedTopology.Flush()
+	expectedTopology := batcher.Topologies{
+		"swarm_topology": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
+			Components: []topology.Component{
+				serviceComponent,
+				containerComponent,
+			},
+			Relations: []topology.Relation{
+				serviceRelation,
+			},
+		},
+	}
+
+	assert.Equal(t, expectedTopology, producedTopology)
 
 }

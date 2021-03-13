@@ -1,14 +1,14 @@
 package dockerswarm
 
 import (
-	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestDockerSwarmCheck(t *testing.T)  {
+
+func TestDockerSwarmCheck(t *testing.T) {
 
 	swarmCheck := SwarmFactory().(*SwarmCheck)
 	swarmCheck.Configure(nil, nil)
@@ -20,24 +20,42 @@ func TestDockerSwarmCheck(t *testing.T)  {
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
 	expectedTopology := batcher.Topologies{
-		"dock_swarm_topology": {
+		"docker_swarm": {
 			StartSnapshot: false,
 			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "disk", URL: "agents"},
+			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
 			Components: []topology.Component{
-				{
-					ExternalID: fmt.Sprintf("urn:swarm-service:/%s", ),
-					Type: topology.Type{
-						Name: "swarm-service",
-					},
-					Data: topology.Data{
-					},
-				},
+				serviceComponent,
+				containerComponent,
 			},
-			Relations: []topology.Relation{},
+			Relations: []topology.Relation{
+				serviceRelation,
+			},
 		},
 	}
 
 	assert.Equal(t, expectedTopology, producedTopology)
-
 }
+
+//func TestDockerSwarm(t *testing.T) {
+//	swarmCheck := SwarmFactory()
+//
+//	// Setup mock sender
+//	sender := mocksender.NewMockSender(swarmCheck.ID())
+//	sender.SetupAcceptAll()
+//
+//	// Setup mock batcher
+//	_ = batcher.NewMockBatcher()
+//
+//
+//	swarmTopology := makeSwarmTopologyCollector(&MockSwarmClient{})
+//
+//	components, relations, err := swarmTopology.collectSwarmServices(sender)
+//	assert.NoError(t, err)
+//
+//
+//	expectedComponents := []*topology.Component{}
+//	expectedRelations := []*topology.Relation{}
+//	assert.EqualValues(t, expectedComponents, components)
+//	assert.EqualValues(t, expectedRelations, relations)
+//}
