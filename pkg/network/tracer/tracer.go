@@ -225,6 +225,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
 
+	if gwLookupEnabled(config) && runtimeTracer {
+		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
+		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
+
+		mgrOptions.MapSpecEditors[string(probes.GatewayMap)] = manager.MapSpecEditor{Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}
+	}
+
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
@@ -561,6 +568,8 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
+	t.connVia(cs)
+
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -715,6 +724,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
+			t.connVia(&conn)
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {

@@ -47,7 +47,7 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
 static __always_inline void sockaddr_to_addr(struct sockaddr * sa, u64 * addr_h, u64 * addr_l, u16 * port) {
     if (!sa) return;
 
-    u16 family;
+    u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &sa->sa_family);
 
     struct sockaddr_in * sin;

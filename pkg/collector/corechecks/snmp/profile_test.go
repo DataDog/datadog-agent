@@ -1,8 +1,13 @@
 package snmp
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/require"
@@ -37,7 +42,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 }
 
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
@@ -62,13 +67,17 @@ func Test_loadProfiles(t *testing.T) {
 
 	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	invalidYamlProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "invalid_yaml_file.yaml"))
-
+	type logCount struct {
+		log   string
+		count int
+	}
 	tests := []struct {
 		name                  string
 		confdPath             string
 		inputProfileConfigMap profileConfigMap
 		expectedProfileDefMap profileDefinitionMap
 		expectedIncludeErrors []string
+		expectedLogs          []logCount
 	}{
 		{
 			name:                  "default",
@@ -84,8 +93,10 @@ func Test_loadProfiles(t *testing.T) {
 					filepath.Join(string(filepath.Separator), "does", "not", "exist"),
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{"failed to read profile definition `f5-big-ip`: failed to read file"},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"[WARN] loadProfiles: failed to read profile definition `f5-big-ip`: failed to read file", 1},
+			},
 		},
 		{
 			name: "invalid extends",
@@ -94,8 +105,10 @@ func Test_loadProfiles(t *testing.T) {
 					profileWithInvalidExtends,
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{"failed to expand profile `f5-big-ip`: failed to read file"},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: failed to read file", 1},
+			},
 		},
 		{
 			name:      "invalid recursive extends",
@@ -105,8 +118,11 @@ func Test_loadProfiles(t *testing.T) {
 					"f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{"failed to expand profile `f5-big-ip`", "invalid.yaml"},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`", 1},
+				{"invalid.yaml", 2},
+			},
 		},
 		{
 			name:      "invalid cyclic extends",
@@ -116,8 +132,10 @@ func Test_loadProfiles(t *testing.T) {
 					"f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{"failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]`"},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]", 1},
+			},
 		},
 		{
 			name: "invalid yaml profile",
@@ -126,17 +144,32 @@ func Test_loadProfiles(t *testing.T) {
 					invalidYamlProfile,
 				},
 			},
-			expectedProfileDefMap: nil,
-			expectedIncludeErrors: []string{"failed to read profile definition `f5-big-ip`: failed to unmarshall"},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
 			config.Datadog.Set("confd_path", tt.confdPath)
 
 			profiles, err := loadProfiles(tt.inputProfileConfigMap)
 			for _, errorMsg := range tt.expectedIncludeErrors {
 				assert.Contains(t, err.Error(), errorMsg)
+			}
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 
 			for _, profile := range profiles {
@@ -208,7 +241,7 @@ func Test_getMostSpecificOid(t *testing.T) {
 }
 
 func Test_resolveProfileDefinitionPath(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -236,7 +269,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	globalProfileConfigMap = nil
 	defaultProfiles, err := loadDefaultProfiles()
 	assert.Nil(t, err)
@@ -256,12 +289,49 @@ func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	assert.Nil(t, defaultProfiles)
 }
 
-func Test_loadDefaultProfiles_invalidProfile(t *testing.T) {
+func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	globalProfileConfigMap = nil
 
 	defaultProfiles, err := loadDefaultProfiles()
-	assert.Contains(t, err.Error(), "failed to expand profile `f5-big-ip`")
-	assert.Nil(t, defaultProfiles)
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
+	assert.Equal(t, profileDefinitionMap{}, defaultProfiles)
+}
+
+func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
+	// Valid profiles should be returned even if some profiles are invalid
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_invalid_conf.d"))
+	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+	globalProfileConfigMap = nil
+
+	defaultProfiles, err := loadDefaultProfiles()
+
+	for _, profile := range defaultProfiles {
+		normalizeMetrics(profile.Metrics)
+	}
+
+	w.Flush()
+	logs := b.String()
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to read profile definition `f5-big-ip-invalid`"), logs)
+	assert.Equal(t, mockProfilesDefinitions(), defaultProfiles)
 }

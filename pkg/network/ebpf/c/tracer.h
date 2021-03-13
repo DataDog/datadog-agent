@@ -119,6 +119,8 @@ typedef struct {
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
     __u64 idx;
+    // pos indicates the batch slot where the next http transaction should be written to
+    __u8 pos;
     // idx_to_notify is used to track which batch completions were notified to userspace
     // * if idx_to_notify == idx, the current index is still being appended to;
     // * if idx_to_notify < idx, the batch at idx_to_notify needs to be sent to userspace;
@@ -200,5 +202,26 @@ typedef struct {
     __u32 netns;
     __u16 port;
 } port_binding_t;
+
+typedef struct {
+    __u32 netns;
+    struct flowi4 * fl;
+} ip_route_flow_t;
+
+typedef struct {
+    __u64 saddr_h;
+    __u64 saddr_l;
+    __u64 daddr_h;
+    __u64 daddr_l;
+    __u32 netns;
+    __u16 family;
+} ip_route_dest_t;
+
+typedef struct {
+    __u64 gw_h;
+    __u64 gw_l;
+    __u16 family;
+    __u32 ifindex;
+} ip_route_gateway_t;
 
 #endif

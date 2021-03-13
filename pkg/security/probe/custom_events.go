@@ -137,38 +137,13 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 		}.MarshalJSON)
 }
 
-// RulesIgnored holds the errors
-type RulesIgnored struct {
-	Errors *multierror.Error
-}
-
-// MarshalJSON custom marshaller
-func (r *RulesIgnored) MarshalJSON() ([]byte, error) {
-	if r.Errors == nil {
-		return nil, nil
-	}
-
-	var errs []interface{}
-
-	for _, err := range r.Errors.Errors {
-		if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-			errs = append(errs,
-				struct {
-					ID     string `json:"id"`
-					Reason string `json:"reason"`
-				}{
-					ID:     rerr.Definition.ID,
-					Reason: rerr.Err.Error(),
-				})
-		}
-	}
-
-	return json.Marshal(errs)
-}
-
-// UnmarshalJSON empty unmarshaller
-func (r *RulesIgnored) UnmarshalJSON(data []byte) error {
-	return nil
+// RuleIgnored defines a ignored
+// easyjson:json
+type RuleIgnored struct {
+	ID         string `json:"id"`
+	Version    string `json:"version,omitempty"`
+	Expression string `json:"expression"`
+	Reason     string `json:"reason"`
 }
 
 // PoliciesIgnored holds the errors
@@ -205,56 +180,84 @@ func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// RuleSetLoaded holds the rules
-type RuleSetLoaded struct {
-	Rules map[eval.RuleID]*eval.Rule
+// RuleLoaded defines a loaded rule
+// easyjson:json
+type RuleLoaded struct {
+	ID         string `json:"id"`
+	Version    string `json:"version,omitempty"`
+	Expression string `json:"expression"`
 }
 
-// MarshalJSON custom marshaller
-func (r *RuleSetLoaded) MarshalJSON() ([]byte, error) {
-	var loaded []interface{}
-
-	for id, rule := range r.Rules {
-		loaded = append(loaded,
-			struct {
-				ID         string `json:"id"`
-				Expression string `json:"expression"`
-			}{
-				ID:         id,
-				Expression: rule.Expression,
-			})
-	}
-
-	return json.Marshal(loaded)
-}
-
-// UnmarshalJSON empty unmarshaller
-func (r *RuleSetLoaded) UnmarshalJSON(data []byte) error {
-	return nil
+// PolicyLoaded is used to report policy was loaded
+// easyjson:json
+type PolicyLoaded struct {
+	RulesLoaded  []*RuleLoaded  `json:"rules_loaded"`
+	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp       time.Time         `json:"date"`
-	Policies        map[string]string `json:"policies"`
-	PoliciesIgnored *PoliciesIgnored  `json:"policies_ignored,omitempty"`
-	Macros          []rules.MacroID   `json:"macros_loaded"`
-	Rules           *RuleSetLoaded    `json:"rules_loaded"`
-	RulesIgnored    *RulesIgnored     `json:"rules_ignored,omitempty"`
+	Timestamp       time.Time        `json:"date"`
+	PoliciesLoaded  []*PolicyLoaded  `json:"policies"`
+	PoliciesIgnored *PoliciesIgnored `json:"policies_ignored,omitempty"`
+	MacrosLoaded    []rules.MacroID  `json:"macros_loaded"`
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
 func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
+	mp := make(map[string]*PolicyLoaded)
+
+	var policy *PolicyLoaded
+	var exists bool
+
+	// rule successfully loaded
+	for _, rule := range rs.GetRules() {
+		policyName := rule.Definition.Policy.Name
+
+		if policy, exists = mp[policyName]; !exists {
+			policy = &PolicyLoaded{}
+			mp[policyName] = policy
+		}
+		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
+			ID:         rule.ID,
+			Version:    rule.Definition.Version,
+			Expression: rule.Definition.Expression,
+		})
+	}
+
+	// rules ignored due to errors
+	if err != nil && err.Errors != nil {
+		for _, err := range err.Errors {
+			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+				policyName := rerr.Definition.Policy.Name
+
+				if policy, exists = mp[policyName]; !exists {
+					policy = &PolicyLoaded{}
+					mp[policyName] = policy
+				}
+				policy.RulesIgnored = append(policy.RulesIgnored, &RuleIgnored{
+					ID:         rerr.Definition.ID,
+					Version:    rerr.Definition.Version,
+					Expression: rerr.Definition.Expression,
+					Reason:     rerr.Err.Error(),
+				})
+			}
+		}
+	}
+
+	var policies []*PolicyLoaded
+	for _, policy := range mp {
+		policies = append(policies, policy)
+	}
+
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
 		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
 			Timestamp:       time.Now(),
-			Policies:        rs.ListPolicies(),
+			PoliciesLoaded:  policies,
 			PoliciesIgnored: &PoliciesIgnored{Errors: err},
-			Rules:           &RuleSetLoaded{Rules: rs.GetRules()},
-			Macros:          rs.ListMacroIDs(),
-			RulesIgnored:    &RulesIgnored{Errors: err},
+			MacrosLoaded:    rs.ListMacroIDs(),
 		}.MarshalJSON)
 }
 
