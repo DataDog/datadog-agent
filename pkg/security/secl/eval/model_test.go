@@ -21,7 +21,7 @@ var legacyAttributes = map[Field]Field{
 
 type testItem struct {
 	key   int
-	value int
+	value string
 }
 
 type testProcess struct {
@@ -197,17 +197,20 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.list.key":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
+		return &IntArrayEvaluator{
+			EvalFnc: func(ctx *Context) []int {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				reg := ctx.Registers[regID]
-				if element := (*list.Element)(reg.Value); element != nil {
-					return element.Value.(*testItem).key
+				var result []int
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).key)
+					el = el.Next()
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -215,17 +218,20 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.list.value":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				reg := ctx.Registers[regID]
-				if element := (*list.Element)(reg.Value); element != nil {
-					return element.Value.(*testItem).value
+				var result []string
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).value)
+					el = el.Next()
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -233,14 +239,17 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.array.key":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				reg := ctx.Registers[regID]
-				if item := (*testItem)(reg.Value); item != nil {
-					return item.key
+		return &IntArrayEvaluator{
+			EvalFnc: func(ctx *Context) []int {
+				var result []int
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).key)
+					el = el.Next()
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -248,14 +257,17 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.array.value":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				reg := ctx.Registers[regID]
-				if item := (*testItem)(reg.Value); item != nil {
-					return item.value
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
+				var result []string
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).value)
+					el = el.Next()
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,

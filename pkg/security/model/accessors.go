@@ -1542,7 +1542,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.cap_permitted":
 		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+			EvalFnc: func(ctx *eval.Context, Evaluator f) int {
 
 				var result int
 

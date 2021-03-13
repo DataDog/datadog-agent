@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright "CCC"6-present Datadog, Inc.
 
 package eval
 
@@ -723,32 +723,59 @@ func TestRegister(t *testing.T) {
 	}
 
 	event.process.list = list.New()
-	event.process.list.PushBack(&testItem{key: 10, value: 11})
-	event.process.list.PushBack(&testItem{key: 100, value: 101})
-	event.process.list.PushBack(&testItem{key: 200, value: 201})
+	event.process.list.PushBack(&testItem{key: 10, value: "AA"})
+	event.process.list.PushBack(&testItem{key: 100, value: "BBB"})
+	event.process.list.PushBack(&testItem{key: 200, value: "CCC"})
 
 	event.process.array = []*testItem{
-		{key: 1000, value: 1001},
-		{key: 1002, value: 1003},
+		{key: 1000, value: "EEEE"},
+		{key: 1002, value: "DDDD"},
 	}
 
 	tests := []struct {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Expected: true},
-		{Expr: `process.list[_].key == 9999 && process.list[_].value == 11`, Expected: false},
-		{Expr: `process.list[_].key == 100 && process.list[_].value == 101`, Expected: true},
-		{Expr: `process.list[_].key == 200 && process.list[_].value == 201`, Expected: true},
-		{Expr: `process.list[A].key == 200 && process.list[A].value == 201`, Expected: true},
-		{Expr: `process.list[A].key == 200 && process.list[B].value == 101`, Expected: true},
-		{Expr: `process.list[A].key == 200 || process.list[B].value == 11`, Expected: true},
-		{Expr: `process.list.key == 200 && process.list.value == 11`, Expected: true},
-		{Expr: `process.list[_].key == 10 && process.list.value == 11`, Expected: true},
-		{Expr: `process.array[_].key == 1000 && process.array[_].value == 1001`, Expected: true},
-		{Expr: `process.array[_].key == 1002 && process.array[_].value == 1001`, Expected: false},
-		{Expr: `process.array[A].key == 1002 && process.array[B].value == 1003`, Expected: true},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11 && process.array[A].key == 1002 && process.array[A].value == 1003`, Expected: true},
+		// a in (a b)
+		// a not in (a b c)
+
+		// 1 systemd
+		// 2 bash
+		// 2 bis apache
+		// 3 npm
+		
+		// exec == npm && ancestor != apache
+
+		getOP(field, op, notin) op(value) GetBool bool {
+			for it { 
+			}
+		}
+
+
+		{Expr: `process.list[_].key in 10`, Expected: true},
+		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Expected: true},
+		/*{Expr: `process.list[_].key == 9999 && process.list[_].value == "AA`, Expected: false},
+		{Expr: `process.list[_].key == 100 && process.list[_].value == "BBB"`, Expected: true},
+		{Expr: `process.list[_].key == 200 && process.list[_].value == "CCC"`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[A].value == "CCC"`, Expected: true},
+		{Expr: `process.list[A].key == 200 && process.list[B].value == "BBB"`, Expected: true},
+		{Expr: `process.list[A].key == 200 || process.list[B].value == "AA"`, Expected: true},
+		{Expr: `process.list.key == 200 && process.list.value == "AA"`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list.value == "AA"`, Expected: true},
+		{Expr: `process.array[_].key == 1000 && process.array[_].value == "EEEE"`, Expected: true},
+		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: false},
+		{Expr: `process.array[A].key == 1002 && process.array[B].value == "DDDD"`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AA" && process.array[A].key == 1002 && process.array[A].value == "DDDD"`, Expected: true},
+		
+		{Expr: `9999 in process.list[_].key`, Expected: false},
+		{Expr: `10 not in process.list[_].key`, Expected: false},
+		{Expr: `10 in process.list[_].key`, Expected: true},
+		{Expr: `"AA" in process.list[_].value`, Expected: true},
+		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},
+		
+		{Expr: `1002 in process.list[_].key`, Expected: false},
+		{Expr: `9998 not in process.list[_].key && 9999 not in process.list[_].key`, Expected: true},
+		{Expr: `9998 not in process.list[_].key && 1000 not in process.list[_].key`, Expected: false},*/
 	}
 
 	for _, test := range tests {
@@ -769,13 +796,13 @@ func TestRegisterPartial(t *testing.T) {
 	}
 
 	event.process.list = list.New()
-	event.process.list.PushBack(&testItem{key: 10, value: 11})
-	event.process.list.PushBack(&testItem{key: 100, value: 101})
-	event.process.list.PushBack(&testItem{key: 200, value: 201})
+	event.process.list.PushBack(&testItem{key: 10, value: "AA"})
+	event.process.list.PushBack(&testItem{key: 100, value: "BBB"})
+	event.process.list.PushBack(&testItem{key: 200, value: "CCC"})
 
 	event.process.array = []*testItem{
-		{key: 1000, value: 1001},
-		{key: 1002, value: 1003},
+		{key: 1000, value: "EEEE"},
+		{key: 1002, value: "DDDD"},
 	}
 
 	tests := []struct {
@@ -783,12 +810,12 @@ func TestRegisterPartial(t *testing.T) {
 		Field       Field
 		IsDiscarder bool
 	}{
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: false},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.key", IsDiscarder: true},
-		{Expr: `process.list[_].key == 55 && process.list[_].value == 11`, Field: "process.list.value", IsDiscarder: false},
-		{Expr: `process.list[_].key == 10 && process.list[_].value == 55`, Field: "process.list.value", IsDiscarder: true},
-		{Expr: `process.list[A].key == 10 && process.list[B].value == 55`, Field: "process.list.key", IsDiscarder: false},
-		{Expr: `process.list[A].key == 55 && process.list[B].value == 11`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "ZZZ"`, Field: "process.list.value", IsDiscarder: true},
+		{Expr: `process.list[A].key == 10 && process.list[B].value == "ZZZ"`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[A].key == 55 && process.list[B].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
 	}
 
 	ctx := &Context{}
@@ -826,7 +853,7 @@ func TestOptimizer(t *testing.T) {
 	}
 
 	event.process.list = list.New()
-	event.process.list.PushBack(&testItem{key: 10, value: 11})
+	event.process.list.PushBack(&testItem{key: 10, value: "AA"})
 
 	tests := []struct {
 		Expr      string
