@@ -78,10 +78,10 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 				running++
 			}
 			taskComponent := &containers.SwarmTask{
-				ID: task.ID,
-				Name: task.Name,
-				ContainerImage: task.Spec.ContainerSpec.Image,
-				ContainerSpec: task.Spec.ContainerSpec,
+				ID:              task.ID,
+				Name:            task.Name,
+				ContainerImage:  task.Spec.ContainerSpec.Image,
+				ContainerSpec:   task.Spec.ContainerSpec,
 				ContainerStatus: task.Status.ContainerStatus,
 			}
 			tasksComponents = append(tasksComponents, taskComponent)
@@ -102,8 +102,8 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			Endpoint:       s.Endpoint,
 			UpdateStatus:   s.UpdateStatus,
 			TaskContainers: tasksComponents,
-			DesiredTasks: 	desired,
-			RunningTasks: 	running,
+			DesiredTasks:   desired,
+			RunningTasks:   running,
 		}
 
 		ret = append(ret, service)
@@ -125,5 +125,3 @@ func (d *DockerUtil) getActiveNodes(ctx context.Context) (map[string]struct{}, e
 	}
 	return activeNodes, nil
 }
-
-

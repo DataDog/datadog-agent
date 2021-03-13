@@ -7,10 +7,9 @@ import (
 	"testing"
 )
 
-
 func TestDockerSwarmCheck(t *testing.T) {
 
-	swarmCheck := SwarmFactory().(*SwarmCheck)
+	swarmCheck := SwarmFactory()
 	swarmCheck.Configure(nil, nil)
 
 	// set up the mock batcher

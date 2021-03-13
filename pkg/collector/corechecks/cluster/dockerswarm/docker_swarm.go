@@ -1,4 +1,3 @@
-
 package dockerswarm
 
 import (
@@ -15,22 +14,23 @@ import (
 
 // const for swarm check
 const (
-	SwarmCheckName = "docker_swarm"
+	SwarmCheckName    = "docker_swarm"
 	SwarmServiceCheck = "swarm.service"
 )
+
 // SwarmConfig have boolean flag to collect topology
 type SwarmConfig struct {
 	// sts
-	CollectSwarmTopology     bool `yaml:"collect_swarm_topology"`
+	CollectSwarmTopology bool `yaml:"collect_swarm_topology"`
 }
 
 // SwarmCheck grabs Swarm topology and replica metrics
 type SwarmCheck struct {
 	core.CheckBase
-	instance                    *SwarmConfig
-	dockerHostname              string
+	instance       *SwarmConfig
+	dockerHostname string
 	// sts
-	topologyCollector 			*SwarmTopologyCollector
+	topologyCollector *SwarmTopologyCollector
 }
 
 // Run executes the check

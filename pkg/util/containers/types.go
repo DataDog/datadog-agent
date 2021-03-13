@@ -102,10 +102,9 @@ type SwarmService struct {
 // SwarmTask represents a Swarm TaskContainer definition
 // sts
 type SwarmTask struct {
-	ID             string
-	Name           string
-	ContainerImage string
-	ContainerSpec  swarm.ContainerSpec    `json:",omitempty"`
+	ID              string
+	Name            string
+	ContainerImage  string
+	ContainerSpec   swarm.ContainerSpec   `json:",omitempty"`
 	ContainerStatus swarm.ContainerStatus `json:",omitempty"`
 }
-

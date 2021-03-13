@@ -11,39 +11,39 @@ import (
 
 var (
 	serviceComponent = topology.Component{
-			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-			Type: topology.Type{
+		ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
+		Type: topology.Type{
 			Name: swarmServiceType,
-			},
-			Data: topology.Data{
-				"name": 	swarmService.Name,
-				"image": 	swarmService.ContainerImage,
-				"tags": 	swarmService.Labels,
-				"version": 	swarmService.Version,
-				"created":  swarmService.CreatedAt,
-			},
+		},
+		Data: topology.Data{
+			"name":    swarmService.Name,
+			"image":   swarmService.ContainerImage,
+			"tags":    swarmService.Labels,
+			"version": swarmService.Version,
+			"created": swarmService.CreatedAt,
+		},
 	}
 	containerComponent = topology.Component{
-			ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			Type:       topology.Type{Name: "container"},
-			Data: 		topology.Data{
-				"TaskID": 		swarmService.TaskContainers[0].ID,
-				"name":         swarmService.TaskContainers[0].Name,
-				"image":        swarmService.TaskContainers[0].ContainerImage,
-				"status":     	swarmService.TaskContainers[0].ContainerStatus,
-			},
+		ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+		Type:       topology.Type{Name: "container"},
+		Data: topology.Data{
+			"TaskID": swarmService.TaskContainers[0].ID,
+			"name":   swarmService.TaskContainers[0].Name,
+			"image":  swarmService.TaskContainers[0].ContainerImage,
+			"status": swarmService.TaskContainers[0].ContainerStatus,
+		},
 	}
 	serviceRelation = topology.Relation{
-			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e-urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			SourceID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-			TargetID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			Type: topology.Type{Name: "creates"},
-			Data: topology.Data{},
+		ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e-urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+		SourceID:   "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
+		TargetID:   "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+		Type:       topology.Type{Name: "creates"},
+		Data:       topology.Data{},
 	}
 )
 
 func TestMakeSwarmTopologyCollector(t *testing.T) {
-	st := MakeSwarmTopologyCollector()
+	st := makeSwarmTopologyCollector(&MockSwarmClient{})
 	assert.Equal(t, check.ID("swarm_topology"), st.CheckID)
 	expectedInstance := topology.Instance{
 		Type: "docker-swarm",
@@ -53,7 +53,7 @@ func TestMakeSwarmTopologyCollector(t *testing.T) {
 }
 
 func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
-	st := MakeSwarmTopologyCollector()
+	st := makeSwarmTopologyCollector(&MockSwarmClient{})
 
 	// Setup mock sender
 	sender := mocksender.NewMockSender(st.CheckID)
@@ -67,11 +67,11 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 				Name: swarmServiceType,
 			},
 			Data: topology.Data{
-				"name": swarmService.Name,
-				"image": swarmService.ContainerImage,
-				"tags": swarmService.Labels,
+				"name":    swarmService.Name,
+				"image":   swarmService.ContainerImage,
+				"tags":    swarmService.Labels,
 				"version": swarmService.Version,
-				"created":      swarmService.CreatedAt,
+				"created": swarmService.CreatedAt,
 			},
 		},
 	}
@@ -80,20 +80,20 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 			ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 			Type:       topology.Type{Name: "container"},
 			Data: topology.Data{
-				"TaskID": 		swarmService.TaskContainers[0].ID,
-				"name":         swarmService.TaskContainers[0].Name,
-				"image":        swarmService.TaskContainers[0].ContainerImage,
-				"status":     	swarmService.TaskContainers[0].ContainerStatus,
+				"TaskID": swarmService.TaskContainers[0].ID,
+				"name":   swarmService.TaskContainers[0].Name,
+				"image":  swarmService.TaskContainers[0].ContainerImage,
+				"status": swarmService.TaskContainers[0].ContainerStatus,
 			},
 		},
 	}
 	serviceRelations := []topology.Relation{
 		{
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e-urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			SourceID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-			TargetID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-			Type: topology.Type{Name: "creates"},
-			Data: topology.Data{},
+			SourceID:   "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
+			TargetID:   "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
+			Type:       topology.Type{Name: "creates"},
+			Data:       topology.Data{},
 		},
 	}
 	// append container components to service components
@@ -111,7 +111,7 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 }
 
 func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
-	st := MakeSwarmTopologyCollector()
+	st := makeSwarmTopologyCollector(&MockSwarmClient{})
 	// Setup mock sender
 	sender := mocksender.NewMockSender(st.CheckID)
 	sender.SetupAcceptAll()

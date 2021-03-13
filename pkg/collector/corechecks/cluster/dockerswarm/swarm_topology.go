@@ -19,7 +19,7 @@ import (
 // const for check name and component type
 const (
 	SwarmTopologyCheckName = "swarm_topology"
-	swarmServiceType        = "swarm-service"
+	swarmServiceType       = "swarm-service"
 )
 
 // SwarmTopologyCollector contains the checkID and topology instance for the swarm topology check
@@ -125,11 +125,11 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 				ExternalID: targetExternalID,
 				Type:       topology.Type{Name: "container"},
 				Data: topology.Data{
-					"TaskID": 		taskContainer.ID,
-					"name":         taskContainer.Name,
-					"image":        taskContainer.ContainerImage,
-					"spec":         taskContainer.ContainerSpec,
-					"status":     	taskContainer.ContainerStatus,
+					"TaskID": taskContainer.ID,
+					"name":   taskContainer.Name,
+					"image":  taskContainer.ContainerImage,
+					"spec":   taskContainer.ContainerSpec,
+					"status": taskContainer.ContainerStatus,
 				},
 			}
 			taskContainerComponents = append(taskContainerComponents, taskContainerComponent)
@@ -139,12 +139,11 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 				ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
 				SourceID:   sourceExternalID,
 				TargetID:   targetExternalID,
-				Type: 		topology.Type{Name: "creates"},
-				Data: 		topology.Data{},
+				Type:       topology.Type{Name: "creates"},
+				Data:       topology.Data{},
 			}
 			swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
 		}
-
 
 		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
 		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
