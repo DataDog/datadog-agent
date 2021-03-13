@@ -37,8 +37,8 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 		return nil, fmt.Errorf("error listing swarm services: %s", err)
 	}
 	ret := make([]*containers.SwarmService, 0, len(services))
-	tasksComponents := make([]*containers.SwarmTask, 0)
 	for _, s := range services {
+		tasksComponents := make([]*containers.SwarmTask, 0)
 		activeNodes, err := d.getActiveNodes(ctx)
 		if err != nil {
 			log.Errorf("Error getting active nodes: %s", err)
@@ -84,6 +84,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 				ContainerSpec:   task.Spec.ContainerSpec,
 				ContainerStatus: task.Status.ContainerStatus,
 			}
+			log.Infof("Creating a task %s for service %s", task.Name, s.Spec.Name)
 			tasksComponents = append(tasksComponents, taskComponent)
 		}
 

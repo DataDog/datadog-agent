@@ -144,7 +144,8 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 			}
 			swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
 		}
-
+		log.Infof("Creating a running metric for Service %s with value %f", s.Name, s.RunningTasks)
+		log.Infof("Creating a desired metric for Service %s with value %f", s.Name, s.DesiredTasks)
 		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
 		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
 
