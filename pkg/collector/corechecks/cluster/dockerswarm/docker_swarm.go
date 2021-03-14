@@ -40,11 +40,14 @@ func (s *SwarmCheck) Run() error {
 		return err
 	}
 
+	// try to get the agent hostname to use in the host component
+	hostname, err := util.GetHostname()
+
 	//sts
 	// Collect Swarm topology
 	if s.instance.CollectSwarmTopology {
 		log.Infof("Swarm check is enabled and running it")
-		err := s.topologyCollector.BuildSwarmTopology(sender)
+		err := s.topologyCollector.BuildSwarmTopology(hostname, sender)
 		if err != nil {
 			sender.ServiceCheck(SwarmServiceCheck, metrics.ServiceCheckCritical, "", nil, err.Error())
 			log.Errorf("Could not collect swarm topology: %s", err)

@@ -2,6 +2,7 @@ package dockerswarm
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -14,6 +15,9 @@ func TestDockerSwarmCheck(t *testing.T) {
 
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
+	// set mock hostname
+	testHostname := "mock-host"
+	config.Datadog.Set("hostname", testHostname)
 
 	swarmCheck.Run()
 

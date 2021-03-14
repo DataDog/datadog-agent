@@ -4,6 +4,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -25,12 +26,13 @@ var (
 	}
 	containerComponent = topology.Component{
 		ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-		Type:       topology.Type{Name: "container"},
+		Type:       topology.Type{Name: "docker container"},
 		Data: topology.Data{
 			"TaskID": swarmService.TaskContainers[0].ID,
 			"name":   swarmService.TaskContainers[0].Name,
 			"image":  swarmService.TaskContainers[0].ContainerImage,
 			"status": swarmService.TaskContainers[0].ContainerStatus,
+			"identifiers": "urn:container:/mock-host:a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 		},
 	}
 	serviceRelation = topology.Relation{
@@ -58,8 +60,11 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// Setup mock sender
 	sender := mocksender.NewMockSender(st.CheckID)
 	sender.SetupAcceptAll()
+	// set mock hostname
+	testHostname := "mock-host"
+	config.Datadog.Set("hostname", testHostname)
 
-	comps, relations, err := st.collectSwarmServices(sender)
+	comps, relations, err := st.collectSwarmServices(testHostname, sender)
 	serviceComponents := []topology.Component{
 		{
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
@@ -117,8 +122,11 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 	sender.SetupAcceptAll()
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
+	// set mock hostname
+	testHostname := "mock-host"
+	config.Datadog.Set("hostname", testHostname)
 
-	err := st.BuildSwarmTopology(sender)
+	err := st.BuildSwarmTopology(testHostname, sender)
 	assert.NoError(t, err)
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()

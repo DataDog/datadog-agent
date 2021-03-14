@@ -50,14 +50,14 @@ func makeSwarmTopologyCollector(client SwarmClient) *SwarmTopologyCollector {
 }
 
 // BuildSwarmTopology collects and produces all docker swarm topology
-func (dt *SwarmTopologyCollector) BuildSwarmTopology(metrics aggregator.Sender) error {
+func (dt *SwarmTopologyCollector) BuildSwarmTopology(hostname string, metrics aggregator.Sender) error {
 	sender := batcher.GetBatcher()
 	if sender == nil {
 		return errors.New("no batcher instance available, skipping BuildSwarmTopology")
 	}
 
 	// collect all swarm services as topology components
-	swarmComponents, swarmRelations, err := dt.collectSwarmServices(metrics)
+	swarmComponents, swarmRelations, err := dt.collectSwarmServices(hostname, metrics)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (dt *SwarmTopologyCollector) BuildSwarmTopology(metrics aggregator.Sender) 
 }
 
 // collectSwarmServices collects swarm services from the docker util and produces topology.Component
-func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
+func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender aggregator.Sender) ([]*topology.Component, []*topology.Relation, error) {
 
 	sList, err := dt.swarmClient.ListSwarmServices()
 	if err != nil {
@@ -121,20 +121,24 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 		for _, taskContainer := range s.TaskContainers {
 			// ------------ Create a component structure for Swarm Task Container
 			targetExternalID := fmt.Sprintf("urn:container:/%s", taskContainer.ContainerStatus.ContainerID)
+
+			identifier := fmt.Sprintf("urn:container:/%s:%s", hostname , taskContainer.ContainerStatus.ContainerID)
+			log.Infof("Identifier for the task is %s", identifier)
 			taskContainerComponent := &topology.Component{
 				ExternalID: targetExternalID,
-				Type:       topology.Type{Name: "container"},
+				Type:       topology.Type{Name: "docker container"},
 				Data: topology.Data{
 					"TaskID": taskContainer.ID,
 					"name":   taskContainer.Name,
 					"image":  taskContainer.ContainerImage,
 					"spec":   taskContainer.ContainerSpec,
 					"status": taskContainer.ContainerStatus,
+					"identifiers": []string{identifier},
 				},
 			}
 			taskContainerComponents = append(taskContainerComponents, taskContainerComponent)
 			// ------------ Create a relation structure for Swarm Service and Task Container
-			log.Infof("Creating a relation for service %s with container %s", s.Name, taskContainer.Name)
+			log.Infof("Creating a relation for service %s with container %s", s.Name, taskContainer.ContainerStatus.ContainerID)
 			swarmServiceRelation := &topology.Relation{
 				ExternalID: fmt.Sprintf("%s->%s", sourceExternalID, targetExternalID),
 				SourceID:   sourceExternalID,
@@ -144,8 +148,8 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(sender aggregator.Sender)
 			}
 			swarmServiceRelations = append(swarmServiceRelations, swarmServiceRelation)
 		}
-		log.Infof("Creating a running metric for Service %s with value %f", s.Name, s.RunningTasks)
-		log.Infof("Creating a desired metric for Service %s with value %f", s.Name, s.DesiredTasks)
+		log.Infof("Creating a running metric for Service %s with value %d", s.Name, s.RunningTasks)
+		log.Infof("Creating a desired metric for Service %s with value %d", s.Name, s.DesiredTasks)
 		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
 		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
 
