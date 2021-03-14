@@ -3,6 +3,7 @@ package dockerswarm
 import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,8 @@ func TestDockerSwarmCheck(t *testing.T) {
 	st := makeSwarmTopologyCollector(&MockSwarmClient{})
 
 	swarmCheck := &SwarmCheck{
+		CheckBase: core.NewCheckBase(SwarmCheckName),
+		instance: &SwarmConfig{},
 		topologyCollector: st,
 	}
 	swarmCheck.Configure(nil, nil)
