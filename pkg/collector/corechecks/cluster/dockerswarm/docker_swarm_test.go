@@ -1,6 +1,7 @@
 package dockerswarm
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
@@ -18,6 +19,12 @@ func TestDockerSwarmCheck(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// Setup mock sender
+	sender := mocksender.NewMockSender(swarmCheck.ID())
+	sender.SetupAcceptAll()
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Commit").Return().Times(1)
 
 	swarmCheck.Run()
 
@@ -38,6 +45,7 @@ func TestDockerSwarmCheck(t *testing.T) {
 	}
 
 	assert.Equal(t, expectedTopology, producedTopology)
+	sender.AssertExpectations(t)
 }
 
 //func TestDockerSwarm(t *testing.T) {
