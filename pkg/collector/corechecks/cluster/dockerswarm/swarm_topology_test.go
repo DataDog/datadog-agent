@@ -125,13 +125,12 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 
 	// Setup mock sender
 	sender := mocksender.NewMockSender(st.CheckID)
-	sender.SetupAcceptAll()
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
 
 	comps, relations, err := st.collectSwarmServices(testHostname, sender)
-	serviceComponents := []topology.Component{
+	serviceComponents := []*topology.Component{
 		{
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
 			Type: topology.Type{
@@ -146,7 +145,7 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 			},
 		},
 	}
-	containerComponents := []topology.Component{
+	containerComponents := []*topology.Component{
 		{
 			ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 			Type:       topology.Type{Name: "docker container"},
@@ -158,7 +157,7 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 			},
 		},
 	}
-	serviceRelations := []topology.Relation{
+	serviceRelations := []*topology.Relation{
 		{
 			ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e->urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 			SourceID:   "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
@@ -172,14 +171,15 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// error should be nil
 	assert.Equal(t, err, nil)
 	// components should be serviceComponents
-	assert.Equal(t, &comps, serviceComponents)
+	assert.Equal(t, comps, serviceComponents)
 	// relations should be serviceRelations
-	assert.Equal(t, &relations, serviceRelations)
+	assert.Equal(t, relations, serviceRelations)
 	// check for produced metrics
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
 	sender.AssertExpectations(t)
+	sender.AssertNumberOfCalls(t, "Gauge", 2)
 }
 
 //func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {

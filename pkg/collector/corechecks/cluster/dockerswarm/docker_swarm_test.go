@@ -21,7 +21,6 @@ func TestDockerSwarmCheck(t *testing.T) {
 	config.Datadog.Set("hostname", testHostname)
 	// Setup mock sender
 	sender := mocksender.NewMockSender(swarmCheck.ID())
-	sender.SetupAcceptAll()
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
