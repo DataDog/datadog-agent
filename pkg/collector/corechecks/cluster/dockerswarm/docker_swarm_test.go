@@ -10,8 +10,11 @@ import (
 )
 
 func TestDockerSwarmCheck(t *testing.T) {
+	st := makeSwarmTopologyCollector(&MockSwarmClient{})
 
-	swarmCheck := SwarmFactory()
+	swarmCheck := &SwarmCheck{
+		topologyCollector: st,
+	}
 	swarmCheck.Configure(nil, nil)
 
 	// set up the mock batcher
