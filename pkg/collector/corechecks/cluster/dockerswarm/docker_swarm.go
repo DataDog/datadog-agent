@@ -42,6 +42,9 @@ func (s *SwarmCheck) Run() error {
 
 	// try to get the agent hostname to use in the host component
 	hostname, err := util.GetHostname()
+	if err != nil  {
+		log.Warnf("Can't get hostname for host running the docker-swarm integration: %s", err)
+	}
 
 	//sts
 	// Collect Swarm topology
