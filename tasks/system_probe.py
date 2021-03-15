@@ -207,7 +207,7 @@ def test(
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    cmd = 'go test -mod=mod -tags {bpf_tag} {output_params} {pkgs}'
+    cmd = 'go test -mod=mod -v -tags {bpf_tag} {output_params} {pkgs}'
     if not is_root():
         cmd = 'sudo -E PATH={path} ' + cmd
 
