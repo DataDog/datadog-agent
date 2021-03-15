@@ -118,7 +118,7 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// StringArrayEvaluator returns an of strings as result of the evaluation
+// StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
 	EvalFnc   func(ctx *Context) []string
 	Field     Field
@@ -134,7 +134,7 @@ func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
-// IntArrayEvaluator returns an of strings as result of the evaluation
+// IntArrayEvaluator returns an array of int
 type IntArrayEvaluator struct {
 	EvalFnc   func(ctx *Context) []int
 	Field     Field
@@ -148,6 +148,21 @@ type IntArrayEvaluator struct {
 // Eval returns the result of the evaluation
 func (s *IntArrayEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
+}
+
+// BoolArrayEvaluator returns an array of bool
+type BoolArrayEvaluator struct {
+	EvalFnc func(ctx *Context) []bool
+	Field   Field
+	Values  []bool
+	Weight  int
+
+	isPartial bool
+}
+
+// Eval returns the result of the evaluation
+func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
+	return b.EvalFnc(nil)
 }
 
 // PatternArray represents an array of pattern values
@@ -584,8 +599,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
-			fmt.Printf("OOOOOOOOOOOOOO\n")
-
 			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
 		case obj.Number != nil:
 			return &IntEvaluator{

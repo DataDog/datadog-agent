@@ -736,22 +736,6 @@ func TestRegister(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		// a in (a b)
-		// a not in (a b c)
-
-		// 1 systemd
-		// 2 bash
-		// 2 bis apache
-		// 3 npm
-		
-		// exec == npm && ancestor != apache
-
-		getOP(field, op, notin) op(value) GetBool bool {
-			for it { 
-			}
-		}
-
-
 		{Expr: `process.list[_].key in 10`, Expected: true},
 		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Expected: true},
 		/*{Expr: `process.list[_].key == 9999 && process.list[_].value == "AA`, Expected: false},
@@ -766,13 +750,13 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: false},
 		{Expr: `process.array[A].key == 1002 && process.array[B].value == "DDDD"`, Expected: true},
 		{Expr: `process.list[_].key == 10 && process.list[_].value == "AA" && process.array[A].key == 1002 && process.array[A].value == "DDDD"`, Expected: true},
-		
+
 		{Expr: `9999 in process.list[_].key`, Expected: false},
 		{Expr: `10 not in process.list[_].key`, Expected: false},
 		{Expr: `10 in process.list[_].key`, Expected: true},
 		{Expr: `"AA" in process.list[_].value`, Expected: true},
 		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},
-		
+
 		{Expr: `1002 in process.list[_].key`, Expected: false},
 		{Expr: `9998 not in process.list[_].key && 9999 not in process.list[_].key`, Expected: true},
 		{Expr: `9998 not in process.list[_].key && 1000 not in process.list[_].key`, Expected: false},*/
