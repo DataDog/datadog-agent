@@ -267,8 +267,7 @@ func (m *Module) metricsSender() {
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 			if m.config.RuntimeEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentRuntimeRunning, 1, tags, 1)
-			}
-			if m.config.FIMEnabled {
+			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentFIMRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
