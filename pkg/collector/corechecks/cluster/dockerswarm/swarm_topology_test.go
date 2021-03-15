@@ -25,6 +25,7 @@ var (
 			"spec":    		swarmService.Spec,
 			"endpoint":		swarmService.Endpoint,
 			"updateStatus": swarmService.UpdateStatus,
+			"updated":		swarmService.UpdatedAt,
 		},
 	}
 	containerComponent = topology.Component{
@@ -85,6 +86,7 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 				"spec":    		swarmService.Spec,
 				"endpoint":		swarmService.Endpoint,
 				"updateStatus": swarmService.UpdateStatus,
+				"updated":		swarmService.UpdatedAt,
 			},
 		},
 	}
