@@ -82,17 +82,7 @@ DWORD TargetMachine::DetectMachineType()
     DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE *>(&serverInfo));
     if (status != NERR_Success)
     {
-        /*
-         * If the function fails, the return value can be one of the following error codes.
-         *   - ERROR_ACCESS_DENIED
-         *  The user does not have access to the requested information.
-         *  -  ERROR_INVALID_LEVEL
-         *  The value specified for the level parameter is invalid.
-         *  - ERROR_INVALID_PARAMETER
-         *  The specified parameter is invalid.
-         *  - ERROR_NOT_ENOUGH_MEMORY
-         *  Insufficient memory is available.
-         */
+        // NetServerGetInfo failed. This is most likely due to the Server service not running, which we can safely ignore.
         WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d. Continuing assuming type is SV_TYPE_WORKSTATION. This might not work.", status, GetLastError());
         _serverType = SV_TYPE_WORKSTATION;
         return ERROR_SUCCESS;
