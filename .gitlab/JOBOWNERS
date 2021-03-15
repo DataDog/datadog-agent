@@ -5,7 +5,7 @@ build_libbcc*               @DataDog/networks
 build_clang*                @DataDog/networks
 
 # Source test
-# notifications are handled separately for more fine-grained control on go tests
+# Notifications are handled separately for more fine-grained control on go tests
 tests_*                     @DataDog/multiple
 tests_ebpf                  @DataDog/networks
 
@@ -20,6 +20,11 @@ docker_build*              @DataDog/container-integrations
 # Image scan
 scan_*_docker_hub*          @DataDog/container-integrations
 dca_scan_*_docker_hub*      @DataDog/container-integrations
+
+# Check deploy
+# Do not notify on these jobs, they're expected to fail on duplicate
+# deploy pipelines
+check_already_deployed_version_* @DataDog/do-not-notify
 
 # Image deploy
 dev_*_docker_hub*                  @DataDog/container-integrations

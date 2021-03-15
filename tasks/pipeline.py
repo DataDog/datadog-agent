@@ -177,6 +177,9 @@ def notify_failure(_, notification_type="merge"):
         elif owner == "@DataDog/multiple":
             # Jobs owned by @DataDog/multiple are done separately
             pass
+        elif owner == "@DataDog/do-not-notify":
+            # Jobs owned by @DataDog/do-not-notify do not send team messages
+            pass
         else:
             message = """The owner `{owner}` is not mapped to any slack channel. Please check for typos
 in the JOBOWNERS file and/or add them to the Github <-> Slack map.
