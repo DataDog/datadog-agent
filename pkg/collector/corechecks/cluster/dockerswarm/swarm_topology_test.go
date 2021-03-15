@@ -129,7 +129,10 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
-
+	// check for produced metrics
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Commit").Return().Times(1)
 	comps, relations, err := st.collectSwarmServices(testHostname, sender)
 	serviceComponents := []*topology.Component{
 		{
@@ -176,12 +179,10 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	assert.Equal(t, comps, serviceComponents)
 	// relations should be serviceRelations
 	assert.Equal(t, relations, serviceRelations)
-	// check for produced metrics
-	//sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	//sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	//sender.On("Commit").Return().Times(1)
-	//sender.AssertExpectations(t)
-	//sender.AssertNumberOfCalls(t, "Gauge", 2)
+	// metrics assertion
+	sender.AssertExpectations(t)
+	sender.AssertNumberOfCalls(t, "Gauge", 2)
+
 }
 
 func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
