@@ -561,8 +561,6 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
-	t.connVia(cs)
-
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -717,13 +715,11 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
-			t.connVia(&conn)
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
 				// lookup conntrack in for active
 				conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
-				t.connVia(&conn)
 				active = append(active, conn)
 			}
 		}
@@ -731,6 +727,15 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	if err := entries.Err(); err != nil {
 		return nil, 0, fmt.Errorf("unable to iterate connection map: %s", err)
+	}
+
+	// do gateway resolution only on active connections outside
+	// the map iteration loop to not add to connections while
+	// iterating (leads to ever increasing connections in the map,
+	// since gateway resolution connects to the ec2 metadata
+	// endpoint)
+	for i := range active {
+		t.connVia(&active[i])
 	}
 
 	// Remove expired entries
