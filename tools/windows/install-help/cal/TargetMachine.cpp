@@ -93,8 +93,9 @@ DWORD TargetMachine::DetectMachineType()
          *  - ERROR_NOT_ENOUGH_MEMORY
          *  Insufficient memory is available.
          */
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d", status, GetLastError());
-        return status;
+        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d. Continuing assuming type is SV_TYPE_WORKSTATION. This might not work.", status, GetLastError());
+        _serverType = SV_TYPE_WORKSTATION;
+        return ERROR_SUCCESS;
     }
     _serverType = serverInfo->sv101_type;
     if (SV_TYPE_WORKSTATION & _serverType)
