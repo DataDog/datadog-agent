@@ -332,4 +332,9 @@ static const std::map<DWORD, std::wstring> lmerrors = {
     {623, L"The Windows version of the specified image does not support provisioning."},
     {624, L"The machine name is blocked from joining the domain."},
     {625, L"The domain controller does not meet the version requirement for this operation."},
-    {899, L"This is the last error in NERR range."}};
+    {899, L"This is the last error in NERR range."},
+    {2114, L"The service has not been started."},
+    {2127, L"A remote error occurred with no data returned by the server."},
+    {2138, L"The Workstation service has not been started. The local workstation service is used to communicate with a downlevel remote server."},
+    {2184, L"The service has not been started."},
+};

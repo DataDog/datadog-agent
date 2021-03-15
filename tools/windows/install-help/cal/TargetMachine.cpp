@@ -1,5 +1,6 @@
 #include "TargetMachine.h"
 #include "stdafx.h"
+#include "lmerr_str.h"
 #include <DsGetDC.h>
 
 TargetMachine::TargetMachine()
@@ -83,7 +84,16 @@ DWORD TargetMachine::DetectMachineType()
     if (status != NERR_Success)
     {
         // NetServerGetInfo failed. This is most likely due to the Server service not running, which we can safely ignore.
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d. Continuing assuming type is SV_TYPE_WORKSTATION.", status, GetLastError());
+        const auto lmErrIt = lmerrors.find(status - NERR_BASE);
+        if (lmErrIt != lmerrors.end())
+        {
+            WcaLog(LOGMSG_STANDARD, "NetServerGetInfo error: %d = %S", status , lmErrIt->second.c_str());
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "NetServerGetInfo error: %d", status );
+        }
+        WcaLog(LOGMSG_STANDARD, "Failed to get server info, continuing assuming type is SV_TYPE_WORKSTATION.", status, GetLastError());
         _serverType = SV_TYPE_WORKSTATION;
         return ERROR_SUCCESS;
     }
