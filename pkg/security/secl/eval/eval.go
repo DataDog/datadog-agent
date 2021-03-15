@@ -104,13 +104,16 @@ func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
-	EvalFnc   func(ctx *Context) string
-	Field     Field
-	Value     string
-	Weight    int
-	IsPattern bool
+	EvalFnc func(ctx *Context) string
+	Field   Field
+	Value   string
+	Weight  int
 
+	isPattern bool
 	isPartial bool
+
+	// cache
+	regexp *regexp.Regexp
 }
 
 // Eval returns the result of the evaluation
@@ -120,13 +123,16 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
-	EvalFnc   func(ctx *Context) []string
-	Field     Field
-	Values    []string
-	Weight    int
-	IsPattern bool
+	EvalFnc func(ctx *Context) []string
+	Field   Field
+	Values  []string
+	Weight  int
 
+	isPattern bool
 	isPartial bool
+
+	// cache
+	regexps []*regexp.Regexp
 }
 
 // Eval returns the result of the evaluation
@@ -136,11 +142,10 @@ func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 
 // IntArrayEvaluator returns an array of int
 type IntArrayEvaluator struct {
-	EvalFnc   func(ctx *Context) []int
-	Field     Field
-	Values    []int
-	Weight    int
-	IsPattern bool
+	EvalFnc func(ctx *Context) []int
+	Field   Field
+	Values  []int
+	Weight  int
 
 	isPartial bool
 }
@@ -163,12 +168,6 @@ type BoolArrayEvaluator struct {
 // Eval returns the result of the evaluation
 func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(nil)
-}
-
-// PatternArray represents an array of pattern values
-type PatternArray struct {
-	Values  []string
-	Regexps []*regexp.Regexp
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
@@ -407,15 +406,12 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			case *StringEvaluator:
 				switch next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err := StringArrayContains(unary, next.(*StringArrayEvaluator), *obj.ArrayComparison.Op == "notin", opts, state)
+					boolEvaluator, err := ArrayStringEquals(unary, next.(*StringArrayEvaluator), opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
-					return boolEvaluator, obj.Pos, nil
-				case *PatternArray:
-					boolEvaluator, err := StringArrayMatches(unary, next.(*PatternArray), *obj.ArrayComparison.Op == "notin", opts, state)
-					if err != nil {
-						return nil, pos, err
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
 					}
 					return boolEvaluator, obj.Pos, nil
 				default:
@@ -431,7 +427,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					if *obj.ArrayComparison.Op == "notin" {
 						return Not(boolEvaluator, opts, state), obj.Pos, nil
 					}
-
 					return boolEvaluator, obj.Pos, nil
 				default:
 					return nil, pos, NewTypeError(pos, reflect.Array)
@@ -478,7 +473,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					var eval *BoolEvaluator
 					var err error
 
-					if nextString.IsPattern {
+					if nextString.isPattern {
 						eval, err = StringMatches(unary, nextString, true, opts, state)
 					} else {
 						eval, err = StringNotEquals(unary, nextString, opts, state)
@@ -492,7 +487,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					var eval *BoolEvaluator
 					var err error
 
-					if nextString.IsPattern {
+					if nextString.isPattern {
 						eval, err = StringMatches(unary, nextString, false, opts, state)
 					} else {
 						eval, err = StringEquals(unary, nextString, opts, state)
@@ -703,9 +698,15 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				Value: *obj.String,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
+			reg, err := patternToRegexp(*obj.Pattern)
+			if err != nil {
+				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *obj.Pattern, err))
+			}
+
 			return &StringEvaluator{
 				Value:     *obj.Pattern,
-				IsPattern: true,
+				isPattern: true,
+				regexp:    reg,
 			}, obj.Pos, nil
 		case obj.SubExpression != nil:
 			return nodeToEvaluator(obj.SubExpression, opts, state)
@@ -751,7 +752,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					regs = append(regs, reg)
 				}
-				return &PatternArray{Values: strs, Regexps: regs}, obj.Pos, nil
+				return &StringArrayEvaluator{
+					Values:    strs,
+					regexps:   regs,
+					isPattern: true,
+				}, obj.Pos, nil
 			}
 
 			sort.Strings(strs)

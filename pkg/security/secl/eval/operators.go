@@ -163,17 +163,8 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
-func stringArrayContains(s string, a []string) bool {
-	for _, v := range a {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
-
-// StringArrayContains - "test" in ["...", "..."] operator
-func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+// ArrayStringEquals evaluates array of strings
+func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -188,14 +179,42 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, 
 		isPartialLeaf = true
 	}
 
+	var arrayOp func(a string, b []string) bool
+
+	if a.isPattern {
+		arrayOp = func(as string, bs []string) bool {
+			for _, v := range bs {
+				if a.regexp.MatchString(v) {
+					return true
+				}
+			}
+			return false
+		}
+	} else if b.isPattern {
+		arrayOp = func(as string, bs []string) bool {
+			for _, re := range b.regexps {
+				if re.MatchString(as) {
+					return true
+				}
+			}
+			return false
+		}
+	} else {
+		arrayOp = func(as string, bs []string) bool {
+			for _, v := range bs {
+				if as == v {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !stringArrayContains(ea(ctx), eb(ctx))
-			}
-			return stringArrayContains(ea(ctx), eb(ctx))
+			return arrayOp(ea(ctx), eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -209,7 +228,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, 
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:     stringArrayContains(ea, eb) && !not,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -225,10 +244,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, 
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !stringArrayContains(ea(ctx), eb)
-			}
-			return stringArrayContains(ea(ctx), eb)
+			return arrayOp(ea(ctx), eb)
 		}
 
 		return &BoolEvaluator{
@@ -247,76 +263,12 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, not bool, 
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !stringArrayContains(ea, eb(ctx))
-		}
-		return stringArrayContains(ea, eb(ctx))
+		return arrayOp(ea, eb(ctx))
 	}
 
 	return &BoolEvaluator{
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
-	}, nil
-}
-
-// StringArrayMatches - "test" in [~"...", "..."] operator
-func StringArrayMatches(a *StringEvaluator, b *PatternArray, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	isPartialLeaf := a.isPartial
-	if a.Field != "" && state.field != "" && a.Field != state.field {
-		isPartialLeaf = true
-	}
-
-	if a.Field != "" {
-		for _, value := range b.Values {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if a.EvalFnc != nil {
-		ea := a.EvalFnc
-
-		evalFnc := func(ctx *Context) bool {
-			s := ea(ctx)
-
-			var result bool
-			for _, reg := range b.Regexps {
-				if result = reg.MatchString(s); result {
-					break
-				}
-			}
-
-			if not {
-				return !result
-			}
-			return result
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InPatternArrayWeight*len(b.Values),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	ea := true
-	if !isPartialLeaf {
-		for _, reg := range b.Regexps {
-			if ea = reg.MatchString(a.Value); ea {
-				break
-			}
-		}
-
-		if not {
-			ea = !ea
-		}
-	}
-
-	return &BoolEvaluator{
-		Value:     ea,
-		Weight:    a.Weight + InPatternArrayWeight*len(b.Values),
 		isPartial: isPartialLeaf,
 	}, nil
 }

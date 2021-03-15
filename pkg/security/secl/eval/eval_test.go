@@ -736,7 +736,7 @@ func TestRegister(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.list[_].key == 10`, Expected: true},
+		/*{Expr: `process.list[_].key == 10`, Expected: true},
 		{Expr: `process.list[_].key == 9999`, Expected: false},
 		{Expr: `process.list[_].key != 10`, Expected: false},
 		{Expr: `process.list[_].key != 9999`, Expected: true},
@@ -760,6 +760,19 @@ func TestRegister(t *testing.T) {
 		{Expr: `9999 < process.list[_].key`, Expected: false},
 		{Expr: `10 > process.list[_].key`, Expected: false},
 		{Expr: `9999 > process.list[_].key`, Expected: true},
+
+		{Expr: `"AA" in process.list[_].value`, Expected: true},
+		{Expr: `"ZZZ" in process.list[_].value`, Expected: false},
+		{Expr: `"AA" not in process.list[_].value`, Expected: false},
+		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},*/
+
+		{Expr: `~"A*" in process.list[_].value`, Expected: true},
+		{Expr: `~"ZZ*" in process.list[_].value`, Expected: false},
+		{Expr: `~"A*" not in process.list[_].value`, Expected: false},
+		{Expr: `~"ZZ*" not in process.list[_].value`, Expected: true},
+
+		/*{Expr: `process.list[_].value == "AA"`, Expected: true},
+		{Expr: `process.list[_].value != "ZZZ"`, Expected: true},*/
 
 		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Expected: true},
 		/*{Expr: `process.list[_].key == 9999 && process.list[_].value == "AA`, Expected: false},

@@ -428,16 +428,6 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "StringEquals",
-				Arg1Type:       "StringEvaluator",
-				Arg2Type:       "StringArrayEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             "==",
-				ArrayType:      "string",
-				ValueType:      "ScalarValueType",
-			},
-			{
 				FuncName:       "BoolEquals",
 				Arg1Type:       "BoolEvaluator",
 				Arg2Type:       "BoolArrayEvaluator",
