@@ -83,7 +83,7 @@ DWORD TargetMachine::DetectMachineType()
     if (status != NERR_Success)
     {
         // NetServerGetInfo failed. This is most likely due to the Server service not running, which we can safely ignore.
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d. Continuing assuming type is SV_TYPE_WORKSTATION. This might not work.", status, GetLastError());
+        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d. Continuing assuming type is SV_TYPE_WORKSTATION.", status, GetLastError());
         _serverType = SV_TYPE_WORKSTATION;
         return ERROR_SUCCESS;
     }
