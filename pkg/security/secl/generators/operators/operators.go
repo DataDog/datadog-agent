@@ -179,7 +179,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts *Opts, state *state)(*{{ .FuncReturnType }}, error) {
+func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state)(*{{ .FuncReturnType }}, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -207,9 +207,6 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -223,13 +220,8 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &{{ .FuncReturnType }}{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -245,9 +237,6 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 		}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -267,9 +256,6 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 	}
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -442,16 +428,6 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "IntNotEquals",
-				Arg1Type:       "IntEvaluator",
-				Arg2Type:       "IntArrayEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             "!=",
-				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
-			},
-			{
 				FuncName:       "StringEquals",
 				Arg1Type:       "StringEvaluator",
 				Arg2Type:       "StringArrayEvaluator",
@@ -462,32 +438,12 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, not bool, opts
 				ValueType:      "ScalarValueType",
 			},
 			{
-				FuncName:       "StringNotEquals",
-				Arg1Type:       "StringEvaluator",
-				Arg2Type:       "StringArrayEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             "!=",
-				ArrayType:      "string",
-				ValueType:      "ScalarValueType",
-			},
-			{
 				FuncName:       "BoolEquals",
 				Arg1Type:       "BoolEvaluator",
 				Arg2Type:       "BoolArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             "==",
-				ArrayType:      "bool",
-				ValueType:      "ScalarValueType",
-			},
-			{
-				FuncName:       "BoolNotEquals",
-				Arg1Type:       "BoolEvaluator",
-				Arg2Type:       "BoolArrayEvaluator",
-				FuncReturnType: "BoolEvaluator",
-				EvalReturnType: "bool",
-				Op:             "!=",
 				ArrayType:      "bool",
 				ValueType:      "ScalarValueType",
 			},

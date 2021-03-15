@@ -1287,7 +1287,7 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 	}, nil
 }
 
-func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -1315,9 +1315,6 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts,
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -1331,13 +1328,8 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts,
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -1353,9 +1345,6 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts,
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -1375,9 +1364,6 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts,
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -1388,108 +1374,7 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts,
 	}, nil
 }
 
-func ArrayIntNotEquals(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
-
-	arrayOp := func(a int, b []int) bool {
-		for _, v := range b {
-			if a != v {
-				return true
-			}
-		}
-		return false
-	}
-
-	if a.EvalFnc != nil && b.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.EvalFnc
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
-			return arrayOp(ea(ctx), eb(ctx))
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc == nil && b.EvalFnc == nil {
-		ea, eb := a.Value, b.Values
-
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
-		return &BoolEvaluator{
-			Value:     result,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.Values
-
-		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
-			}
-		}
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
-			return arrayOp(ea(ctx), eb)
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	ea, eb := a.Value, b.EvalFnc
-
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
-		}
-	}
-
-	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
-		return arrayOp(ea, eb(ctx))
-	}
-
-	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
-	}, nil
-}
-
-func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -1517,9 +1402,6 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, op
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -1533,13 +1415,8 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, op
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -1555,9 +1432,6 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, op
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -1577,9 +1451,6 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, op
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -1590,108 +1461,7 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, op
 	}, nil
 }
 
-func ArrayStringNotEquals(a *StringEvaluator, b *StringArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
-
-	arrayOp := func(a string, b []string) bool {
-		for _, v := range b {
-			if a != v {
-				return true
-			}
-		}
-		return false
-	}
-
-	if a.EvalFnc != nil && b.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.EvalFnc
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
-			return arrayOp(ea(ctx), eb(ctx))
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc == nil && b.EvalFnc == nil {
-		ea, eb := a.Value, b.Values
-
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
-		return &BoolEvaluator{
-			Value:     result,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.Values
-
-		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
-			}
-		}
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
-			return arrayOp(ea(ctx), eb)
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	ea, eb := a.Value, b.EvalFnc
-
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
-		}
-	}
-
-	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
-		return arrayOp(ea, eb(ctx))
-	}
-
-	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
-	}, nil
-}
-
-func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -1719,9 +1489,6 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Op
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -1735,13 +1502,8 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Op
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -1757,9 +1519,6 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Op
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -1779,9 +1538,6 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Op
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -1792,108 +1548,7 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Op
 	}, nil
 }
 
-func ArrayBoolNotEquals(a *BoolEvaluator, b *BoolArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
-
-	arrayOp := func(a bool, b []bool) bool {
-		for _, v := range b {
-			if a != v {
-				return true
-			}
-		}
-		return false
-	}
-
-	if a.EvalFnc != nil && b.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.EvalFnc
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
-			return arrayOp(ea(ctx), eb(ctx))
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + b.Weight,
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc == nil && b.EvalFnc == nil {
-		ea, eb := a.Value, b.Values
-
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
-		return &BoolEvaluator{
-			Value:     result,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	if a.EvalFnc != nil {
-		ea, eb := a.EvalFnc, b.Values
-
-		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
-			}
-		}
-
-		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
-			return arrayOp(ea(ctx), eb)
-		}
-
-		return &BoolEvaluator{
-			EvalFnc:   evalFnc,
-			Weight:    a.Weight + InArrayWeight*len(eb),
-			isPartial: isPartialLeaf,
-		}, nil
-	}
-
-	ea, eb := a.Value, b.EvalFnc
-
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
-		}
-	}
-
-	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
-		return arrayOp(ea, eb(ctx))
-	}
-
-	return &BoolEvaluator{
-		EvalFnc:   evalFnc,
-		Weight:    b.Weight,
-		isPartial: isPartialLeaf,
-	}, nil
-}
-
-func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -1921,9 +1576,6 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opt
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -1937,13 +1589,8 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opt
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -1959,9 +1606,6 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opt
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -1981,9 +1625,6 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opt
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -1994,7 +1635,7 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opt
 	}, nil
 }
 
-func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -2022,9 +1663,6 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, op
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -2038,13 +1676,8 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, op
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -2060,9 +1693,6 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, op
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -2082,9 +1712,6 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, op
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -2095,7 +1722,7 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, op
 	}, nil
 }
 
-func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -2123,9 +1750,6 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -2139,13 +1763,8 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -2161,9 +1780,6 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -2183,9 +1799,6 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 
@@ -2196,7 +1809,7 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts
 	}, nil
 }
 
-func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
+func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -2224,9 +1837,6 @@ func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opt
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb(ctx))
-			}
 			return arrayOp(ea(ctx), eb(ctx))
 		}
 
@@ -2240,13 +1850,8 @@ func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opt
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
-		result := arrayOp(ea, eb)
-		if not {
-			result = !result
-		}
-
 		return &BoolEvaluator{
-			Value:     result,
+			Value:     arrayOp(ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isPartial: isPartialLeaf,
 		}, nil
@@ -2262,9 +1867,6 @@ func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opt
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			if not {
-				return !arrayOp(ea(ctx), eb)
-			}
 			return arrayOp(ea(ctx), eb)
 		}
 
@@ -2284,9 +1886,6 @@ func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, not bool, opt
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		if not {
-			return !arrayOp(ea, eb(ctx))
-		}
 		return arrayOp(ea, eb(ctx))
 	}
 

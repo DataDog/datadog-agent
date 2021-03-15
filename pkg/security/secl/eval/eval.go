@@ -424,10 +424,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			case *IntEvaluator:
 				switch next.(type) {
 				case *IntArrayEvaluator:
-					boolEvaluator, err := IntArrayContains(unary, next.(*IntArrayEvaluator), *obj.ArrayComparison.Op == "notin", opts, state)
+					boolEvaluator, err := ArrayIntEquals(unary, next.(*IntArrayEvaluator), opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+
 					return boolEvaluator, obj.Pos, nil
 				default:
 					return nil, pos, NewTypeError(pos, reflect.Array)
@@ -507,6 +511,96 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *IntEvaluator:
+				switch next.(type) {
+				case *IntEvaluator:
+					nextInt := next.(*IntEvaluator)
+
+					switch *obj.ScalarComparison.Op {
+					case "<":
+						boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "<=":
+						boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">":
+						boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">=":
+						boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "!=":
+						boolEvaluator, err := IntNotEquals(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "==":
+						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					default:
+						return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+					}
+				case *IntArrayEvaluator:
+					nextInt := next.(*IntArrayEvaluator)
+
+					switch *obj.ScalarComparison.Op {
+					case "<":
+						boolEvaluator, err := ArrayLesserThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "<=":
+						boolEvaluator, err := ArrayLesserOrEqualThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">":
+						boolEvaluator, err := ArrayGreaterThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">=":
+						boolEvaluator, err := ArrayGreaterOrEqualThan(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "!=":
+						boolEvaluator, err := ArrayIntEquals(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					case "==":
+						boolEvaluator, err := ArrayIntEquals(unary, nextInt, opts, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					default:
+						return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+					}
+				}
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			case *IntArrayEvaluator:
 				nextInt, ok := next.(*IntEvaluator)
 				if !ok {
 					return nil, pos, NewTypeError(pos, reflect.Int)
@@ -514,37 +608,37 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "<":
-					boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayGreaterThan(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "<=":
-					boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayGreaterOrEqualThan(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case ">":
-					boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayLesserThan(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case ">=":
-					boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayLesserOrEqualThan(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "!=":
-					boolEvaluator, err := IntNotEquals(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayIntEquals(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
-					return boolEvaluator, obj.Pos, nil
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+					boolEvaluator, err := ArrayIntEquals(nextInt, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
