@@ -27,73 +27,6 @@ var (
 			"updateStatus": swarmService.UpdateStatus,
 		},
 	}
-	//serviceComponent1 = topology.Component{
-	//	ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-	//	Type: topology.Type{
-	//		Name: swarmServiceType,
-	//	},
-	//	Data: topology.Data{
-	//		"image":"stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
-	//		"version":0x88,
-	//		"spec":swarm.ServiceSpec{
-	//			Annotations:swarm.Annotations{
-	//				Name:"",
-	//				Labels:map[string]string(nil),
-	//			},
-	//			TaskTemplate:swarm.TaskSpec{
-	//				ContainerSpec:swarm.ContainerSpec{
-	//					Image:"",
-	//					Labels:map[string]string(nil),
-	//					Command:[]string(nil),
-	//					Args:[]string(nil),
-	//					Hostname:"",
-	//					Env:[]string(nil),
-	//					Dir:"",
-	//					User:"",
-	//					Groups:[]string(nil),
-	//					TTY:false,
-	//					OpenStdin:false,
-	//					Mounts:[]mount.Mount(nil),
-	//					StopGracePeriod:(*time.Duration)(nil),
-	//					Healthcheck:(*container.HealthConfig)(nil),
-	//					Hosts:[]string(nil),
-	//					DNSConfig:(*swarm.DNSConfig)(nil),
-	//					Secrets:[]*swarm.SecretReference(nil),
-	//				},
-	//				Resources:(*swarm.ResourceRequirements)(nil),
-	//				RestartPolicy:(*swarm.RestartPolicy)(nil),
-	//				Placement:(*swarm.Placement)(nil),
-	//				Networks:[]swarm.NetworkAttachmentConfig(nil),
-	//				LogDriver:(*swarm.Driver)(nil),
-	//				ForceUpdate:0x0,
-	//			},
-	//			Mode:swarm.ServiceMode{
-	//				Replicated:(*swarm.ReplicatedService)(nil),
-	//				Global:(*swarm.GlobalService)(nil),
-	//			},
-	//			UpdateConfig:(*swarm.UpdateConfig)(nil),
-	//			Networks:[]swarm.NetworkAttachmentConfig(nil),
-	//			EndpointSpec:(*swarm.EndpointSpec)(nil),
-	//		},
-	//		"endpoint":swarm.Endpoint{
-	//			Spec:swarm.EndpointSpec{
-	//				Mode:"",
-	//				Ports:[]swarm.PortConfig(nil),
-	//			},
-	//			Ports:[]swarm.PortConfig(nil),
-	//			VirtualIPs:[]swarm.EndpointVirtualIP(nil),
-	//		},
-	//		"name":"agent_stackstate-agent",
-	//		"tags":map[string]string{
-	//			"com.docker.stack.image":"docker.io/stackstate/stackstate-agent-2-test:stac-12057-swarm-topology",
-	//			"com.docker.stack.namespace":"agent",
-	//		},
-	//		"updateStatus":swarm.UpdateStatus{
-	//			State:"",
-	//			Message:"",
-	//		},
-	//	},
-	//}
 	containerComponent = topology.Component{
 		ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 		Type:       topology.Type{Name: "docker container"},
@@ -201,6 +134,9 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// check for produced metrics
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 
 	err := st.BuildSwarmTopology(testHostname, sender)
 	assert.NoError(t, err)
@@ -221,4 +157,7 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 		},
 	}
 	assert.EqualValues(t, producedTopology, expectedTopology)
+	// metrics assertion
+	sender.AssertExpectations(t)
+	sender.AssertNumberOfCalls(t, "Gauge", 2)
 }

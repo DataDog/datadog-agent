@@ -14,7 +14,7 @@ var swarmService = containers.SwarmService{
 		"com.docker.stack.image":     "docker.io/stackstate/stackstate-agent-2-test:stac-12057-swarm-topology",
 		"com.docker.stack.namespace": "agent",
 	},
-	Version:   swarm.Version{Index: uint64(136)},
+	Version:   swarm.Version{Index: 136},
 	CreatedAt: time.Date(2021, time.March, 10, 23, 0, 0, 0, time.UTC),
 	UpdatedAt: time.Date(2021, time.March, 10, 45, 0, 0, 0, time.UTC),
 	TaskContainers: []*containers.SwarmTask{
