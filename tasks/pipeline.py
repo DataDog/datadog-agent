@@ -1,15 +1,19 @@
 import os
 import re
+from collections import defaultdict
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.gitlab import Gitlab
 from .libs.pipeline_notifications import (
+    base_message,
     find_job_owners,
     get_failed_jobs,
+    get_failed_tests,
     prepare_global_failure_message,
     prepare_team_failure_message,
+    prepare_test_failure_section,
     send_slack_message,
 )
 from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
@@ -146,6 +150,12 @@ GITHUB_SLACK_MAP = {
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
     "@DataDog/networks": "#networks",
     "@DataDog/agent-security": "#security-and-compliance-agent",
+    "@DataDog/agent-apm": "#apm-agent",
+    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
+    "@DataDog/processes": "#processes",
+    "@DataDog/agent-core": "#agent-core",
+    "@DataDog/container-app": "#container-app",
+    "@Datadog/metrics-aggregation": "#metrics-aggregation",
 }
 
 
@@ -160,7 +170,8 @@ def notify_failure(_, notification_type="merge"):
     elif notification_type == "deploy":
         header = ":host-red: :rocket: datadog-agent deploy"
 
-    failed_jobs = get_failed_jobs("DataDog/datadog-agent", os.getenv("CI_PIPELINE_ID"))
+    project_name = "DataDog/datadog-agent"
+    failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
 
     # Take care of the global message that goes in the common channel
     message = prepare_global_failure_message(header, failed_jobs)
@@ -175,8 +186,20 @@ def notify_failure(_, notification_type="merge"):
             message = prepare_team_failure_message(header, jobs)
             messages_to_send[GITHUB_SLACK_MAP[owner]] = message
         elif owner == "@DataDog/multiple":
-            # Jobs owned by @DataDog/multiple are done separately
-            pass
+            # Create map from owners to map from tests to jobs
+            owners_to_failed_tests = defaultdict(lambda: defaultdict(list))
+            for job in jobs:
+                for test in get_failed_tests(project_name, job):
+                    for owner in test.owners:
+                        owners_to_failed_tests[owner][test].append(job)
+
+            # Concat owners existing message with failed unit test message
+            for owner, failed_tests in owners_to_failed_tests.items():
+                slack_owner = GITHUB_SLACK_MAP[owner]
+                if slack_owner not in messages_to_send:
+                    messages_to_send[slack_owner] = base_message(header)
+
+                messages_to_send[slack_owner] += prepare_test_failure_section(failed_tests)
         elif owner == "@DataDog/do-not-notify":
             # Jobs owned by @DataDog/do-not-notify do not send team messages
             pass
@@ -191,7 +214,6 @@ Jobs they own:""".format(
                     url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
                 )
 
-        # TODO: logic to add messages for failed unit tests to the initial message here
         for owner, message in messages_to_send.items():
             message += "\n(Test message, the real message would be sent to {})".format(owner)
             send_slack_message("#agent-pipeline-notifications", message)

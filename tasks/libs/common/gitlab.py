@@ -97,6 +97,12 @@ class Gitlab(object):
         path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
         return self.make_request(path, json=True)
 
+    def artifact(self, project_name, job_id):
+        from urllib.parse import quote
+
+        path = "/projects/{}/jobs/{}/artifacts/test_output.json".format(quote(project_name, safe=""), job_id)
+        return self.make_request(path)
+
     def all_jobs(self, project_name, pipeline_id):
         """
         Gets all the jobs for a pipeline.
@@ -106,7 +112,7 @@ class Gitlab(object):
 
         # Go through all pages
         results = self.jobs(project_name, pipeline_id, page)
-        while len(results) != 0:
+        while results:
             jobs.extend(results)
             page += 1
             results = self.jobs(project_name, pipeline_id, page)

@@ -55,6 +55,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
+    json=None,
     go_mod="mod",
 ):
     """
@@ -195,7 +196,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go run gotest.tools/gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -209,6 +210,7 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
+        "json_flag": '--jsonfile "{}" '.format(json) if json else "",
     }
 
     for module in modules:
