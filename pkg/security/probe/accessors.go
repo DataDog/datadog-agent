@@ -20,12 +20,6 @@ var (
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 
-	case "exec.args":
-		return &model.ExecArgsIterator{}, nil
-
-	case "exec.envs":
-		return &model.ExecEnvsIterator{}, nil
-
 	case "process.ancestors":
 		return &model.ProcessAncestorsIterator{}, nil
 
@@ -484,24 +478,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				var result string
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-
-					elementPtr := (*string)(reg.Value)
-					element := *elementPtr
-
-					result = element
-
-				}
-
-				return result
+				return (*Event)(ctx.Object).ResolveExecArgs(&(*Event)(ctx.Object).Exec)
 
 			},
 			Field: field,
 
-			Weight: eval.IteratorWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.args_truncated":
@@ -592,24 +574,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				var result string
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-
-					elementPtr := (*string)(reg.Value)
-					element := *elementPtr
-
-					result = element
-
-				}
-
-				return result
+				return (*Event)(ctx.Object).ResolveExecEnvs(&(*Event)(ctx.Object).Exec)
 
 			},
 			Field: field,
 
-			Weight: eval.IteratorWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.envs_truncated":
@@ -4659,27 +4629,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.args":
 
-		var values []string
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &model.ExecArgsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			elementPtr := (*string)(ptr)
-			element := *elementPtr
-
-			result := element
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
+		return e.ResolveExecArgs(&e.Exec), nil
 
 	case "exec.args_truncated":
 
@@ -4711,27 +4661,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.envs":
 
-		var values []string
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &model.ExecEnvsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			elementPtr := (*string)(ptr)
-			element := *elementPtr
-
-			result := element
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
+		return e.ResolveExecEnvs(&e.Exec), nil
 
 	case "exec.envs_truncated":
 
@@ -8741,7 +8671,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Args"}
 		}
-		e.Exec.Args = append(e.Exec.Args, str)
+		e.Exec.Args = str
 
 		return nil
 
@@ -8822,7 +8752,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Envs"}
 		}
-		e.Exec.Envs = append(e.Exec.Envs, str)
+		e.Exec.Envs = str
 
 		return nil
 

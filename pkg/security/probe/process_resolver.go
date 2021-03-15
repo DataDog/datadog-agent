@@ -446,9 +446,9 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Args = entry.Values
+		pce.ArgsArray = entry.Values
 		if pce.ArgsTruncated {
-			pce.Args = append(pce.Args, "...")
+			pce.ArgsArray = append(pce.ArgsArray, "...")
 		}
 		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
 	}
@@ -459,9 +459,9 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Envs = entry.Values
+		pce.EnvsArray = entry.Values
 		if pce.EnvsTruncated {
-			pce.Envs = append(pce.Envs, "...")
+			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
 		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
 	}
