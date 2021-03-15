@@ -64,7 +64,7 @@ def read_owners(owners_file):
         return CodeOwners(f.read())
 
 
-def get_failed_tests(project_name, job, owners_file=".gitlab/CODEOWNERS"):
+def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     gitlab = Gitlab()
     owners = read_owners(owners_file)
     test_output = gitlab.artifact(project_name, job["id"])
