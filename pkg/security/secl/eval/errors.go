@@ -13,6 +13,15 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
+// ErrNonStaticPattern when pattern operator is used on a non static value
+type ErrNonStaticPattern struct {
+	Field Field
+}
+
+func (e ErrNonStaticPattern) Error() string {
+	return fmt.Sprintf("unable to apply pattern on non static value `%s`", e.Field)
+}
+
 // ErrInvalidPattern is returned for an invalid regular expression
 type ErrInvalidPattern struct {
 	Pattern string

@@ -5,10 +5,6 @@
 
 package eval
 
-import (
-	"github.com/pkg/errors"
-)
-
 // IntNot - ^int operator
 func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	isPartialLeaf := a.isPartial
@@ -37,61 +33,103 @@ func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
-// StringMatches - String pattern matching operator
-func StringMatches(a *StringEvaluator, b *StringEvaluator, not bool, opts *Opts, state *state) (*BoolEvaluator, error) {
-	re, err := patternToRegexp(b.Value)
-	if err != nil {
-		return nil, err
-	}
+// StringEquals evaluates string
+func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
 
-	if b.EvalFnc != nil {
-		return nil, errors.New("regex has to be a scalar string")
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
 	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
 
-	isPartialLeaf := a.isPartial
-	if a.Field != "" && state.field != "" && a.Field != state.field {
+	if a.Field != "" && b.Field != "" {
 		isPartialLeaf = true
 	}
 
-	if a.Field != "" {
-		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: PatternValueType, Regex: re}); err != nil {
-			return nil, err
+	var arrayOp func(a string, b string) bool
+
+	if a.isPattern {
+		arrayOp = func(as string, bs string) bool {
+			if a.regexp.MatchString(bs) {
+				return true
+			}
+			return false
+		}
+	} else if b.isPattern {
+		arrayOp = func(as string, bs string) bool {
+			if b.regexp.MatchString(as) {
+				return true
+			}
+			return false
+		}
+	} else {
+		arrayOp = func(as string, bs string) bool {
+			return as == bs
 		}
 	}
 
-	if a.EvalFnc != nil {
-		ea := a.EvalFnc
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			result := re.MatchString(ea(ctx))
-			if not {
-				return !result
-			}
-			return result
+			return arrayOp(ea(ctx), eb(ctx))
 		}
 
 		return &BoolEvaluator{
 			EvalFnc:   evalFnc,
-			Weight:    a.Weight + PatternWeight,
+			Weight:    a.Weight + b.Weight,
 			isPartial: isPartialLeaf,
 		}, nil
 	}
 
-	ea := true
-	if !isPartialLeaf {
-		ea = re.MatchString(a.Value)
-		if not {
-			return &BoolEvaluator{
-				Value:     !ea,
-				Weight:    a.Weight + PatternWeight,
-				isPartial: isPartialLeaf,
-			}, nil
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:     arrayOp(ea, eb),
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		if a.Field != "" {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
 		}
 	}
 
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
 	return &BoolEvaluator{
-		Value:     ea,
-		Weight:    a.Weight + PatternWeight,
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
 		isPartial: isPartialLeaf,
 	}, nil
 }

@@ -294,8 +294,6 @@ func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.
 
 	state.UpdateFields(field)
 
-	fmt.Printf("PPPPPPPPPPPPP: %v\n", accessor)
-
 	return accessor, obj.Pos, nil
 }
 
@@ -449,11 +447,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err := BoolNotEquals(unary, nextBool, opts, state)
+					boolEvaluator, err := BoolEquals(unary, nextBool, opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
-					return boolEvaluator, obj.Pos, nil
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
 					boolEvaluator, err := BoolEquals(unary, nextBool, opts, state)
 					if err != nil {
@@ -469,42 +467,73 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				}
 
 				switch *obj.ScalarComparison.Op {
-				case "!=":
-					var eval *BoolEvaluator
-					var err error
-
-					if nextString.isPattern {
-						eval, err = StringMatches(unary, nextString, true, opts, state)
-					} else {
-						eval, err = StringNotEquals(unary, nextString, opts, state)
-					}
-
+				case "!=", "!~":
+					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
-						return nil, pos, err
+						return nil, obj.Pos, err
 					}
-					return eval, pos, nil
-				case "==":
-					var eval *BoolEvaluator
-					var err error
-
-					if nextString.isPattern {
-						eval, err = StringMatches(unary, nextString, false, opts, state)
-					} else {
-						eval, err = StringEquals(unary, nextString, opts, state)
-					}
-
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
+				case "==", "=~":
+					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
-						return nil, pos, err
+						return nil, obj.Pos, err
 					}
-					return eval, pos, nil
-				case "=~", "!~":
-					eval, err := StringMatches(unary, nextString, *obj.ScalarComparison.Op == "!~", opts, state)
-					if err != nil {
-						return nil, pos, NewOpError(obj.Pos, *obj.ScalarComparison.Op, err)
-					}
-					return eval, obj.Pos, nil
+					return boolEvaluator, obj.Pos, nil
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+			case *StringArrayEvaluator:
+				nextString := next.(*StringEvaluator)
+
+				switch *obj.ScalarComparison.Op {
+				case "!=":
+					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
+				case "==":
+					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				case "!~":
+					// consider the value as regexp
+					if nextString.EvalFnc != nil {
+						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
+					}
+					nextString.isPattern = true
+					nextString.regexp = reg
+
+					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
+				case "=~":
+					// consider the value as regexp
+					if nextString.EvalFnc != nil {
+						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
+					}
+					nextString.isPattern = true
+					nextString.regexp = reg
+
+					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				}
 			case *IntEvaluator:
 				switch next.(type) {
 				case *IntEvaluator:
@@ -536,11 +565,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 						}
 						return boolEvaluator, obj.Pos, nil
 					case "!=":
-						boolEvaluator, err := IntNotEquals(unary, nextInt, opts, state)
+						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
 						if err != nil {
 							return nil, obj.Pos, err
 						}
-						return boolEvaluator, obj.Pos, nil
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
 					case "==":
 						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
 						if err != nil {

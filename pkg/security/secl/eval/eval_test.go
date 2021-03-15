@@ -764,12 +764,24 @@ func TestRegister(t *testing.T) {
 		{Expr: `"AA" in process.list[_].value`, Expected: true},
 		{Expr: `"ZZZ" in process.list[_].value`, Expected: false},
 		{Expr: `"AA" not in process.list[_].value`, Expected: false},
-		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},*/
+		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},
 
 		{Expr: `~"A*" in process.list[_].value`, Expected: true},
 		{Expr: `~"ZZ*" in process.list[_].value`, Expected: false},
 		{Expr: `~"A*" not in process.list[_].value`, Expected: false},
 		{Expr: `~"ZZ*" not in process.list[_].value`, Expected: true},
+
+		{Expr: `process.list[_].value == ~"A*"`, Expected: true},
+		{Expr: `process.list[_].value == ~"ZZ*"`, Expected: false},
+		{Expr: `process.list[_].value != ~"A*"`, Expected: false},
+		{Expr: `process.list[_].value != ~"ZZ*"`, Expected: true},
+
+		{Expr: `process.list[_].value =~ "A*"`, Expected: true},
+		{Expr: `process.list[_].value =~ "ZZ*"`, Expected: false},
+		{Expr: `process.list[_].value !~ "A*"`, Expected: false},
+		{Expr: `process.list[_].value !~ "ZZ*"`, Expected: true},*/
+
+		{Expr: `process.list[_].value in [~"ZZ*"]`, Expected: true},
 
 		/*{Expr: `process.list[_].value == "AA"`, Expected: true},
 		{Expr: `process.list[_].value != "ZZZ"`, Expected: true},*/
