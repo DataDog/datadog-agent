@@ -17,11 +17,14 @@ var (
 			Name: swarmServiceType,
 		},
 		Data: topology.Data{
-			"name":    swarmService.Name,
-			"image":   swarmService.ContainerImage,
-			"tags":    swarmService.Labels,
-			"version": swarmService.Version,
-			"created": swarmService.CreatedAt,
+			"name":    		swarmService.Name,
+			"image":   		swarmService.ContainerImage,
+			"tags":    		swarmService.Labels,
+			"version": 		swarmService.Version,
+			"created": 		swarmService.CreatedAt,
+			"spec":    		swarmService.Spec,
+			"endpoint":		swarmService.Endpoint,
+			"updateStatus": swarmService.UpdateStatus,
 		},
 	}
 	//serviceComponent1 = topology.Component{
@@ -99,6 +102,7 @@ var (
 			"name":   swarmService.TaskContainers[0].Name,
 			"image":  swarmService.TaskContainers[0].ContainerImage,
 			"status": swarmService.TaskContainers[0].ContainerStatus,
+			"spec":	  swarmService.TaskContainers[0].ContainerSpec,
 			"identifiers": []string{"urn:container:/mock-host:a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406"},
 		},
 	}
@@ -132,7 +136,6 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// check for produced metrics
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	sender.On("Commit").Return().Times(1)
 	comps, relations, err := st.collectSwarmServices(testHostname, sender)
 	serviceComponents := []*topology.Component{
 		{
@@ -146,6 +149,9 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 				"tags":    swarmService.Labels,
 				"version": swarmService.Version,
 				"created": swarmService.CreatedAt,
+				"spec":    		swarmService.Spec,
+				"endpoint":		swarmService.Endpoint,
+				"updateStatus": swarmService.UpdateStatus,
 			},
 		},
 	}
@@ -158,6 +164,7 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 				"name":   swarmService.TaskContainers[0].Name,
 				"image":  swarmService.TaskContainers[0].ContainerImage,
 				"status": swarmService.TaskContainers[0].ContainerStatus,
+				"spec":	  swarmService.TaskContainers[0].ContainerSpec,
 				"identifiers": []string{"urn:container:/mock-host:a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406"},
 			},
 		},
@@ -176,9 +183,9 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// error should be nil
 	assert.Equal(t, err, nil)
 	// components should be serviceComponents
-	assert.Equal(t, comps, serviceComponents)
+	assert.EqualValues(t, comps, serviceComponents)
 	// relations should be serviceRelations
-	assert.Equal(t, relations, serviceRelations)
+	assert.EqualValues(t, relations, serviceRelations)
 	// metrics assertion
 	sender.AssertExpectations(t)
 	sender.AssertNumberOfCalls(t, "Gauge", 2)
@@ -199,22 +206,19 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 	assert.NoError(t, err)
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	//expectedTopology := batcher.Topologies{
-	//	"swarm_topology": {
-	//		StartSnapshot: false,
-	//		StopSnapshot:  false,
-	//		Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
-	//		Components: []topology.Component{
-	//			serviceComponent,
-	//			containerComponent,
-	//		},
-	//		Relations: []topology.Relation{
-	//			serviceRelation,
-	//		},
-	//	},
-	//}
-
-
-	assert.Equal(t, producedTopology, 1)
-
+	expectedTopology := batcher.Topologies{
+		"swarm_topology": {
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
+			Components: []topology.Component{
+				serviceComponent,
+				containerComponent,
+			},
+			Relations: []topology.Relation{
+				serviceRelation,
+			},
+		},
+	}
+	assert.EqualValues(t, producedTopology, expectedTopology)
 }
