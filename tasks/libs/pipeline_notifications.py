@@ -1,7 +1,7 @@
+import json
 import os
 import subprocess
 from collections import defaultdict
-from pprint import pprint
 
 from .common.gitlab import Gitlab
 
@@ -29,6 +29,7 @@ def get_failed_jobs(project_name, pipeline_id):
         # Check the final job in the list: it contains the current status of the job
         final_status = {
             "name": job_name,
+            "id": jobs[-1]["id"],
             "stage": jobs[-1]["stage"],
             "status": jobs[-1]["status"],
             "allow_failure": jobs[-1]["allow_failure"],
@@ -37,17 +38,49 @@ def get_failed_jobs(project_name, pipeline_id):
         }
         final_failed_jobs.append(final_status)
 
-    pprint(final_failed_jobs)
-
     return final_failed_jobs
 
 
-def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
+class Test:
+    PACKAGE_PREFIX = "github.com/DataDog/datadog-agent/"
+
+    def __init__(self, owners, name, package):
+        self.name = name
+        self.package = self.__removeprefix(package)
+        self.owners = self.__get_owners(owners, package)
+
+    def __removeprefix(self, package):
+        return package[len(self.PACKAGE_PREFIX) :]
+
+    def __get_owners(self, OWNERS, package):
+        owners = OWNERS.of(self.__removeprefix(package))
+        return [name for (kind, name) in owners if kind == "TEAM"]
+
+
+def read_owners(owners_file):
     from codeowners import CodeOwners
 
     with open(owners_file, 'r') as f:
-        owners = CodeOwners(f.read())
+        return CodeOwners(f.read())
 
+
+def get_failed_tests(project_name, job, owners_file=".gitlab/CODEOWNERS"):
+    gitlab = Gitlab()
+    owners = read_owners(owners_file)
+    test_output = gitlab.artifact(project_name, job["id"])
+    for line in test_output.splitlines():
+        try:
+            json_test = json.loads(line)
+            if "message" in json_test:
+                continue  # Failed request
+            if 'Test' in json_test and json_test["Action"] == "fail":
+                yield Test(owners, json_test['Test'], json_test['Package'])
+        except Exception as e:
+            print("WARN: parsing '{}' failed: {}".format(line, e))
+
+
+def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
+    owners = read_owners(owners_file)
     owners_to_notify = defaultdict(list)
 
     for job in failed_jobs:
@@ -105,6 +138,20 @@ def prepare_team_failure_message(header, failed_jobs):
         )
 
     return message
+
+
+def prepare_test_failure_section(failed_tests):
+    # failed_tests : dict[Test, list[Job]]
+
+    section = "\nFailed unit tests you own:"
+    for test, jobs in failed_tests:
+        MAX_SHOW = 2
+        job_list = ", ".join("<{}|{}>".format(job["url"], job["name"]) for job in jobs[:MAX_SHOW])
+        if len(jobs) > MAX_SHOW:
+            job_list += "and {} more".format(len(jobs) - MAX_SHOW)
+        section += "\n - `{}` from package `{}`(in {})".format(test.name, test.package, job_list)
+
+    return section
 
 
 def get_git_author():
