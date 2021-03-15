@@ -200,6 +200,9 @@ def notify_failure(_, notification_type="merge"):
                     messages_to_send[slack_owner] = base_message(header)
 
                 messages_to_send[slack_owner] += prepare_test_failure_section(failed_tests)
+        elif owner == "@DataDog/do-not-notify":
+            # Jobs owned by @DataDog/do-not-notify do not send team messages
+            pass
         else:
             message = """The owner `{owner}` is not mapped to any slack channel. Please check for typos
 in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -211,7 +214,6 @@ Jobs they own:""".format(
                     url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
                 )
 
-        # TODO: logic to add messages for failed unit tests to the initial message here
         for owner, message in messages_to_send.items():
             message += "\n(Test message, the real message would be sent to {})".format(owner)
             send_slack_message("#agent-pipeline-notifications", message)
