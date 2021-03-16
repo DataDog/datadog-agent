@@ -1,6 +1,8 @@
 package dockerswarm
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/docker/docker/api/types/swarm"
 	"time"
@@ -49,4 +51,13 @@ func (m *MockSwarmClient) ListSwarmServices() ([]*containers.SwarmService, error
 		&swarmService,
 	}
 	return swarmServices, nil
+}
+
+// MockSwarmFactory is exported for unit testing with MockSwarmClient to produce mock outputs
+func MockSwarmFactory() check.Check {
+	return &SwarmCheck{
+		CheckBase:         core.NewCheckBase(SwarmCheckName),
+		instance:          &SwarmConfig{},
+		topologyCollector: makeSwarmTopologyCollector(&MockSwarmClient{}),
+	}
 }

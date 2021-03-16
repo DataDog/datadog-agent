@@ -3,7 +3,6 @@ package dockerswarm
 import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
-	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
@@ -11,14 +10,14 @@ import (
 )
 
 func TestDockerSwarmCheck(t *testing.T) {
-	st := makeSwarmTopologyCollector(&MockSwarmClient{})
-
-	swarmCheck := &SwarmCheck{
-		CheckBase: core.NewCheckBase(SwarmCheckName),
-		instance: &SwarmConfig{},
-		topologyCollector: st,
-	}
-	swarmCheck.Configure(nil, nil)
+	//st := makeSwarmTopologyCollector(&MockSwarmClient{})
+	//swarmCheck := &SwarmCheck{
+	//	CheckBase: core.NewCheckBase(SwarmCheckName),
+	//	instance: &SwarmConfig{},
+	//	topologyCollector: st,
+	//}
+	swarmcheck := MockSwarmFactory()
+	swarmcheck.Configure(nil, nil)
 
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
@@ -26,11 +25,11 @@ func TestDockerSwarmCheck(t *testing.T) {
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
 	// Setup mock sender
-	sender := mocksender.NewMockSender(swarmCheck.ID())
+	sender := mocksender.NewMockSender(swarmcheck.ID())
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
-	swarmCheck.Run()
+	swarmcheck.Run()
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
 	expectedTopology := batcher.Topologies{
