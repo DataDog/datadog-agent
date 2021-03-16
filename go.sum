@@ -132,8 +132,8 @@ github.com/DataDog/agent-payload v4.59.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DataDog/datadog-go v4.4.0+incompatible h1:R7WqXWP4fIOAqWJtUKmSfuc7eDsBT58k9AY5WSHVosk=
-github.com/DataDog/datadog-go v4.4.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
+github.com/DataDog/datadog-go v4.5.0+incompatible h1:MyyuIz5LVAI3Im+0F/tfo64ETyH4sNVynZ29yOiHm50=
+github.com/DataDog/datadog-go v4.5.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-operator v0.3.1 h1:yazEEHlKV1pEpDG1JsyI9WOQDWnnIpJOvE1PoILtLl0=
 github.com/DataDog/datadog-operator v0.3.1/go.mod h1:y1Oh/0ftUKzPdVe6IHodPD7zzmXMWnUcLK9Pv+vaeBg=
 github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835 h1:3ipH47pNqxTKCrl3axOMynjvq8vPKUz88ecgodVHh7k=
