@@ -5,6 +5,8 @@
 
 package eval
 
+import "github.com/pkg/errors"
+
 // IntNot - ^int operator
 func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	isPartialLeaf := a.isPartial
@@ -161,13 +163,8 @@ func Not(a *BoolEvaluator, opts *Opts, state *state) *BoolEvaluator {
 		}
 	}
 
-	value := true
-	if !isPartialLeaf {
-		value = !a.Value
-	}
-
 	return &BoolEvaluator{
-		Value:     value,
+		Value:     !a.Value,
 		Weight:    a.Weight,
 		isPartial: isPartialLeaf,
 	}
@@ -201,8 +198,8 @@ func Minus(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	}
 }
 
-// ArrayStringEquals evaluates array of strings
-func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+// ArrayStringContains evaluates array of strings against a value
+func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
 	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
@@ -276,8 +273,300 @@ func ArrayStringEquals(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, 
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+// ArrayStringMatches weak comparison, a least one element of a should be in b. a can't contain regexp
+func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	if a.isPattern {
+		return nil, errors.New("pattern not supported on left list")
+	}
+
+	var arrayOp func(a []string, b []string) bool
+
+	if b.isPattern {
+		arrayOp = func(as []string, bs []string) bool {
+			for _, va := range as {
+				for _, re := range b.regexps {
+					if re.MatchString(va) {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	} else {
+		arrayOp = func(as []string, bs []string) bool {
+			for _, va := range as {
+				for _, vb := range bs {
+					if va == vb {
+						return true
+					}
+				}
+			}
+			return false
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Values, b.Values
+
+		return &BoolEvaluator{
+			Value:     arrayOp(ea, eb),
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
+
+		if a.Field != "" {
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Values, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+// ArrayIntMatches weak comparison, a least one element of a should be in b
+func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	arrayOp := func(a []int, b []int) bool {
+		for _, va := range a {
+			for _, vb := range b {
+				if va == vb {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Values, b.Values
+
+		return &BoolEvaluator{
+			Value:     arrayOp(ea, eb),
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
+
+		if a.Field != "" {
 			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
 				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Values, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+// ArrayBoolContains evaluates array of bool against a value
+func ArrayBoolContains(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	arrayOp := func(a bool, b []bool) bool {
+		for _, v := range b {
+			if v == a {
+				return true
+			}
+		}
+		return false
+	}
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Values
+
+		return &BoolEvaluator{
+			Value:     arrayOp(ea, eb),
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
+
+		if a.Field != "" {
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 

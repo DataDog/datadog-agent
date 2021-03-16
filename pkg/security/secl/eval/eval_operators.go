@@ -1023,8 +1023,10 @@ func ArrayIntEquals(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *st
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1110,8 +1112,10 @@ func ArrayBoolEquals(a *BoolEvaluator, b *BoolArrayEvaluator, opts *Opts, state 
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1197,8 +1201,10 @@ func ArrayGreaterThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1284,8 +1290,10 @@ func ArrayGreaterOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, 
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1371,8 +1379,10 @@ func ArrayLesserThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, state *s
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -1458,8 +1468,10 @@ func ArrayLesserOrEqualThan(a *IntEvaluator, b *IntArrayEvaluator, opts *Opts, s
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 

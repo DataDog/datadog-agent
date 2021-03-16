@@ -231,8 +231,10 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 

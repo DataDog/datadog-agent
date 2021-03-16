@@ -22,6 +22,7 @@ var legacyAttributes = map[Field]Field{
 type testItem struct {
 	key   int
 	value string
+	flag  bool
 }
 
 type testProcess struct {
@@ -237,16 +238,35 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			Weight: IteratorWeight,
 		}, nil
 
+	case "process.list.flag":
+
+		return &BoolArrayEvaluator{
+			EvalFnc: func(ctx *Context) []bool {
+				// to test optimisation
+				(*testEvent)(ctx.Object).listEvaluated = true
+
+				var result []bool
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).flag)
+					el = el.Next()
+				}
+
+				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+		}, nil
+
 	case "process.array.key":
 
 		return &IntArrayEvaluator{
 			EvalFnc: func(ctx *Context) []int {
 				var result []int
 
-				el := (*testEvent)(ctx.Object).process.list.Front()
-				for el != nil {
-					result = append(result, el.Value.(*testItem).key)
-					el = el.Next()
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.key)
 				}
 
 				return result
@@ -261,10 +281,24 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			EvalFnc: func(ctx *Context) []string {
 				var result []string
 
-				el := (*testEvent)(ctx.Object).process.list.Front()
-				for el != nil {
-					result = append(result, el.Value.(*testItem).value)
-					el = el.Next()
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.value)
+				}
+
+				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+		}, nil
+
+	case "process.array.flag":
+
+		return &BoolArrayEvaluator{
+			EvalFnc: func(ctx *Context) []bool {
+				var result []bool
+
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.flag)
 				}
 
 				return result
@@ -383,11 +417,19 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.list.flag":
+
+		return "*", nil
+
 	case "process.array.key":
 
 		return "*", nil
 
 	case "process.array.value":
+
+		return "*", nil
+
+	case "process.array.flag":
 
 		return "*", nil
 
@@ -494,11 +536,17 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 	case "process.list.value":
 		return reflect.Int, nil
 
+	case "process.list.flag":
+		return reflect.Bool, nil
+
 	case "process.array.key":
 		return reflect.Int, nil
 
 	case "process.array.value":
 		return reflect.Int, nil
+
+	case "process.array.flag":
+		return reflect.Bool, nil
 
 	case "open.filename":
 

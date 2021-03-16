@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
@@ -393,18 +392,44 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 		}
 
 		if obj.ArrayComparison != nil {
-			fmt.Printf("AAAAA\n")
 			next, pos, err := nodeToEvaluator(obj.ArrayComparison, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
-			fmt.Printf("EEEE: %v\n", reflect.TypeOf(next))
 
 			switch unary := unary.(type) {
+			case *BoolEvaluator:
+				switch next.(type) {
+				case *BoolArrayEvaluator:
+					boolEvaluator, err := ArrayBoolContains(unary, next.(*BoolArrayEvaluator), opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return boolEvaluator, obj.Pos, nil
+				default:
+					return nil, pos, NewTypeError(pos, reflect.Array)
+				}
 			case *StringEvaluator:
 				switch next.(type) {
 				case *StringArrayEvaluator:
-					boolEvaluator, err := ArrayStringEquals(unary, next.(*StringArrayEvaluator), opts, state)
+					boolEvaluator, err := ArrayStringContains(unary, next.(*StringArrayEvaluator), opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return boolEvaluator, obj.Pos, nil
+				default:
+					return nil, pos, NewTypeError(pos, reflect.Array)
+				}
+			case *StringArrayEvaluator:
+				switch next.(type) {
+				case *StringArrayEvaluator:
+					boolEvaluator, err := ArrayStringMatches(unary, next.(*StringArrayEvaluator), opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -419,6 +444,20 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				switch next.(type) {
 				case *IntArrayEvaluator:
 					boolEvaluator, err := ArrayIntEquals(unary, next.(*IntArrayEvaluator), opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					if *obj.ArrayComparison.Op == "notin" {
+						return Not(boolEvaluator, opts, state), obj.Pos, nil
+					}
+					return boolEvaluator, obj.Pos, nil
+				default:
+					return nil, pos, NewTypeError(pos, reflect.Array)
+				}
+			case *IntArrayEvaluator:
+				switch next.(type) {
+				case *StringArrayEvaluator:
+					boolEvaluator, err := ArrayIntMatches(unary, next.(*IntArrayEvaluator), opts, state)
 					if err != nil {
 						return nil, pos, err
 					}
@@ -460,6 +499,27 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					return boolEvaluator, obj.Pos, nil
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
+			case *BoolArrayEvaluator:
+				nextBool, ok := next.(*BoolEvaluator)
+				if !ok {
+					return nil, pos, NewTypeError(pos, reflect.Bool)
+				}
+
+				switch *obj.ScalarComparison.Op {
+				case "!=":
+					boolEvaluator, err := ArrayBoolEquals(nextBool, unary, opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
+				case "==":
+					boolEvaluator, err := ArrayBoolEquals(nextBool, unary, opts, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				}
+				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *StringEvaluator:
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
@@ -467,13 +527,49 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				}
 
 				switch *obj.ScalarComparison.Op {
-				case "!=", "!~":
+				case "!=":
 					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
-				case "==", "=~":
+				case "!~":
+					// consider the value as regexp
+					if nextString.EvalFnc != nil {
+						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
+					}
+					nextString.isPattern = true
+					nextString.regexp = reg
+
+					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return Not(boolEvaluator, opts, state), obj.Pos, nil
+				case "==":
+					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
+					if err != nil {
+						return nil, obj.Pos, err
+					}
+					return boolEvaluator, obj.Pos, nil
+				case "=~":
+					// consider the value as regexp
+					if nextString.EvalFnc != nil {
+						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
+					}
+
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
+					}
+					nextString.isPattern = true
+					nextString.regexp = reg
+
 					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
@@ -482,17 +578,20 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *StringArrayEvaluator:
-				nextString := next.(*StringEvaluator)
+				nextString, ok := next.(*StringEvaluator)
+				if !ok {
+					return nil, pos, NewTypeError(pos, reflect.String)
+				}
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
-					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "==":
-					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -510,7 +609,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					nextString.isPattern = true
 					nextString.regexp = reg
 
-					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -528,7 +627,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					nextString.isPattern = true
 					nextString.regexp = reg
 
-					boolEvaluator, err := ArrayStringEquals(nextString, unary, opts, state)
+					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
 						return nil, obj.Pos, err
 					}
@@ -537,7 +636,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			case *IntEvaluator:
 				switch next.(type) {
 				case *IntEvaluator:
-					nextInt := next.(*IntEvaluator)
+					nextInt, ok := next.(*IntEvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.Int)
+					}
 
 					switch *obj.ScalarComparison.Op {
 					case "<":
@@ -569,7 +671,9 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 						if err != nil {
 							return nil, obj.Pos, err
 						}
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
+						aa := Not(boolEvaluator, opts, state)
+
+						return aa, obj.Pos, nil
 					case "==":
 						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
 						if err != nil {
@@ -580,7 +684,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 						return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 					}
 				case *IntArrayEvaluator:
-					nextInt := next.(*IntArrayEvaluator)
+					nextInt, ok := next.(*IntArrayEvaluator)
+					if !ok {
+						return nil, pos, NewTypeError(pos, reflect.Int)
+					}
 
 					switch *obj.ScalarComparison.Op {
 					case "<":
@@ -744,10 +851,9 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 		}
 	case *ast.Array:
 		if len(obj.Numbers) != 0 {
-			ints := obj.Numbers
-			sort.Ints(ints)
-
-			return nil, obj.Pos, nil
+			return &IntArrayEvaluator{
+				Values: obj.Numbers,
+			}, obj.Pos, nil
 		} else if len(obj.StringMembers) != 0 {
 			var strs []string
 			var hasPatterns bool
@@ -788,11 +894,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				}, obj.Pos, nil
 			}
 
-			sort.Strings(strs)
-			//return &StringArray{Values: strs}, obj.Pos, nil
-			return nil, obj.Pos, nil
+			return &StringArrayEvaluator{
+				Values: strs,
+			}, obj.Pos, nil
 		} else if obj.Ident != nil {
-			fmt.Printf("JJJJJJJJJJJJ\n")
 			if state.macros != nil {
 				if macro, ok := state.macros[*obj.Ident]; ok {
 					return macro.Value, obj.Pos, nil
@@ -800,7 +905,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			}
 
 			// could be an iterator
-			fmt.Printf("QQQQQQQQQQQQ\n")
 			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
 		}
 	}
