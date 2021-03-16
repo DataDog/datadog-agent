@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"fmt"
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
 	"strconv"
@@ -32,6 +33,12 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 	// i.e. physCount * coreCount * 1 if not HT CPU
 	//      physCount * coreCount * 2 if an HT CPU.
 	logicalCount, _ := strconv.ParseInt(cpuInfo["cpu_logical_processors"], 10, 64)
+
+	// shouldn't be possible, as `cpu.GetCpuInfo()` should return an error in this case
+	// but double check before risking a divide by zero
+	if physCount == 0 {
+		return nil, fmt.Errorf("Returned zero physical processors")
+	}
 	logicalCountPerPhys := logicalCount / physCount
 	clockSpeed, _ := strconv.ParseInt(cpuInfo["mhz"], 10, 64)
 	l2Cache, _ := strconv.ParseInt(cpuInfo["cache_size_l2"], 10, 64)
