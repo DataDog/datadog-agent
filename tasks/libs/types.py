@@ -40,14 +40,23 @@ class SlackMessage:
 
     def __render_jobs_section(self, buffer):
         print(self.JOBS_SECTION_HEADER, file=buffer)
+
+        jobs_per_stage = defaultdict(list)
         for job in self.failed_jobs:
-            extra_info = "stage {stage}".format(stage=job["stage"])
-            num_retries = len(job["retry_summary"]) - 1
-            if num_retries > 0:
-                extra_info += ", after {retries} retries".format(retries=num_retries)
+            jobs_per_stage[job["stage"]].append(job)
+
+        for stage, jobs in jobs_per_stage.items():
+            jobs_info = []
+            for job in jobs:
+                num_retries = len(job["retry_summary"]) - 1
+                job_info = "<{url}|{name}>".format(url=job["url"], name=job["name"])
+                if num_retries > 0:
+                    job_info += " ({retries} retries)".format(retries=num_retries)
+
+                jobs_info.append(job_info)
 
             print(
-                "- <{url}|{name}> ({extra})".format(url=job["url"], name=job["name"], extra=extra_info), file=buffer,
+                "- {jobs} (`{stage}` stage)".format(jobs=", ".join(jobs_info), stage=stage), file=buffer,
             )
 
     def __render_tests_section(self, buffer):
