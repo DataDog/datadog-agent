@@ -56,7 +56,6 @@ type Launcher struct {
 	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
 	sources                *config.LogSources        // To schedule file source when taileing container from file
-
 }
 
 // NewLauncher returns a new launcher
