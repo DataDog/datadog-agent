@@ -536,8 +536,10 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
-				return nil, err
+			for _, value := range b.Values {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -555,8 +557,10 @@ func ArrayIntMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, opts *Opts, sta
 	ea, eb := a.Values, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
+		for _, value := range a.Values {
+			if err := state.UpdateFieldValues(b.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
