@@ -404,6 +404,6 @@ func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pu *net.Remot
 			}
 		}
 	} else {
-		log.Debugf("cannot do GetProcStats for process check: %s", err)
+		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
 	}
 }

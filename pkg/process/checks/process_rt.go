@@ -196,6 +196,6 @@ func mergeStatWithSysprobeStats(stats map[int32]*procutil.Stats, pu *net.RemoteS
 			}
 		}
 	} else {
-		log.Debugf("cannot do GetProcStats for rtprocess check: %s", err)
+		log.Debugf("cannot do GetProcStats from system-probe for rtprocess check: %s", err)
 	}
 }
