@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import io
 from collections import defaultdict
 
@@ -26,8 +28,8 @@ class SlackMessage:
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
-    def __init__(self, header, jobs=None):
-        self.base_message = header
+    def __init__(self, base_message, jobs=None):
+        self.base_message = base_message
         self.failed_jobs = jobs if jobs else []
         self.failed_tests = defaultdict(list)
         self.coda = ""
@@ -56,7 +58,9 @@ class SlackMessage:
             print("- {} (in {})".format(test, job_list), file=buffer)
 
     def __str__(self):
-        buffer = io.StringIO(self.base_message)
+        buffer = io.StringIO()
+        if self.base_message:
+            print(self.base_message, file=buffer)
         if self.failed_jobs:
             self.__render_jobs_section(buffer)
         if self.failed_tests:
