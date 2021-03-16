@@ -3,6 +3,7 @@ api_key: apikey_20
 process_agent_enabled: true
 process_config:
   enabled: 'true'
+  grpc_connection_timeout_secs: 0
   queue_size: 10
   intervals:
       container: 8

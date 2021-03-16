@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
@@ -49,6 +50,38 @@ func getDoForkInput(probe *Probe) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+// TTYConstants returns the tty constants
+func TTYConstants(probe *Probe) []manager.ConstantEditor {
+	ttyOffset, nameOffset := uint64(400), uint64(368)
+
+	kv, err := NewKernelVersion()
+	if err == nil {
+		switch {
+		case kv.IsRH7Kernel():
+			ttyOffset, nameOffset = 416, 312
+		case kv.IsRH8Kernel():
+			ttyOffset, nameOffset = 392, 368
+		case kv.IsSLES12Kernel():
+			ttyOffset, nameOffset = 376, 368
+		case kv.IsSLES15Kernel():
+			ttyOffset, nameOffset = 408, 368
+		case probe.kernelVersion != 0 && probe.kernelVersion < kernel5_3:
+			ttyOffset, nameOffset = 368, 368
+		}
+	}
+
+	return []manager.ConstantEditor{
+		{
+			Name:  "tty_offset",
+			Value: ttyOffset,
+		},
+		{
+			Name:  "tty_name_offset",
+			Value: nameOffset,
+		},
+	}
 }
 
 // InodeInfo holds information related to inode from kernel
@@ -413,9 +446,9 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Args = entry.Values
+		pce.ArgsArray = entry.Values
 		if pce.ArgsTruncated {
-			pce.Args = append(pce.Args, "...")
+			pce.ArgsArray = append(pce.ArgsArray, "...")
 		}
 		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
 	}
@@ -426,12 +459,24 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Envs = entry.Values
+		pce.EnvsArray = entry.Values
 		if pce.EnvsTruncated {
-			pce.Envs = append(pce.Envs, "...")
+			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
 		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
 	}
+}
+
+// SetTTY resolves TTY and cache the result
+func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+	if pce.TTYName == "" {
+		tty := utils.PidTTY(int32(pce.Pid))
+		if tty == "" {
+			tty = "null"
+		}
+		pce.TTYName = tty
+	}
+	return pce.TTYName
 }
 
 // Get returns the cache entry for a specified pid

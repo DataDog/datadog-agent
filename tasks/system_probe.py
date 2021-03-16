@@ -94,7 +94,7 @@ def build(
             "-i cmd/system-probe/windows_resources/system-probe.rc "
             "--target {target_arch} "
             "-O coff "
-            "-o cmd/process-agent/rsrc.syso".format(
+            "-o cmd/system-probe/rsrc.syso".format(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
@@ -270,6 +270,7 @@ def kitchen_prepare(ctx):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
+            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )
