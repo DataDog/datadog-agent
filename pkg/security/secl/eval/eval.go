@@ -263,8 +263,13 @@ func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.
 	}
 
 	if iterator != nil {
-		// regID not specified generate one
-		if regID == "" {
+		// Force "_" register for now.
+		if regID != "" && regID != "_" {
+			return nil, obj.Pos, NewRegisterNameNotAllowed(obj.Pos, regID, errors.New("only `_` is supported"))
+		}
+
+		// regID not specified or `_` generate one
+		if regID == "" || regID == "_" {
 			regID = RandString(8)
 		}
 

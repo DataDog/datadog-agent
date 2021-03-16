@@ -240,10 +240,12 @@ func ruleToEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, e
 		}
 	}
 
-	// rule uses register replace the original eval function with the one handling registers
-	if len(state.registersInfo) > 0 {
+	// NOTE: currently we use only array we random register. Only the iterator on array will be handled
+	// properly we will uncomment the following lines
+	/*if len(state.registersInfo) > 0 {
+		// rule uses register replace the original eval function with the one handling registers
 		evalBool.EvalFnc = handleRegisters(evalBool.EvalFnc, state.registersInfo)
-	}
+	}*/
 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,

@@ -61,9 +61,14 @@ func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
 }
 
-// NewRegisterMultipleFields returns a new ErrAstToEval error when an operator was used in an invalid manner
+// NewRegisterMultipleFields returns a new ErrAstToEval error when a register is used across mutliple fields
 func NewRegisterMultipleFields(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("register `%s` error: %s", regID, err))
+}
+
+// NewRegisterNameNotAllowed returns a new ErrAstToEval error when a register name is not allowed
+func NewRegisterNameNotAllowed(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
+	return NewError(pos, fmt.Sprintf("register name `%s` error: %s", regID, err))
 }
 
 // ErrRuleParse describes a parsing error and its position in the expression
