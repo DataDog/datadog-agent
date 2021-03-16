@@ -83,6 +83,7 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 				ContainerImage:  task.Spec.ContainerSpec.Image,
 				ContainerSpec:   task.Spec.ContainerSpec,
 				ContainerStatus: task.Status.ContainerStatus,
+				DesiredState: 	 task.Status.State,
 			}
 			log.Infof("Creating a task %s for service %s", task.Name, s.Spec.Name)
 			tasksComponents = append(tasksComponents, taskComponent)

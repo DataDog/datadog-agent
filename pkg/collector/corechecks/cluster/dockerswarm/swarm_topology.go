@@ -135,6 +135,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 					"image":  taskContainer.ContainerImage,
 					"spec":   taskContainer.ContainerSpec,
 					"status": taskContainer.ContainerStatus,
+					"state":  taskContainer.DesiredState,
 					"identifiers": []string{identifier},
 				},
 			}

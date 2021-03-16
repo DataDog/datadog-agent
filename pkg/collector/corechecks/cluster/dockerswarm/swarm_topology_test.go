@@ -37,6 +37,7 @@ var (
 			"image":  swarmService.TaskContainers[0].ContainerImage,
 			"status": swarmService.TaskContainers[0].ContainerStatus,
 			"spec":	  swarmService.TaskContainers[0].ContainerSpec,
+			"state":  swarmService.TaskContainers[0].DesiredState,
 			"identifiers": []string{"urn:container:/mock-host:a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406"},
 		},
 	}
@@ -71,54 +72,16 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	comps, relations, err := st.collectSwarmServices(testHostname, sender)
-	//serviceComponents := []*topology.Component{
-	//	{
-	//		ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-	//		Type: topology.Type{
-	//			Name: swarmServiceType,
-	//		},
-	//		Data: topology.Data{
-	//			"name":    swarmService.Name,
-	//			"image":   swarmService.ContainerImage,
-	//			"tags":    swarmService.Labels,
-	//			"version": swarmService.Version.Index,
-	//			"created": swarmService.CreatedAt,
-	//			"spec":    		swarmService.Spec,
-	//			"endpoint":		swarmService.Endpoint,
-	//			"updateStatus": swarmService.UpdateStatus,
-	//			"updated":		swarmService.UpdatedAt,
-	//		},
-	//	},
-	//}
+
+	// list of swamr service components
 	serviceComponents := []*topology.Component{
 		serviceComponent,
 	}
-	//containerComponents := []*topology.Component{
-	//	{
-	//		ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-	//		Type:       topology.Type{Name: "docker container"},
-	//		Data: topology.Data{
-	//			"TaskID": swarmService.TaskContainers[0].ID,
-	//			"name":   swarmService.TaskContainers[0].Name,
-	//			"image":  swarmService.TaskContainers[0].ContainerImage,
-	//			"status": swarmService.TaskContainers[0].ContainerStatus,
-	//			"spec":	  swarmService.TaskContainers[0].ContainerSpec,
-	//			"identifiers": []string{"urn:container:/mock-host:a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406"},
-	//		},
-	//	},
-	//}
+	// list of swamr task container components
 	containerComponents := []*topology.Component{
 		containerComponent,
 	}
-	//serviceRelations := []*topology.Relation{
-	//	{
-	//		ExternalID: "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e->urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-	//		SourceID:   "urn:swarm-service:/klbo61rrhksdmc9ho3pq97t6e",
-	//		TargetID:   "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-	//		Type:       topology.Type{Name: "creates"},
-	//		Data:       topology.Data{},
-	//	},
-	//}
+	// list of swamr service and task container relation
 	serviceRelations := []*topology.Relation{
 		serviceRelation,
 	}
