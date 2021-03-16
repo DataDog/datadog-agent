@@ -4,6 +4,7 @@ import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab
+from .types import Test
 
 
 def get_failed_jobs(project_name, pipeline_id):
@@ -41,22 +42,6 @@ def get_failed_jobs(project_name, pipeline_id):
     return final_failed_jobs
 
 
-class Test:
-    PACKAGE_PREFIX = "github.com/DataDog/datadog-agent/"
-
-    def __init__(self, owners, name, package):
-        self.name = name
-        self.package = self.__removeprefix(package)
-        self.owners = self.__get_owners(owners, package)
-
-    def __removeprefix(self, package):
-        return package[len(self.PACKAGE_PREFIX) :]
-
-    def __get_owners(self, OWNERS, package):
-        owners = OWNERS.of(self.__removeprefix(package))
-        return [name for (kind, name) in owners if kind == "TEAM"]
-
-
 def read_owners(owners_file):
     from codeowners import CodeOwners
 
@@ -91,8 +76,9 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
             # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
             # eg. [('TEAM', '@DataDog/agent-platform')]
 
-            for owner in job_owners:
-                owners_to_notify[owner[1]].append(job)
+            for kind, owner in job_owners:
+                if kind == "TEAM":
+                    owners_to_notify[owner[1]].append(job)
 
     return owners_to_notify
 
@@ -111,47 +97,6 @@ def base_message(header):
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
         author=get_git_author(),
     )
-
-
-def prepare_global_failure_message(header, failed_jobs):
-    message = base_message(header)
-
-    message += "\nFailed jobs:"
-    for job in failed_jobs:
-        # Exclude jobs that were retried and succeeded
-        # Also exclude jobs allowed to fail
-        if job["status"] == "failed" and not job["allow_failure"]:
-            message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
-                url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
-            )
-
-    return message
-
-
-def prepare_team_failure_message(header, failed_jobs):
-    message = base_message(header)
-
-    message += "\nFailed jobs you own:"
-    for job in failed_jobs:
-        message += "\n - <{url}|{name}> (stage: {stage}, after {retries} retries)".format(
-            url=job["url"], name=job["name"], stage=job["stage"], retries=len(job["retry_summary"]) - 1
-        )
-
-    return message
-
-
-def prepare_test_failure_section(failed_tests):
-    # failed_tests : dict[Test, list[Job]]
-
-    section = "\nFailed unit tests you own:"
-    for test, jobs in failed_tests:
-        MAX_SHOW = 2
-        job_list = ", ".join("<{}|{}>".format(job["url"], job["name"]) for job in jobs[:MAX_SHOW])
-        if len(jobs) > MAX_SHOW:
-            job_list += "and {} more".format(len(jobs) - MAX_SHOW)
-        section += "\n - `{}` from package `{}`(in {})".format(test.name, test.package, job_list)
-
-    return section
 
 
 def get_git_author():
