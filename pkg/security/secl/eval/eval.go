@@ -83,7 +83,7 @@ type BoolEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
-	return b.EvalFnc(nil)
+	return b.EvalFnc(ctx)
 }
 
 // IntEvaluator returns an int as result of the evaluation
@@ -166,7 +166,7 @@ type BoolArrayEvaluator struct {
 
 // Eval returns the result of the evaluation
 func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
-	return b.EvalFnc(nil)
+	return b.EvalFnc(ctx)
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {

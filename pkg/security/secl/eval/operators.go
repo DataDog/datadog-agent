@@ -5,7 +5,11 @@
 
 package eval
 
-import "github.com/pkg/errors"
+import (
+	"regexp"
+
+	"github.com/pkg/errors"
+)
 
 // IntNot - ^int operator
 func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
@@ -101,7 +105,14 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+			kind := ScalarValueType
+			var regexp *regexp.Regexp
+			if b.isPattern {
+				kind = PatternValueType
+				regexp = b.regexp
+			}
+
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: kind, Regex: regexp}); err != nil {
 				return nil, err
 			}
 		}
@@ -120,7 +131,14 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+		kind := ScalarValueType
+		var regexp *regexp.Regexp
+		if a.isPattern {
+			kind = PatternValueType
+			regexp = a.regexp
+		}
+
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: kind, Regex: regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -273,8 +291,19 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			for _, value := range eb {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+			kind := ScalarValueType
+			if b.isPattern {
+				kind = PatternValueType
+			}
+
+			var regexp *regexp.Regexp
+
+			for i, value := range b.Values {
+				if b.isPattern {
+					regexp = b.regexps[i]
+				}
+
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
 					return nil, err
 				}
 			}
@@ -294,7 +323,14 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+		kind := ScalarValueType
+		var regexp *regexp.Regexp
+		if a.isPattern {
+			kind = PatternValueType
+			regexp = a.regexp
+		}
+
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: kind, Regex: regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -384,8 +420,19 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
-			for _, value := range eb {
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+			kind := ScalarValueType
+			if b.isPattern {
+				kind = PatternValueType
+			}
+
+			var regexp *regexp.Regexp
+
+			for i, value := range b.Values {
+				if b.isPattern {
+					regexp = b.regexps[i]
+				}
+
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
 					return nil, err
 				}
 			}
@@ -405,8 +452,21 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 	ea, eb := a.Values, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
-			return nil, err
+		kind := ScalarValueType
+		if a.isPattern {
+			kind = PatternValueType
+		}
+
+		var regexp *regexp.Regexp
+
+		for i, value := range a.Values {
+			if a.isPattern {
+				regexp = a.regexps[i]
+			}
+
+			if err := state.UpdateFieldValues(b.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
+				return nil, err
+			}
 		}
 	}
 
