@@ -484,6 +484,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &{{$EvaluatorType}}{
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
+					if ptr := ctx.Cache[field]; ptr != nil {
+						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
+							return *result
+						}
+					}
+
 					var results []{{$Field.ReturnType}}
 
 					iterator := &{{$Field.Iterator.ReturnType}}{}
@@ -517,6 +523,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 						value = iterator.Next()
 					}
+
+					ctx.Cache[field] = unsafe.Pointer(&results)
 
 					return results
 				},
@@ -565,8 +573,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{if $Field.Iterator}}
 			var values []{{$Field.ReturnType}}
 
-			ctx := &eval.Context{}
-			ctx.SetObject(unsafe.Pointer(e))
+			ctx := eval.NewContext(unsafe.Pointer(e))
 
 			iterator := &{{$Field.Iterator.ReturnType}}{}
 			ptr := iterator.Front(ctx)

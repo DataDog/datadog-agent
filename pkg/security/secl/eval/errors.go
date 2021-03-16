@@ -61,7 +61,7 @@ func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
 }
 
-// NewRegisterMultipleFields returns a new ErrAstToEval error when a register is used across mutliple fields
+// NewRegisterMultipleFields returns a new ErrAstToEval error when a register is used across multiple fields
 func NewRegisterMultipleFields(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("register `%s` error: %s", regID, err))
 }
