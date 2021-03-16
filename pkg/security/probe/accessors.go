@@ -1519,737 +1519,833 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 
 	case "process.ancestors.cap_effective":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.cap_permitted":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.comm":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveProcessCookie(&element.Process))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.egid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.egroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.euid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.euser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessContainerPath(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessFilesystem(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.GID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveGroup(&element.FileFields)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.Inode)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.Mode)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.MountID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessBasename(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessInode(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.UID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveUser(&element.FileFields)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsgid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsgroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsuid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsuser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.pid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Pid)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.ppid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Tid)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.tty_name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveProcessTTY(&element.Process)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &model.ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*model.ProcessCacheEntry)(reg.Value)
+					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil

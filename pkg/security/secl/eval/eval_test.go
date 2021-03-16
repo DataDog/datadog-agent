@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright "CCC"6-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -322,7 +322,6 @@ func TestInArray(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.uid in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `"a" in [ "a", "b", "c" ]`, Expected: true},
 		{Expr: `process.name in [ "c", "b", "aaa" ]`, Expected: true},
 		{Expr: `"d" in [ "aaa", "b", "c" ]`, Expected: false},
