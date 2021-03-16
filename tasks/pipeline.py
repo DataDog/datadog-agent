@@ -163,9 +163,11 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 
 
 @task
-def notify_failure(_, notification_type="merge"):
+def notify_failure(_, notification_type="merge", print_to_stdout=False):
     """
     Send failure notifications for the current pipeline. CI-only task.
+    Use the --print-to-stdout option to test this locally, without sending
+    real slack messages.
     """
     header = ""
     if notification_type == "merge":
@@ -202,4 +204,7 @@ def notify_failure(_, notification_type="merge"):
         if owner not in GITHUB_SLACK_MAP.keys():
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = "(Test message, the real message would be sent to {})".format(channel)
-        send_slack_message("#agent-pipeline-notifications", str(message))  # TODO: use channel variable
+        if print_to_stdout:
+            print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
+        else:
+            send_slack_message("#agent-pipeline-notifications", str(message))  # TODO: use channel variable
