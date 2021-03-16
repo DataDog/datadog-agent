@@ -32,7 +32,7 @@ func CollectSystemInfo(cfg *config.AgentConfig) (*model.SystemInfo, error) {
 	// i.e. physCount * coreCount * 1 if not HT CPU
 	//      physCount * coreCount * 2 if an HT CPU.
 	logicalCount, _ := strconv.ParseInt(cpuInfo["cpu_logical_processors"], 10, 64)
-	logicalCountPerPhys := logicalCount / physCount;
+	logicalCountPerPhys := logicalCount / physCount
 	clockSpeed, _ := strconv.ParseInt(cpuInfo["mhz"], 10, 64)
 	l2Cache, _ := strconv.ParseInt(cpuInfo["cache_size_l2"], 10, 64)
 	cpus := make([]*model.CPUInfo, 0)
