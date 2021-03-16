@@ -20,12 +20,7 @@ func newHTTPStatkeeper() *httpStatKeeper {
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
 	for _, tx := range transactions {
-		key := Key{
-			SourceIP:   tx.SourceIP(),
-			DestIP:     tx.DestIP(),
-			SourcePort: tx.SourcePort(),
-			DestPort:   tx.DestPort(),
-		}
+		key := tx.ToKey()
 		path := tx.Path(h.buffer)
 		statusClass := tx.StatusClass()
 		latency := tx.RequestLatency()

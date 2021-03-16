@@ -9,10 +9,26 @@ import (
 
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
-	SourceIP   util.Address
-	DestIP     util.Address
-	SourcePort uint16
-	DestPort   uint16
+	SrcIPHigh uint64
+	SrcIPLow  uint64
+	SrcPort   uint16
+
+	DstIPHigh uint64
+	DstIPLow  uint64
+	DstPort   uint16
+}
+
+func NewKey(saddr, daddr util.Address, sport, dport uint16) Key {
+	saddrl, saddrh := util.ToLowHigh(saddr)
+	daddrl, daddrh := util.ToLowHigh(daddr)
+	return Key{
+		SrcIPHigh: saddrh,
+		SrcIPLow:  saddrl,
+		SrcPort:   sport,
+		DstIPHigh: daddrh,
+		DstIPLow:  daddrl,
+		DstPort:   dport,
+	}
 }
 
 // RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.

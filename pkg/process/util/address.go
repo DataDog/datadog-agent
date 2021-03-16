@@ -36,6 +36,17 @@ func NetIPFromAddress(addr Address) net.IP {
 	return net.IP(addr.Bytes())
 }
 
+func ToLowHigh(addr Address) (l, h uint64) {
+	switch b := addr.Bytes(); len(b) {
+	case 4:
+		return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
+	case 16:
+		return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
+	}
+
+	return
+}
+
 type v4Address [4]byte
 
 // V4Address creates an Address using the uint32 representation of an v4 IP

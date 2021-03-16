@@ -38,13 +38,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 	assert.Equal(t, len(stats), 1)
 	for key, statsMap := range stats {
-		assert.Equal(t, key, Key{
-			SourceIP:   sourceIP,
-			SourcePort: uint16(sourcePort),
-			DestIP:     destIP,
-			DestPort:   uint16(destPort),
-		})
-
+		assert.Equal(t, txs[0].ToKey(), key)
 		assert.Equal(t, len(statsMap), 10)
 		for path, stats := range statsMap {
 			assert.Equal(t, "/testpath", path[:9])

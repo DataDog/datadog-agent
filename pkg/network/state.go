@@ -272,13 +272,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
 	for i := range conns {
 		conn := &conns[i]
-		key := http.Key{
-			SourceIP:   conn.Source,
-			DestIP:     conn.Dest,
-			SourcePort: conn.SPort,
-			DestPort:   conn.DPort,
-		}
-
+		key := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort)
 		if _, ok := ns.clients[id].httpStatsDelta[key]; ok {
 			conn.HTTPStatsByPath = ns.clients[id].httpStatsDelta[key]
 		}
