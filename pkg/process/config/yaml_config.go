@@ -50,6 +50,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 	}
 
+	if config.Datadog.IsSet(key(spNS, "max_dns_stats")) {
+		a.MaxDNSStats = config.Datadog.GetInt(key(spNS, "max_dns_stats"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "collect_dns_domains")) {
 		a.CollectDNSDomains = config.Datadog.GetBool(key(spNS, "collect_dns_domains"))
 	}
