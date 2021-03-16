@@ -253,6 +253,8 @@ func initConfig(config Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("kubelet_fallback_to_unverified_tls", true) // sts
+	config.BindEnvAndSetDefault("kubelet_fallback_to_insecure", true)       // sts
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("collect_kubernetes_metrics", false)
 	config.BindEnvAndSetDefault("collect_kubernetes_topology", true)
