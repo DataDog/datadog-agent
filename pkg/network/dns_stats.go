@@ -148,7 +148,7 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]DNSStats {
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(map[DNSKey]map[string]DNSStats)
-	log.Infof("Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	d.numStats = 0
 	d.droppedStats = 0
 	return ret
