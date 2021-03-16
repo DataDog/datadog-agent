@@ -53,15 +53,11 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     gitlab = Gitlab()
     owners = read_owners(owners_file)
     test_output = gitlab.artifact(project_name, job["id"])
-    for line in test_output.splitlines():
-        try:
+    if test_output:
+        for line in test_output.iter_lines():
             json_test = json.loads(line)
-            if "message" in json_test:
-                continue  # Failed request
             if 'Test' in json_test and json_test["Action"] == "fail":
                 yield Test(owners, json_test['Test'], json_test['Package'])
-        except Exception as e:
-            print("WARN: parsing '{}' failed: {}".format(line, e))
 
 
 def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
@@ -78,7 +74,7 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
             for kind, owner in job_owners:
                 if kind == "TEAM":
-                    owners_to_notify[owner[1]].append(job)
+                    owners_to_notify[owner].append(job)
 
     return owners_to_notify
 

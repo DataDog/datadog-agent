@@ -157,6 +157,10 @@ GITHUB_SLACK_MAP = {
     "@DataDog/agent-all": "#datadog-agent-pipelines",
 }
 
+UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
+Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
+"""
+
 
 @task
 def notify_failure(_, notification_type="merge"):
@@ -196,9 +200,6 @@ def notify_failure(_, notification_type="merge"):
     for owner, message in messages_to_send.items():
         channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
         if owner not in GITHUB_SLACK_MAP.keys():
-            message.base_message = "The owner `{owner}` is not mapped to any slack channel. \
-                Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.".format(
-                owner=owner
-            )
+            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = "(Test message, the real message would be sent to {})".format(channel)
         send_slack_message("#agent-pipeline-notifications", str(message))  # TODO: use channel variable

@@ -101,7 +101,10 @@ class Gitlab(object):
         from urllib.parse import quote
 
         path = "/projects/{}/jobs/{}/artifacts/test_output.json".format(quote(project_name, safe=""), job_id)
-        return self.make_request(path)
+        response = self.make_request(path, stream=True)
+        if response.status_code != 200:
+            return None
+        return response
 
     def all_jobs(self, project_name, pipeline_id):
         """
@@ -140,7 +143,7 @@ class Gitlab(object):
         path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
         return self.make_request(path, json=True)
 
-    def make_request(self, path, headers=None, data=None, json=False):
+    def make_request(self, path, headers=None, data=None, json=False, stream=False):
         """
         Utility to make a request to the Gitlab API.
         """
@@ -152,9 +155,9 @@ class Gitlab(object):
         headers["PRIVATE-TOKEN"] = self.api_token
         try:
             if data:
-                r = requests.post(url, headers=headers, data=data)
+                r = requests.post(url, headers=headers, data=data, stream=stream)
             else:
-                r = requests.get(url, headers=headers)
+                r = requests.get(url, headers=headers, stream=stream)
             if r.status_code == 401:
                 print(
                     "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
@@ -186,6 +189,8 @@ class Gitlab(object):
             raise Exit(code=1)
         if json:
             return r.json()
+        if stream:
+            return r
         return r.text
 
     def _api_token(self):

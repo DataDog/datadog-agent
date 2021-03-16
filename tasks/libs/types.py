@@ -19,8 +19,9 @@ class Test:
         owners = OWNERS.of(self.__removeprefix(package))
         return [name for (kind, name) in owners if kind == "TEAM"]
 
-    def __str__(self):
-        return "`{}` from package `{}`".format(self.name, self.package)
+    @property
+    def key(self):
+        return (self.name, self.package)
 
 
 class SlackMessage:
@@ -35,7 +36,7 @@ class SlackMessage:
         self.coda = ""
 
     def add_test_failure(self, test, job):
-        self.failed_tests[test].append(job)
+        self.failed_tests[test.key].append(job)
 
     def __render_jobs_section(self, buffer):
         print(self.JOBS_SECTION_HEADER, file=buffer)
@@ -51,11 +52,11 @@ class SlackMessage:
 
     def __render_tests_section(self, buffer):
         print(self.TEST_SECTION_HEADER, file=buffer)
-        for test, jobs in self.failed_tests.items():
+        for (test_name, test_package), jobs in self.failed_tests.items():
             job_list = ", ".join("<{}|{}>".format(job["url"], job["name"]) for job in jobs[: self.MAX_JOBS_PER_TEST])
             if len(jobs) > self.MAX_JOBS_PER_TEST:
-                job_list += "and {} more".format(len(jobs) - self.MAX_JOBS_PER_TEST)
-            print("- {} (in {})".format(test, job_list), file=buffer)
+                job_list += " and {} more".format(len(jobs) - self.MAX_JOBS_PER_TEST)
+            print("- `{}` from package `{}` (in {})".format(test_name, test_package, job_list), file=buffer)
 
     def __str__(self):
         buffer = io.StringIO()
