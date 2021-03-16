@@ -85,7 +85,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_args",
-			Expression: `exec.args in ["-al"]`,
+			Expression: `exec.args in [~"*-al*"]`,
 		},
 		{
 			ID:         "test_rule_tty",
@@ -160,12 +160,12 @@ func TestProcessContext(t *testing.T) {
 			t.Error(err)
 		} else {
 			args, err := event.GetFieldValue("exec.args")
-			if err != nil || len(args.([]string)) == 0 {
+			if err != nil || len(args.(string)) == 0 {
 				t.Error("not able to get args")
 			}
 
 			contains := func(s string) bool {
-				for _, arg := range args.([]string) {
+				for _, arg := range strings.Split(args.(string), " ") {
 					if s == arg {
 						return true
 					}
@@ -218,11 +218,12 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get args")
 			}
 
-			if len(args.([]string)) != 2 {
+			argv := strings.Split(args.(string), " ")
+			if len(argv) != 2 {
 				t.Errorf("incorrect number of args")
 			}
 
-			if !strings.HasSuffix(args.([]string)[1], "...") {
+			if !strings.HasSuffix(argv[1], "...") {
 				t.Error("arg not truncated")
 			}
 		}
@@ -244,12 +245,13 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get args")
 			}
 
-			n := len(args.([]string))
+			argv := strings.Split(args.(string), " ")
+			n := len(argv)
 			if n == 0 || n > 100 {
 				t.Errorf("incorrect number of args")
 			}
 
-			if args.([]string)[n-1] != "..." {
+			if argv[n-1] != "..." {
 				t.Error("arg not truncated")
 			}
 		}
