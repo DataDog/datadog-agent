@@ -198,7 +198,7 @@ DWORD TargetMachine::DetectDomainInformation()
 
     if (_isDomainJoined)
     {
-        if (_dnsDomainName != _joinedDomain)
+        if (_wcsicmp(_dnsDomainName.c_str(), _joinedDomain.c_str()) != 0)
         {
             WcaLog(LOGMSG_STANDARD, "DNS domain name \"%S\" doesn't match the joined domain \"%S\"",
                    _dnsDomainName.c_str(), _joinedDomain.c_str());
