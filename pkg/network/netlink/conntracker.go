@@ -4,6 +4,7 @@
 package netlink
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -14,13 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/golang/groupcache/lru"
 	"golang.org/x/sys/unix"
 )
 
 const (
 	initializationTimeout = time.Second * 10
 
-	compactInterval = time.Minute
+	compactInterval      = time.Minute
+	defaultOrphanTimeout = 2 * time.Minute
 )
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
@@ -42,10 +45,22 @@ type connKey struct {
 	transport network.ConnectionType
 }
 
+type translationEntry struct {
+	*network.IPTranslation
+	orphan *list.Element
+}
+
+type orphanEntry struct {
+	key connKey
+	ttl time.Time
+}
+
 type realConntracker struct {
 	sync.RWMutex
-	consumer *Consumer
-	state    map[connKey]*network.IPTranslation
+	consumer      *Consumer
+	cache         *lru.Cache
+	orphans       *list.List
+	orphanTimeout time.Duration
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
@@ -60,7 +75,6 @@ type realConntracker struct {
 		unregisters          int64
 		unregistersTotalTime int64
 	}
-	exceededSizeLogLimit *util.LogLimit
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -88,11 +102,21 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, listenAllNamespaces bool) (Conntracker, error) {
 	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
-		consumer:             consumer,
-		compactTicker:        time.NewTicker(compactInterval),
-		state:                make(map[connKey]*network.IPTranslation),
-		maxStateSize:         maxStateSize,
-		exceededSizeLogLimit: util.NewLogLimit(10, time.Minute*10),
+		consumer:      consumer,
+		cache:         lru.New(maxStateSize),
+		orphans:       list.New(),
+		maxStateSize:  maxStateSize,
+		compactTicker: time.NewTicker(compactInterval),
+		orphanTimeout: defaultOrphanTimeout,
+	}
+
+	ctr.cache.OnEvicted = func(key lru.Key, value interface{}) {
+		// ctr lock should be held, so it is
+		// safe to modify ctr
+		t := value.(*translationEntry)
+		if t.orphan != nil {
+			ctr.orphans.Remove(t.orphan)
+		}
 	}
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -113,9 +137,14 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
+	defer func() {
+		now := time.Now().UnixNano()
+		atomic.AddInt64(&ctr.stats.gets, 1)
+		atomic.AddInt64(&ctr.stats.getTimeTotal, now-then)
+	}()
 
-	ctr.RLock()
-	defer ctr.RUnlock()
+	ctr.Lock()
+	defer ctr.Unlock()
 
 	k := connKey{
 		srcIP:     c.Source,
@@ -125,22 +154,30 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 		transport: c.Type,
 	}
 
-	result := ctr.state[k]
+	v, ok := ctr.cache.Get(k)
+	if !ok {
+		return nil
+	}
 
-	now := time.Now().UnixNano()
-	atomic.AddInt64(&ctr.stats.gets, 1)
-	atomic.AddInt64(&ctr.stats.getTimeTotal, now-then)
-	return result
+	t := v.(*translationEntry)
+	if t.orphan != nil {
+		ctr.orphans.Remove(t.orphan)
+		t.orphan = nil
+	}
+
+	return t.IPTranslation
 }
 
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
 	ctr.RLock()
-	size := len(ctr.state)
+	size := ctr.cache.Len()
+	orphanSize := ctr.orphans.Len()
 	ctr.RUnlock()
 
 	m := map[string]int64{
-		"state_size": int64(size),
+		"state_size":  int64(size),
+		"orphan_size": int64(orphanSize),
 	}
 
 	if ctr.stats.gets != 0 {
@@ -182,36 +219,27 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 		transport: c.Type,
 	}
 
-	t, ok := ctr.state[k]
-	if !ok {
-		log.Tracef("not deleting %+v: not found in conntrack cache", k)
-		return
+	_, ok := ctr.cache.Get(k)
+	if ok {
+		ctr.cache.Remove(k)
+		atomic.AddInt64(&ctr.stats.unregisters, 1)
 	}
-
-	delete(ctr.state, k)
-	delete(ctr.state, ipTranslationToConnKey(k.transport, t))
-	atomic.AddInt64(&ctr.stats.unregisters, 1)
 }
 
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
-	ctr.exceededSizeLogLimit.Close()
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	for e := range events {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
-			if len(ctr.state) < ctr.maxStateSize && IsNAT(c) {
-				log.Tracef("%s", c)
-				if k, ok := formatKey(c.Origin); ok {
-					ctr.state[k] = formatIPTranslation(c.Reply)
-				}
-				if k, ok := formatKey(c.Reply); ok {
-					ctr.state[k] = formatIPTranslation(c.Origin)
-				}
+			if !IsNAT(c) {
+				continue
 			}
+
+			ctr.add(c, false)
 		}
 	}
 }
@@ -225,38 +253,54 @@ func (ctr *realConntracker) register(c Con) int {
 		return 0
 	}
 
-	now := time.Now().UnixNano()
+	then := time.Now().UnixNano()
+	defer func() {
+		atomic.AddInt64(&ctr.stats.registers, 2)
+		atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
+	}()
+
+	ctr.Lock()
+	defer ctr.Unlock()
+
+	ctr.add(c, true)
+
+	return 0
+}
+
+func (ctr *realConntracker) add(c Con, orphan bool) {
 	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
 		key, ok := formatKey(keyTuple)
 		if !ok {
 			return
 		}
 
-		if len(ctr.state) >= ctr.maxStateSize {
-			ctr.logExceededSize()
-			return
+		if v, ok := ctr.cache.Get(key); ok {
+			// value is going to get replaced
+			// by the call to Add below, make
+			// sure orphan is removed
+			t := v.(*translationEntry)
+			if t.orphan != nil {
+				ctr.orphans.Remove(t.orphan)
+			}
 		}
 
-		ctr.state[key] = formatIPTranslation(transTuple)
+		t := &translationEntry{
+			IPTranslation: formatIPTranslation(transTuple),
+		}
+		if orphan {
+			t.orphan = ctr.orphans.PushFront(&orphanEntry{
+				key: key,
+				ttl: time.Now().Add(ctr.orphanTimeout),
+			})
+		}
+
+		ctr.cache.Add(key, t)
 	}
 
 	log.Tracef("%s", c)
 
-	ctr.Lock()
-	defer ctr.Unlock()
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
-	then := time.Now()
-	atomic.AddInt64(&ctr.stats.registers, 1)
-	atomic.AddInt64(&ctr.stats.registersTotalTime, then.UnixNano()-now)
-
-	return 0
-}
-
-func (ctr *realConntracker) logExceededSize() {
-	if ctr.exceededSizeLogLimit.ShouldLog() {
-		log.Warnf("exceeded maximum conntrack state size: %d entries. You may need to increase system_probe_config.conntrack_max_state_size (will log first ten times, and then once every 10 minutes)", ctr.maxStateSize)
-	}
 }
 
 func (ctr *realConntracker) run() error {
@@ -284,15 +328,31 @@ func (ctr *realConntracker) run() error {
 }
 
 func (ctr *realConntracker) compact() {
+	var removed int64
+	defer func() {
+		atomic.AddInt64(&ctr.stats.unregisters, removed)
+		log.Debugf("removed %d orphans", removed)
+	}()
+
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	// https://github.com/golang/go/issues/20135
-	copied := make(map[connKey]*network.IPTranslation, len(ctr.state))
-	for k, v := range ctr.state {
-		copied[k] = v
+	removed = ctr.removeOrphans(time.Now())
+}
+
+func (ctr *realConntracker) removeOrphans(now time.Time) (removed int64) {
+	for b := ctr.orphans.Back(); b != nil; b = ctr.orphans.Back() {
+		o := b.Value.(*orphanEntry)
+		if !o.ttl.Before(now) {
+			break
+		}
+
+		ctr.cache.Remove(o.key)
+		removed++
+		log.Tracef("removed orphan %+v", o.key)
 	}
-	ctr.state = copied
+
+	return removed
 }
 
 // IsNAT returns whether this Con represents a NAT translation

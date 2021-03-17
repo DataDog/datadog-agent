@@ -4,6 +4,7 @@
 package netlink
 
 import (
+	"container/list"
 	"crypto/rand"
 	"net"
 	"testing"
@@ -12,7 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
+	"github.com/golang/groupcache/lru"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsNat(t *testing.T) {
@@ -93,7 +96,7 @@ func TestIsNat(t *testing.T) {
 }
 
 func TestRegisterNonNat(t *testing.T) {
-	rt := newConntracker()
+	rt := newConntracker(10000)
 	c := makeUntranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("50.30.40.10"), 6, 8080, 12345)
 
 	rt.register(c)
@@ -110,7 +113,7 @@ func TestRegisterNonNat(t *testing.T) {
 }
 
 func TestRegisterNat(t *testing.T) {
-	rt := newConntracker()
+	rt := newConntracker(10000)
 	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80)
 
 	rt.register(c)
@@ -145,7 +148,7 @@ func TestRegisterNat(t *testing.T) {
 }
 
 func TestRegisterNatUDP(t *testing.T) {
-	rt := newConntracker()
+	rt := newConntracker(10000)
 	c := makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 17, 12345, 80, 80)
 
 	rt.register(c)
@@ -179,19 +182,49 @@ func TestRegisterNatUDP(t *testing.T) {
 }
 
 func TestTooManyEntries(t *testing.T) {
-	rt := newConntracker()
-	rt.maxStateSize = 1
+	rt := newConntracker(2)
 
 	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.0"), net.ParseIP("20.0.0.0"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
-	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.1"), net.ParseIP("20.0.0.1"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
-	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.2"), net.ParseIP("20.0.0.2"), net.ParseIP("50.30.40.10"), 6, 12345, 80, 80))
+	tr := rt.GetTranslationForConn(network.ConnectionStats{
+		Source: util.AddressFromString("10.0.0.0"),
+		SPort:  12345,
+		Dest:   util.AddressFromString("50.30.40.10"),
+		DPort:  80,
+		Type:   network.TCP,
+	})
+	require.NotNil(t, tr)
+	require.Equal(t, "20.0.0.0", tr.ReplSrcIP.String())
+	require.Equal(t, uint16(80), tr.ReplSrcPort)
+
+	rt.register(makeTranslatedConn(net.ParseIP("10.0.0.1"), net.ParseIP("20.0.0.1"), net.ParseIP("50.30.40.20"), 6, 12345, 80, 80))
+	// old entry should be gone
+	tr = rt.GetTranslationForConn(network.ConnectionStats{
+		Source: util.AddressFromString("10.0.0.0"),
+		SPort:  12345,
+		Dest:   util.AddressFromString("50.30.40.10"),
+		DPort:  80,
+		Type:   network.TCP,
+	})
+	require.Nil(t, tr)
+
+	// check new entry
+	tr = rt.GetTranslationForConn(network.ConnectionStats{
+		Source: util.AddressFromString("10.0.0.1"),
+		SPort:  12345,
+		Dest:   util.AddressFromString("50.30.40.20"),
+		DPort:  80,
+		Type:   network.TCP,
+	})
+	require.NotNil(t, tr)
+	require.Equal(t, "20.0.0.1", tr.ReplSrcIP.String())
+	require.Equal(t, uint16(80), tr.ReplSrcPort)
 }
 
 // Run this test with -memprofile to get an insight of how much memory is
 // allocated/used by Conntracker to store maxStateSize entries.
 // Example: go test -run TestConntrackerMemoryAllocation -memprofile mem.prof .
 func TestConntrackerMemoryAllocation(t *testing.T) {
-	rt := newConntracker()
+	rt := newConntracker(10000)
 	ipGen := randomIPGen()
 
 	for i := 0; i < rt.maxStateSize; i++ {
@@ -200,11 +233,249 @@ func TestConntrackerMemoryAllocation(t *testing.T) {
 	}
 }
 
-func newConntracker() *realConntracker {
+func TestConntrackerAdd(t *testing.T) {
+	t.Run("orphan false", func(t *testing.T) {
+		rt := newConntracker(10)
+		rt.add(
+			makeTranslatedConn(
+				net.ParseIP("1.1.1.1"),
+				net.ParseIP("2.2.2.2"),
+				net.ParseIP("3.3.3.3"),
+				6,
+				12345,
+				80,
+				80),
+			false)
+		require.Equal(t, 2, rt.cache.Len())
+		require.Equal(t, 0, rt.orphans.Len())
+		crossCheckCacheOrphans(t, rt)
+	})
+
+	t.Run("orphan true", func(t *testing.T) {
+		rt := newConntracker(10)
+		rt.add(
+			makeTranslatedConn(
+				net.ParseIP("1.1.1.1"),
+				net.ParseIP("2.2.2.2"),
+				net.ParseIP("3.3.3.3"),
+				6,
+				12345,
+				80,
+				80),
+			true)
+		require.Equal(t, 2, rt.cache.Len())
+		require.Equal(t, 2, rt.orphans.Len())
+		crossCheckCacheOrphans(t, rt)
+
+		tests := []struct {
+			k                   connKey
+			expectedReplSrcIP   string
+			expectedReplSrcPort uint16
+		}{
+			{
+				k: connKey{
+					srcIP:   util.AddressFromString("1.1.1.1"),
+					srcPort: 12345,
+					dstIP:   util.AddressFromString("3.3.3.3"),
+					dstPort: 80,
+				},
+				expectedReplSrcIP:   "2.2.2.2",
+				expectedReplSrcPort: 80,
+			},
+			{
+				k: connKey{
+					srcIP:   util.AddressFromString("2.2.2.2"),
+					srcPort: 80,
+					dstIP:   util.AddressFromString("1.1.1.1"),
+					dstPort: 12345,
+				},
+				expectedReplSrcIP:   "1.1.1.1",
+				expectedReplSrcPort: 12345,
+			},
+		}
+
+		for _, te := range tests {
+			v, ok := rt.cache.Get(te.k)
+			require.True(t, ok, "translation entry not found for key %+v", te.k)
+			tr := v.(*translationEntry)
+			require.NotNil(t, tr.IPTranslation)
+			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
+			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
+			require.NotNil(t, tr.orphan)
+			o := tr.orphan.Value.(*orphanEntry)
+			require.Equal(t, te.k, o.key)
+			// only way to check if tr.orphan is in
+			// rt.orphans is to remove it from
+			// rt.orphans
+			ol := rt.orphans.Len()
+			rt.orphans.Remove(tr.orphan)
+			require.Equal(t, ol-1, rt.orphans.Len())
+		}
+	})
+
+	t.Run("orphan true, existing key", func(t *testing.T) {
+		rt := newConntracker(10)
+		rt.add(
+			makeTranslatedConn(
+				net.ParseIP("1.1.1.1"),
+				net.ParseIP("2.2.2.2"),
+				net.ParseIP("3.3.3.3"),
+				6,
+				12345,
+				80,
+				80),
+			true)
+		require.Equal(t, 2, rt.cache.Len())
+		require.Equal(t, 2, rt.orphans.Len())
+		crossCheckCacheOrphans(t, rt)
+
+		// add a connection with the same origin
+		// values but different reply
+		rt.add(
+			makeTranslatedConn(
+				net.ParseIP("1.1.1.1"),
+				net.ParseIP("4.4.4.4"),
+				net.ParseIP("3.3.3.3"),
+				6,
+				12345,
+				80,
+				80),
+			true)
+		require.Equal(t, 3, rt.cache.Len())
+		require.Equal(t, 3, rt.orphans.Len())
+		crossCheckCacheOrphans(t, rt)
+
+		tests := []struct {
+			k                   connKey
+			expectedReplSrcIP   string
+			expectedReplSrcPort uint16
+		}{
+			{
+				k: connKey{
+					srcIP:   util.AddressFromString("1.1.1.1"),
+					srcPort: 12345,
+					dstIP:   util.AddressFromString("3.3.3.3"),
+					dstPort: 80,
+				},
+				expectedReplSrcIP:   "4.4.4.4",
+				expectedReplSrcPort: 80,
+			},
+			{
+				k: connKey{
+					srcIP:   util.AddressFromString("4.4.4.4"),
+					srcPort: 80,
+					dstIP:   util.AddressFromString("1.1.1.1"),
+					dstPort: 12345,
+				},
+				expectedReplSrcIP:   "1.1.1.1",
+				expectedReplSrcPort: 12345,
+			},
+			{
+				k: connKey{
+					srcIP:   util.AddressFromString("2.2.2.2"),
+					srcPort: 80,
+					dstIP:   util.AddressFromString("1.1.1.1"),
+					dstPort: 12345,
+				},
+				expectedReplSrcIP:   "1.1.1.1",
+				expectedReplSrcPort: 12345,
+			},
+		}
+
+		for _, te := range tests {
+			v, ok := rt.cache.Get(te.k)
+			require.True(t, ok, "translation entry not found for key %+v", te.k)
+			tr := v.(*translationEntry)
+			require.NotNil(t, tr.IPTranslation)
+			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
+			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
+			require.NotNil(t, tr.orphan)
+			o := tr.orphan.Value.(*orphanEntry)
+			require.Equal(t, te.k, o.key)
+			// only way to check if tr.orphan is in
+			// rt.orphans is to remove it from
+			// rt.orphans
+			ol := rt.orphans.Len()
+			rt.orphans.Remove(tr.orphan)
+			require.Equal(t, ol-1, rt.orphans.Len())
+		}
+	})
+}
+
+func TestConntrackerRemoveOrphans(t *testing.T) {
+	t.Run("empty orphans list", func(t *testing.T) {
+		rt := newConntracker(10)
+		rt.orphanTimeout = defaultOrphanTimeout
+
+		require.Equal(t, int64(0), rt.removeOrphans(time.Now().Add(rt.orphanTimeout).Add(time.Second)))
+	})
+
+	t.Run("all orphans expired", func(t *testing.T) {
+		rt := newConntracker(20)
+		rt.orphanTimeout = defaultOrphanTimeout
+		rt.cache.OnEvicted = func(k lru.Key, v interface{}) {
+			rt.orphans.Remove(v.(*translationEntry).orphan)
+		}
+
+		ipGen := randomIPGen()
+		for i := 0; i < rt.maxStateSize/2; i++ {
+			c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
+			rt.register(c)
+		}
+
+		require.Equal(t, int64(rt.maxStateSize), rt.removeOrphans(time.Now().Add(rt.orphanTimeout).Add(time.Minute)))
+		require.Equal(t, 0, rt.orphans.Len())
+		require.Equal(t, 0, rt.cache.Len())
+		crossCheckCacheOrphans(t, rt)
+	})
+
+	t.Run("partial orphans expired", func(t *testing.T) {
+		rt := newConntracker(20)
+		rt.cache.OnEvicted = func(k lru.Key, v interface{}) {
+			rt.orphans.Remove(v.(*translationEntry).orphan)
+		}
+
+		ipGen := randomIPGen()
+
+		rt.orphanTimeout = time.Second
+		for i := 0; i < rt.maxStateSize/4; i++ {
+			c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
+			rt.register(c)
+		}
+
+		rt.orphanTimeout = time.Minute
+		for i := 0; i < rt.maxStateSize/4; i++ {
+			c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
+			rt.register(c)
+		}
+
+		require.Equal(t, int64(rt.maxStateSize/2), rt.removeOrphans(time.Now().Add(5*time.Second)))
+		require.Equal(t, rt.maxStateSize/2, rt.orphans.Len())
+		require.Equal(t, rt.maxStateSize/2, rt.cache.Len())
+		crossCheckCacheOrphans(t, rt)
+
+		require.Equal(t, int64(rt.maxStateSize/2), rt.removeOrphans(time.Now().Add(2*time.Minute)))
+		require.Equal(t, 0, rt.orphans.Len())
+		require.Equal(t, 0, rt.cache.Len())
+		crossCheckCacheOrphans(t, rt)
+	})
+
+}
+
+func crossCheckCacheOrphans(t *testing.T, rt *realConntracker) {
+	for l := rt.orphans.Front(); l != nil; l = l.Next() {
+		o := l.Value.(*orphanEntry)
+		v, ok := rt.cache.Get(o.key)
+		require.True(t, ok)
+		require.Equal(t, l, v.(*translationEntry).orphan)
+	}
+}
+
+func newConntracker(maxSize int) *realConntracker {
 	return &realConntracker{
-		state:                make(map[connKey]*network.IPTranslation),
-		maxStateSize:         10000,
-		exceededSizeLogLimit: util.NewLogLimit(1, time.Minute),
+		cache:        lru.New(maxSize),
+		maxStateSize: maxSize,
+		orphans:      list.New(),
 	}
 }
 
