@@ -1,0 +1,8 @@
+[windows]
+192.168.3.126
+
+[windows:vars]
+ansible_user=ieuser
+ansible_password=Passw0rd!
+ansible_connection=winrm
+ansible_winrm_server_cert_validation=ignore

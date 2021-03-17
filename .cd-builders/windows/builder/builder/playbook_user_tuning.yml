@@ -1,0 +1,33 @@
+- hosts: all
+
+  vars_files:
+    - builder_vars.yml
+
+  tasks:
+    - name: ENV | GOPATH
+      win_environment:
+        state: present
+        name: GOPATH
+        value: "c:\\gopath"
+        level: user
+
+    - name: ENV | GOROOT
+      win_environment:
+        state: present
+        name: GOROOT
+        value: "c:\\go"
+        level: user
+
+    - name: ENV | GOBIN
+      win_environment:
+        state: present
+        name: GOBIN
+        value: "c:\\go\\bin"
+        level: user
+
+    - name: Tune git config
+      win_command: "git config --global user.email \"gitlab@windowsrunner.local\""
+
+    - name: Tune git config
+      win_command: "git config --global user.name \"Windows Gitlab Runner Instance\""
+

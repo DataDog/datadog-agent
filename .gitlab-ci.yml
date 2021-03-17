@@ -72,7 +72,7 @@ clear_deps_win_cache:
     - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
     - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
   tags:
-    - sts_windows
+    - agent_windows_6
 
 deps_deb:
   stage: prepare
@@ -132,7 +132,7 @@ deps_win:
       - "version.txt"
     expire_in: 1 week
   tags:
-    - sts_windows
+    - agent_windows_6
 
 unit_tests:
   stage: build_and_test
@@ -352,7 +352,7 @@ build_win:
       - ./*.msi
       - "version.txt"
   tags:
-    - sts_windows
+    - agent_windows_6
 
 test_deb_renaming:
   stage: pre_release
@@ -401,7 +401,7 @@ pre_release_win:
     - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET_WIN']).object('install.ps1').upload_file('./install.ps1', acl:'public-read')"
   tags:
-    - sts_windows
+    - agent_windows_6
 
 pre_release_rpm:
   stage: pre_release
@@ -626,7 +626,7 @@ release_win:
     - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
   tags:
-    - sts_windows
+    - agent_windows_6
   when: manual
   only:
     - tags
