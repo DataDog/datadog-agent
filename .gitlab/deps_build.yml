@@ -92,3 +92,31 @@ build_clang_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+
+build_windows_python_common:
+  rules:
+    - when: manual
+      allow_failure: true
+  stage: deps_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - if (Test-Path $CI_PROJECT_DIR\build-out) { remove-item -recurse -force $CI_PROJECT_DIR\build-out }
+    - mkdir $CI_PROJECT_DIR\build-out
+    - docker run --rm -v "$CI_PROJECT_DIR:c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version ${env:WINDOWS_PYTHON_VERSION} -OutDir c:\mnt\build-out"
+    - ls $CI_PROJECT_DIR\build-out
+    - $S3_CP_CMD $CI_PROJECT_DIR\build-out\python-windows-${env:WINDOWS_PYTHON_VERSION}-${ARCH}.zip s3://$OMNIBUS_S3_BUCKET/python-windows-${env:WINDOWS_PYTHON_VERSION}-${ARCH}.zip
+  timeout: 0h 30m
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/build-out/python-windows-${env:WINDOWS_PYTHON_VERSION}-${ARCH}.zip
+
+build_windows_python_zip_x64:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x64"
+
+build_windows_python_zip_x86:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x86"
