@@ -25,6 +25,8 @@ var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
+type ctrProcMsgFactory func([]*model.Container, []*model.Process) *model.CollectorProc
+
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
@@ -185,26 +187,21 @@ func createProcCtrMessages(
 		})
 	}
 
-	ctrProcs := make([]*model.Process, 0)
-	ctrs := make([]*model.Container, 0, len(containers))
-	for _, ctr := range containers {
-		if procs, ok := procsByCtr[ctr.Id]; ok {
-			ctrProcs = append(ctrProcs, procs...)
-		}
-		ctrs = append(ctrs, ctr)
-	}
+	procCtrMessages := packProcCtrMessages(cfg.MaxPerMessage, procsByCtr, containers,
+		func(c []*model.Container, p []*model.Process) *model.CollectorProc {
+			return &model.CollectorProc{
+				HostName:          cfg.HostName,
+				NetworkId:         networkID,
+				Info:              sysInfo,
+				Processes:         p,
+				Containers:        c,
+				GroupId:           groupID,
+				ContainerHostType: cfg.ContainerHostType,
+			}
+		},
+	)
 
-	if len(ctrs) > 0 {
-		msgs = append(msgs, &model.CollectorProc{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Info:              sysInfo,
-			Processes:         ctrProcs,
-			Containers:        ctrs,
-			GroupId:           groupID,
-			ContainerHostType: cfg.ContainerHostType,
-		})
-	}
+	msgs = append(msgs, procCtrMessages...)
 
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
@@ -217,6 +214,41 @@ func createProcCtrMessages(
 	}
 
 	return messages, totalProcs, totalContainers
+}
+
+func packProcCtrMessages(
+	capacity int,
+	procsByCtr map[string][]*model.Process,
+	containers []*model.Container,
+	msgFn ctrProcMsgFactory,
+) []*model.CollectorProc {
+
+	var msgs []*model.CollectorProc
+	var ctrs []*model.Container
+	var ctrProcs []*model.Process
+
+	space := capacity
+
+	for _, ctr := range containers {
+		procs, _ := procsByCtr[ctr.Id]
+
+		if len(procs) > space && space != capacity {
+			msgs = append(msgs, msgFn(ctrs, ctrProcs))
+			ctrs = nil
+			ctrProcs = nil
+			space = capacity
+		}
+
+		ctrs = append(ctrs, ctr)
+		ctrProcs = append(ctrProcs, procs...)
+		space += len(procs)
+	}
+
+	if len(ctrs) > 0 {
+		msgs = append(msgs, msgFn(ctrs, ctrProcs))
+	}
+
+	return msgs
 }
 
 // chunkProcesses split non-container processes into chunks and return a list of chunks
