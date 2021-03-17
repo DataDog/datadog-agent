@@ -31,4 +31,5 @@ type APICollectorClient interface {
 	GetSecrets() ([]coreV1.Secret, error)
 	GetNamespaces() ([]coreV1.Namespace, error)
 	GetPersistentVolumes() ([]coreV1.PersistentVolume, error)
+	GetPersistentVolumeClaims() ([]coreV1.PersistentVolumeClaim, error)
 }
