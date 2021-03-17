@@ -861,11 +861,12 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	}
 
 	return map[string]int64{
-		"tcp_sent_miscounts":  int64(telemetry.tcp_sent_miscounts),
-		"missed_tcp_close":    int64(telemetry.missed_tcp_close),
-		"missed_udp_close":    int64(telemetry.missed_udp_close),
-		"udp_sends_processed": int64(telemetry.udp_sends_processed),
-		"udp_sends_missed":    int64(telemetry.udp_sends_missed),
+		"tcp_sent_miscounts":         int64(telemetry.tcp_sent_miscounts),
+		"missed_tcp_close":           int64(telemetry.missed_tcp_close),
+		"missed_udp_close":           int64(telemetry.missed_udp_close),
+		"udp_sends_processed":        int64(telemetry.udp_sends_processed),
+		"udp_sends_missed":           int64(telemetry.udp_sends_missed),
+		"conn_stats_max_entries_hit": int64(telemetry.conn_stats_max_entries_hit),
 	}
 }
 
