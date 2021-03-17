@@ -160,6 +160,6 @@ class TempDir:
         print("created tempdir: {name}".format(name=self.fname))
         return self.fname
 
-    def __exit__(self, exception_type, exception_value, exception_traceback):
+    def __exit__(self, _, _, _):
         print("deleting tempdir: {name}".format(name=self.fname))
         shutil.rmtree(self.fname)
