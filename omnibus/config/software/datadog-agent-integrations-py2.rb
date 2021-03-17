@@ -143,7 +143,7 @@ build do
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0"
-    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools', 'setuptools-scm']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
