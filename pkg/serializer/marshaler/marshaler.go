@@ -5,13 +5,18 @@
 
 package marshaler
 
-import jsoniter "github.com/json-iterator/go"
+import (
+	"bytes"
+
+	jsoniter "github.com/json-iterator/go"
+)
 
 // Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
 type Marshaler interface {
 	MarshalJSON() ([]byte, error)
 	Marshal() ([]byte, error)
 	SplitPayload(int) ([]Marshaler, error)
+	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
@@ -22,4 +27,20 @@ type StreamJSONMarshaler interface {
 	WriteItem(*jsoniter.Stream, int) error
 	Len() int
 	DescribeItem(i int) string
+}
+
+// BufferContext contains the buffers used for MarshalSplitCompress so they can be shared between invocations
+type BufferContext struct {
+	CompressorInput   *bytes.Buffer
+	CompressorOutput  *bytes.Buffer
+	PrecompressionBuf []byte
+}
+
+// DefaultBufferContext initialize the default compression buffers
+func DefaultBufferContext() *BufferContext {
+	return &BufferContext{
+		bytes.NewBuffer(make([]byte, 0, 1024)),
+		bytes.NewBuffer(make([]byte, 0, 1024)),
+		make([]byte, 1024),
+	}
 }

@@ -72,3 +72,14 @@ func GetMeta(s *pb.Span, key string) (string, bool) {
 	val, ok := s.Meta[key]
 	return val, ok
 }
+
+// GetMetaDefault gets the metadata value in the span Meta map and fallbacks to fallback.
+func GetMetaDefault(s *pb.Span, key, fallback string) string {
+	if s.Meta == nil {
+		return fallback
+	}
+	if val, ok := s.Meta[key]; ok {
+		return val
+	}
+	return fallback
+}

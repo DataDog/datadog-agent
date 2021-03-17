@@ -26,18 +26,13 @@ func newForwarderMaxStorage(
 	diskPath string,
 	disk diskUsageRetriever,
 	maxSizeInBytes int64,
-	maxDiskRatio float64) (*forwarderMaxStorage, error) {
-	maxStorage := &forwarderMaxStorage{
+	maxDiskRatio float64) *forwarderMaxStorage {
+	return &forwarderMaxStorage{
 		diskPath:       diskPath,
 		maxSizeInBytes: maxSizeInBytes,
 		disk:           disk,
 		maxDiskRatio:   maxDiskRatio,
 	}
-
-	// Check if there is an error when computing the available space
-	// in this function to warn the user sonner (and not when there is an outage)
-	_, err := maxStorage.computeMaxStorage(0)
-	return maxStorage, err
 }
 
 func (s *forwarderMaxStorage) computeMaxStorage(currentSize int64) (int64, error) {

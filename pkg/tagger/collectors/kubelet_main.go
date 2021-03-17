@@ -9,10 +9,11 @@ package collectors
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	agenterr "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +42,10 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsKubernetes() {
+		return NoCollection, errors.New("the Agent is not running in Kubernetes")
+	}
+
 	watcher, err := kubelet.NewPodWatcher(5*time.Minute, true)
 	if err != nil {
 		return NoCollection, err
@@ -120,7 +125,7 @@ func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, e
 		}
 	}
 	// entity not found in updates
-	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+	return []string{}, []string{}, []string{}, agenterr.NewNotFound(entity)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

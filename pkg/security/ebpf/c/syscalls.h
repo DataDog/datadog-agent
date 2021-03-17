@@ -21,46 +21,39 @@ struct syscall_cache_t {
             int flags;
             umode_t mode;
             struct dentry *dentry;
-            struct path_key_t path_key;
+            struct file_t file;
         } open;
 
         struct {
             umode_t mode;
             struct dentry *dentry;
             struct path *path;
-            struct path_key_t path_key;
+            struct file_t file;
         } mkdir;
 
         struct {
             struct dentry *dentry;
-            struct path_key_t path_key;
-            struct file_metadata_t metadata;
-            int overlay_numlower;
+            struct file_t file;
             int flags;
         } unlink;
 
         struct {
             struct dentry *dentry;
-            struct path_key_t path_key;
-            struct file_metadata_t metadata;
-            int overlay_numlower;
+            struct file_t file;
         } rmdir;
 
         struct {
-            struct path_key_t src_key;
-            struct file_metadata_t src_metadata;
+            struct file_t src_file;
             unsigned long src_inode;
             struct dentry *src_dentry;
             struct dentry *target_dentry;
-            struct path_key_t target_key;
-            int src_overlay_numlower;
+            struct file_t target_file;
         } rename;
 
         struct {
             struct dentry *dentry;
             struct path *path;
-            struct path_key_t path_key;
-            struct file_metadata_t metadata;
+            struct file_t file;
             union {
                 umode_t mode;
                 struct {
@@ -87,20 +80,18 @@ struct syscall_cache_t {
         } umount;
 
         struct {
-            struct path_key_t src_key;
-            struct file_metadata_t src_metadata;
+            struct file_t src_file;
             struct path *target_path;
             struct dentry *src_dentry;
             struct dentry *target_dentry;
-            struct path_key_t target_key;
-            int src_overlay_numlower;
+            struct file_t target_file;
         } link;
 
         struct {
             struct dentry *dentry;
-            struct path_key_t path_key;
+            struct file_t file;
             const char *name;
-        } setxattr;
+        } xattr;
 
         struct {
             u8 is_thread;
@@ -108,7 +99,7 @@ struct syscall_cache_t {
 
         struct {
             struct dentry *dentry;
-            struct path_key_t path_key;
+            struct file_t file;
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
             u8 is_parsed;

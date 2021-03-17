@@ -16,6 +16,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -84,7 +85,11 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_args",
-			Expression: `exec.args in ["-al"]`,
+			Expression: `exec.args in [~"*-al*"]`,
+		},
+		{
+			ID:         "test_rule_tty",
+			Expression: `open.file.path == "{{.Root}}/test-process-tty" && open.flags & O_CREAT == 0`,
 		},
 	}
 
@@ -129,8 +134,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
+				t.Errorf("expected inode %d, got %d", event.ResolveProcessCacheEntry().FileFields.Inode, inode)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")
@@ -155,12 +160,12 @@ func TestProcessContext(t *testing.T) {
 			t.Error(err)
 		} else {
 			args, err := event.GetFieldValue("exec.args")
-			if err != nil || len(args.([]string)) == 0 {
+			if err != nil || len(args.(string)) == 0 {
 				t.Error("not able to get args")
 			}
 
 			contains := func(s string) bool {
-				for _, arg := range args.([]string) {
+				for _, arg := range strings.Split(args.(string), " ") {
 					if s == arg {
 						return true
 					}
@@ -213,11 +218,12 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get args")
 			}
 
-			if len(args.([]string)) != 2 {
+			argv := strings.Split(args.(string), " ")
+			if len(argv) != 2 {
 				t.Errorf("incorrect number of args")
 			}
 
-			if !strings.HasSuffix(args.([]string)[1], "...") {
+			if !strings.HasSuffix(argv[1], "...") {
 				t.Error("arg not truncated")
 			}
 		}
@@ -239,34 +245,61 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get args")
 			}
 
-			n := len(args.([]string))
+			argv := strings.Split(args.(string), " ")
+			n := len(argv)
 			if n == 0 || n > 100 {
 				t.Errorf("incorrect number of args")
 			}
 
-			if args.([]string)[n-1] != "..." {
+			if argv[n-1] != "..." {
 				t.Error("arg not truncated")
 			}
 		}
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		// not working on centos8
-		t.Skip()
+		testFile, _, err := test.Path("test-process-tty")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		executable := "/usr/bin/cat"
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		executable := "/usr/bin/tail"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
 		} else {
 			if os.IsNotExist(err) {
-				executable = "/bin/cat"
+				executable = "/bin/tail"
 			}
 		}
 
-		cmd := exec.Command("script", "/dev/null", "-c", executable+" "+testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
-			t.Error(err)
-		}
+		var wg sync.WaitGroup
+
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
+
+			time.Sleep(2 * time.Second)
+			cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
+			if err := cmd.Start(); err != nil {
+				t.Error(err)
+				return
+			}
+			time.Sleep(2 * time.Second)
+
+			cmd.Process.Kill()
+			cmd.Wait()
+		}()
+		defer wg.Wait()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -276,12 +309,12 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
 			}
 
-			if name, _ := event.GetFieldValue("process.tty_name"); name.(string) == "" {
-				t.Error("not able to get a tty name")
+			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
+				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileFields.Inode {
-				t.Logf("expected inode %d, got %d", event.ProcessContext.FileFields.Inode, inode)
+			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
 			}
 
 			testContainerPath(t, event, "process.file.container_path")

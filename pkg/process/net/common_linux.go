@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	statusURL      = "http://unix/status"
 	connectionsURL = "http://unix/connections"
 	statsURL       = "http://unix/debug/stats"
 	netType        = "unix"

@@ -169,7 +169,7 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 	if config.Datadog.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		a.EnableSystemProbe = true
-		a.EnabledChecks = append(a.EnabledChecks, "TCP queue length")
+		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
@@ -225,6 +225,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	if config.Datadog.IsSet(key(spNS, "runtime_compiler_output_dir")) {
 		a.RuntimeCompilerOutputDir = config.Datadog.GetString(key(spNS, "runtime_compiler_output_dir"))
+	}
+
+	if config.Datadog.IsSet("network_config.enable_gateway_lookup") {
+		a.EnableGatewayLookup = config.Datadog.GetBool("network_config.enable_gateway_lookup")
 	}
 
 	return nil
@@ -363,6 +367,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		if agentBin := config.Datadog.GetString(k); agentBin != "" {
 			a.DDAgentBin = agentBin
 		}
+	}
+
+	// Overrides the grpc connection timeout setting to the main agent.
+	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
+		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second
 	}
 
 	// Windows: Sets windows process table refresh rate (in number of check runs)

@@ -150,7 +150,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
-	e.TTYName = string(bytes.Trim(ttyRaw[:], "\x00"))
+	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
+	if IsPrintable(ttyName) {
+		e.TTYName = ttyName
+	}
 	read += 64
 
 	var commRaw [16]byte
@@ -230,8 +233,8 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.OverlayNumLower = int32(ByteOrder.Uint32(data[12:16]))
-	e.PathID = ByteOrder.Uint32(data[16:20])
+	e.PathID = ByteOrder.Uint32(data[12:16])
+	e.Flags = int32(ByteOrder.Uint32(data[16:20]))
 
 	// +4 for padding
 

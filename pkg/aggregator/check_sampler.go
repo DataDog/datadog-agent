@@ -14,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
-	sketches        []metrics.SketchSeries
+	sketches        metrics.SketchSeriesList
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
@@ -32,7 +33,7 @@ type CheckSampler struct {
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
-		sketches:        make([]metrics.SketchSeries, 0),
+		sketches:        make(metrics.SketchSeriesList, 0),
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
@@ -51,7 +52,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx := cs.contextResolver.contextsByKey[ck]
+	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags,
@@ -122,7 +123,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
-		context, ok := cs.contextResolver.contextsByKey[ckey]
+		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
@@ -131,7 +132,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
-		context, ok := cs.contextResolver.contextsByKey[serie.ContextKey]
+		context, ok := cs.contextResolver.get(serie.ContextKey)
 		if !ok {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
@@ -172,7 +173,7 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 
 	// sketches
 	sketches := cs.sketches
-	cs.sketches = make([]metrics.SketchSeries, 0)
+	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	// garbage collect unused bucket deltas
 	now := time.Now()
@@ -182,6 +183,5 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 			delete(cs.lastBucketValue, ctxKey)
 		}
 	}
-
 	return series, sketches
 }

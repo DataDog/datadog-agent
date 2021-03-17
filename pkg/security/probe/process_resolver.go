@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
@@ -51,10 +52,42 @@ func getDoForkInput(probe *Probe) uint64 {
 	return doForkListInput
 }
 
+// TTYConstants returns the tty constants
+func TTYConstants(probe *Probe) []manager.ConstantEditor {
+	ttyOffset, nameOffset := uint64(400), uint64(368)
+
+	kv, err := NewKernelVersion()
+	if err == nil {
+		switch {
+		case kv.IsRH7Kernel():
+			ttyOffset, nameOffset = 416, 312
+		case kv.IsRH8Kernel():
+			ttyOffset, nameOffset = 392, 368
+		case kv.IsSLES12Kernel():
+			ttyOffset, nameOffset = 376, 368
+		case kv.IsSLES15Kernel():
+			ttyOffset, nameOffset = 408, 368
+		case probe.kernelVersion != 0 && probe.kernelVersion < kernel5_3:
+			ttyOffset, nameOffset = 368, 368
+		}
+	}
+
+	return []manager.ConstantEditor{
+		{
+			Name:  "tty_offset",
+			Value: ttyOffset,
+		},
+		{
+			Name:  "tty_name_offset",
+			Value: nameOffset,
+		},
+	}
+}
+
 // InodeInfo holds information related to inode from kernel
 type InodeInfo struct {
-	MountID         uint32
-	OverlayNumLower int32
+	MountID uint32
+	Flags   int32
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -63,7 +96,7 @@ func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
 		return 0, model.ErrNotEnoughData
 	}
 	i.MountID = model.ByteOrder.Uint32(data)
-	i.OverlayNumLower = int32(model.ByteOrder.Uint32(data[4:]))
+	i.Flags = int32(model.ByteOrder.Uint32(data[4:]))
 	return 8, nil
 }
 
@@ -233,16 +266,7 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*model.FileFields, er
 	return &info, nil
 }
 
-func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
-	if prev := p.entryCache[pid]; prev != nil {
-		// this shouldn't happen but it is better to exit the prev and let the new one replace it
-		prev.Exit(entry.ForkTime)
-	}
-
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		parent.Fork(entry)
-	}
+func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.entryCache[pid] = entry
 
 	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
@@ -258,23 +282,26 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	return entry
 }
 
+func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	if prev := p.entryCache[pid]; prev != nil {
+		// this shouldn't happen but it is better to exit the prev and let the new one replace it
+		prev.Exit(entry.ForkTime)
+	}
+
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		parent.Fork(entry)
+	}
+
+	return p.insertEntry(pid, entry)
+}
+
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	if prev := p.entryCache[pid]; prev != nil {
 		prev.Exec(entry)
 	}
 
-	p.entryCache[pid] = entry
-
-	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
-
-	if p.opts.DebugCacheSize {
-		atomic.AddInt64(&p.cacheSize, 1)
-
-		runtime.SetFinalizer(entry, func(obj interface{}) {
-			atomic.AddInt64(&p.cacheSize, -1)
-		})
-	}
-	return entry
+	return p.insertEntry(pid, entry)
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -322,6 +349,25 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
+// SetProcessPath resolves process file path
+func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
+	var err error
+
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
+	}
+
+	return entry.PathnameStr, err
+}
+
+// SetProcessContainerPath resolves container path
+func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry) string {
+	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
+		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
+	}
+	return entry.ContainerPath
+}
+
 func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEntry, data []byte, unmarshalContext bool) (int, error) {
 	read, err := entry.UnmarshalBinary(data, unmarshalContext)
 	if err != nil {
@@ -331,16 +377,6 @@ func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEn
 	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
-
-	// Resolve FileEvent now while the dentry cache is up to date. Fork events might send a null inode if the parent
-	// wasn't in the kernel cache, so resolve only if necessary.
-
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		// We still need to retrieve the error from the resolution: should we fail to resolve the pathname, we need
-		// to fall back to /proc
-		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
-	}
 
 	return read, err
 }
@@ -399,30 +435,42 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry
 	return entry
 }
 
-// ResolveArgs resolves arguments
-func (p *ProcessResolver) ResolveArgs(pce *model.ProcessCacheEntry) {
+// SetProcessArgs set arguments to cache entry
+func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Args = entry.Values
+		pce.ArgsArray = entry.Values
 		if pce.ArgsTruncated {
-			pce.Args = append(pce.Args, "...")
+			pce.ArgsArray = append(pce.ArgsArray, "...")
 		}
 		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
 	}
 }
 
-// ResolveEnvs resolves environment variables
-func (p *ProcessResolver) ResolveEnvs(pce *model.ProcessCacheEntry) {
+// SetProcessEnvs set environment variables to cache entry
+func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Envs = entry.Values
+		pce.EnvsArray = entry.Values
 		if pce.EnvsTruncated {
-			pce.Envs = append(pce.Envs, "...")
+			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
 		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
 	}
+}
+
+// SetTTY resolves TTY and cache the result
+func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+	if pce.TTYName == "" {
+		tty := utils.PidTTY(int32(pce.Pid))
+		if tty == "" {
+			tty = "null"
+		}
+		pce.TTYName = tty
+	}
+	return pce.TTYName
 }
 
 // Get returns the cache entry for a specified pid
@@ -577,7 +625,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	if entry = p.insertForkEntry(pid, entry); entry == nil {
+	if entry = p.insertEntry(pid, entry); entry == nil {
 		return nil, false
 	}
 

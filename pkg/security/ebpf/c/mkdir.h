@@ -57,7 +57,7 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     }
 
     syscall->mkdir.dentry = (struct dentry *)PT_REGS_PARM2(ctx);;
-    syscall->mkdir.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
+    syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
     if (filter_syscall(syscall, mkdir_approvers)) {
         return discard_syscall(syscall);
@@ -76,21 +76,16 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
         return 0;
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
-    set_path_key_inode(syscall->mkdir.dentry, &syscall->mkdir.path_key, 0);
+    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
-    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
+    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
     if (ret == DENTRY_DISCARDED) {
         return 0;
     }
 
     struct mkdir_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->mkdir.path_key.ino,
-            .mount_id = syscall->mkdir.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->mkdir.dentry),
-            .path_id = syscall->mkdir.path_key.path_id,
-        },
+        .file = syscall->mkdir.file,
         .mode = syscall->mkdir.mode,
     };
 

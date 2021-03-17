@@ -43,8 +43,9 @@ const (
 	TCPCloseReturn ProbeName = "kretprobe/tcp_close"
 
 	// We use the following two probes for UDP sends
-	IPMakeSkb  ProbeName = "kprobe/ip_make_skb"
-	IP6MakeSkb ProbeName = "kprobe/ip6_make_skb"
+	IPMakeSkb        ProbeName = "kprobe/ip_make_skb"
+	IP6MakeSkb       ProbeName = "kprobe/ip6_make_skb"
+	IP6MakeSkbPre470 ProbeName = "kprobe/ip6_make_skb/pre_4_7_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeName = "kprobe/udp_recvmsg"
@@ -81,6 +82,11 @@ const (
 	// SocketHTTPFilter is the socket probe for HTTP
 	SocketHTTPFilter ProbeName = "socket/http_filter"
 
+	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
+	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
+	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call
+	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
+
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
 )
@@ -101,6 +107,7 @@ const (
 	HttpBatchesMap        BPFMapName = "http_batches"
 	HttpBatchStateMap     BPFMapName = "http_batch_state"
 	HttpNotificationsMap  BPFMapName = "http_notifications"
+	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 )

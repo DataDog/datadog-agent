@@ -7,7 +7,6 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
@@ -18,17 +17,4 @@ type ProcessedTrace struct {
 	Root             *pb.Span
 	Env              string
 	ClientDroppedP0s bool
-}
-
-// Weight returns the weight at the root span.
-func (pt *ProcessedTrace) Weight() float64 {
-	if pt.Root == nil {
-		return 1.0
-	}
-	return stats.Weight(pt.Root)
-}
-
-// GetSamplingPriority returns the sampling priority of the root span.
-func (pt *ProcessedTrace) GetSamplingPriority() (sampler.SamplingPriority, bool) {
-	return sampler.GetSamplingPriority(pt.Root)
 }

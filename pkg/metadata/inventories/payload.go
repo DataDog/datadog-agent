@@ -46,3 +46,8 @@ func (p *Payload) Marshal() ([]byte, error) {
 func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")
 }
+
+// MarshalSplitCompress not implemented
+func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("Inventories MarshalSplitCompress is not implemented")
+}

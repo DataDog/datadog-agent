@@ -89,12 +89,14 @@ func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
 
 		profileDefinition, err := readProfileDefinition(definitionFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read profile definition `%s`: %s", name, err)
+			log.Warnf("failed to read profile definition `%s`: %s", name, err)
+			continue
 		}
 
 		err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to expand profile `%s`: %s", name, err)
+			log.Warnf("failed to expand profile `%s`: %s", name, err)
+			continue
 		}
 
 		profiles[name] = *profileDefinition
@@ -112,7 +114,7 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	profileDefinition := &profileDefinition{}
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall `%q`: %v", filePath, err)
+		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
 	return profileDefinition, nil
 }
