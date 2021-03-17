@@ -418,8 +418,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	case "tags":
 		tags := []string{"autodiscovery_subnet:" + s.config.Network}
 		tags = append(tags, s.config.Tags...)
-		tagsAsJsonStr, _  := json.Marshal(tags)
-		return tagsAsJsonStr, nil
+		tagsAsJSONStr, _  := json.Marshal(tags)
+		return tagsAsJSONStr, nil
 	}
 	return []byte{}, ErrNotSupported
 }
