@@ -87,8 +87,9 @@ type Tracer struct {
 	//
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
-	expiredTCPConns int64
-	closedConns     int64
+	expiredTCPConns  int64
+	closedConns      int64
+	connStatsMapSize int64
 
 	buffer     []network.ConnectionStats
 	bufferLock sync.Mutex
@@ -742,6 +743,7 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
+	atomic.SwapInt64(&t.connStatsMapSize, int64(entryCount))
 
 	// do gateway resolution only on active connections outside
 	// the map iteration loop to not add to connections while
@@ -929,6 +931,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
+	connStatsMapSize := atomic.LoadInt64(&t.connStatsMapSize)
 
 	tracerStats := map[string]int64{
 		"closed_conn_polling_lost":     lost,
@@ -936,6 +939,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":            expiredTCP,
 		"pid_collisions":               pidCollisions,
+		"conn_stats_map_size":          connStatsMapSize,
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v
