@@ -53,20 +53,16 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
 	childEntry.Ancestor = pc
+	childEntry.TTYName = pc.TTYName
+	childEntry.Comm = pc.Comm
+	childEntry.FileFields = pc.FileFields
+	childEntry.PathnameStr = pc.PathnameStr
+	childEntry.BasenameStr = pc.BasenameStr
+	childEntry.ContainerPath = pc.ContainerPath
+	childEntry.ExecTimestamp = pc.ExecTimestamp
+	childEntry.Cookie = pc.Cookie
 
-	// keep some context if not present in the ebpf event
-	if childEntry.ExecTime.IsZero() {
-		childEntry.TTYName = pc.TTYName
-		childEntry.Comm = pc.Comm
-		childEntry.FileFields = pc.FileFields
-		childEntry.PathnameStr = pc.PathnameStr
-		childEntry.BasenameStr = pc.BasenameStr
-		childEntry.ContainerPath = pc.ContainerPath
-		childEntry.ExecTimestamp = pc.ExecTimestamp
-		childEntry.Cookie = pc.Cookie
-
-		copyProcessContext(pc, childEntry)
-	}
+	copyProcessContext(pc, childEntry)
 }
 
 func (pc *ProcessCacheEntry) String() string {
