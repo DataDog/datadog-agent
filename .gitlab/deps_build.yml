@@ -93,7 +93,7 @@ build_clang_arm64:
   variables:
     ARCH: arm64
 
-build_windows_python_common:
+.build_windows_python_common:
   rules:
     - when: manual
       allow_failure: true
