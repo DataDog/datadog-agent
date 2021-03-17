@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import io
+import subprocess
 from collections import defaultdict
 
 
@@ -10,13 +11,27 @@ class Test:
     def __init__(self, owners, name, package):
         self.name = name
         self.package = self.__removeprefix(package)
-        self.owners = self.__get_owners(owners, package)
+        self.owners = self.__get_owners(owners)
 
     def __removeprefix(self, package):
         return package[len(self.PACKAGE_PREFIX) :]
 
-    def __get_owners(self, OWNERS, package):
-        owners = OWNERS.of(self.__removeprefix(package))
+    def __find_file(self):
+        # Find the *_test.go file in the package folder that has the test
+        try:
+            output = subprocess.run(
+                ['grep -Rl --include="*_test.go" \'{}\' \'{}\''.format(self.name, self.package)],
+                shell=True,
+                stdout=subprocess.PIPE,
+            )
+            return output.stdout.decode('utf-8').splitlines()[0]
+        except Exception as e:
+            print("Exception '{}' while finding test {} from package {}.".format(e, self.name, self.package))
+            print("Setting file to '.none' to notify Agent Platform")
+            return '.none'
+
+    def __get_owners(self, OWNERS):
+        owners = OWNERS.of(self.__find_file())
         return [name for (kind, name) in owners if kind == "TEAM"]
 
     @property
