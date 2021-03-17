@@ -711,8 +711,10 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	key, stats := &ConnTuple{}, &ConnStatsWithTimestamp{}
 	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
+	var entryCount uint
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
+		entryCount++
 		if t.connectionExpired(key, latestTime, stats, cachedConntrack) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
@@ -733,6 +735,12 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	if err := entries.Err(); err != nil {
 		return nil, 0, fmt.Errorf("unable to iterate connection map: %s", err)
+	}
+
+	if entryCount >= t.config.MaxTrackedConnections {
+		log.Errorf("connection tracking map size has reached the limit of %d. Accurate connection count and data volume metrics will be affected. Increase config value `system_probe_config.max_tracked_connections` to correct this.", t.config.MaxTrackedConnections)
+	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
+		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
 
 	// do gateway resolution only on active connections outside
