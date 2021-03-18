@@ -79,7 +79,7 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 
 	buffer := make([]byte, bufferSize)
 	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool)
+	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool, Udp)
 
 	listener := &UDPListener{
 		conn:            conn,

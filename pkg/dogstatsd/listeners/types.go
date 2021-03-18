@@ -5,6 +5,14 @@
 
 package listeners
 
+type SourceType int
+
+const (
+	Udp SourceType = iota
+	Uds
+	NamedPipe
+)
+
 // Packet represents a statsd packet ready to process,
 // with its origin metadata if applicable.
 //
@@ -12,9 +20,10 @@ package listeners
 // underlying buffer reference to avoid re-sizing the slice
 // before reading
 type Packet struct {
-	Contents []byte // Contents, might contain several messages
-	buffer   []byte // Underlying buffer for data read
-	Origin   string // Origin container if identified
+	Contents []byte     // Contents, might contain several messages
+	buffer   []byte     // Underlying buffer for data read
+	Origin   string     // Origin container if identified
+	Source   SourceType // Type of listener that produced the packet
 }
 
 // Packets is a slice of packet pointers

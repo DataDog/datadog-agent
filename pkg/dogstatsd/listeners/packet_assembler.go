@@ -22,10 +22,11 @@ type packetAssembler struct {
 	sharedPacketPool *PacketPool
 	flushTimer       *time.Ticker
 	closeChannel     chan struct{}
+	packetSourceType SourceType
 	sync.Mutex
 }
 
-func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer, sharedPacketPool *PacketPool) *packetAssembler {
+func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer, sharedPacketPool *PacketPool, packetSourceType SourceType) *packetAssembler {
 	packetAssembler := &packetAssembler{
 		// retrieve an available packet from the packet pool,
 		// which will be pushed back by the server when processed.
@@ -72,6 +73,7 @@ func (p *packetAssembler) flush() {
 		return
 	}
 	p.packet.Contents = p.packet.buffer[:p.packetLength]
+	p.packet.Source = p.packetSourceType
 	p.packetsBuffer.append(p.packet)
 	// retrieve an available packet from the packet pool,
 	// which will be pushed back by the server when processed.
