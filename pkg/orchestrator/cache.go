@@ -20,6 +20,9 @@ const (
 	defaultPurge  = 30 * time.Second
 	// NoExpiration maps to go-cache corresponding value
 	NoExpiration = cache.NoExpiration
+
+	// ClusterAgeCacheKey is the key name for the orchestrator cluster age in the agent in-mem cache
+	ClusterAgeCacheKey = "orchestratorClusterAge"
 )
 
 var (

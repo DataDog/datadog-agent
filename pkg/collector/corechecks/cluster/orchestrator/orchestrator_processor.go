@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -24,7 +25,9 @@ import (
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
@@ -258,6 +261,22 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 	return nil
 }
 
+// getKubeSystemCreationTimeStamp returns the timestamp of the kube-system namespace from the cluster
+// We use it as the cluster timestamp as it is the first namespace which have been created by the cluster.
+func getKubeSystemCreationTimeStamp(coreClient corev1client.CoreV1Interface) (metav1.Time, error) {
+	x, found := orchestrator.KubernetesResourceCache.Get(orchestrator.ClusterAgeCacheKey)
+	if found {
+		return x.(metav1.Time), nil
+	}
+	svc, err := coreClient.Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return metav1.Time{}, err
+	}
+	ts := svc.GetCreationTimestamp()
+	orchestrator.KubernetesResourceCache.Set(orchestrator.ClusterAgeCacheKey, svc.GetCreationTimestamp(), orchestrator.NoExpiration)
+	return ts, nil
+}
+
 // processNodesList process a nodes list into nodes process messages and cluster process message.
 func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
 	start := time.Now()
@@ -277,6 +296,17 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		log.Errorf("Error getting server apiVersion: %s", err.Error())
 		return nil, nil, err
 	}
+
+	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
+	log.Errorf("something test test: %v", kubeSystemCreationTimestamp) // TODO: add to payload when updated
+	if err != nil {
+		log.Errorf("Error getting server kube system creation timestamp: %s", err.Error())
+		return nil, nil, err
+	}
+	if !kubeSystemCreationTimestamp.IsZero() {
+		//a := kubeSystemCreationTimestamp.Unix()
+	}
+	// TODO: move to extractCluster as well
 	apiServerVersions[apiVersion.String()] = 1
 
 	for s := 0; s < len(nodesList); s++ {
