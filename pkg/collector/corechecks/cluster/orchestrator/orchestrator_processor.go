@@ -247,7 +247,6 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 }
 
 func fillClusterResourceVersion(c *model.Cluster) error {
-
 	// Marshal the cluster message to JSON.
 	marshaller := jsoniter.ConfigCompatibleWithStandardLibrary
 	jsonClusterModel, err := marshaller.Marshal(c)
@@ -289,25 +288,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 	memoryCap := uint64(0)
 	cpuAllocatable := uint64(0)
 	cpuCap := uint64(0)
-
-	apiServerVersions := map[string]int32{}
-	apiVersion, err := client.Cl.Discovery().ServerVersion()
-	if err != nil {
-		log.Errorf("Error getting server apiVersion: %s", err.Error())
-		return nil, nil, err
-	}
-
-	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
-	log.Errorf("something test test: %v", kubeSystemCreationTimestamp) // TODO: add to payload when updated
-	if err != nil {
-		log.Errorf("Error getting server kube system creation timestamp: %s", err.Error())
-		return nil, nil, err
-	}
-	if !kubeSystemCreationTimestamp.IsZero() {
-		//a := kubeSystemCreationTimestamp.Unix()
-	}
-	// TODO: move to extractCluster as well
-	apiServerVersions[apiVersion.String()] = 1
 
 	for s := 0; s < len(nodesList); s++ {
 		node := nodesList[s]
@@ -364,7 +344,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
-	clusterMessage := extractClusterMessage(nodeCount, kubeletVersions, apiServerVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap, cfg, clusterID, groupID)
+	clusterMessage, _ := extractClusterMessage(cfg, clusterID, client, groupID, nodeCount, kubeletVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap)
 	if orchestrator.SkipKubernetesResource(types.UID(clusterID), clusterMessage.Cluster.ResourceVersion, orchestrator.K8sCluster) {
 		return messages, nil, nil
 	}
@@ -373,11 +353,24 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 	return messages, clusterMessage, nil
 }
 
-func extractClusterMessage(nodeCount int32, kubeletVersions map[string]int32, apiServerVersions map[string]int32, podCap uint32, podAllocatable uint32, memoryAllocatable uint64, memoryCap uint64, cpuAllocatable uint64, cpuCap uint64, cfg *config.OrchestratorConfig, clusterID string, groupID int32) *model.CollectorCluster {
+func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient, groupID, nodeCount int32, kubeletVersions map[string]int32, podCap, podAllocatable uint32, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap uint64) (*model.CollectorCluster, error) {
+
+	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
+	if err != nil {
+		log.Errorf("Error getting server kube system creation timestamp: %s", err.Error())
+		return nil, err
+	}
+
+	apiVersion, err := client.Cl.Discovery().ServerVersion()
+	if err != nil {
+		log.Errorf("Error getting server apiVersion: %s", err.Error())
+		return nil, err
+	}
+
 	cluster := &model.Cluster{
 		NodeCount:         nodeCount,
 		KubeletVersions:   kubeletVersions,
-		ApiServerVersions: apiServerVersions,
+		ApiServerVersions: map[string]int32{apiVersion.String(): 1},
 		PodCapacity:       podCap,
 		PodAllocatable:    podAllocatable,
 		MemoryAllocatable: memoryAllocatable,
@@ -386,9 +379,13 @@ func extractClusterMessage(nodeCount int32, kubeletVersions map[string]int32, ap
 		CpuCapacity:       cpuCap,
 	}
 
+	if !kubeSystemCreationTimestamp.IsZero() {
+		cluster.CreationTimestamp = kubeSystemCreationTimestamp.Unix()
+	}
+
 	if err := fillClusterResourceVersion(cluster); err != nil {
 		log.Warnf("Failed to compute cluster resource version: %s. Will not send this cluster message.", err)
-		return nil
+		return nil, nil
 	}
 
 	clusterMessage := &model.CollectorCluster{
@@ -398,7 +395,7 @@ func extractClusterMessage(nodeCount int32, kubeletVersions map[string]int32, ap
 		Cluster:     cluster,
 		Tags:        cfg.ExtraTags,
 	}
-	return clusterMessage
+	return clusterMessage, nil
 }
 
 // chunkNodes chunks the given list of nodes, honoring the given chunk count and size.
