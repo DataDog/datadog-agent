@@ -10,10 +10,11 @@ import shutil
 import sys
 import tempfile
 import json
-from urllib.parse import urljoin
+from urllib.parse import urlparse
 
 import yaml
 import requests
+from requests.exceptions import RequestException
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -53,14 +54,6 @@ MISSPELL_IGNORED_TARGETS = [
 
 # Packages that need go:generate
 GO_GENERATE_TARGETS = ["./pkg/status", "./cmd/agent/gui"]
-
-# LICENSE files
-LICENSE_FILES = ["LICENSE", "LICENSE.md"]
-
-# GITHUB domains
-GITHUB_DOMAIN = 'github.com'
-GITHUB_RAW_DOMAIN = 'raw.githubusercontent.com'
-
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -369,7 +362,7 @@ def get_licenses_list(ctx):
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
     exceptions = []
-    additional = []
+    additional = {}
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
         for pkg in wwhrd_conf['exceptions']:
@@ -379,12 +372,8 @@ def get_licenses_list(ctx):
             else:
                 exceptions.append(pkg)
 
-        for pkg in wwhrd_conf['additional']:
-            if pkg.endswith("/..."):
-                # TODO(python3.9): use removesuffix
-                additional.append(pkg[: -len("/...")])
-            else:
-                additional.append(pkg)
+        for pkg, license in wwhrd_conf.get('additional', {}).items():
+            additional[pkg] = license
 
     def is_excluded(pkg):
         if package in exceptions:
@@ -415,37 +404,31 @@ def get_licenses_list(ctx):
                         licenses.append("core,\"{}\",{}".format(package, license))
 
     # Additional Licenses
-    for pkg in additional:
-        if pkg.startswith(GITHUB_DOMAIN):
-            url = "https://{}/master/".format(pkg.replace(GITHUB_DOMAIN, GITHUB_RAW_DOMAIN))
-        else:
-            url = "https://{}".format(pkg)
+    for pkg, lic in additional.items():
+        url = urlparse(lic)
+        url = url._replace(scheme='https', netloc=url.path, path='')
+        try:
+            resp = requests.get(url.geturl())
+            resp.raise_for_status()
 
-        for filename in LICENSE_FILES:
+            with tempfile.TemporaryDirectory() as tempdir:
+                with open(os.path.join(tempdir, 'LICENSE'), 'w') as lfp:
+                    lfp.write(resp.text)
+                    lfp.flush()
 
-            url = urljoin(url, filename)
-            try:
-                resp = requests.get(url)
-                resp.raise_for_status()
+                    temp_path = os.path.dirname(lfp.name)
+                    result = ctx.run("go run github.com/go-enry/go-license-detector/v4/cmd/license-detector -f json {}".format(temp_path))
+                    if result.stdout:
+                        results = json.loads(result.stdout)
+                        for project in results:
+                            if 'error' in project:
+                                continue
 
-                with tempfile.TemporaryDirectory() as tempdir:
-                    with open(os.path.join(tempdir, filename), 'w') as lfp:
-                        lfp.write(resp.text)
-                        lfp.flush()
-
-                        temp_path = os.path.dirname(lfp.name)
-                        result = ctx.run("go run github.com/go-enry/go-license-detector/v4/cmd/license-detector -f json {}".format(temp_path), hide='err')
-                        if result.stdout:
-                            results = json.loads(result.stdout)
-                            for project in results:
-                                if 'error' in project:
-                                    continue
-
-                                # we get the first match
-                                license = project['matches'][0]['license']
-                                licenses.append("core,\"{}\",{}".format(pkg, license))
-            except Exception as e:
-                continue
+                            # we get the first match
+                            license = project['matches'][0]['license']
+                            licenses.append("core,\"{}\",{}".format(pkg, license))
+        except RequestException as e:
+            continue
 
     licenses.sort()
     shutil.rmtree("vendor/")

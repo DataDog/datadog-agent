@@ -347,7 +347,6 @@ core,"github.com/gogo/protobuf/protoc-gen-gogo/descriptor",NewBSD
 core,"github.com/gogo/protobuf/sortkeys",NewBSD
 core,"github.com/gogo/protobuf/types",NewBSD
 core,"github.com/golang/glog",Apache-2.0
-core,"github.com/golang/go",BSD-3-Clause
 core,"github.com/golang/groupcache/lru",Apache-2.0
 core,"github.com/golang/mock/gomock",Apache-2.0
 core,"github.com/golang/protobuf/descriptor",NewBSD
@@ -714,6 +713,9 @@ core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
 core,"golang.org/x/time/rate",NewBSD
+core,"golang.org/x/xerrors",NewBSD
+core,"golang.org/x/xerrors/internal",NewBSD
+core,"golang/go",BSD-3-Clause
 core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
 core,"gomodules.xyz/orderedmap",MIT
 core,"gonum.org/v1/gonum/blas",NewBSD
