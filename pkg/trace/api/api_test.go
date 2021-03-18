@@ -1044,8 +1044,7 @@ func TestWatchdog(t *testing.T) {
 		if testing.Short() {
 			return
 		}
-		os.Setenv("DD_APM_FEATURES", "429")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("429")()
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
