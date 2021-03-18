@@ -43,7 +43,7 @@ type serverSecure struct {
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
-	h, err := hostutil.GetHostname()
+	h, err := hostutil.GetHostname(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
 	}

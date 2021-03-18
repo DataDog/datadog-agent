@@ -6,6 +6,7 @@
 package docker
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,6 +21,8 @@ func init() {
 }
 
 func TestEvents(t *testing.T) {
+	ctx := context.Background()
+
 	nowTimestamp := time.Now().Unix()
 	expectedTags := []string{
 		"highcardlabeltag:eventhigh",
@@ -28,7 +31,7 @@ func TestEvents(t *testing.T) {
 		"lowcardenvtag:eventlowenv",
 	}
 
-	localHostname, err := util.GetHostname()
+	localHostname, err := util.GetHostname(ctx)
 	assert.Nil(t, err)
 
 	expectedBusyboxEvent := metrics.Event{

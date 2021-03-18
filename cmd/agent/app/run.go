@@ -288,7 +288,7 @@ func StartAgent() error {
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -392,7 +392,7 @@ func StartAgent() error {
 	}
 
 	// Detect Cloud Provider
-	go util.DetectCloudProvider()
+	go util.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	util.LogVersionHistory()

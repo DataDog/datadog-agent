@@ -6,6 +6,8 @@
 package util
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
@@ -19,12 +21,12 @@ import (
 
 type cloudProviderDetector struct {
 	name     string
-	callback func() bool
+	callback func(context.Context) bool
 }
 
 type cloudProviderNTPDetector struct {
 	name     string
-	callback func() []string
+	callback func(context.Context) []string
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
@@ -34,7 +36,7 @@ type cloudProviderNTPDetector struct {
 // * Azure
 // * Alibaba
 // * Tencent
-func DetectCloudProvider() {
+func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
 		{name: ecscommon.CloudProviderName, callback: ecs.IsRunningOn},
 		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
@@ -45,7 +47,7 @@ func DetectCloudProvider() {
 	}
 
 	for _, cloudDetector := range detectors {
-		if cloudDetector.callback() {
+		if cloudDetector.callback(ctx) {
 			inventories.SetAgentMetadata(inventories.CloudProviderMetatadaName, cloudDetector.name)
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
 			return
@@ -55,7 +57,7 @@ func DetectCloudProvider() {
 }
 
 // GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
-func GetCloudProviderNTPHosts() []string {
+func GetCloudProviderNTPHosts(ctx context.Context) []string {
 	detectors := []cloudProviderNTPDetector{
 		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
 		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
@@ -66,7 +68,7 @@ func GetCloudProviderNTPHosts() []string {
 	}
 
 	for _, cloudNTPDetector := range detectors {
-		if cloudNTPServers := cloudNTPDetector.callback(); cloudNTPServers != nil {
+		if cloudNTPServers := cloudNTPDetector.callback(ctx); cloudNTPServers != nil {
 			log.Infof("Using NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
 			return cloudNTPServers
 		}

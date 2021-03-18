@@ -1,6 +1,7 @@
 package cloudfoundry
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -11,17 +12,19 @@ import (
 )
 
 func TestHostAliasDisable(t *testing.T) {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("cloud_foundry", false)
 	mockConfig.Set("bosh_id", "ID_CF")
 
-	aliases, err := GetHostAliases()
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
 	assert.Nil(t, aliases)
 }
 
 func TestHostAlias(t *testing.T) {
+	ctx := context.Background()
 	defer func() { getFqdn = util.Fqdn }()
 	mockConfig := config.Mock()
 
@@ -29,7 +32,7 @@ func TestHostAlias(t *testing.T) {
 	mockConfig.Set("bosh_id", "ID_CF")
 	mockConfig.Set("cf_os_hostname_aliasing", false)
 
-	aliases, err := GetHostAliases()
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"ID_CF"}, aliases)
 
@@ -38,7 +41,7 @@ func TestHostAlias(t *testing.T) {
 	getFqdn = func(hostname string) string {
 		return hostname
 	}
-	aliases, err = GetHostAliases()
+	aliases, err = GetHostAliases(ctx)
 	assert.Nil(t, err)
 
 	hostname, _ := os.Hostname()
@@ -51,7 +54,7 @@ func TestHostAlias(t *testing.T) {
 	getFqdn = func(hostname string) string {
 		return hostname + "suffix"
 	}
-	aliases, err = GetHostAliases()
+	aliases, err = GetHostAliases(ctx)
 	assert.Nil(t, err)
 	assert.Len(t, aliases, 3)
 	assert.Contains(t, aliases, "ID_CF")
@@ -61,13 +64,14 @@ func TestHostAlias(t *testing.T) {
 }
 
 func TestHostAliasDefault(t *testing.T) {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	mockConfig.Set("cloud_foundry", true)
 	mockConfig.Set("bosh_id", nil)
 	mockConfig.Set("cf_os_hostname_aliasing", nil)
 
-	aliases, err := GetHostAliases()
+	aliases, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
 
 	hostname, _ := os.Hostname()

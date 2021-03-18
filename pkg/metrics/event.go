@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -153,7 +154,7 @@ func (events Events) getEventsBySourceType() map[string][]*Event {
 func (events Events) MarshalJSON() ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
-	hostname, _ := util.GetHostname()
+	hostname, _ := util.GetHostname(context.TODO())
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
 		apiKeyJSONField:           "", // legacy field, it isn't actually used by the backend
@@ -237,7 +238,7 @@ func writeEventsFooter(stream *jsoniter.Stream) error {
 	stream.WriteObjectEnd()
 	stream.WriteMore()
 
-	hostname, _ := util.GetHostname()
+	hostname, _ := util.GetHostname(context.TODO())
 	stream.WriteObjectField(internalHostnameJSONField)
 	stream.WriteString(hostname)
 

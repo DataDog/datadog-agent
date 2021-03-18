@@ -6,6 +6,7 @@
 package gce
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,7 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	expected := "gke-cluster-massi-agent59-default-pool-6087cc76-9cfa"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,13 +30,14 @@ func TestGetHostname(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostname()
+	val, err := GetHostname(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
 
 func TestGetHostnameEmptyBody(t *testing.T) {
+	ctx := context.Background()
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -43,13 +46,14 @@ func TestGetHostnameEmptyBody(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostname()
+	val, err := GetHostname(ctx)
 	assert.Error(t, err)
 	assert.Empty(t, val)
 	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
 
 func TestGetHostAliases(t *testing.T) {
+	ctx := context.Background()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -68,12 +72,13 @@ func TestGetHostAliases(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias()
+	val, err := GetHostAlias(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, "gce-instance-name.gce-project", val)
 }
 
 func TestGetHostAliasesInstanceNameError(t *testing.T) {
+	ctx := context.Background()
 	lastRequests := []*http.Request{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -92,12 +97,13 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias()
+	val, err := GetHostAlias(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, "gce-custom-hostname.gce-project", val)
 }
 
 func TestGetClusterName(t *testing.T) {
+	ctx := context.Background()
 	expected := "test-cluster-name"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -108,13 +114,14 @@ func TestGetClusterName(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetClusterName()
+	val, err := GetClusterName(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
 }
 
 func TestGetPublicIPv4(t *testing.T) {
+	ctx := context.Background()
 	expected := "10.0.0.2"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,13 +132,14 @@ func TestGetPublicIPv4(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetPublicIPv4()
+	val, err := GetPublicIPv4(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/network-interfaces/0/access-configs/0/external-ip", lastRequest.URL.Path)
 }
 
 func TestGetNetwork(t *testing.T) {
+	ctx := context.Background()
 	expected := "projects/123456789/networks/my-network-name"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,12 +156,13 @@ func TestGetNetwork(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetNetworkID()
+	val, err := GetNetworkID(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 }
 
 func TestGetNetworkNoInferface(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "")
@@ -161,12 +170,13 @@ func TestGetNetworkNoInferface(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	_, err := GetNetworkID()
+	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty response body")
 }
 
 func TestGetNetworkMultipleVPC(t *testing.T) {
+	ctx := context.Background()
 	vpc := "projects/123456789/networks/my-network-name"
 	vpcOther := "projects/123456789/networks/my-other-name"
 
@@ -187,12 +197,13 @@ func TestGetNetworkMultipleVPC(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	_, err := GetNetworkID()
+	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "more than one network interface")
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	ctx := context.Background()
 	expectedHosts := []string{"metadata.google.internal"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,7 +214,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 	metadataURL = ts.URL
 	config.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
-	actualHosts := GetNTPHosts()
+	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
 }

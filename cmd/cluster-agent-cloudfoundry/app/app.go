@@ -153,7 +153,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// get hostname
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

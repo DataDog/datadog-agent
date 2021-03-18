@@ -11,6 +11,7 @@ package embed
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -78,7 +79,7 @@ func (c *APMCheck) run() error {
 
 	cmd := exec.Command(c.binPath, c.commandOpts...)
 
-	hostname, _ := util.GetHostname()
+	hostname, _ := util.GetHostname(context.TODO())
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))

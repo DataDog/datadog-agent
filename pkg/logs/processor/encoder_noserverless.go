@@ -2,11 +2,15 @@
 
 package processor
 
-import "github.com/DataDog/datadog-agent/pkg/util"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
+)
 
 // getHostname returns the name of the host.
 func getHostname() string {
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent can not start without a hostname

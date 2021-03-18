@@ -8,6 +8,8 @@
 package docker
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +27,7 @@ func diagnose() error {
 		log.Info("successfully connected to docker")
 	}
 
-	hostname, err := HostnameProvider()
+	hostname, err := HostnameProvider(context.TODO())
 	if err != nil {
 		log.Errorf("returned hostname %q with error: %s", hostname, err)
 	} else {

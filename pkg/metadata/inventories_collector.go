@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"time"
@@ -19,22 +20,22 @@ type inventoriesCollector struct {
 	sc   *Scheduler
 }
 
-func createPayload(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
-	hostname, err := util.GetHostname()
+func createPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) (*inventories.Payload, error) {
+	hostname, err := util.GetHostname(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to submit inventories metadata payload, no hostname: %s", err)
 	}
 
-	return inventories.GetPayload(hostname, ac, coll), nil
+	return inventories.GetPayload(ctx, hostname, ac, coll), nil
 }
 
 // Send collects the data needed and submits the payload
-func (c inventoriesCollector) Send(s *serializer.Serializer) error {
+func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer) error {
 	if s == nil {
 		return nil
 	}
 
-	payload, err := createPayload(c.ac, c.coll)
+	payload, err := createPayload(ctx, c.ac, c.coll)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (c inventoriesCollector) Init() error {
 func SetupInventoriesExpvar(ac inventories.AutoConfigInterface, coll inventories.CollectorInterface) {
 	expvar.Publish("inventories", expvar.Func(func() interface{} {
 		log.Debugf("Creating inventory payload for expvar")
-		p, err := createPayload(ac, coll)
+		p, err := createPayload(context.TODO(), ac, coll)
 		if err != nil {
 			log.Errorf("Could not create inventory payload for expvar: %s", err)
 			return &inventories.Payload{}

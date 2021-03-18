@@ -86,7 +86,7 @@ func getKubeletHostFromConfig(ctx context.Context, kubeletHost string) ([]string
 func getKubeletHostFromDocker(ctx context.Context) ([]string, []string) {
 	var ips []string
 	var hostnames []string
-	dockerHost, err := docker.HostnameProvider()
+	dockerHost, err := docker.HostnameProvider(ctx)
 	if err != nil {
 		log.Debugf("unable to get hostname from docker, make sure to set the kubernetes_kubelet_host option: %s", err)
 		return ips, hostnames

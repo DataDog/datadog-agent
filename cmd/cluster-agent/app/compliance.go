@@ -87,7 +87,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}

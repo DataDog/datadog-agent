@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -26,19 +27,19 @@ var (
 )
 
 // IsRunningOn returns true if the agent is running on Azure
-func IsRunningOn() bool {
-	if _, err := GetHostAlias(); err == nil {
+func IsRunningOn(ctx context.Context) bool {
+	if _, err := GetHostAlias(ctx); err == nil {
 		return true
 	}
 	return false
 }
 
 // GetHostAlias returns the VM ID from the Azure Metadata api
-func GetHostAlias() (string, error) {
+func GetHostAlias(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	res, err := getResponseWithMaxLength(metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
+	res, err := getResponseWithMaxLength(ctx, metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
@@ -48,11 +49,11 @@ func GetHostAlias() (string, error) {
 
 // GetClusterName returns the name of the cluster containing the current VM by parsing the resource group name.
 // It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
-func GetClusterName() (string, error) {
+func GetClusterName(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	all, err := getResponse(metadataURL + "/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+	all, err := getResponse(ctx, metadataURL+"/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
 	if err != nil {
 		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 	}
@@ -67,16 +68,16 @@ func GetClusterName() (string, error) {
 
 // GetNTPHosts returns the NTP hosts for Azure if it is detected as the cloud provider, otherwise an empty array.
 // Demo: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync
-func GetNTPHosts() []string {
-	if IsRunningOn() {
+func GetNTPHosts(ctx context.Context) []string {
+	if IsRunningOn(ctx) {
 		return []string{"time.windows.com"}
 	}
 
 	return nil
 }
 
-func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
-	result, err := getResponse(endpoint)
+func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
+	result, err := getResponse(ctx, endpoint)
 	if err != nil {
 		return result, err
 	}
@@ -86,13 +87,13 @@ func getResponseWithMaxLength(endpoint string, maxLength int) (string, error) {
 	return result, err
 }
 
-func getResponse(url string) (string, error) {
+func getResponse(ctx context.Context, url string) (string, error) {
 	client := http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 		Timeout:   timeout,
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err
 	}

@@ -6,6 +6,7 @@
 package net
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"math"
@@ -76,7 +77,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := util.GetCloudProviderNTPHosts()
+	defaultHosts := util.GetCloudProviderNTPHosts(context.TODO())
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {

@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -49,7 +50,7 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := agentutil.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

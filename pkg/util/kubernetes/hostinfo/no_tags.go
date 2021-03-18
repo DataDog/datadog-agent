@@ -7,7 +7,9 @@
 
 package hostinfo
 
+import "context"
+
 // GetTags gets the tags from the kubernetes apiserver
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 	return nil, nil
 }

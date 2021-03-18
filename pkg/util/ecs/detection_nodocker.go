@@ -7,6 +7,8 @@
 
 package ecs
 
+import "context"
+
 // IsECSInstance returns whether the agent is running in ECS.
 func IsECSInstance() bool {
 	return false
@@ -19,11 +21,11 @@ func IsFargateInstance() bool {
 }
 
 // IsRunningOn returns true if the agent is running on ECS/Fargate
-func IsRunningOn() bool {
+func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
 // GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
-func GetNTPHosts() []string {
+func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }

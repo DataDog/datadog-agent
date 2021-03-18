@@ -139,8 +139,8 @@ func (d *DockerUtil) RawContainerList(options types.ContainerListOptions) ([]typ
 	return d.cli.ContainerList(ctx, options)
 }
 
-func (d *DockerUtil) GetHostname() (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 	info, err := d.cli.Info(ctx)
 	if err != nil {

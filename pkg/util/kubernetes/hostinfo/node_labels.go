@@ -16,13 +16,13 @@ import (
 )
 
 // GetNodeLabels returns node labels for this host
-func GetNodeLabels() (map[string]string, error) {
+func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 	ku, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
 	}
 
-	nodeName, err := ku.GetNodename(context.TODO())
+	nodeName, err := ku.GetNodename(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +38,8 @@ func GetNodeLabels() (map[string]string, error) {
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
-func GetNodeClusterNameLabel() (string, error) {
-	nodeLabels, err := GetNodeLabels()
+func GetNodeClusterNameLabel(ctx context.Context) (string, error) {
+	nodeLabels, err := GetNodeLabels(ctx)
 	if err != nil {
 		return "", err
 	}

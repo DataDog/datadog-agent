@@ -8,11 +8,13 @@
 package systemd
 
 import (
+	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -1004,7 +1006,7 @@ unit_names:
 	// run
 	check.Run()
 
-	p := inventories.GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
+	p := inventories.GetPayload(context.Background(), "testHostname", &mockAutoConfig{}, &mockCollector{})
 	checkMetadata := *p.CheckMetadata
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])

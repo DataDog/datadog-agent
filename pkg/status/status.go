@@ -6,6 +6,7 @@
 package status
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"os"
@@ -274,13 +275,13 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	hostnameData, err := util.GetHostnameData()
+	hostnameData, err := util.GetHostnameData(context.TODO())
 
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostnameData)
 	}
 
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()

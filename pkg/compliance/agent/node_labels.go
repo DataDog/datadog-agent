@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -43,7 +44,7 @@ type labelsFetcher struct {
 }
 
 func (f *labelsFetcher) fetch() (err error) {
-	f.nodeLabels, err = hostinfo.GetNodeLabels()
+	f.nodeLabels, err = hostinfo.GetNodeLabels(context.TODO())
 	return
 }
 

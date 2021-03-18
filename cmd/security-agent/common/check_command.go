@@ -107,7 +107,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ruleID = args[0]
 	}
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}

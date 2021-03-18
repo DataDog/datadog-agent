@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"context"
 	"runtime"
 	"sync"
 	"time"
@@ -38,7 +39,7 @@ type ContainerCheck struct {
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := agentutil.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

@@ -71,7 +71,7 @@ func IsFargateInstance() bool {
 }
 
 // IsRunningOn returns true if the agent is running on ECS/Fargate
-func IsRunningOn() bool {
+func IsRunningOn(ctx context.Context) bool {
 	return IsECSInstance() || IsFargateInstance()
 }
 
@@ -112,8 +112,8 @@ func HasFargateResourceTags() bool {
 
 // GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
-func GetNTPHosts() []string {
-	if IsRunningOn() {
+func GetNTPHosts(ctx context.Context) []string {
+	if IsRunningOn(ctx) {
 		return []string{"169.254.169.123"}
 	}
 

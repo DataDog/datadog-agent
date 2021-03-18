@@ -6,6 +6,8 @@
 package tencent
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -16,7 +18,7 @@ func init() {
 
 // diagnose the tencent cloud metadata API availability
 func diagnose() error {
-	_, err := GetInstanceID()
+	_, err := GetInstanceID(context.TODO())
 	if err != nil {
 		log.Error(err)
 	}

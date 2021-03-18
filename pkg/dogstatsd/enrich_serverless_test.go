@@ -3,6 +3,7 @@
 package dogstatsd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestConvertParseDistributionServerless(t *testing.T) {
-	defaultHostname, err := util.GetHostname()
+	defaultHostname, err := util.GetHostname(context.Background())
 
 	assert.Equal(t, "", defaultHostname, "In serverless mode, the hostname returned should be an empty string")
 	assert.NoError(t, err)

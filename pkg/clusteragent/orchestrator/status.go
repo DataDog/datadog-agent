@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 
@@ -43,11 +44,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterID"] = clusterID
 	}
 	// get cluster name
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		status["ClusterNameError"] = err.Error()
 	} else {
-		status["ClusterName"] = clustername.GetClusterName(hostname)
+		status["ClusterName"] = clustername.GetClusterName(context.TODO(), hostname)
 	}
 
 	// get orchestrator endpoints

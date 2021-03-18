@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -115,7 +116,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Re
 
 // SendFlare will send a flare and grab the local hostname
 func SendFlare(archivePath string, caseID string, email string) (string, error) {
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

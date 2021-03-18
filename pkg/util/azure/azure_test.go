@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +29,7 @@ func TestGetHostname(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias()
+	val, err := GetHostAlias(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
@@ -62,6 +64,7 @@ func TestGetClusterName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
 			var lastRequest *http.Request
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
@@ -70,7 +73,7 @@ func TestGetClusterName(t *testing.T) {
 			}))
 			defer ts.Close()
 			metadataURL = ts.URL
-			got, err := GetClusterName()
+			got, err := GetClusterName(ctx)
 			assert.Equal(t, tt.wantErr, (err != nil))
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/resourceGroupName")
@@ -80,6 +83,7 @@ func TestGetClusterName(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +94,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 	metadataURL = ts.URL
 	config.Datadog.Set("cloud_provider_metadata", []string{"azure"})
-	actualHosts := GetNTPHosts()
+	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
 }

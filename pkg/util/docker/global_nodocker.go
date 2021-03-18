@@ -7,13 +7,15 @@
 
 package docker
 
+import "context"
+
 // HostnameProvider docker implementation for the hostname provider
-func HostnameProvider() (string, error) {
+func HostnameProvider(ctx context.Context) (string, error) {
 	return "", ErrDockerNotCompiled
 }
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }

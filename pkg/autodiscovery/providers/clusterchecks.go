@@ -41,7 +41,7 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 
 	c.identifier = config.Datadog.GetString("clc_runner_id")
 	if c.identifier == "" {
-		c.identifier, _ = util.GetHostname()
+		c.identifier, _ = util.GetHostname(context.TODO())
 		if config.Datadog.GetBool("cloud_foundry") {
 			boshID := config.Datadog.GetString("bosh_id")
 			if boshID == "" {

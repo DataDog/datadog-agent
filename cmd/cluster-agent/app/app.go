@@ -195,7 +195,7 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Infof("Got APIClient connection")
 
 	// Get hostname as aggregator requires hostname
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -263,7 +263,7 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Failed to generate or retrieve the cluster ID")
 		}
 
-		clusterName := clustername.GetClusterName(hostname)
+		clusterName := clustername.GetClusterName(context.TODO(), hostname)
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}

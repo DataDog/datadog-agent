@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -106,7 +107,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
-	snet, err := ec2.GetSubnetForHardwareAddr(hwAddr)
+	snet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), hwAddr)
 	if err != nil {
 		return network.Subnet{}, err
 	}
