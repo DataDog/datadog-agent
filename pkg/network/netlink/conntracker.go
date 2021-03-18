@@ -408,13 +408,3 @@ func formatKey(tuple *ct.IPTuple) (k connKey, ok bool) {
 
 	return
 }
-
-func ipTranslationToConnKey(proto network.ConnectionType, t *network.IPTranslation) connKey {
-	return connKey{
-		srcIP:     t.ReplSrcIP,
-		dstIP:     t.ReplDstIP,
-		srcPort:   t.ReplSrcPort,
-		dstPort:   t.ReplDstPort,
-		transport: proto,
-	}
-}
