@@ -9,13 +9,8 @@ import (
 	"testing"
 )
 
-func TestDockerSwarmCheck(t *testing.T) {
-	//st := makeSwarmTopologyCollector(&MockSwarmClient{})
-	//swarmCheck := &SwarmCheck{
-	//	CheckBase: core.NewCheckBase(SwarmCheckName),
-	//	instance: &SwarmConfig{},
-	//	topologyCollector: st,
-	//}
+func TestDockerSwarmCheck_True(t *testing.T) {
+
 	swarmcheck := MockSwarmFactory()
 	swarmcheck.Configure(nil, nil)
 
@@ -50,25 +45,21 @@ func TestDockerSwarmCheck(t *testing.T) {
 	sender.AssertExpectations(t)
 }
 
-//func TestDockerSwarm(t *testing.T) {
-//	swarmCheck := SwarmFactory()
-//
-//	// Setup mock sender
-//	sender := mocksender.NewMockSender(swarmCheck.ID())
-//	sender.SetupAcceptAll()
-//
-//	// Setup mock batcher
-//	_ = batcher.NewMockBatcher()
-//
-//
-//	swarmTopology := makeSwarmTopologyCollector(&MockSwarmClient{})
-//
-//	components, relations, err := swarmTopology.collectSwarmServices(sender)
-//	assert.NoError(t, err)
-//
-//
-//	expectedComponents := []*topology.Component{}
-//	expectedRelations := []*topology.Relation{}
-//	assert.EqualValues(t, expectedComponents, components)
-//	assert.EqualValues(t, expectedRelations, relations)
-//}
+func TestDockerSwarmCheck_False(t *testing.T) {
+
+	swarmcheck := SwarmFactory()
+	swarmcheck.Configure(nil, nil)
+
+	// set up the mock batcher
+	mockBatcher := batcher.NewMockBatcher()
+	// set mock hostname
+	testHostname := "mock-host"
+	config.Datadog.Set("hostname", testHostname)
+
+	swarmcheck.Run()
+
+	producedTopology := mockBatcher.CollectedTopology.Flush()
+	expectedTopology := batcher.Topologies{}
+	// since instance flag is not true, no topology will be collected by default
+	assert.EqualValues(t, expectedTopology, producedTopology)
+}
