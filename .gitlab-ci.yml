@@ -582,7 +582,7 @@ pre_release_cluster_agent_image:
 
 
 .molecule_base: &molecule_base
-  image: python:2.7.17
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
   before_script:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
