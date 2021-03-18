@@ -163,7 +163,6 @@ func TestExtraConfig(t *testing.T) {
 		Community: "public",
 		Timeout:   5,
 		Retries:   2,
-		Tags:      []string{"tag1:val1", "tag2:val2"},
 	}
 
 	svc := SNMPService{
@@ -190,9 +189,31 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "2", string(info))
 
-	info, err = svc.GetExtraConfig([]byte("tags"))
+	info, err = svc.GetExtraConfig([]byte("extra_tags"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "[\"autodiscovery_subnet:192.168.0.0/24\",\"tag1:val1\",\"tag2:val2\"]", string(info))
+	assert.Equal(t, "autodiscovery_subnet:192.168.0.0/24", string(info))
+}
+
+func TestExtraConfigExtraTags(t *testing.T) {
+	snmpConfig := snmp.Config{
+		Network:   "192.168.0.0/24",
+		Community: "public",
+		Timeout:   5,
+		Retries:   2,
+		ExtraTags: "tag1:val1,tag2:val2",
+	}
+
+	svc := SNMPService{
+		adIdentifier: "snmp",
+		entityID:     "id",
+		deviceIP:     "192.168.0.1",
+		creationTime: integration.Before,
+		config:       snmpConfig,
+	}
+
+	info, err := svc.GetExtraConfig([]byte("extra_tags"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "autodiscovery_subnet:192.168.0.0/24,tag1:val1,tag2:val2", string(info))
 }
 
 func TestExtraConfigv3(t *testing.T) {

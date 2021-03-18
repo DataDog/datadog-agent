@@ -81,9 +81,9 @@ instances:
     #
     loader: "%%extra_loader%%"
 
-    ## @param tags - list of key:value element - optional
-    ## List of tags to attach to every metric, event and service check emitted by this integration.
-    ##
-    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    ## @param extra_tags - string - optional
+    ## Comma separated tags to attach to every metric, event and service check emitted by this integration.
+    ## Example:
+    ##  extra_tags: "tag1:val1,tag2:val2"
     #
-    tags: %%extra_tags%%
+    extra_tags: "%%extra_tags%%"
