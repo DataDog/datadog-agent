@@ -297,7 +297,7 @@ build do
     end
 
     # Remove setuptools-scm build-time dep
-    command "#{pip} uninstall setuptools-scm"
+    command "#{pip} uninstall -y setuptools-scm"
 
     # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
