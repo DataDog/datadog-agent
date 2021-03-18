@@ -128,6 +128,11 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
+	if s.statKeeper != nil {
+		numStats, droppedStats := s.statKeeper.GetNumStats()
+		stats["num_stats"] = int64(numStats)
+		stats["dropped_stats"] = int64(droppedStats)
+	}
 	return stats
 }
 
