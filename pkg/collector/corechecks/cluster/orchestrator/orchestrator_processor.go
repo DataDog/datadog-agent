@@ -344,7 +344,10 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
-	clusterMessage, _ := extractClusterMessage(cfg, clusterID, client, groupID, nodeCount, kubeletVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap)
+	clusterMessage, err := extractClusterMessage(cfg, clusterID, client, groupID, nodeCount, kubeletVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap)
+	if err != nil {
+		return nil, nil, err
+	}
 	if orchestrator.SkipKubernetesResource(types.UID(clusterID), clusterMessage.Cluster.ResourceVersion, orchestrator.K8sCluster) {
 		return messages, nil, nil
 	}
@@ -384,8 +387,8 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 	}
 
 	if err := fillClusterResourceVersion(cluster); err != nil {
-		log.Warnf("Failed to compute cluster resource version: %s. Will not send this cluster message.", err)
-		return nil, nil
+		log.Warnf("Failed to compute cluster resource version: %s", err.Error())
+		return nil, err
 	}
 
 	clusterMessage := &model.CollectorCluster{
