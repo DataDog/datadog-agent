@@ -11,7 +11,9 @@ import (
 
 func TestDockerSwarmCheck_True(t *testing.T) {
 
-	swarmcheck := MockSwarmFactory()
+	swarmcheck := SwarmFactory().(*SwarmCheck)
+	swarmcheck.instance.CollectSwarmTopology = true
+	swarmcheck.topologyCollector = makeSwarmTopologyCollector(&MockSwarmClient{})
 	swarmcheck.Configure(nil, nil)
 
 	// set up the mock batcher
@@ -47,7 +49,7 @@ func TestDockerSwarmCheck_True(t *testing.T) {
 
 func TestDockerSwarmCheck_False(t *testing.T) {
 
-	swarmcheck := SwarmFactory()
+	swarmcheck := SwarmFactory().(*SwarmCheck)
 	swarmcheck.Configure(nil, nil)
 
 	// set up the mock batcher
@@ -55,6 +57,9 @@ func TestDockerSwarmCheck_False(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// Setup mock sender
+	sender := mocksender.NewMockSender(swarmcheck.ID())
+	sender.On("Commit").Return().Times(1)
 
 	swarmcheck.Run()
 
