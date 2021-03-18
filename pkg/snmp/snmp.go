@@ -54,7 +54,7 @@ type Config struct {
 	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
 	ADIdentifier       string          `mapstructure:"ad_identifier"`
 	Loader             string          `mapstructure:"loader"`
-	ExtraTags          string          `mapstructure:"extra_tags"`
+	Tags               []string        `mapstructure:"tags"`
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig

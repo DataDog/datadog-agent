@@ -200,7 +200,10 @@ func TestExtraConfigExtraTags(t *testing.T) {
 		Community: "public",
 		Timeout:   5,
 		Retries:   2,
-		ExtraTags: "tag1:val1,tag2:val2",
+		Tags: []string{
+			"tag1:val,1,2",
+			"tag2:val_2",
+		},
 	}
 
 	svc := SNMPService{
@@ -213,7 +216,7 @@ func TestExtraConfigExtraTags(t *testing.T) {
 
 	info, err := svc.GetExtraConfig([]byte("extra_tags"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "tag1:val1,tag2:val2", string(info))
+	assert.Equal(t, "tag1:val_1_2,tag2:val_2", string(info))
 }
 
 func TestExtraConfigv3(t *testing.T) {
