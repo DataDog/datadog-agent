@@ -55,10 +55,10 @@ func (p *PoolManager) Put(x interface{}) {
 		p.pool.Put(x)
 	} else {
 		// reference does not exist, account.
-		p.refs.Load(x)
+		p.refs.Store(x, struct{}{})
 	}
 
-	// relatively hot-path so not deferred
+	// relatively hot path so not deferred
 	p.RUnlock()
 }
 
@@ -80,6 +80,7 @@ func (p *PoolManager) Flush() {
 
 	p.refs.Range(func(k, v interface{}) bool {
 		p.pool.Put(k)
+		p.refs.Delete(k)
 		return true
 	})
 
