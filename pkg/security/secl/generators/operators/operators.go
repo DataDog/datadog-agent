@@ -16,6 +16,19 @@ var (
 	output string
 )
 
+// Operator defines an operator
+type Operator struct {
+	FuncName       string
+	Arg1Type       string
+	Arg2Type       string
+	FuncReturnType string
+	EvalReturnType string
+	Op             string
+	ArrayType      string
+	ValueType      string
+	Commutative    bool
+}
+
 func main() {
 	tmpl := template.Must(template.New("header").Parse(`
 
@@ -23,7 +36,7 @@ func main() {
 
 package	eval
 
-{{ range . }}
+{{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
 	partialA, partialB := a.isPartial, b.isPartial
@@ -163,6 +176,98 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 	}, nil
 }
 {{ end }}
+
+{{ range .ArrayOperators }}
+
+func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state)(*{{ .FuncReturnType }}, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
+		for _, v := range b {
+			if a {{ .Op }} v {
+				return true
+			}
+		}
+		return false
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return arrayOp(ea(ctx), eb(ctx))
+		}
+
+		return &{{ .FuncReturnType }}{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Values
+
+		return &{{ .FuncReturnType }}{
+			Value:     arrayOp(ea, eb),
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
+
+		if a.Field != "" {
+			for _, value := range eb {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+			return arrayOp(ea(ctx), eb)
+		}
+
+		return &{{ .FuncReturnType }}{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + InArrayWeight*len(eb),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
+		return arrayOp(ea, eb(ctx))
+	}
+
+	return &{{ .FuncReturnType }}{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+{{end}}
 `))
 
 	outputFile, err := os.Create(output)
@@ -170,156 +275,178 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		panic(err)
 	}
 
-	operators := []struct {
-		FuncName       string
-		Arg1Type       string
-		Arg2Type       string
-		FuncReturnType string
-		EvalReturnType string
-		Op             string
-		ValueType      string
-		Commutative    bool
+	data := struct {
+		Operators      []Operator
+		ArrayOperators []Operator
 	}{
-		{
-			FuncName:       "Or",
-			Arg1Type:       "BoolEvaluator",
-			Arg2Type:       "BoolEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "||",
-			ValueType:      "ScalarValueType",
-			Commutative:    true,
+		Operators: []Operator{
+			{
+				FuncName:       "Or",
+				Arg1Type:       "BoolEvaluator",
+				Arg2Type:       "BoolEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "||",
+				ValueType:      "ScalarValueType",
+				Commutative:    true,
+			},
+			{
+				FuncName:       "And",
+				Arg1Type:       "BoolEvaluator",
+				Arg2Type:       "BoolEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "&&",
+				ValueType:      "ScalarValueType",
+				Commutative:    true,
+			},
+			{
+				FuncName:       "IntEquals",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "==",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "IntAnd",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "IntEvaluator",
+				EvalReturnType: "int",
+				Op:             "&",
+				ValueType:      "BitmaskValueType",
+			},
+			{
+				FuncName:       "IntOr",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "IntEvaluator",
+				EvalReturnType: "int",
+				Op:             "|",
+				ValueType:      "BitmaskValueType",
+			},
+			{
+				FuncName:       "IntXor",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "IntEvaluator",
+				EvalReturnType: "int",
+				Op:             "^",
+				ValueType:      "BitmaskValueType",
+			},
+			{
+				FuncName:       "BoolEquals",
+				Arg1Type:       "BoolEvaluator",
+				Arg2Type:       "BoolEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "==",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "GreaterThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             ">",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "GreaterOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             ">=",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "LesserThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "<",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "LesserOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "<=",
+				ValueType:      "ScalarValueType",
+			},
 		},
-		{
-			FuncName:       "And",
-			Arg1Type:       "BoolEvaluator",
-			Arg2Type:       "BoolEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "&&",
-			ValueType:      "ScalarValueType",
-			Commutative:    true,
-		},
-		{
-			FuncName:       "IntEquals",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "==",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "IntNotEquals",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "!=",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "IntAnd",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "IntEvaluator",
-			EvalReturnType: "int",
-			Op:             "&",
-			ValueType:      "BitmaskValueType",
-		},
-		{
-			FuncName:       "IntOr",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "IntEvaluator",
-			EvalReturnType: "int",
-			Op:             "|",
-			ValueType:      "BitmaskValueType",
-		},
-		{
-			FuncName:       "IntXor",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "IntEvaluator",
-			EvalReturnType: "int",
-			Op:             "^",
-			ValueType:      "BitmaskValueType",
-		},
-		{
-			FuncName:       "StringEquals",
-			Arg1Type:       "StringEvaluator",
-			Arg2Type:       "StringEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "==",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "StringNotEquals",
-			Arg1Type:       "StringEvaluator",
-			Arg2Type:       "StringEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "!=",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "BoolEquals",
-			Arg1Type:       "BoolEvaluator",
-			Arg2Type:       "BoolEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "==",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "BoolNotEquals",
-			Arg1Type:       "BoolEvaluator",
-			Arg2Type:       "BoolEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "!=",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "GreaterThan",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             ">",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "GreaterOrEqualThan",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             ">=",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "LesserThan",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "<",
-			ValueType:      "ScalarValueType",
-		},
-		{
-			FuncName:       "LesserOrEqualThan",
-			Arg1Type:       "IntEvaluator",
-			Arg2Type:       "IntEvaluator",
-			FuncReturnType: "BoolEvaluator",
-			EvalReturnType: "bool",
-			Op:             "<=",
-			ValueType:      "ScalarValueType",
+		ArrayOperators: []Operator{
+			{
+				FuncName:       "IntEquals",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "==",
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "BoolEquals",
+				Arg1Type:       "BoolEvaluator",
+				Arg2Type:       "BoolArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "==",
+				ArrayType:      "bool",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "IntGreaterThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             ">",
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "IntGreaterOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             ">=",
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "IntLesserThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "<",
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "IntLesserOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             "<=",
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
 		},
 	}
 
-	if err := tmpl.Execute(outputFile, operators); err != nil {
+	if err := tmpl.Execute(outputFile, data); err != nil {
 		panic(err)
 	}
 
