@@ -189,7 +189,7 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "2", string(info))
 
-	info, err = svc.GetExtraConfig([]byte("extra_tags"))
+	info, err = svc.GetExtraConfig([]byte("tags"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "", string(info))
 }
@@ -214,7 +214,7 @@ func TestExtraConfigExtraTags(t *testing.T) {
 		config:       snmpConfig,
 	}
 
-	info, err := svc.GetExtraConfig([]byte("extra_tags"))
+	info, err := svc.GetExtraConfig([]byte("tags"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "tag1:val_1_2,tag2:val_2", string(info))
 }

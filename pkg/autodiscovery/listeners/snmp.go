@@ -417,7 +417,7 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
-	case "extra_tags":
+	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	}
 	return []byte{}, ErrNotSupported
