@@ -77,7 +77,7 @@ func NewECSListener() (ServiceListener, error) {
 		stop:     make(chan bool),
 		filters:  filters,
 		t:        time.NewTicker(2 * time.Second),
-		health:   health.RegisterReadiness("ad-ecslistener"),
+		health:   health.RegisterLiveness("ad-ecslistener"),
 	}, nil
 }
 
