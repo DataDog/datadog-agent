@@ -11,7 +11,12 @@
         "ms-kubernetes-tools.vscode-kubernetes-tools",
         "shardulm94.trailing-spaces", // Show trailing spaces
         "Gruntfuggly.todo-tree", // Highlights TODO comments
+        "ms-python.vscode-pylance",
     ],
+    "containerEnv": {
+        "GO111MODULE": "off",
+        "GOMOD": "",
+    },
     "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
     "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
     "postCreateCommand": "pip2 install -r requirements.txt",
