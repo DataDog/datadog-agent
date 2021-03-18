@@ -416,11 +416,7 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	case "loader":
 		return []byte(s.config.Loader), nil
 	case "extra_tags":
-		commaSepTags := "autodiscovery_subnet:" + s.config.Network
-		if s.config.ExtraTags != "" {
-			commaSepTags += "," + s.config.ExtraTags
-		}
-		return []byte(commaSepTags), nil
+		return []byte(s.config.ExtraTags), nil
 	}
 	return []byte{}, ErrNotSupported
 }

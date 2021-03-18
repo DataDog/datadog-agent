@@ -191,7 +191,7 @@ func TestExtraConfig(t *testing.T) {
 
 	info, err = svc.GetExtraConfig([]byte("extra_tags"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "autodiscovery_subnet:192.168.0.0/24", string(info))
+	assert.Equal(t, "", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {
@@ -213,7 +213,7 @@ func TestExtraConfigExtraTags(t *testing.T) {
 
 	info, err := svc.GetExtraConfig([]byte("extra_tags"))
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "autodiscovery_subnet:192.168.0.0/24,tag1:val1,tag2:val2", string(info))
+	assert.Equal(t, "tag1:val1,tag2:val2", string(info))
 }
 
 func TestExtraConfigv3(t *testing.T) {
