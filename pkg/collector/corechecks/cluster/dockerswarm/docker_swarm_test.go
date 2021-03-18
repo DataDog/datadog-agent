@@ -11,26 +11,24 @@ import (
 
 func TestDockerSwarmCheck_True(t *testing.T) {
 
-	swarmcheck := SwarmFactory().(*SwarmCheck)
-	swarmcheck.instance.CollectSwarmTopology = true
-	swarmcheck.topologyCollector = makeSwarmTopologyCollector(&MockSwarmClient{})
-	swarmcheck.Configure(nil, nil)
-
-	// set up the mock batcher
-	mockBatcher := batcher.NewMockBatcher()
+	swarmcheck := MockSwarmFactory()
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// set up the mock batcher
+	mockBatcher := batcher.NewMockBatcher()
 	// Setup mock sender
 	sender := mocksender.NewMockSender(swarmcheck.ID())
 	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
+
+	swarmcheck.Configure(nil, nil)
 	swarmcheck.Run()
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
 	expectedTopology := batcher.Topologies{
-		"docker_swarm": {
+		"swarm_topology": {
 			StartSnapshot: false,
 			StopSnapshot:  false,
 			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},

@@ -577,6 +577,20 @@ molecule_tests_integrations:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
     expire_in: 1 week
 
+molecule_tests_swarm:
+  stage: acceptance
+  needs:
+    - pre_release_image
+  dependencies: []
+  <<: *molecule_base
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+    expire_in: 1 week
+
 release_deb:
   stage: release
   dependencies:

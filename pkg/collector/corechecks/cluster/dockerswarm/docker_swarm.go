@@ -67,9 +67,6 @@ func (s *SwarmCheck) Run() error {
 
 // Parse the config
 func (c *SwarmConfig) Parse(data []byte) error {
-	// default values
-	c.CollectSwarmTopology = false
-
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
 	}
@@ -84,14 +81,6 @@ func (s *SwarmCheck) Configure(config, initConfig integration.Data) error {
 	}
 
 	s.instance.Parse(config)
-
-	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
-	// are attached to Docker events from this host. The hostname from the docker api may be
-	// different than the agent hostname depending on the environment (like EC2 or GCE).
-	s.dockerHostname, err = util.GetHostname()
-	if err != nil {
-		log.Warnf("Can't get hostname from docker: %s", err)
-	}
 	return nil
 }
 

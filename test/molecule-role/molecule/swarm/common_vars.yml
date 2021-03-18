@@ -1,0 +1,6 @@
+---
+molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
+keypair_name: "molecule_key_{{ molecule_run_id }}"
+keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
+agent_repo_url: "https://stackstate-agent-2-test.s3.amazonaws.com"
+agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') }}"
