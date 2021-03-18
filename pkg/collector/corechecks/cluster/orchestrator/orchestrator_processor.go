@@ -277,6 +277,7 @@ func getKubeSystemCreationTimeStamp(coreClient corev1client.CoreV1Interface) (me
 }
 
 // processNodesList process a nodes list into nodes process messages and cluster process message.
+// error can only be returned if cluster resource are being collected as it needs information from the apiserver.
 func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
@@ -346,7 +347,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 
 	clusterMessage, err := extractClusterMessage(cfg, clusterID, client, groupID, nodeCount, kubeletVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap)
 	if err != nil {
-		return nil, nil, err
+		log.Warn("Could not collect orchestrator cluster information, will still send collected nodes information")
+		return messages, nil, nil
 	}
 	if orchestrator.SkipKubernetesResource(types.UID(clusterID), clusterMessage.Cluster.ResourceVersion, orchestrator.K8sCluster) {
 		return messages, nil, nil
@@ -360,13 +362,13 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
 	if err != nil {
-		log.Errorf("Error getting server kube system creation timestamp: %s", err.Error())
+		log.Warnf("Error getting server kube system creation timestamp: %s", err.Error())
 		return nil, err
 	}
 
 	apiVersion, err := client.Cl.Discovery().ServerVersion()
 	if err != nil {
-		log.Errorf("Error getting server apiVersion: %s", err.Error())
+		log.Warnf("Error getting server apiVersion: %s", err.Error())
 		return nil, err
 	}
 
