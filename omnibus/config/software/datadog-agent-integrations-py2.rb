@@ -143,7 +143,7 @@ build do
     command "#{pip} install wheel==0.34.1"
     command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0"
-    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools', 'setuptools-scm']
+    uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -308,6 +308,10 @@ build do
     else
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
     end
+
+    # Remove setuptools-scm build-time dep
+    command "#{pip} uninstall setuptools-scm"
+
 
     # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
     if windows?
