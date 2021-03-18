@@ -451,11 +451,10 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ctx := eval.Context{}
-	ctx.SetObject(e.GetPointer())
+	ctx := eval.NewContext(e.GetPointer())
 
 	it := &model.ProcessAncestorsIterator{}
-	ptr := it.Front(&ctx)
+	ptr := it.Front(ctx)
 
 	first := true
 	for ptr != nil {
