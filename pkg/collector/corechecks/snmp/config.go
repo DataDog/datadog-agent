@@ -38,6 +38,7 @@ type snmpInstanceConfig struct {
 	MetricTags       []metricTagConfig `yaml:"metric_tags"`
 	Profile          string            `yaml:"profile"`
 	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
+	ExtraTags        string            `yaml:"extra_tags"` // comma separated tags
 }
 
 type snmpConfig struct {
@@ -60,6 +61,7 @@ type snmpConfig struct {
 	profiles          profileDefinitionMap
 	profileTags       []string
 	uptimeMetricAdded bool
+	extraTags         []string
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -94,6 +96,7 @@ func (c *snmpConfig) addUptimeMetric() {
 
 func (c *snmpConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
+	tags = append(tags, c.extraTags...)
 	return tags
 }
 
@@ -143,6 +146,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
 	c.port = uint16(instance.Port)
+	if instance.ExtraTags != "" {
+		c.extraTags = strings.Split(instance.ExtraTags, ",")
+	}
 
 	if c.port == 0 {
 		c.port = defaultPort

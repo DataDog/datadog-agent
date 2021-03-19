@@ -90,3 +90,10 @@ instances:
       # The autodiscovery subnet the device is part of.
       # Used by Agent autodiscovery to pass subnet name.
       - "autodiscovery_subnet:%%extra_autodiscovery_subnet%%"
+
+    ## @param extra_tags - string - optional
+    ## Comma separated tags to attach to every metric, event and service check emitted by this integration.
+    ## Example:
+    ##  extra_tags: "tag1:val1,tag2:val2"
+    #
+    extra_tags: "%%extra_tags%%"

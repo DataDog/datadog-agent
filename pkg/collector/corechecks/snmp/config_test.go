@@ -117,6 +117,7 @@ global_metrics:
 	assert.Equal(t, "aes", check.config.privProtocol)
 	assert.Equal(t, "my-privKey", check.config.privKey)
 	assert.Equal(t, "my-contextName", check.config.contextName)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: metricTagConfigList{
@@ -595,4 +596,27 @@ retries: "5"
 	assert.Equal(t, 15, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
 
+}
+
+func TestExtraTags(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+
+	// language=yaml
+	rawInstanceConfigWithExtraTags := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+extra_tags: "extratag1:val1,extratag2:val2"
+`)
+	err = check.Configure(rawInstanceConfigWithExtraTags, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, check.config.getStaticTags())
 }
