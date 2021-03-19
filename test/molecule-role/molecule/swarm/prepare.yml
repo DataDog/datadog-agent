@@ -50,7 +50,7 @@
       register: swarm_status
       ignore_errors: true
     - name: Initialize Docker Swarm
-      shell: "docker swarm init --advertise-addr={{ hostvars['swarm_master_vm']['ansible_default_ipv4']['address'] }}:2377"
+      shell: "docker swarm init --advertise-addr={{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
       when: swarm_status.rc != 0
       run_once: true
     - name: Get the worker join-token
@@ -64,7 +64,7 @@
     - common_vars.yml
   tasks:
     - name: Add Worker to the Swarm
-      shell: "docker swarm join --token {{ hostvars['swarm_master_vm']['worker_token']['stdout'] }} {{ hostvars['swarm_master_vm']['ansible_default_ipv4']['address'] }}:2377"
+      shell: "docker swarm join --token {{ hostvars['agent-swarm-master']['worker_token']['stdout'] }} {{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
 
 - name: Create global service on Master
   hosts: swarm_master_vm
