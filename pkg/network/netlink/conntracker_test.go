@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/golang/groupcache/lru"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -413,9 +413,6 @@ func TestConntrackerRemoveOrphans(t *testing.T) {
 	t.Run("all orphans expired", func(t *testing.T) {
 		rt := newConntracker(20)
 		rt.orphanTimeout = defaultOrphanTimeout
-		rt.cache.OnEvicted = func(k lru.Key, v interface{}) {
-			rt.orphans.Remove(v.(*translationEntry).orphan)
-		}
 
 		ipGen := randomIPGen()
 		for i := 0; i < rt.maxStateSize/2; i++ {
@@ -431,10 +428,6 @@ func TestConntrackerRemoveOrphans(t *testing.T) {
 
 	t.Run("partial orphans expired", func(t *testing.T) {
 		rt := newConntracker(20)
-		rt.cache.OnEvicted = func(k lru.Key, v interface{}) {
-			rt.orphans.Remove(v.(*translationEntry).orphan)
-		}
-
 		ipGen := randomIPGen()
 
 		rt.orphanTimeout = time.Second
@@ -472,11 +465,18 @@ func crossCheckCacheOrphans(t *testing.T, rt *realConntracker) {
 }
 
 func newConntracker(maxSize int) *realConntracker {
-	return &realConntracker{
-		cache:        lru.New(maxSize),
+	rt := &realConntracker{
 		maxStateSize: maxSize,
 		orphans:      list.New(),
 	}
+
+	rt.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
+		t := value.(*translationEntry)
+		if t.orphan != nil {
+			rt.orphans.Remove(t.orphan)
+		}
+	})
+	return rt
 }
 
 func makeUntranslatedConn(src, dst net.IP, proto uint8, srcPort, dstPort uint16) Con {

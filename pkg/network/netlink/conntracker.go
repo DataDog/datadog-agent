@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/golang/groupcache/lru"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"golang.org/x/sys/unix"
 )
 
@@ -58,7 +58,7 @@ type orphanEntry struct {
 type realConntracker struct {
 	sync.RWMutex
 	consumer      *Consumer
-	cache         *lru.Cache
+	cache         *simplelru.LRU
 	orphans       *list.List
 	orphanTimeout time.Duration
 
@@ -103,21 +103,20 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
 		consumer:      consumer,
-		cache:         lru.New(maxStateSize),
 		orphans:       list.New(),
 		maxStateSize:  maxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
 		orphanTimeout: defaultOrphanTimeout,
 	}
 
-	ctr.cache.OnEvicted = func(key lru.Key, value interface{}) {
+	ctr.cache, _ = simplelru.NewLRU(maxStateSize, func(key, value interface{}) {
 		// ctr lock should be held, so it is
 		// safe to modify ctr
 		t := value.(*translationEntry)
 		if t.orphan != nil {
 			ctr.orphans.Remove(t.orphan)
 		}
-	}
+	})
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		events, err := consumer.DumpTable(family)
@@ -138,9 +137,8 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now().UnixNano()
 	defer func() {
-		now := time.Now().UnixNano()
 		atomic.AddInt64(&ctr.stats.gets, 1)
-		atomic.AddInt64(&ctr.stats.getTimeTotal, now-then)
+		atomic.AddInt64(&ctr.stats.getTimeTotal, time.Now().UnixNano()-then)
 	}()
 
 	ctr.Lock()
@@ -219,9 +217,7 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 		transport: c.Type,
 	}
 
-	_, ok := ctr.cache.Get(k)
-	if ok {
-		ctr.cache.Remove(k)
+	if ctr.cache.Remove(k) {
 		atomic.AddInt64(&ctr.stats.unregisters, 1)
 	}
 }
@@ -274,7 +270,7 @@ func (ctr *realConntracker) add(c Con, orphan bool) {
 			return
 		}
 
-		if v, ok := ctr.cache.Get(key); ok {
+		if v, ok := ctr.cache.Peek(key); ok {
 			// value is going to get replaced
 			// by the call to Add below, make
 			// sure orphan is removed
