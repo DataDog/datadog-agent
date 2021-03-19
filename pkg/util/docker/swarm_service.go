@@ -19,7 +19,10 @@ import (
 
 // ListSwarmServices gets a list of all swarm services on the current node using the Docker APIs.
 func (d *DockerUtil) ListSwarmServices() ([]*containers.SwarmService, error) {
-	sList, err := d.dockerSwarmServices()
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+
+	sList, err := dockerSwarmServices(ctx, d.cli)
 	if err != nil {
 		return nil, fmt.Errorf("could not get docker swarm services: %s", err)
 	}
@@ -28,32 +31,31 @@ func (d *DockerUtil) ListSwarmServices() ([]*containers.SwarmService, error) {
 }
 
 // dockerSwarmServices returns all the swarm services in the swarm cluster
-func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
-	defer cancel()
-
-	services, err := d.cli.ServiceList(ctx, types.ServiceListOptions{})
+func dockerSwarmServices(ctx context.Context, client SwarmServiceAPIClient) ([]*containers.SwarmService, error) {
+	services, err := client.ServiceList(ctx, types.ServiceListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error listing swarm services: %s", err)
 	}
+
+	activeNodes, err := getActiveNodes(ctx, client)
+	if err != nil {
+		log.Errorf("Error getting active nodes: %s", err)
+		return nil, err
+	}
+
 	ret := make([]*containers.SwarmService, 0, len(services))
 	for _, s := range services {
 		tasksComponents := make([]*containers.SwarmTask, 0)
-		activeNodes, err := d.getActiveNodes(ctx)
-		if err != nil {
-			log.Errorf("Error getting active nodes: %s", err)
-		}
-		if activeNodes == nil {
-			log.Warnf("No active nodes found")
-		}
 
 		// add the serviceId filter for Tasks
 		taskFilter := filters.NewArgs()
 		taskFilter.Add("service", s.ID)
 		// list the tasks for that service
-		tasks, err := d.cli.TaskList(ctx, types.TaskListOptions{Filters: taskFilter})
+		tasks, err := client.TaskList(ctx, types.TaskListOptions{Filters: taskFilter})
 		if err != nil {
-			log.Errorf("Error listing swarm tasks: %s", err)
+			log.Errorf("Error listing swarm tasks for Service %s: %s. Continue with the remaining services...",
+				s.ID, err)
+			continue
 		}
 
 		desired := uint64(0)
@@ -69,12 +71,12 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 			// this can be directly accessed through ServiceStatus.DesiredTasks
 			if s.Spec.Mode.Global != nil {
 				if task.DesiredState != swarm.TaskStateShutdown {
-					log.Infof("Task having service ID %s got desired tasks for global mode", task.ServiceID)
+					log.Debugf("Task having service ID %s got desired tasks for global mode", task.ServiceID)
 					desired++
 				}
 			}
 			if _, nodeActive := activeNodes[task.NodeID]; nodeActive && task.Status.State == swarm.TaskStateRunning {
-				log.Infof("Task having service ID %s is running", task.ServiceID)
+				log.Debugf("Task having service ID %s is running", task.ServiceID)
 				running++
 			}
 			taskComponent := &containers.SwarmTask{
@@ -85,11 +87,11 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 				ContainerStatus: task.Status.ContainerStatus,
 				DesiredState: 	 task.Status.State,
 			}
-			log.Infof("Creating a task %s for service %s", task.Name, s.Spec.Name)
+			log.Debugf("Creating a task %s for service %s", task.Name, s.Spec.Name)
 			tasksComponents = append(tasksComponents, taskComponent)
 		}
 
-		log.Infof("Service %s has %d desired and %d running tasks", s.Spec.Name, desired, running)
+		log.Debugf("Service %s has %d desired and %d running tasks", s.Spec.Name, desired, running)
 
 		service := &containers.SwarmService{
 			ID:             s.ID,
@@ -114,15 +116,15 @@ func (d *DockerUtil) dockerSwarmServices() ([]*containers.SwarmService, error) {
 	return ret, nil
 }
 
-func (d *DockerUtil) getActiveNodes(ctx context.Context) (map[string]struct{}, error) {
-	nodes, err := d.cli.NodeList(ctx, types.NodeListOptions{})
+func getActiveNodes(ctx context.Context, client SwarmServiceAPIClient) (map[string]bool, error) {
+	nodes, err := client.NodeList(ctx, types.NodeListOptions{})
 	if err != nil {
 		return nil, err
 	}
-	activeNodes := make(map[string]struct{})
+	activeNodes := make(map[string]bool)
 	for _, n := range nodes {
-		if n.Status.State != swarm.NodeStateDown {
-			activeNodes[n.ID] = struct{}{}
+		if n.Status.State == swarm.NodeStateReady {
+			activeNodes[n.ID] = true
 		}
 	}
 	return activeNodes, nil
