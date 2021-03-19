@@ -99,7 +99,6 @@
         chdir: /home/ubuntu/
       environment:
         AGENT_VERSION: "{{ agent_current_branch }}"
-        DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
       register: output
     - debug: var=output
