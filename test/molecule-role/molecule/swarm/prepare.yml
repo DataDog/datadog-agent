@@ -74,6 +74,9 @@
   tasks:
     - name: Create a global nginx service
       shell: "docker service create --name nginx --mode global nginx"
+    - name: Installing docker in Ansible
+      pip:
+        name: docker
     - name: Docker login
       docker_login:
         registry: quay.io
