@@ -94,7 +94,7 @@
         dest: /home/ubuntu/conf.yaml
         mode: preserve
     - name: Create StacSktate Agent Service on Master
-      command: docker stack deploy -c docker-compose.yml agent
+      command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
       args:
         chdir: /home/ubuntu/
       environment:
