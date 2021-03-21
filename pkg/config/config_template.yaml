@@ -926,6 +926,13 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+  ## @param docker_host_ips - list of strings - optional
+  ## Overrides the default host IPs for containerized applications.
+  #
+  # docker_host_ips:
+  #   - <IP_ADDRESS_1>
+  #   - <IP_ADDRESS_2>
+
 {{- if .Profiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for profiling.

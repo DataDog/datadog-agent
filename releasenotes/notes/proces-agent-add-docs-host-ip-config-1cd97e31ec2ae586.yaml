@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    Changed the attribute name to define the host IPs for the process agent
+    docker container from `process_agent_config.host_ips` to
+    `process_config.docker_host_ips`. `process_agent_config.host_ips` is
+    still supported.
+fixes:
+  - |
+    The process agent no longer logs a cast warning message when no
+    host IPs have been configured.
