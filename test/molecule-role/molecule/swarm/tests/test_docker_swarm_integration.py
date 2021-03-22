@@ -9,6 +9,16 @@ import util
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-swarm-master')
 
 
+def relation_data(json_data, type_name, external_id_assert_fn):
+    for message in json_data["messages"]:
+        p = message["message"]["TopologyElement"]["payload"]
+        if "TopologyRelation" in p and \
+            p["TopologyRelation"]["typeName"] == type_name and \
+            external_id_assert_fn(p["TopologyRelation"]["externalId"]):
+            return json.loads(p["TopologyRelation"]["externalId"])
+    return None
+
+
 def test_docker_swarm_metrics(host):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=3000"
 
@@ -144,7 +154,7 @@ def test_docker_swarm_topology(host):
 
         for r in relations:
             print("Running assertion for: " + r["assertion"])
-            assert util.relation_data(
+            assert relation_data(
                 json_data=json_data,
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"]
