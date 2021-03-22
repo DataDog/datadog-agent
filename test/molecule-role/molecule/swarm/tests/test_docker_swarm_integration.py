@@ -9,14 +9,6 @@ import util
 testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-swarm-master')
 
 
-def test_hosts_file(host):
-    f = host.file('/etc/hosts')
-
-    assert f.exists
-    assert f.user == 'root'
-    assert f.group == 'root'
-
-
 def test_docker_swarm_metrics(host):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
@@ -48,7 +40,7 @@ def test_docker_swarm_topology(host):
         topo_url = "http://localhost:7070/api/topic/sts_topo_docker-swarm_agents?limit=1500"
         data = host.check_output('curl "{}"'.format(topo_url))
         json_data = json.loads(data)
-        with open("./topic-agent-integration-sample-topo-agent-integrations.json", 'w') as f:
+        with open("./topic-docker-swarm-integrations.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
         components = [
@@ -56,7 +48,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the nginx swarm service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "nginx" and
                     d["image"].startsWith("nginx:latest@") and
@@ -68,7 +60,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the agent swarm service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_stackstate-agent" and
                     d["image"].startsWith("stackstate/stackstate-agent-2-test:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
@@ -81,7 +73,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the receiver service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_receiver" and
                     d["image"].startsWith("stackstate/stackstate-receiver:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
@@ -94,7 +86,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the topic-api swarm service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_topic-api" and
                     d["image"].startsWith("stackstate/stackstate-topic-api:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
@@ -107,7 +99,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the kafka swarm service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_kafka" and
                     d["image"].startsWith("wurstmeister/kafka:2.12-2.3.1@") and
@@ -120,7 +112,7 @@ def test_docker_swarm_topology(host):
                 "assertion": "Should find the zookeeper swarm service component",
                 "type": "swarm-service",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*\..*\..*\..*").findall(e_id),
+                    r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_zookeeper" and
                     d["image"].startsWith("wurstmeister/zookeeper:latest@") and
@@ -137,6 +129,24 @@ def test_docker_swarm_topology(host):
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"],
                 data_assert_fn=c["data"],
+            ) is not None
+
+        relations = [
+            {
+                "assertion": "Should find the relation between swarm service and it's tasks",
+                "type": "creates",
+                "external_id": lambda e_id: re.compile(
+                    r"urn:swarm-service:/.*->urn:container:/.*").findall(e_id),
+                "data": {}
+            }
+        ]
+
+        for r in relations:
+            print("Running assertion for: " + r["assertion"])
+            assert util.relation_data(
+                json_data=json_data,
+                type_name=c["type"],
+                external_id_assert_fn=c["external_id"]
             ) is not None
 
     util.wait_until(assert_topology, 30, 3)
