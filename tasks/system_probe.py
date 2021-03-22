@@ -19,6 +19,7 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
+BUNDLE_TAG = "ebpf_bindata"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
@@ -90,7 +91,7 @@ def build(
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
-        build_tags.append("ebpf_bindata")
+        build_tags.append(BUNDLE_TAG)
 
     if with_bcc:
         build_tags.append(BCC_TAG)
@@ -162,6 +163,12 @@ def test(
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
+    if os.getenv("GOPATH") is None:
+        print(
+            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve "
+            "your environment "
+        )
+        raise Exit(code=1)
 
     if not skip_linters:
         clang_format(ctx)
@@ -170,23 +177,13 @@ def test(
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
-    cmd = 'go test -mod=mod -v -tags {bpf_tag} {output_params} {pkgs}'
-    if not is_root():
-        cmd = 'sudo -E PATH={path} ' + cmd
-
-    bpf_tag = BPF_TAG
-    # temporary measure until we have a good default for BPFDir for testing
-    bpf_tag += ",ebpf_bindata"
-    if os.getenv("GOPATH") is None:
-        print(
-            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve "
-            "your environment "
-        )
-        raise Exit(code=1)
+    build_tags = [BPF_TAG]
+    if bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
 
     args = {
         "path": os.environ['PATH'],
-        "bpf_tag": bpf_tag,
+        "build_tags": ",".join(build_tags),
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
     }
@@ -194,6 +191,10 @@ def test(
     env = {'CGO_LDFLAGS_ALLOW': "-Wl,--wrap=.*"}
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
+
+    cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs}'
+    if not is_root():
+        cmd = 'sudo -E ' + cmd
 
     ctx.run(cmd.format(**args), env=env)
 
@@ -263,7 +264,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     build_object_files(ctx, bundle_ebpf=False)
 
-    cmd = 'go build -mod={go_mod} {build_type} -tags linux_bpf,ebpf_bindata -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags linux_bpf -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(
@@ -618,10 +619,14 @@ def generate_runtime_files(ctx):
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
     assets_cmd = (
-        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags ebpf_bindata -split"
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags {bundle_tag} -split"
         + " -pkg bindata -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
     )
-    ctx.run(assets_cmd.format(dir_prefix=dir_prefix, go_dir=go_dir, bindata_files="' '".join(bindata_files)))
+    ctx.run(
+        assets_cmd.format(
+            dir_prefix=dir_prefix, go_dir=go_dir, bundle_tag=BUNDLE_TAG, bindata_files="' '".join(bindata_files)
+        )
+    )
     ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
 
 
