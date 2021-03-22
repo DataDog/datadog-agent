@@ -131,7 +131,7 @@ def build_in_docker(
             {builder} \
             {cmd}"
 
-    if should_use_sudo(ctx):
+    if should_docker_use_sudo(ctx):
         docker_cmd = "sudo " + docker_cmd
 
     cmd = "invoke -e system-probe.build --major-version {}".format(major_version)
@@ -276,7 +276,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     )
 
     # Run
-    if should_use_sudo(ctx):
+    if not is_root():
         ctx.sudo(bin_path)
     else:
         ctx.run(bin_path)
@@ -632,7 +632,7 @@ def build_ebpf_builder(ctx):
 
     cmd = "docker build -t {image} -f {file} ."
 
-    if should_use_sudo(ctx):
+    if should_docker_use_sudo(ctx):
         cmd = "sudo " + cmd
 
     ctx.run(cmd.format(image=EBPF_BUILDER_IMAGE, file=EBPF_BUILDER_FILE))
@@ -642,7 +642,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def should_use_sudo(_):
+def should_docker_use_sudo(_):
     # We are already root
     if is_root():
         return False
