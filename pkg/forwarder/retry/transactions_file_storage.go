@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +60,7 @@ func newTransactionsFileStorage(
 }
 
 // Serialize serializes transactions to the file system.
-func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
+func (s *transactionsFileStorage) Serialize(transactions []transaction.Transaction) error {
 	s.telemetry.addSerializeCount()
 
 	// Reset the serializer in case some transactions were serialized
@@ -103,7 +104,7 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 }
 
 // Deserialize deserializes a transactions from the file system.
-func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
+func (s *transactionsFileStorage) Deserialize() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}

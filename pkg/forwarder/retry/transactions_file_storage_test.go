@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"io/ioutil"
@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
 )
@@ -89,11 +90,11 @@ func TestTransactionsFileStorageReloadExistingRetryFiles(t *testing.T) {
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
 }
 
-func createHTTPTransactionCollectionTests(endpoints ...string) []Transaction {
-	var transactions []Transaction
+func createHTTPTransactionCollectionTests(endpoints ...string) []transaction.Transaction {
+	var transactions []transaction.Transaction
 
 	for _, d := range endpoints {
-		t := NewHTTPTransaction()
+		t := transaction.NewHTTPTransaction()
 		t.Domain = domainName
 		t.Endpoint.Name = d
 		transactions = append(transactions, t)
@@ -107,10 +108,10 @@ func createTmpFolder(a *assert.Assertions) (string, func()) {
 	return path, func() { _ = os.Remove(path) }
 }
 
-func getEndpointsFromTransactions(transactions []Transaction) []string {
+func getEndpointsFromTransactions(transactions []transaction.Transaction) []string {
 	var endpoints []string
 	for _, t := range transactions {
-		httpTransaction := t.(*HTTPTransaction)
+		httpTransaction := t.(*transaction.HTTPTransaction)
 		endpoints = append(endpoints, httpTransaction.Endpoint.Name)
 	}
 	return endpoints

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"errors"
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -53,7 +54,7 @@ func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransac
 // Add adds a transaction to the serializer.
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
-func (s *HTTPTransactionsSerializer) Add(transaction *HTTPTransaction) error {
+func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
 	if transaction.Domain != s.domain {
 		// This error is not supposed to happen (Sanity check).
 		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
@@ -97,25 +98,25 @@ func (s *HTTPTransactionsSerializer) GetBytesAndReset() ([]byte, error) {
 }
 
 // Deserialize deserializes from bytes.
-func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, error) {
+func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Transaction, int, error) {
 	collection := HttpTransactionProtoCollection{}
 
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
 		return nil, 0, err
 	}
 
-	var httpTransactions []Transaction
+	var httpTransactions []transaction.Transaction
 	errorCount := 0
-	for _, transaction := range collection.Values {
+	for _, tr := range collection.Values {
 		var route string
 		var proto http.Header
-		e := transaction.Endpoint
+		e := tr.Endpoint
 
-		priority, err := fromTransactionPriorityProto(transaction.Priority)
+		priority, err := fromTransactionPriorityProto(tr.Priority)
 		if err == nil {
 			route, err = s.restoreAPIKeys(e.Route)
 			if err == nil {
-				proto, err = s.fromHeaderProto(transaction.Headers)
+				proto, err = s.fromHeaderProto(tr.Headers)
 			}
 		}
 
@@ -124,14 +125,14 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, i
 			errorCount++
 			continue
 		}
-		tr := HTTPTransaction{
+		tr := transaction.HTTPTransaction{
 			Domain:         s.domain,
-			Endpoint:       Endpoint{Route: route, Name: e.Name},
+			Endpoint:       transaction.Endpoint{Route: route, Name: e.Name},
 			Headers:        proto,
-			Payload:        &transaction.Payload,
-			ErrorCount:     int(transaction.ErrorCount),
-			CreatedAt:      time.Unix(transaction.CreatedAt, 0),
-			Retryable:      transaction.Retryable,
+			Payload:        &tr.Payload,
+			ErrorCount:     int(tr.ErrorCount),
+			CreatedAt:      time.Unix(tr.CreatedAt, 0),
+			Retryable:      tr.Retryable,
 			StorableOnDisk: true,
 			Priority:       priority,
 		}
@@ -170,14 +171,14 @@ func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*He
 	return headers, nil
 }
 
-func fromTransactionPriorityProto(priority TransactionPriorityProto) (TransactionPriority, error) {
+func fromTransactionPriorityProto(priority TransactionPriorityProto) (transaction.Priority, error) {
 	switch priority {
 	case TransactionPriorityProto_NORMAL:
-		return TransactionPriorityNormal, nil
+		return transaction.TransactionPriorityNormal, nil
 	case TransactionPriorityProto_HIGH:
-		return TransactionPriorityHigh, nil
+		return transaction.TransactionPriorityHigh, nil
 	default:
-		return TransactionPriorityNormal, fmt.Errorf("Unsupported priority %v", priority)
+		return transaction.TransactionPriorityNormal, fmt.Errorf("Unsupported priority %v", priority)
 	}
 }
 
@@ -190,11 +191,11 @@ func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[stri
 	return headersProto
 }
 
-func toTransactionPriorityProto(priority TransactionPriority) (TransactionPriorityProto, error) {
+func toTransactionPriorityProto(priority transaction.Priority) (TransactionPriorityProto, error) {
 	switch priority {
-	case TransactionPriorityNormal:
+	case transaction.TransactionPriorityNormal:
 		return TransactionPriorityProto_NORMAL, nil
-	case TransactionPriorityHigh:
+	case transaction.TransactionPriorityHigh:
 		return TransactionPriorityProto_HIGH, nil
 	default:
 		return TransactionPriorityProto_NORMAL, fmt.Errorf("Unsupported priority %v", priority)

@@ -16,9 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/retry"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -43,47 +44,47 @@ var (
 	transactionsIntakeService    = expvar.Int{}
 	transactionsIntakeNode       = expvar.Int{}
 
-	v1SeriesEndpoint       = Endpoint{"/api/v1/series", "series_v1"}
-	v1CheckRunsEndpoint    = Endpoint{"/api/v1/check_run", "check_run_v1"}
-	v1IntakeEndpoint       = Endpoint{"/intake/", "intake"}
-	v1SketchSeriesEndpoint = Endpoint{"/api/v1/sketches", "sketches_v1"} // nolint unused for now
-	v1ValidateEndpoint     = Endpoint{"/api/v1/validate", "validate_v1"}
+	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
+	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
+	v1IntakeEndpoint       = transaction.Endpoint{Route: "/intake/", Name: "intake"}
+	v1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
+	v1ValidateEndpoint     = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
 
-	seriesEndpoint        = Endpoint{"/api/v2/series", "series_v2"}
-	eventsEndpoint        = Endpoint{"/api/v2/events", "events_v2"}
-	serviceChecksEndpoint = Endpoint{"/api/v2/service_checks", "services_checks_v2"}
-	sketchSeriesEndpoint  = Endpoint{"/api/beta/sketches", "sketches_v2"}
-	hostMetadataEndpoint  = Endpoint{"/api/v2/host_metadata", "host_metadata_v2"}
-	metadataEndpoint      = Endpoint{"/api/v2/metadata", "metadata_v2"}
+	seriesEndpoint        = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
+	eventsEndpoint        = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
+	serviceChecksEndpoint = transaction.Endpoint{Route: "/api/v2/service_checks", Name: "services_checks_v2"}
+	sketchSeriesEndpoint  = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
+	hostMetadataEndpoint  = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
+	metadataEndpoint      = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
-	processesEndpoint    = Endpoint{"/api/v1/collector", "process"}
-	rtProcessesEndpoint  = Endpoint{"/api/v1/collector", "rtprocess"}
-	containerEndpoint    = Endpoint{"/api/v1/container", "container"}
-	rtContainerEndpoint  = Endpoint{"/api/v1/container", "rtcontainer"}
-	connectionsEndpoint  = Endpoint{"/api/v1/collector", "connections"}
-	orchestratorEndpoint = Endpoint{"/api/v1/orchestrator", "orchestrator"}
+	processesEndpoint    = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
+	rtProcessesEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
+	containerEndpoint    = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
+	rtContainerEndpoint  = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
+	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
+	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 )
 
 func init() {
 	transactionsExpvars.Init()
 	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initOrchestratorExpVars()
-	InitTransactionExpvars(forwarderExpvars)
-	InitExpVar(forwarderExpvars)
+	transaction.InitTransactionExpvars(forwarderExpvars)
+	retry.InitExpVar(forwarderExpvars)
 	initExpvars()
 	initForwarderHealthExpvars()
 	initEndpointExpvars()
 }
 
 func initEndpointExpvars() {
-	endpoints := []Endpoint{v1SeriesEndpoint, v1CheckRunsEndpoint, v1IntakeEndpoint, v1SketchSeriesEndpoint,
+	endpoints := []transaction.Endpoint{v1SeriesEndpoint, v1CheckRunsEndpoint, v1IntakeEndpoint, v1SketchSeriesEndpoint,
 		v1ValidateEndpoint, seriesEndpoint, eventsEndpoint, serviceChecksEndpoint, sketchSeriesEndpoint,
 		hostMetadataEndpoint, metadataEndpoint, processesEndpoint, rtProcessesEndpoint, containerEndpoint,
 		rtContainerEndpoint, connectionsEndpoint, orchestratorEndpoint,
 	}
 
 	for _, endpoint := range endpoints {
-		TransactionsSuccessByEndpoint.Set(endpoint.Name, expvar.NewInt(endpoint.Name))
+		transaction.TransactionsSuccessByEndpoint.Set(endpoint.Name, expvar.NewInt(endpoint.Name))
 	}
 }
 
@@ -173,7 +174,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	KeysPerDomain                  map[string][]string
 	ConnectionResetInterval        time.Duration
-	CompletionHandler              HTTPCompletionHandler
+	CompletionHandler              transaction.HTTPCompletionHandler
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -253,7 +254,7 @@ type DefaultForwarder struct {
 	internalState    uint32
 	m                sync.Mutex // To control Start/Stop races
 
-	completionHandler HTTPCompletionHandler
+	completionHandler transaction.HTTPCompletionHandler
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -270,7 +271,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
-	var optionalRemovalPolicy *FailedTransactionRemovalPolicy
+	var optionalRemovalPolicy *retry.FailedTransactionRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 
 	// Disk Persistence is a core-only feature for now.
@@ -282,7 +283,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		var err error
 
 		storagePath = path.Join(storagePath, agentFolder)
-		optionalRemovalPolicy, err = NewFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, FailedTransactionRemovalPolicyTelemetry{})
+		optionalRemovalPolicy, err = retry.NewFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, retry.FailedTransactionRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
 		} else {
@@ -297,8 +298,8 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	}
 
 	flushToDiskMemRatio := config.Datadog.GetFloat64("forwarder_flush_to_disk_mem_ratio")
-	domainForwarderSort := SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	transactionContainerSort := SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
+	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, keys := range options.KeysPerDomain {
 		domain, _ := config.AddAgentVersionToDomain(domain, "app")
@@ -314,7 +315,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
-			transactionContainer := BuildTransactionContainer(
+			transactionContainer := retry.BuildTransactionContainer(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
@@ -437,18 +438,18 @@ func (f *DefaultForwarder) State() uint32 {
 
 	return f.internalState
 }
-func (f *DefaultForwarder) createHTTPTransactions(endpoint Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
-	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal, true)
+func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
+	return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, true)
 }
 
-func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority TransactionPriority, storableOnDisk bool) []*HTTPTransaction {
-	transactions := make([]*HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
+func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header, priority transaction.Priority, storableOnDisk bool) []*transaction.HTTPTransaction {
+	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
-				t := NewHTTPTransaction()
+				t := transaction.NewHTTPTransaction()
 				t.Domain = domain
 				t.Endpoint = endpoint
 				if apiKeyInQueryString {
@@ -483,7 +484,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint Endpoint, pay
 	return transactions
 }
 
-func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
+func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
@@ -523,20 +524,20 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Heade
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
-		func(endpoint Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
-			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityHigh, storableOnDisk)
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityHigh, storableOnDisk)
 		})
 }
 
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, extra,
-		func(endpoint Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
-			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, TransactionPriorityNormal, storableOnDisk)
+			return f.createAdvancedHTTPTransactions(endpoint, payloads, apiKeyInQueryString, extra, transaction.TransactionPriorityNormal, storableOnDisk)
 		})
 }
 
@@ -567,7 +568,7 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) e
 func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 	payload Payloads,
 	extra http.Header,
-	createHTTPTransactions func(endpoint Endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction) error {
+	createHTTPTransactions func(endpoint transaction.Endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction) error {
 	transactions := createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
 
 	// the intake endpoint requires the Content-Type header to be set
@@ -621,7 +622,7 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
-func (f *DefaultForwarder) submitProcessLikePayload(ep Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
+func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
 	transactions := f.createHTTPTransactions(ep, payload, false, extra)
 	results := make(chan Response, len(transactions))
 	internalResults := make(chan Response, len(transactions))
@@ -629,7 +630,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep Endpoint, payload Payload
 
 	for _, txn := range transactions {
 		txn.Retryable = retryable
-		txn.AttemptHandler = func(transaction *HTTPTransaction) {
+		txn.AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 			if v := transaction.Headers.Get("X-DD-Agent-Attempts"); v == "" {
 				transaction.Headers.Set("X-DD-Agent-Attempts", "1")
 			} else {
@@ -638,7 +639,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep Endpoint, payload Payload
 			}
 		}
 
-		txn.CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+		txn.CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 			internalResults <- Response{
 				Domain:     transaction.Domain,
 				Body:       body,

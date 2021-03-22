@@ -2,7 +2,7 @@
 
 syntax = "proto3";
 
-package forwarder;
+package retry;
 
 message HeaderValuesProto {
     repeated string values = 1;

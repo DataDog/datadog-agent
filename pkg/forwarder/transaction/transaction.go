@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package transaction
 
 import (
 	"bytes"
@@ -143,17 +143,17 @@ func InitTransactionExpvars(transactionsExpvars *expvar.Map) {
 	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
-// TransactionPriority defines the priority of a transaction
+// Priority defines the priority of a transaction
 // Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
 // before dropping transactions with priority `TransactionPriorityHigh`.
-type TransactionPriority int
+type Priority int
 
 const (
 	// TransactionPriorityNormal defines a transaction with a normal priority
-	TransactionPriorityNormal TransactionPriority = 0
+	TransactionPriorityNormal Priority = 0
 
 	// TransactionPriorityHigh defines a transaction with an high priority
-	TransactionPriorityHigh TransactionPriority = 1
+	TransactionPriorityHigh Priority = 1
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -183,7 +183,7 @@ type HTTPTransaction struct {
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
 	CompletionHandler HTTPCompletionHandler
 
-	Priority TransactionPriority
+	Priority Priority
 }
 
 // Transaction represents the task to process for a Worker.
@@ -191,7 +191,7 @@ type Transaction interface {
 	Process(ctx context.Context, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
-	GetPriority() TransactionPriority
+	GetPriority() Priority
 	GetEndpointName() string
 	GetPayloadSize() int
 
@@ -233,7 +233,7 @@ func (t *HTTPTransaction) GetTarget() string {
 }
 
 // GetPriority returns the priority
-func (t *HTTPTransaction) GetPriority() TransactionPriority {
+func (t *HTTPTransaction) GetPriority() Priority {
 	return t.Priority
 }
 

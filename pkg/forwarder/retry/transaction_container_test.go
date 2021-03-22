@@ -1,8 +1,9 @@
-package forwarder
+package retry
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
 )
@@ -95,8 +96,8 @@ func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
 	a.Equal(1, inMemTrDropped)
 }
 
-func createTransactionWithPayloadSize(payloadSize int) *HTTPTransaction {
-	tr := NewHTTPTransaction()
+func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransaction {
+	tr := transaction.NewHTTPTransaction()
 	payload := make([]byte, payloadSize)
 	tr.Payload = &payload
 	return tr
@@ -118,8 +119,8 @@ func assertPayloadSizeFromExtractTransactions(
 	a.EqualValues(expectedPayloadSize, payloadSizes)
 }
 
-func createDropPrioritySorter() SortByCreatedTimeAndPriority {
-	return SortByCreatedTimeAndPriority{HighPriorityFirst: false}
+func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
+	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 }
 
 func newTransactionsFileStorageTest(a *assert.Assertions) (*transactionsFileStorage, func()) {

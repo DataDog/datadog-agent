@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"net/http"
@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ func TestHTTPSerializeDeserialize(t *testing.T) {
 	a.NoError(err)
 	a.Equal(0, errorCount)
 	a.Len(transactions, 1)
-	transactionDeserialized := transactions[0].(*HTTPTransaction)
+	transactionDeserialized := transactions[0].(*transaction.HTTPTransaction)
 
 	assertTransactionEqual(a, tr, transactionDeserialized)
 
@@ -46,11 +47,11 @@ func TestHTTPSerializeDeserialize(t *testing.T) {
 
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
-	transaction := createHTTPTransactionTests()
+	initialTransaction := createHTTPTransactionTests()
 	serializer := NewHTTPTransactionsSerializer(domain, nil)
 
-	a.NoError(serializer.Add(transaction))
-	a.NoError(serializer.Add(transaction))
+	a.NoError(serializer.Add(initialTransaction))
+	a.NoError(serializer.Add(initialTransaction))
 	bytes, err := serializer.GetBytesAndReset()
 	a.NoError(err)
 
@@ -60,7 +61,7 @@ func TestPartialDeserialize(t *testing.T) {
 		// If there is no error, transactions should be valid.
 		if err == nil {
 			for _, tr := range trs {
-				assertTransactionEqual(a, tr.(*HTTPTransaction), transaction)
+				assertTransactionEqual(a, tr.(*transaction.HTTPTransaction), initialTransaction)
 			}
 		}
 	}
@@ -87,33 +88,33 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {
-	transaction := HTTPTransaction{}
-	transactionType := reflect.TypeOf(transaction)
+	tr := transaction.HTTPTransaction{}
+	transactionType := reflect.TypeOf(tr)
 	assert.Equalf(t, 11, transactionType.NumField(),
 		"A field was added or remove from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"HTTPTransactionsSerializer and then adjust this unit test.")
 }
 
-func createHTTPTransactionTests() *HTTPTransaction {
+func createHTTPTransactionTests() *transaction.HTTPTransaction {
 	return createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{"value1", apiKey1, apiKey2}})
 }
 
-func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
+func createHTTPTransactionWithHeaderTests(header http.Header) *transaction.HTTPTransaction {
 	payload := []byte{1, 2, 3}
-	tr := NewHTTPTransaction()
+	tr := transaction.NewHTTPTransaction()
 	tr.Domain = domain
-	tr.Endpoint = Endpoint{Route: "route" + apiKey1, Name: "name"}
+	tr.Endpoint = transaction.Endpoint{Route: "route" + apiKey1, Name: "name"}
 	tr.Headers = header
 	tr.Payload = &payload
 	tr.ErrorCount = 1
 	tr.CreatedAt = time.Now()
 	tr.Retryable = true
-	tr.Priority = TransactionPriorityHigh
+	tr.Priority = transaction.TransactionPriorityHigh
 	return tr
 }
 
-func assertTransactionEqual(a *assert.Assertions, tr1 *HTTPTransaction, tr2 *HTTPTransaction) {
+func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransaction, tr2 *transaction.HTTPTransaction) {
 	a.Equal(tr1.Domain, tr2.Domain)
 	a.Equal(tr1.Endpoint, tr2.Endpoint)
 	a.EqualValues(tr1.Headers, tr2.Headers)

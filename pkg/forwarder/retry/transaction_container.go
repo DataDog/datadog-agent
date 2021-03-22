@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
@@ -17,19 +18,19 @@ import (
 
 // TransactionStorage is an interface to serialize / deserialize transactions
 type TransactionStorage interface {
-	Serialize([]Transaction) error
-	Deserialize() ([]Transaction, error)
+	Serialize([]transaction.Transaction) error
+	Deserialize() ([]transaction.Transaction, error)
 }
 
 // TransactionPrioritySorter is an interface to sort transactions.
 type TransactionPrioritySorter interface {
-	Sort([]Transaction)
+	Sort([]transaction.Transaction)
 }
 
 // TransactionContainer stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type TransactionContainer struct {
-	transactions               []Transaction
+	transactions               []transaction.Transaction
 	currentMemSizeInBytes      int
 	maxMemSizeInBytes          int
 	flushToStorageRatio        float64
@@ -94,7 +95,7 @@ func NewTransactionContainer(
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
-func (tc *TransactionContainer) Add(t Transaction) (int, error) {
+func (tc *TransactionContainer) Add(t transaction.Transaction) (int, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -134,11 +135,11 @@ func (tc *TransactionContainer) Add(t Transaction) (int, error) {
 // If some transactions exist in memory extract them otherwise extract transactions
 // from the disk.
 // No transactions are in memory after calling this method.
-func (tc *TransactionContainer) ExtractTransactions() ([]Transaction, error) {
+func (tc *TransactionContainer) ExtractTransactions() ([]transaction.Transaction, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
-	var transactions []Transaction
+	var transactions []transaction.Transaction
 	var err error
 	if len(tc.transactions) > 0 {
 		transactions = tc.transactions
@@ -180,9 +181,9 @@ func (tc *TransactionContainer) GetMaxMemSizeInBytes() int {
 	return tc.maxMemSizeInBytes
 }
 
-func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]Transaction {
+func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
-	var payloadsGroupToFlush [][]Transaction
+	var payloadsGroupToFlush [][]transaction.Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
 		// Flush the N first transactions whose payload size sum is greater than `sizeInBytesToFlush`
 		transactions := tc.extractTransactionsFromMemory(sizeInBytesToFlush)
@@ -198,10 +199,10 @@ func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 	return payloadsGroupToFlush
 }
 
-func (tc *TransactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []Transaction {
+func (tc *TransactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []transaction.Transaction {
 	i := 0
 	sizeInBytesExtracted := 0
-	var transactionsExtracted []Transaction
+	var transactionsExtracted []transaction.Transaction
 
 	tc.dropPrioritySorter.Sort(tc.transactions)
 	for ; i < len(tc.transactions) && sizeInBytesExtracted < payloadSizeInBytesToExtract; i++ {

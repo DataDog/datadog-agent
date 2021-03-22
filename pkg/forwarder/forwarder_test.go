@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -132,7 +133,7 @@ func TestSubmitIfStopped(t *testing.T) {
 
 func TestCreateHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := Endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
 	payloads := Payloads{&p1, &p2}
@@ -170,7 +171,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
-	endpoint := Endpoint{Route: "/api/foo", Name: "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -179,7 +180,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
 
-	var txNormal, txBar []*HTTPTransaction
+	var txNormal, txBar []*transaction.HTTPTransaction
 	for _, t := range transactions {
 		if t.Domain == testVersionDomain {
 			txNormal = append(txNormal, t)
@@ -208,7 +209,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := Endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
@@ -219,7 +220,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 
 func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := Endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -243,7 +244,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	// Overwrite domainForwarders input channel. We are testing that the
 	// DefaultForwarder correctly create HTTPTransaction, set the headers
 	// and send them to the correct domainForwarder.
-	inputQueue := make(chan Transaction, 1)
+	inputQueue := make(chan transaction.Transaction, 1)
 	df := forwarder.domainForwarders[testVersionDomain]
 	bk := df.highPrio
 	df.highPrio = inputQueue
@@ -255,7 +256,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	select {
 	case tr := <-df.highPrio:
 		require.NotNil(t, tr)
-		httpTr := tr.(*HTTPTransaction)
+		httpTr := tr.(*transaction.HTTPTransaction)
 		assert.Equal(t, "application/json", httpTr.Headers.Get("Content-Type"))
 	case <-time.After(1 * time.Second):
 		require.Fail(t, "highPrio queue should contain a transaction")
@@ -345,11 +346,11 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -403,11 +404,11 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -457,11 +458,11 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusInternalServerError, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -594,7 +595,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
 	done := make(chan struct{})
 	defer close(done)
-	var handler HTTPCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	var handler transaction.HTTPCompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		done <- struct{}{}
 	}
 
