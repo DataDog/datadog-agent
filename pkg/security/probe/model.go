@@ -272,6 +272,16 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 	return e.Comm
 }
 
+// ResolveExecArgs resolves the args of the event
+func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
+	return strings.Join(ev.ProcessContext.ArgsArray, " ")
+}
+
+// ResolveExecEnvs resolves the args of the event
+func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) string {
+	return strings.Join(ev.ProcessContext.EnvsArray, " ")
+}
+
 // ResolveCredentialsUID resolves the user id of the process
 func (ev *Event) ResolveCredentialsUID(e *model.Credentials) int {
 	if e.UID == 0 && ev != nil {
@@ -504,9 +514,9 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 
 func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
 	ev.ProcessContext.Ancestor = entry.Ancestor
-	ev.ProcessContext.Args = entry.Args
+	ev.ProcessContext.ArgsArray = entry.ArgsArray
 	ev.ProcessContext.ArgsTruncated = entry.ArgsTruncated
-	ev.ProcessContext.Envs = entry.Envs
+	ev.ProcessContext.EnvsArray = entry.EnvsArray
 	ev.ProcessContext.EnvsTruncated = entry.EnvsTruncated
 }
 

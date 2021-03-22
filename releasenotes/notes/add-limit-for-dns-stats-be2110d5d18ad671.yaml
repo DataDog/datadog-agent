@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Adds a limit to the number of DNS stats objects the DNSStatkeeper can have at any given time. This can alleviate memory issues on hosts doing high numbers of DNS requests where network performance monitoring is enabled. 
