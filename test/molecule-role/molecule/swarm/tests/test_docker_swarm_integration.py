@@ -12,10 +12,10 @@ testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(os.environ['MOLEC
 def relation_data(json_data, type_name, external_id_assert_fn):
     for message in json_data["messages"]:
         p = message["message"]["TopologyElement"]["payload"]
-        if "TopologyRelation" in p and \
-            p["TopologyRelation"]["typeName"] == type_name and \
-            external_id_assert_fn(p["TopologyRelation"]["externalId"]):
-            return json.loads(p["TopologyRelation"]["externalId"])
+        if "TopologyRelation" in p \
+            and p["TopologyRelation"]["typeName"] == type_name and \
+                external_id_assert_fn(p["TopologyRelation"]["externalId"]):
+            return p["TopologyRelation"]["externalId"]
     return None
 
 
@@ -135,29 +135,23 @@ def test_docker_swarm_topology(host):
         for c in components:
             print("Running assertion for: " + c["assertion"])
 
-            assert util.component_data(
+            component = util.component_data(
                 json_data=json_data,
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"],
                 data_assert_fn=c["data"],
-            ) is not None
-
-        relations = [
-            {
-                "assertion": "Should find the relation between swarm service and it's tasks",
+            )
+            assert component is not None
+            relation = {
+                "assertion": "Should find the relation between the current swarm service and it's tasks",
                 "type": "creates",
                 "external_id": lambda e_id: re.compile(
-                    r"urn:swarm-service:/.*->urn:container:/.*").findall(e_id),
-                "data": {}
+                    r"{}->urn:container:/.*".format(component)).findall(e_id),
             }
-        ]
-
-        for r in relations:
-            print("Running assertion for: " + r["assertion"])
             assert relation_data(
                 json_data=json_data,
-                type_name=c["type"],
-                external_id_assert_fn=c["external_id"]
+                type_name=relation["type"],
+                external_id_assert_fn=relation["external_id"]
             ) is not None
 
     util.wait_until(assert_topology, 30, 3)
