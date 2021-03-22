@@ -8,6 +8,7 @@
 package dockerswarm
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
@@ -42,42 +43,44 @@ type SwarmCheck struct {
 
 // Run executes the check
 func (s *SwarmCheck) Run() error {
-	sender, err := aggregator.GetSender(s.ID())
-	if err != nil {
-		return err
-	}
-
-	// try to get the agent hostname to use in the host component
-	hostname, err := util.GetHostname()
-	if err != nil  {
-		log.Warnf("Can't get hostname for host running the docker-swarm integration: %s", err)
-	}
-
 	//sts
 	// Collect Swarm topology
 	if s.instance.CollectSwarmTopology {
+		sender, err := aggregator.GetSender(s.ID())
+		if err != nil {
+			return err
+		}
+
+		// try to get the agent hostname to use in the host component
+		hostname, err := util.GetHostname()
+		if err != nil {
+			log.Warnf("Can't get hostname for host running the docker-swarm integration: %s", err)
+		}
+
 		log.Infof("Swarm check is enabled and running it")
-		err := s.topologyCollector.BuildSwarmTopology(hostname, sender)
+		err = s.topologyCollector.BuildSwarmTopology(hostname, sender)
 		if err != nil {
 			sender.ServiceCheck(SwarmServiceCheck, metrics.ServiceCheckCritical, "", nil, err.Error())
 			log.Errorf("Could not collect swarm topology: %s", err)
 			return err
 		}
+		sender.Commit()
 	} else {
 		log.Infof("Swarm check is not enabled to collect topology")
 	}
 
-	sender.Commit()
 	return nil
 
 }
 
 // Parse the config
 func (c *SwarmConfig) Parse(data []byte) error {
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
+	// use STS_COLLECT_SWARM_TOPOLOGY to set the config
+	if config.Datadog.IsSet("collect_swarm_topology") {
+		c.CollectSwarmTopology = config.Datadog.GetBool("collect_swarm_topology")
 	}
-	return nil
+
+	return yaml.Unmarshal(data, c)
 }
 
 // Configure parses the check configuration and init the check
@@ -87,7 +90,11 @@ func (s *SwarmCheck) Configure(config, initConfig integration.Data) error {
 		return err
 	}
 
-	s.instance.Parse(config)
+	err = s.instance.Parse(config)
+	if err != nil {
+		_ = log.Error("could not parse the config for the Docker Swarm topology check")
+		return err
+	}
 	return nil
 }
 

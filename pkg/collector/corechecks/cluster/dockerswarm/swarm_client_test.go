@@ -60,7 +60,7 @@ func (m *MockSwarmClient) ListSwarmServices() ([]*containers.SwarmService, error
 func MockSwarmFactory() check.Check {
 	return &SwarmCheck{
 		CheckBase:         core.NewCheckBase(SwarmCheckName),
-		instance:          &SwarmConfig{CollectSwarmTopology: true},
+		instance:          &SwarmConfig{},
 		topologyCollector: makeSwarmTopologyCollector(&MockSwarmClient{}),
 	}
 }

@@ -723,6 +723,10 @@ metadata_providers:
 #
 # Kubernetes cluster identifier used to avoid host alias collisions. Empty by default.
 # clustername: cluster_identifier
+
+# Docker Swarm
+# To collect Docker Swarm topology, collect_swarm_topology set to true.
+# collect_swarm_topology: true
 {{ end -}}
 
 {{- if .ProcessAgent }}
