@@ -182,13 +182,12 @@ def test(
         build_tags.append(BUNDLE_TAG)
 
     args = {
-        "path": os.environ['PATH'],
         "build_tags": ",".join(build_tags),
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
     }
 
-    env = {'CGO_LDFLAGS_ALLOW': "-Wl,--wrap=.*"}
+    _, _, env = get_build_flags(ctx)
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
