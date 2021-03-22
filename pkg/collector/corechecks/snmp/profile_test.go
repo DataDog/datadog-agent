@@ -173,7 +173,8 @@ func Test_loadProfiles(t *testing.T) {
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
 			expectedLogs: []logCount{
-				{"validation errors: cannot compile `match`", 1},
+				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
+				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
 		},
 	}
