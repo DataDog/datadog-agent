@@ -847,3 +847,26 @@ metrics:
 
 	assert.Equal(t, strings.Count(logs, "failed to close session"), 1, logs)
 }
+
+func TestCheck_Profile(t *testing.T) {
+	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
+	file, _ := filepath.Abs(filepath.Join(".", "test", "profiling_conf.d"))
+	config.Datadog.Set("confd_path", file)
+
+	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+
+	check := snmpFactory()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 127.0.0.1
+port: 1161
+community_string: cisco-nexus
+`)
+
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	err = check.Run()
+	assert.Nil(t, err)
+}

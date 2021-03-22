@@ -1,0 +1,12 @@
+# Backward compatibility shim. Prefer the Cisco Catalyst profile directly
+# Profile for Cisco 3850 devices
+
+extends:
+  - _base.yaml
+  - _cisco-generic.yaml
+  - _cisco-catalyst.yaml
+
+sysobjectid: 1.3.6.1.4.1.9.1.1745
+
+device:
+  vendor: "cisco"

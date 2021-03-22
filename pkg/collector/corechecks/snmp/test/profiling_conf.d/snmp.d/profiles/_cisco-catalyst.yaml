@@ -1,0 +1,39 @@
+# Metrics mixin for Cisco Catalyst devices.
+# Stored in a separate file for reuse within the cisco-3850 compat shim.
+
+metrics:
+  - MIB: CISCO-ENTITY-SENSOR-MIB
+    table:
+      OID: 1.3.6.1.4.1.9.9.91.1.1.1
+      name: entSensorValueTable
+    symbols:
+      - OID: 1.3.6.1.4.1.9.9.91.1.1.1.1.4
+        name: entSensorValue
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.9.9.91.1.1.1.1.1
+          name: entSensorType
+        tag: sensor_type
+      - index: 1
+        tag: sensor_id
+  - MIB: CISCO-IF-EXTENSION-MIB
+    table:
+      OID: 1.3.6.1.4.1.9.9.276.1.1.1
+      name: cieIfPacketStatsTable
+    forced_type: gauge
+    symbols:
+      - OID: 1.3.6.1.4.1.9.9.276.1.1.1.1.1
+        name: cieIfLastInTime
+      - OID: 1.3.6.1.4.1.9.9.276.1.1.1.1.2
+        name: cieIfLastOutTime
+      - OID: 1.3.6.1.4.1.9.9.276.1.1.1.1.10
+        name: cieIfInputQueueDrops
+      - OID: 1.3.6.1.4.1.9.9.276.1.1.1.1.11
+        name: cieIfOutputQueueDrops
+    metric_tags:
+      - MIB: IF-MIB
+        column:
+          OID: 1.3.6.1.2.1.31.1.1.1.1
+          name: ifName
+        table: ifXTable
+        tag: interface

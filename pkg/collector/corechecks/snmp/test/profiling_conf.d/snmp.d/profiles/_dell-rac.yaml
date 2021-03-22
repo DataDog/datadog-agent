@@ -1,0 +1,233 @@
+# Provide metrics that can be found in Dell devices that are or contain DRAC components
+
+metrics:
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.200.10
+      name: systemStateTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.4
+        name: systemStateChassisStatus
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.6
+        name: systemStatePowerUnitStatusRedundancy
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.9
+        name: systemStatePowerSupplyStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.15
+        name: systemStateAmperageStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.18
+        name: systemStateCoolingUnitStatusRedundancy
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.21
+        name: systemStateCoolingDeviceStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.24
+        name: systemStateTemperatureStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.27
+        name: systemStateMemoryDeviceStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.30
+        name: systemStateChassisIntrusionStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.42
+        name: systemStatePowerUnitStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.44
+        name: systemStateCoolingUnitStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.50
+        name: systemStateProcessorDeviceStatusCombined
+      - OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.63
+        name: systemStateTemperatureStatisticsStatusCombined
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.200.10.1.1
+          name: systemStatechassisIndex
+        tag: chassis_index
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4
+      name: physicalDiskTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4.1.4
+        name: physicalDiskState
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4.1.11
+        name: physicalDiskCapacityInMB
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4.1.17
+        name: physicalDiskUsedSpaceInMB
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4.1.19
+        name: physicalDiskFreeSpaceInMB
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.4.1.2
+          name: physicalDiskName
+        tag: disk_name
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.9
+      name: enclosurePowerSupplyTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.9.1.4
+        name: enclosurePowerSupplyState
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.9.1.2
+          name: enclosurePowerSupplyName
+        tag: supply_name
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.15
+      name: batteryTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.15.1.4
+        name: batteryState
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.15.1.21
+          name: batteryDisplayName
+        tag: battery_name
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.1
+      name: controllerTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.1.1.37
+        name: controllerRollUpStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.5.1.20.130.1.1.2
+          name: controllerName
+        tag: controller_name
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.1100.80
+      name: pCIDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.1100.80.1.5
+        name: pCIDeviceStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.80.1.9
+          name: pCIDeviceDescriptionName
+        tag: device_descr_name
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.80.1.1
+          name: pCIDevicechassisIndex
+        tag: chassis_index
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.1200.10
+      name: systemSlotTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.1200.10.1.5
+        name: systemSlotStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1200.10.1.8
+          name: systemSlotSlotExternalSlotName
+        tag: slot_name
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1200.10.1.1
+          name: systemSlotchassisIndex
+        tag: chassis_index
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.1100.90
+      name: networkDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3
+        name: networkDeviceStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.90.1.1
+          name: networkDeviceChassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.90.1.16
+          name: networkDevicePermanentMACAddress
+        tag: mac_addr
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.90.1.30
+          name: networkDeviceFQDD
+        tag: device_fqdd
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.300.50
+      name: systemBIOSTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.300.50.1.5
+        name: systemBIOSStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.300.50.1.1
+          name: systemBIOSchassisIndex
+        tag: chassis_index
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.600.30
+      name: amperageProbeTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.600.30.1.5
+        name: amperageProbeStatus
+      - OID: 1.3.6.1.4.1.674.10892.5.4.600.30.1.6
+        name: amperageProbeReading
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.600.30.1.7
+          name: amperageProbeType
+        tag: probe_type
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.600.30.1.1
+          name: amperageProbechassisIndex
+        tag: chassis_index
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.600.20
+      name: voltageProbeTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.600.20.1.5
+        name: voltageProbeStatus
+      - OID: 1.3.6.1.4.1.674.10892.5.4.600.20.1.6
+        name: voltageProbeReading
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.600.20.1.1
+          name: voltageProbechassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.600.20.1.7
+          name: voltageProbeType
+        tag: probe_type
+  - MIB: IDRAC-MIB-SMIv2
+    table:
+      OID: 1.3.6.1.4.1.674.10892.5.4.1100.50
+      name: memoryDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.5.4.1100.50.1.5
+        name: memoryDeviceStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.50.1.7
+          name: memoryDeviceType
+        tag: device_type
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.50.1.2
+          name: memoryDeviceIndex
+        tag: device_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.50.1.1
+          name: memoryDevicechassisIndex
+        tag: chassis_index
+  - MIB: DELL-RAC-MIB
+    symbol:
+      OID: 1.3.6.1.4.1.674.10892.2.3.1.9.0
+      name: drsCMCCurrStatus
+  - MIB: DELL-RAC-MIB
+    symbol:
+      OID: 1.3.6.1.4.1.674.10892.2.3.1.1.0
+      name: drsGlobalCurrStatus
+  - MIB: DELL-RAC-MIB
+    symbol:
+      OID: 1.3.6.1.4.1.674.10892.2.3.1.5.0
+      name: drsPowerCurrStatus
+  - MIB: DELL-RAC-MIB
+    symbol:
+      OID: 1.3.6.1.4.1.674.10892.2.3.1.4.0
+      name: drsRedCurrStatus
+  - MIB: DELL-RAC-MIB
+    symbol:
+      OID: 1.3.6.1.4.1.674.10892.2.2.1.0
+      name: drsGlobalSystemStatus

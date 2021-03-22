@@ -1,0 +1,76 @@
+extends:
+  - _base.yaml
+  - _generic-if.yaml
+  - _generic-ip.yaml
+  - _generic-host-resources.yaml
+  - _generic-ospf.yaml
+  - _generic-bgp4.yaml
+  - _generic-tcp.yaml
+  - _generic-udp.yaml
+
+device:
+  vendor: "arista"
+
+sysobjectid: 1.3.6.1.4.1.30065.*
+
+metrics:
+  ### Sensor
+
+  # This table contains one row per physical sensor.
+  - MIB: ENTITY-SENSOR-MIB
+    table:
+      OID: 1.3.6.1.2.1.99.1.1.1
+      name: entPhySensorTable
+    symbols:
+      - OID: 1.3.6.1.2.1.99.1.1.1.4
+        name: entPhySensorValue
+      - OID: 1.3.6.1.2.1.99.1.1.1.5
+        name: entPhySensorOperStatus
+    metric_tags:
+      - tag: sensor_type
+        column:
+          OID: 1.3.6.1.2.1.99.1.1.1.1
+          name: entPhySensorType
+      - index: 1
+        tag: sensor_id
+
+
+  ### Interface
+
+  - # This table contains statistical information of the ingress queue in an interface.
+    MIB: ARISTA-QUEUE-MIB
+    table:
+      OID: 1.3.6.1.4.1.30065.3.6.1.1
+      name: aristaIngressQueueTable
+    forced_type: monotonic_count
+    symbols:
+      - OID: 1.3.6.1.4.1.30065.3.6.1.1.1.3
+        name: aristaIngressQueuePktsDropped
+    metric_tags:
+      - tag: interface_index
+        column:
+          OID: 1.3.6.1.4.1.30065.3.6.1.1.1.1
+          name: aristaIngressIfIndex
+      - tag: queue_index
+        column:
+          OID: 1.3.6.1.4.1.30065.3.6.1.1.1.2
+          name: aristaIngressQueueIndex
+
+  - # This table contains statistical objects for the egress queues of an interface.
+    MIB: ARISTA-QUEUE-MIB
+    table:
+      OID: 1.3.6.1.4.1.30065.3.6.1.2
+      name: aristaEgressQueueTable
+    forced_type: monotonic_count
+    symbols:
+      - OID: 1.3.6.1.4.1.30065.3.6.1.2.1.6
+        name: aristaEgressQueuePktsDropped
+    metric_tags:
+      - tag: interface_index
+        column:
+          OID: 1.3.6.1.4.1.30065.3.6.1.2.1.1
+          name: aristaEgressIfIndex
+      - tag: queue_index
+        column:
+          OID: 1.3.6.1.4.1.30065.3.6.1.2.1.2
+          name: aristaEgressQueueIndex

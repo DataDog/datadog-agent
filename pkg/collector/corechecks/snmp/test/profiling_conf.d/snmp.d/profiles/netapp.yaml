@@ -1,0 +1,137 @@
+# Profile for NetApp devices.
+
+extends:
+  - _base.yaml
+
+device:
+  vendor: "netapp"
+
+sysobjectid: 1.3.6.1.4.1.789.2.5
+
+metrics:
+  - MIB: NETAPP-MIB
+    OID: 1.3.6.1.4.1.789.1.2.3.8
+    name: cfInterconnectStatus
+
+  - MIB: NETAPP-MIB
+    OID: 1.3.6.1.4.1.789.1.2.2.23.0
+    name: miscCacheAge
+
+  - MIB: NETAPP-MIB
+    OID: 1.3.6.1.4.1.789.1.8.3.6.36
+    name: ncHttpActiveCliConns
+
+  - MIB: NETAPP-MIB
+    OID: 1.3.6.1.4.1.789.1.26.8
+    name: extcache64Hits
+    forced_type: monotonic_count
+
+  # Snap vaults
+
+  - MIB: NETAPP-MIB
+    table:
+      OID: 1.3.6.1.4.1.789.1.19.11
+      name: snapvaultStatusTable
+    symbols:
+      - OID: 1.3.6.1.4.1.789.1.19.11.1.9
+        name: svTotalFailures
+    forced_type: monotonic_count
+    metric_tags:
+      - tag: index
+        column:
+          OID: 1.3.6.1.4.1.789.1.19.11.1.1
+          name: svIndex
+      - tag: destination
+        column:
+          OID: 1.3.6.1.4.1.789.1.19.11.1.3
+          name: svDst
+      - tag: state
+        column:
+          OID: 1.3.6.1.4.1.789.1.19.11.1.5
+          name: svState
+
+  # Snap mirrors
+
+  - MIB: NETAPP-MIB
+    table:
+      OID: 1.3.6.1.4.1.789.1.9.20
+      name: snapmirrorStatusTable
+    forced_type: gauge
+    symbols:
+      - OID: 1.3.6.1.4.1.789.1.9.20.1.6
+        name: snapmirrorLag # SNMP type is TimeTicks
+    metric_tags:
+      - tag: index
+        column:
+          OID: 1.3.6.1.4.1.789.1.9.20.1.1
+          name: snapmirrorIndex
+      - tag: state
+        column:
+          OID: 1.3.6.1.4.1.789.1.9.20.1.5
+          name: snapmirrorState
+
+  - MIB: NETAPP-MIB
+    table:
+      OID: 1.3.6.1.4.1.789.1.9.20
+      name: snapmirrorStatusTable
+    forced_type: monotonic_count
+    symbols:
+      - OID: 1.3.6.1.4.1.789.1.9.20.1.9
+        name: snapmirrorTotalFailures
+    metric_tags:
+      - tag: index
+        column:
+          OID: 1.3.6.1.4.1.789.1.9.20.1.1
+          name: snapmirrorIndex
+      - tag: state
+        column:
+          OID: 1.3.6.1.4.1.789.1.9.20.1.5
+          name: snapmirrorState
+
+  # Disk filesystems
+
+  - MIB: NETAPP-MIB
+    table:
+      OID: 1.3.6.1.4.1.789.1.5.4
+      name: dfTable
+    forced_type: gauge
+    symbols:
+      - OID: 1.3.6.1.4.1.789.1.5.4.1.14
+        name: dfHighTotalKBytes
+      - OID: 1.3.6.1.4.1.789.1.5.4.1.18
+        name: dfHighAvailKBytes
+      - OID: 1.3.6.1.4.1.789.1.5.4.1.7
+        name: dfInodesUsed
+      - OID: 1.3.6.1.4.1.789.1.5.4.1.8
+        name: dfInodesFree
+    metric_tags:
+      - tag: index
+        column:
+          OID: 1.3.6.1.4.1.789.1.5.4.1.1
+          name: dfIndex
+      - tag: filesystem
+        column:
+          OID: 1.3.6.1.4.1.789.1.5.4.1.2
+          name: dfFileSys
+
+  # Network interfaces
+
+  - MIB: NETAPP-MIB
+    table:
+      OID: 1.3.6.1.4.1.789.1.22.1.2
+      name: netifTable
+    forced_type: monotonic_count_and_rate
+    symbols:
+      - OID: 1.3.6.1.4.1.789.1.22.1.2.1.3
+        name: ifHighInOctets
+    metric_tags:
+      - tag: index
+        column:
+          OID: 1.3.6.1.4.1.789.1.22.1.2.1.1
+          name: netifIndex
+      - tag: interface
+        column:
+          # A DisplayString that represents the manufacturer, product name and hardware version.
+          # Will be normalized to something like 'netgear_ifX300_v1'.
+          OID: 1.3.6.1.4.1.789.1.22.1.2.1.2
+          name: netifDescr

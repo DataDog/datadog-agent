@@ -1,0 +1,115 @@
+# Generic network interfaces metrics.
+#
+metrics:
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.2.2
+    name: ifTable
+  forced_type: monotonic_count
+  symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.14
+    name: ifInErrors
+  - OID: 1.3.6.1.2.1.2.2.1.13
+    name: ifInDiscards
+  - OID: 1.3.6.1.2.1.2.2.1.20
+    name: ifOutErrors
+  - OID: 1.3.6.1.2.1.2.2.1.19
+    name: ifOutDiscards
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    table: ifXTable
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.2.2
+    name: ifTable
+  symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.7
+    name: ifAdminStatus
+  - OID: 1.3.6.1.2.1.2.2.1.8
+    name: ifOperStatus
+  - OID: 1.3.6.1.2.1.2.2.1.5
+    name: ifSpeed
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    table: ifXTable
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.31.1.1
+    name: ifXTable
+  forced_type: monotonic_count
+  symbols:
+  - OID: 1.3.6.1.2.1.31.1.1.1.7
+    name: ifHCInUcastPkts
+  - OID: 1.3.6.1.2.1.31.1.1.1.8
+    name: ifHCInMulticastPkts
+  - OID: 1.3.6.1.2.1.31.1.1.1.9
+    name: ifHCInBroadcastPkts
+  - OID: 1.3.6.1.2.1.31.1.1.1.11
+    name: ifHCOutUcastPkts
+  - OID: 1.3.6.1.2.1.31.1.1.1.12
+    name: ifHCOutMulticastPkts
+  - OID: 1.3.6.1.2.1.31.1.1.1.13
+    name: ifHCOutBroadcastPkts
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.31.1.1
+    name: ifXTable
+  forced_type: monotonic_count_and_rate
+  symbols:
+  - OID: 1.3.6.1.2.1.31.1.1.1.6
+    name: ifHCInOctets
+  - OID: 1.3.6.1.2.1.31.1.1.1.10
+    name: ifHCOutOctets
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias
+- MIB: IF-MIB
+  table:
+    OID: 1.3.6.1.2.1.31.1.1
+    name: ifXTable
+  symbols:
+  - OID: 1.3.6.1.2.1.31.1.1.1.15
+    name: ifHighSpeed
+  metric_tags:
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.1
+      name: ifName
+    tag: interface
+  - column:
+      OID: 1.3.6.1.2.1.31.1.1.1.18
+      name: ifAlias
+    table: ifXTable
+    tag: interface_alias

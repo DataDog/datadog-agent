@@ -1,0 +1,167 @@
+# Profile for Dell Poweredge devices
+
+# MIBs can be downloaded after searching for a server and looking for keyboard "MIB":
+# Example: https://www.dell.com/support/home/us/en/04/product-support/product/poweredge-r730/drivers
+
+# Status metrics (e.g: powerSupplyStatus, temperatureProbeStatus, etc.) output one of the following: other(1), unknown(2), ok(3), nonCritical(4), critical(5), nonRecoverable(6)
+
+extends:
+  - _base.yaml
+  - _dell-rac.yaml # These metrics are available in some Poweredge devices (e.g. r740)
+  - _intel-lan-adapters.yaml
+  - _generic-tcp.yaml
+  - _generic-udp.yaml
+  - _generic-ip.yaml
+
+device:
+  vendor: "dell"
+
+
+sysobjectid: 1.3.6.1.4.1.674.10892.1.*
+
+metrics:
+  - MIB: MIB-Dell-10892
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.400.20
+      name: operatingSystemMemoryTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.400.20.1.6
+        name: operatingSystemMemoryAvailablePhysicalSize
+      - OID: 1.3.6.1.4.1.674.10892.1.400.20.1.7
+        name: operatingSystemMemoryTotalPageFileSize
+      - OID: 1.3.6.1.4.1.674.10892.1.400.20.1.8
+        name: operatingSystemMemoryAvailablePageFileSize
+      - OID: 1.3.6.1.4.1.674.10892.1.400.20.1.9
+        name: operatingSystemMemoryTotalVirtualSize
+      - OID: 1.3.6.1.4.1.674.10892.1.400.20.1.10
+        name: operatingSystemMemoryAvailableVirtualSize
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.400.20.1.1
+          name: operatingSystemMemorychassisIndex
+        tag: chassis_index
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.600.12
+      name: powerSupplyTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.600.12.1.5
+        name: powerSupplyStatus
+      - OID: 1.3.6.1.4.1.674.10892.1.600.12.1.6
+        name: powerSupplyOutputWatts
+      - OID: 1.3.6.1.4.1.674.10892.1.600.12.1.9
+        name: powerSupplyMaximumInputVoltage
+      - OID: 1.3.6.1.4.1.674.10892.1.600.12.1.16
+        name: powerSupplyCurrentInputVoltage
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.600.12.1.1
+          name: powerSupplychassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.600.12.1.2
+          name: powerSupplyIndex
+        tag: index
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.700.20
+      name: temperatureProbeTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.700.20.1.5
+        name: temperatureProbeStatus
+      - OID: 1.3.6.1.4.1.674.10892.1.700.20.1.6
+        name: temperatureProbeReading
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.700.20.1.1
+          name: temperatureProbechassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.700.20.1.2
+          name: temperatureProbeIndex
+        tag: index
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.1100.30
+      name: processorDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.30.1.5
+        name: processorDeviceStatus
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.30.1.19
+        name: processorDeviceThreadCount
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.30.1.1
+          name: processorDevicechassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.30.1.2
+          name: processorDeviceIndex
+        tag: index
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.1100.40
+      name: cacheDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.40.1.5
+        name: cacheDeviceStatus
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.40.1.12
+        name: cacheDeviceMaximumSize
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.40.1.13
+        name: cacheDeviceCurrentSize
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.40.1.1
+          name: cacheDevicechassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.40.1.2
+          name: cacheDeviceIndex
+        tag: index
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.1100.50
+      name: memoryDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.50.1.5
+        name: memoryDeviceStatus
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.50.1.20
+        name: memoryDeviceFailureModes
+        # Sent as bit masks:
+        # (0) -- memory device has no faults.
+        # (1) -- ECC single bit correction warning rate exceeded
+        # (2) -- ECC single bit correction failure rate exceeded
+        # (4),-- ECC multibit fault encountered
+        # (8) -- ECC single bit correction logging disabled
+        # (16) -- device disabled because of spare activation
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.50.1.1
+          name: memoryDevicechassisIndex
+        tag: chassis_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.5.4.1100.50.1.2
+          name: memoryDeviceIndex
+        tag: device_index
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.50.1.23
+          name: memoryDeviceSerialNumberName
+        tag: serial_number_name
+  - MIB: MIB-Dell-10892
+    forced_type: gauge   # Sent as integers
+    table:
+      OID: 1.3.6.1.4.1.674.10892.1.1100.90
+      name: networkDeviceTable
+    symbols:
+      - OID: 1.3.6.1.4.1.674.10892.1.1100.90.1.3
+        name: networkDeviceStatus
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.4.1.674.10892.1.1100.90.1.11
+          name: networkDeviceIPAddress
+        tag: ip_address

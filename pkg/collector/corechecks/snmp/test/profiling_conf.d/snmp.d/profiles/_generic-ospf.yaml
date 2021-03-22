@@ -1,0 +1,81 @@
+metrics:
+  - MIB: OSPF-MIB
+    table:
+      OID: 1.3.6.1.2.1.14.10
+      name: ospfNbrTable
+    symbols:
+      - OID: 1.3.6.1.2.1.14.10.1.6
+        name: ospfNbrState
+      - OID: 1.3.6.1.2.1.14.10.1.7
+        name: ospfNbrEvents
+      - OID: 1.3.6.1.2.1.14.10.1.8
+        name: ospfNbrLsRetransQLen
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.2.1.14.10.1.3
+          name: ospfNbrRtrId
+        tag: neighbor_id
+      - column:
+          OID: 1.3.6.1.2.1.14.10.1.1
+          name: ospfNbrIpAddr
+        tag: neighbor_ip
+  - MIB: OSPF-MIB
+    table:
+      OID: 1.3.6.1.2.1.14.11
+      name: ospfVirtNbrTable
+    symbols:
+      - OID: 1.3.6.1.2.1.14.11.1.5
+        name: ospfVirtNbrState
+      - OID: 1.3.6.1.2.1.14.11.1.6
+        name: ospfVirtNbrEvents
+      - OID: 1.3.6.1.2.1.14.11.1.7
+        name: ospfVirtNbrLsRetransQLen
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.2.1.14.11.1.3
+          name: ospfVirtNbrIpAddr
+        tag: neighbor_ip
+      - column:
+          OID: 1.3.6.1.2.1.14.11.1.2
+          name: ospfVirtNbrRtrId
+        tag: neighbor_id
+  - MIB: OSPF-MIB
+    table:
+      OID: 1.3.6.1.2.1.14.7
+      name: ospfIfTable
+    symbols:
+      - OID: 1.3.6.1.2.1.14.7.1.8
+        name: ospfIfRetransInterval
+      - OID: 1.3.6.1.2.1.14.7.1.12
+        name: ospfIfState
+      - OID: 1.3.6.1.2.1.14.7.1.21
+        name: ospfIfLsaCount
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.2.1.14.7.1.1
+          name: ospfIfIpAddress
+        tag: ospf_ip_addr
+      - column:
+          OID: 1.3.6.1.2.1.14.10.1.3
+          name: ospfNbrRtrId
+        table: ospfNbrTable
+        MIB: OSPF-MIB
+        tag: neighbor_id
+  - MIB: OSPF-MIB
+    table:
+      OID: 1.3.6.1.2.1.14.9
+      name: ospfVirtIfTable
+    symbols:
+      - OID: 1.3.6.1.2.1.14.9.1.4
+        name: ospfVirtIfRetransInterval
+      - OID: 1.3.6.1.2.1.14.9.1.7
+        name: ospfVirtIfState
+      - OID: 1.3.6.1.2.1.14.9.1.12
+        name: ospfVirtIfLsaCount
+    metric_tags:
+      - column:
+          OID: 1.3.6.1.2.1.14.11.1.2
+          name: ospfVirtNbrRtrId
+        table: ospfVirtNbrTable
+        MIB: OSPF-MIB
+        tag: neighbor_id
