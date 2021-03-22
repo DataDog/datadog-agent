@@ -13,17 +13,17 @@ import (
 )
 
 var (
-	tlmPacketsBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
+	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
 		nil, "Count of packets buffer flush triggered by the timer")
-	tlmPacketsBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
+	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
 		nil, "Count of packets buffer flush triggered because the buffer is full")
 	tlmPacketsChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
 		nil, "Number of packets in the packets channel")
 )
 
-// PacketsBuffer is a buffer of packets that will automatically flush to the given
+// Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
-type PacketsBuffer struct {
+type Buffer struct {
 	packets       Packets
 	flushTimer    *time.Ticker
 	bufferSize    uint
@@ -32,8 +32,8 @@ type PacketsBuffer struct {
 	m             sync.Mutex
 }
 
-func NewPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *PacketsBuffer {
-	pb := &PacketsBuffer{
+func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *Buffer {
+	pb := &Buffer{
 		bufferSize:    bufferSize,
 		flushTimer:    time.NewTicker(flushTimer),
 		outputChannel: outputChannel,
@@ -44,13 +44,13 @@ func NewPacketsBuffer(bufferSize uint, flushTimer time.Duration, outputChannel c
 	return pb
 }
 
-func (pb *PacketsBuffer) flushLoop() {
+func (pb *Buffer) flushLoop() {
 	for {
 		select {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
 			pb.flush()
-			tlmPacketsBufferFlushedTimer.Inc()
+			tlmBufferFlushedTimer.Inc()
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			return
@@ -58,17 +58,17 @@ func (pb *PacketsBuffer) flushLoop() {
 	}
 }
 
-func (pb *PacketsBuffer) Append(packet *Packet) {
+func (pb *Buffer) Append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
 	pb.packets = append(pb.packets, packet)
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
-		tlmPacketsBufferFlushedFull.Inc()
+		tlmBufferFlushedFull.Inc()
 	}
 }
 
-func (pb *PacketsBuffer) flush() {
+func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
 		pb.outputChannel <- pb.packets
 		tlmPacketsChannelSize.Set(float64(len(pb.outputChannel)))
@@ -76,6 +76,6 @@ func (pb *PacketsBuffer) flush() {
 	}
 }
 
-func (pb *PacketsBuffer) Close() {
+func (pb *Buffer) Close() {
 	close(pb.closeChannel)
 }

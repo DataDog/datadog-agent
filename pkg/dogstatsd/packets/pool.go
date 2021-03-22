@@ -13,15 +13,15 @@ import (
 )
 
 var (
-	tlmPacketPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
+	tlmPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
 		nil, "Count of get done in the packet pool")
-	tlmPacketPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
+	tlmPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
 		nil, "Count of put done in the packet pool")
-	tlmPacketPool = telemetry.NewGauge("dogstatsd", "packet_pool",
+	tlmPool = telemetry.NewGauge("dogstatsd", "packet_pool",
 		nil, "Usage of the packet pool in dogstatsd")
 )
 
-// PacketPool wraps the sync.Pool class for *Packet type.
+// Pool wraps the sync.Pool class for *Packet type.
 // It allows to avoid allocating one object per packet.
 //
 // Caution: as objects get reused, byte slices extracted from
@@ -31,15 +31,15 @@ var (
 //
 // Strings extracted with `string(Contents[n:m]) don't share the
 // origin []byte storage, so they will be unaffected.
-type PacketPool struct {
+type Pool struct {
 	pool sync.Pool
 	// telemetry
 	tlmEnabled bool
 }
 
-// NewPacketPool creates a new pool with a specified buffer size
-func NewPacketPool(bufferSize int) *PacketPool {
-	return &PacketPool{
+// NewPool creates a new pool with a specified buffer size
+func NewPool(bufferSize int) *Pool {
+	return &Pool{
 		pool: sync.Pool{
 			New: func() interface{} {
 				packet := &Packet{
@@ -56,16 +56,16 @@ func NewPacketPool(bufferSize int) *PacketPool {
 }
 
 // Get gets a Packet object read for use.
-func (p *PacketPool) Get() interface{} {
+func (p *Pool) Get() interface{} {
 	if p.tlmEnabled {
-		tlmPacketPoolGet.Inc()
-		tlmPacketPool.Inc()
+		tlmPoolGet.Inc()
+		tlmPool.Inc()
 	}
 	return p.pool.Get()
 }
 
 // Put resets the Packet origin and puts it back in the pool.
-func (p *PacketPool) Put(x interface{}) {
+func (p *Pool) Put(x interface{}) {
 	if p == nil {
 		return
 	}
@@ -75,8 +75,8 @@ func (p *PacketPool) Put(x interface{}) {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {
-		tlmPacketPoolPut.Inc()
-		tlmPacketPool.Dec()
+		tlmPoolPut.Inc()
+		tlmPool.Dec()
 	}
 	p.pool.Put(packet)
 }

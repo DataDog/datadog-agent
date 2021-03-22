@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 // packetManager gathers everything required to create and assemble packets.
 type packetManager struct {
 	packetsBuffer   *packetsBuffer
-	packetAssembler *packetAssembler
+	packetAssembler *packets.Assembler
 	bufferSize      int
 }
 
@@ -32,14 +33,14 @@ func newPacketManager(
 	packetsBufferSize int,
 	flushTimeout time.Duration,
 	packetOut chan Packets,
-	sharedPacketPoolManager *PoolManager) *packetManager {
+	sharedPacketPoolManager *packets.PoolManager) *packetManager {
 
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
 
 	return &packetManager{
 		bufferSize:      bufferSize,
 		packetsBuffer:   packetsBuffer,
-		packetAssembler: newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager),
+		packetAssembler: packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager),
 	}
 }
 

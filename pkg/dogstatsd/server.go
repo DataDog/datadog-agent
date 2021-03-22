@@ -72,7 +72,7 @@ type Server struct {
 	workers []*worker
 
 	packetsIn                 chan packets.Packets
-	sharedPacketPool          *packets.PacketPool
+	sharedPacketPool          *packets.Pool
 	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
 	Statistics                *util.Stats
@@ -163,7 +163,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := packets.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
 
 	udsListenerRunning := false
@@ -578,7 +578,10 @@ func (s *Server) Stop() {
 		s.Statistics.Stop()
 	}
 	if s.TCapture != nil {
-		s.TCapture.Stop()
+		err := s.TCapture.Stop()
+		if err != nil {
+			log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
+		}
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false

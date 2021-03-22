@@ -42,8 +42,8 @@ func init() {
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn            *net.UDPConn
-	packetsBuffer   *packets.PacketsBuffer
-	packetAssembler *packets.PacketAssembler
+	packetsBuffer   *packets.Buffer
+	packetAssembler *packets.Assembler
 	buffer          []byte
 	trafficCapture  *debug.TrafficCapture // Currently ignored
 }
@@ -80,8 +80,8 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := packets.NewPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
 		conn:            conn,

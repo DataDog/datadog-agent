@@ -80,7 +80,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 
 	fp, err := os.Create(path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix())))
 	if err != nil {
-		fmt.Errorf("There was an issue starting the capture: %v ", err)
+		log.Errorf("There was an issue starting the capture: %v ", err)
 
 		tc.Unlock()
 		return
@@ -102,15 +102,22 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		log.Debugf("Capture will be stopped after %v", d)
 
 		<-time.After(d)
-		tc.StopCapture()
+		err := tc.StopCapture()
+		if err != nil {
+			log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
+		}
 	}()
 
+process:
 	for {
 		select {
 		case msg := <-tc.Traffic:
 			err := tc.WriteNext(msg)
 			if err != nil {
-				tc.StopCapture()
+				err := tc.StopCapture()
+				if err != nil {
+					log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
+				}
 			}
 
 			if tc.sharedPacketPoolManager != nil {
@@ -122,7 +129,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 			}
 		case <-tc.shutdown:
 			log.Debugf("Capture shutting down")
-			return
+			break process
 		}
 	}
 

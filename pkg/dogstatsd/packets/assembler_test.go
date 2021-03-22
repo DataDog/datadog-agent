@@ -11,11 +11,11 @@ import (
 // copy of aggregator.MetricSamplePoolBatchSize to avoid cycling import
 const sampleBatchSize = 32
 
-func buildPacketAssembler() (*PacketAssembler, chan Packets) {
+func buildPacketAssembler() (*Assembler, chan Packets) {
 	out := make(chan Packets, 16)
-	psb := NewPacketsBuffer(1, 1*time.Hour, out)
-	pp := NewPacketPool(sampleBatchSize)
-	pb := NewPacketAssembler(100*time.Millisecond, psb, NewPoolManager(pp), UDP)
+	psb := NewBuffer(1, 1*time.Hour, out)
+	pp := NewPool(sampleBatchSize)
+	pb := NewAssembler(100*time.Millisecond, psb, NewPoolManager(pp), UDP)
 	return pb, out
 }
 
@@ -141,7 +141,7 @@ func TestPacketBufferEmptySecond(t *testing.T) {
 	assert.Equal(t, []byte("test1\n"), packets[0].Contents)
 }
 
-func BenchmarkPacketsBufferFlush(b *testing.B) {
+func BenchmarkBufferFlush(b *testing.B) {
 	packet := generateRandomPacket(4)
 
 	for i := 0; i < b.N; i++ {

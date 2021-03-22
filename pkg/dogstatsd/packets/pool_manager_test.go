@@ -20,7 +20,7 @@ func countPoolSize(p *PoolManager) int {
 
 func TestPoolManager(t *testing.T) {
 
-	pool := NewPacketPool(1024)
+	pool := NewPool(1024)
 	manager := NewPoolManager(pool)
 
 	// passthru mode by default
