@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -75,9 +76,8 @@ var (
 	deserializeTransactionsCountTelemetry *counterExpvar
 )
 
-// InitExpVar initializes expvars and telementries for failed transactions.
-func InitExpVar(forwarderExpvars *expvar.Map) {
-	forwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
+func init() {
+	transaction.ForwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
 	newRemovalPolicyCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"new_removal_policy_count",
@@ -99,7 +99,7 @@ func InitExpVar(forwarderExpvars *expvar.Map) {
 		"The number of files removed from an unknown domain",
 		&removalPolicyExpvar)
 
-	forwarderExpvars.Set("TransactionContainer", &transactionContainerExpvar)
+	transaction.ForwarderExpvars.Set("TransactionContainer", &transactionContainerExpvar)
 	currentMemSizeInBytesTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"current_mem_size_in_bytes",
@@ -121,7 +121,7 @@ func InitExpVar(forwarderExpvars *expvar.Map) {
 		"The number of errors",
 		&transactionContainerExpvar)
 
-	forwarderExpvars.Set("FileStorage", &fileStorageExpvar)
+	transaction.ForwarderExpvars.Set("FileStorage", &fileStorageExpvar)
 	serializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"serialize_count",

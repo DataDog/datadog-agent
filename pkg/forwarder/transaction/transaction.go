@@ -23,6 +23,12 @@ import (
 )
 
 var (
+	// ForwarderExpvars is the root for expvars in the forwarder.
+	ForwarderExpvars = expvar.NewMap("forwarder")
+
+	// TransactionsExpvars the transactions Expvars
+	TransactionsExpvars = expvar.Map{}
+
 	connectionDNSSuccess         = expvar.Int{}
 	connectionConnectSuccess     = expvar.Int{}
 	transactionsConnectionEvents = expvar.Map{}
@@ -116,31 +122,32 @@ type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, bo
 var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
-// InitTransactionExpvars initializes the exp var for transaction.
-func InitTransactionExpvars(transactionsExpvars *expvar.Map) {
+func init() {
+	TransactionsExpvars.Init()
 	transactionsConnectionEvents.Init()
 	TransactionsDroppedByEndpoint.Init()
 	TransactionsSuccessByEndpoint.Init()
 	transactionsSuccessBytesByEndpoint.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
+	ForwarderExpvars.Set("Transactions", &TransactionsExpvars)
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
-	transactionsExpvars.Set("Dropped", &TransactionsDropped)
-	transactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
-	transactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
-	transactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
-	transactionsExpvars.Set("Success", &transactionsSuccess)
-	transactionsExpvars.Set("Errors", &transactionsErrors)
-	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	TransactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
+	TransactionsExpvars.Set("Dropped", &TransactionsDropped)
+	TransactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
+	TransactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
+	TransactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
+	TransactionsExpvars.Set("Success", &transactionsSuccess)
+	TransactionsExpvars.Set("Errors", &transactionsErrors)
+	TransactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
 	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
-	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
-	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
+	TransactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
 // Priority defines the priority of a transaction

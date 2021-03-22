@@ -8,11 +8,11 @@ package forwarder
 import (
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	transactionsExpvars              = expvar.Map{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
 	transactionsInputCountByEndpoint = expvar.Map{}
 	transactionsDroppedOnInput       = expvar.Int{}
@@ -41,12 +41,12 @@ func initExpvars() {
 	transactionsInputCountByEndpoint.Init()
 	transactionsRequeuedByEndpoint.Init()
 	transactionsRetriedByEndpoint.Init()
-	transactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
-	transactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
-	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-	transactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
+	transaction.TransactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
+	transaction.TransactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
+	transaction.TransactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transaction.TransactionsExpvars.Set("Requeued", &transactionsRequeued)
+	transaction.TransactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
+	transaction.TransactionsExpvars.Set("Retried", &transactionsRetried)
+	transaction.TransactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
+	transaction.TransactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
 }

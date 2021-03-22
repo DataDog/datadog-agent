@@ -37,7 +37,6 @@ const (
 )
 
 var (
-	forwarderExpvars             = expvar.NewMap("forwarder")
 	transactionsIntakePod        = expvar.Int{}
 	transactionsIntakeDeployment = expvar.Int{}
 	transactionsIntakeReplicaSet = expvar.Int{}
@@ -66,11 +65,7 @@ var (
 )
 
 func init() {
-	transactionsExpvars.Init()
-	forwarderExpvars.Set("Transactions", &transactionsExpvars)
 	initOrchestratorExpVars()
-	transaction.InitTransactionExpvars(forwarderExpvars)
-	retry.InitExpVar(forwarderExpvars)
 	initExpvars()
 	initForwarderHealthExpvars()
 	initEndpointExpvars()
@@ -89,11 +84,11 @@ func initEndpointExpvars() {
 }
 
 func initOrchestratorExpVars() {
-	transactionsExpvars.Set("Pods", &transactionsIntakePod)
-	transactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
-	transactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
-	transactionsExpvars.Set("Services", &transactionsIntakeService)
-	transactionsExpvars.Set("Nodes", &transactionsIntakeNode)
+	transaction.TransactionsExpvars.Set("Pods", &transactionsIntakePod)
+	transaction.TransactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
+	transaction.TransactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
+	transaction.TransactionsExpvars.Set("Services", &transactionsIntakeService)
+	transaction.TransactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 }
 
 const (
