@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -39,9 +40,10 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 		MetricTags: []metricTagConfig{
 			{
-				OID:   "1.3.6.1.2.1.1.5.0",
-				Name:  "sysName",
-				Match: "(\\w)(\\w+)",
+				OID:     "1.3.6.1.2.1.1.5.0",
+				Name:    "sysName",
+				Match:   "(\\w)(\\w+)",
+				pattern: regexp.MustCompile("(\\w)(\\w+)"),
 				Tags: map[string]string{
 					"some_tag": "some_tag_value",
 					"prefix":   "\\1",

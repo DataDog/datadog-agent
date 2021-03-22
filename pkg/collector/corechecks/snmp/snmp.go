@@ -86,10 +86,6 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 			// Should not happen since the profile is one of those we matched in getProfileForSysObjectID
 			return tags, fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 		}
-		err = c.config.validateEnrichMetricsAndTags()
-		if err != nil {
-			return tags, fmt.Errorf("validation error: %s", err)
-		}
 	}
 	tags = append(tags, c.config.profileTags...)
 
