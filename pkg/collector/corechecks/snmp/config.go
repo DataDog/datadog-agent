@@ -100,6 +100,15 @@ func (c *snmpConfig) getStaticTags() []string {
 	return tags
 }
 
+func (c *snmpConfig) validateEnrichMetricsAndTags() error {
+	errors := validateEnrichMetrics(c.metrics)
+	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
+	if len(errors) > 0 {
+		return fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+	}
+	return nil
+}
+
 // toString used for logging snmpConfig without sensitive information
 func (c *snmpConfig) toString() string {
 	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
@@ -222,10 +231,10 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
-	errors := validateEnrichMetrics(c.metrics)
-	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
-	if len(errors) > 0 {
-		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+
+	err = c.validateEnrichMetricsAndTags()
+	if err != nil {
+		return snmpConfig{}, err
 	}
 	return c, err
 }

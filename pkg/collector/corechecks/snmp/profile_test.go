@@ -37,7 +37,19 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       deviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		MetricTags:   []metricTagConfig{{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		MetricTags: []metricTagConfig{
+			{
+				OID:   "1.3.6.1.2.1.1.5.0",
+				Name:  "sysName",
+				Match: "(\\w)(\\w+)",
+				Tags: map[string]string{
+					"some_tag": "some_tag_value",
+					"prefix":   "\\1",
+					"suffix":   "\\2",
+				},
+			},
+			{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		},
 	}}
 }
 
