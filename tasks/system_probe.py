@@ -517,10 +517,8 @@ def build_object_files(ctx, bundle_ebpf=False):
     cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
     llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
-    commands = [
-        "mkdir -p {build_dir}".format(build_dir=build_dir),
-        "mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir),
-    ]
+    ctx.run("mkdir -p {build_dir}".format(build_dir=build_dir))
+    ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
     bindata_files = []
 
     corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
@@ -533,7 +531,7 @@ def build_object_files(ctx, bundle_ebpf=False):
         os.path.join(corechecks_bcc_dir, "bpf-common.h"),
     ]
     for f in bcc_files:
-        commands.append("cp {file} {dest}".format(file=f, dest=build_dir))
+        ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
         bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
     compiled_programs = [
@@ -547,15 +545,13 @@ def build_object_files(ctx, bundle_ebpf=False):
         src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
         bc_file = os.path.join(build_dir, "{}.bc".format(p))
         obj_file = os.path.join(build_dir, "{}.o".format(p))
-        commands.append(cmd.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
-        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
+        ctx.run(cmd.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
+        ctx.run(llc_cmd.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
 
         debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        commands.append(
-            cmd.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file)
-        )
-        commands.append(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+        ctx.run(cmd.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
+        ctx.run(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
         bindata_files.extend([obj_file, debug_obj_file])
 
@@ -567,27 +563,25 @@ def build_object_files(ctx, bundle_ebpf=False):
     security_flags = list(flags)
     security_flags.append("-I{}".format(security_agent_c_dir))
 
-    commands.append(
+    ctx.run(
         cmd.format(
             flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
             c_file=security_c_file,
             bc_file=security_bc_file,
         )
     )
-    commands.append(
-        llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file)
-    )
+    ctx.run(llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
 
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
-    commands.append(
+    ctx.run(
         cmd.format(
             flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
             c_file=security_c_file,
             bc_file=security_agent_syscall_wrapper_bc_file,
         )
     )
-    commands.append(
+    ctx.run(
         llc_cmd.format(
             flags=" ".join(security_flags),
             bc_file=security_agent_syscall_wrapper_bc_file,
@@ -595,9 +589,6 @@ def build_object_files(ctx, bundle_ebpf=False):
         )
     )
     bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
-
-    for cmd in commands:
-        ctx.run(cmd)
 
     generate_runtime_files(ctx)
 
