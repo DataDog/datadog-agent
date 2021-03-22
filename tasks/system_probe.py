@@ -152,10 +152,11 @@ def test(
     ctx,
     packages=TEST_PACKAGES,
     skip_object_files=False,
-    bundle_ebpf=True,
+    bundle_ebpf=False,
     output_path=None,
     runtime_compiled=False,
     skip_linters=False,
+    run=None,
 ):
     """
     Run tests on eBPF parts
@@ -185,13 +186,14 @@ def test(
         "build_tags": ",".join(build_tags),
         "output_params": "-c -o " + output_path if output_path else "",
         "pkgs": packages,
+        "run": "-run " + run if run else "",
     }
 
     _, _, env = get_build_flags(ctx)
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs}'
+    cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs} {run}'
     if not is_root():
         cmd = 'sudo -E ' + cmd
 
