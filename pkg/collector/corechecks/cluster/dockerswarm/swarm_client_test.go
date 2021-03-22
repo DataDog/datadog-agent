@@ -36,13 +36,12 @@ var swarmService = containers.SwarmService{
 				ExitCode:    0,
 				PID:         341,
 			},
-			DesiredState:  swarm.TaskStateRunning,
+			DesiredState: swarm.TaskStateRunning,
 		},
 	},
 	DesiredTasks: 2,
 	RunningTasks: 2,
 }
-
 
 // MockSwarmClient - used in testing
 type MockSwarmClient struct {

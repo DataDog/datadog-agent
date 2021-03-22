@@ -25,7 +25,6 @@ func TestDockerSwarmCheck_True(t *testing.T) {
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
 
-
 	// set test configuration
 	testConfig := map[string]interface{}{
 		"collect_swarm_topology": true,

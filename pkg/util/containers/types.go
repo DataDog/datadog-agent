@@ -107,5 +107,5 @@ type SwarmTask struct {
 	ContainerImage  string
 	ContainerSpec   swarm.ContainerSpec   `json:",omitempty"`
 	ContainerStatus swarm.ContainerStatus `json:",omitempty"`
-	DesiredState	swarm.TaskState		  `json:",omitempty"`
+	DesiredState    swarm.TaskState       `json:",omitempty"`
 }

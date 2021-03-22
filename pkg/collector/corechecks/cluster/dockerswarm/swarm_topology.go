@@ -124,18 +124,18 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 			// ------------ Create a component structure for Swarm Task Container
 			targetExternalID := fmt.Sprintf("urn:container:/%s", taskContainer.ContainerStatus.ContainerID)
 
-			identifier := fmt.Sprintf("urn:container:/%s:%s", hostname , taskContainer.ContainerStatus.ContainerID)
+			identifier := fmt.Sprintf("urn:container:/%s:%s", hostname, taskContainer.ContainerStatus.ContainerID)
 			log.Infof("Identifier for the task is %s", identifier)
 			taskContainerComponent := &topology.Component{
 				ExternalID: targetExternalID,
 				Type:       topology.Type{Name: "docker container"},
 				Data: topology.Data{
-					"TaskID": taskContainer.ID,
-					"name":   taskContainer.Name,
-					"image":  taskContainer.ContainerImage,
-					"spec":   taskContainer.ContainerSpec,
-					"status": taskContainer.ContainerStatus,
-					"state":  taskContainer.DesiredState,
+					"TaskID":      taskContainer.ID,
+					"name":        taskContainer.Name,
+					"image":       taskContainer.ContainerImage,
+					"spec":        taskContainer.ContainerSpec,
+					"status":      taskContainer.ContainerStatus,
+					"state":       taskContainer.DesiredState,
 					"identifiers": []string{identifier},
 				},
 			}

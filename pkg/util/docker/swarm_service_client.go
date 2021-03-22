@@ -20,11 +20,10 @@ type SwarmServiceAPIClient interface {
 	NodeList(ctx context.Context, options types.NodeListOptions) ([]swarm.Node, error)
 }
 
-
 type mockSwarmServiceAPIClient struct {
 	serviceList func() ([]swarm.Service, error)
-	taskList func() ([]swarm.Task, error)
-	nodeList func() ([]swarm.Node, error)
+	taskList    func() ([]swarm.Task, error)
+	nodeList    func() ([]swarm.Node, error)
 }
 
 func (m *mockSwarmServiceAPIClient) ServiceList(ctx context.Context, options types.ServiceListOptions) ([]swarm.Service, error) {
