@@ -51,8 +51,8 @@ type translationEntry struct {
 }
 
 type orphanEntry struct {
-	key connKey
-	ttl time.Time
+	key     connKey
+	expires time.Time
 }
 
 type realConntracker struct {
@@ -285,8 +285,8 @@ func (ctr *realConntracker) add(c Con, orphan bool) {
 		}
 		if orphan {
 			t.orphan = ctr.orphans.PushFront(&orphanEntry{
-				key: key,
-				ttl: time.Now().Add(ctr.orphanTimeout),
+				key:     key,
+				expires: time.Now().Add(ctr.orphanTimeout),
 			})
 		}
 
@@ -339,7 +339,7 @@ func (ctr *realConntracker) compact() {
 func (ctr *realConntracker) removeOrphans(now time.Time) (removed int64) {
 	for b := ctr.orphans.Back(); b != nil; b = ctr.orphans.Back() {
 		o := b.Value.(*orphanEntry)
-		if !o.ttl.Before(now) {
+		if !o.expires.Before(now) {
 			break
 		}
 
