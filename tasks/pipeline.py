@@ -203,8 +203,8 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
         channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
         if owner not in GITHUB_SLACK_MAP.keys():
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
-        message.coda = "(Test message, the real message would be sent to {})".format(channel)
+        message.coda = "If there is something wrong with the notification please contact #agent-platform"
         if print_to_stdout:
             print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
         else:
-            send_slack_message("#agent-pipeline-notifications", str(message))  # TODO: use channel variable
+            send_slack_message(channel, str(message))  # TODO: use channel variable
