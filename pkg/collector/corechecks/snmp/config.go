@@ -216,16 +216,17 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.profiles = profiles
 	profile := instance.Profile
 
+	errors := validateEnrichMetrics(c.metrics)
+	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
+	if len(errors) > 0 {
+		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+	}
+
 	if profile != "" {
 		err = c.refreshWithProfile(profile)
 		if err != nil {
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
-	}
-	errors := validateEnrichMetrics(c.metrics)
-	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
-	if len(errors) > 0 {
-		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 	return c, err
 }
