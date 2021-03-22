@@ -1,5 +1,4 @@
 import contextlib
-import datetime
 import glob
 import os
 import shutil
@@ -15,10 +14,6 @@ from .utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
-    get_go_version,
-    get_version,
     get_version_numeric_only,
 )
 
@@ -46,7 +41,6 @@ is_windows = sys.platform == "win32"
 def build(
     ctx,
     race=False,
-    go_version=None,
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
@@ -70,7 +64,7 @@ def build(
     )
 
     # generate windows resources
-    if sys.platform == 'win32':
+    if windows:
         windres_target = "pe-x86-64"
         if arch == "x86":
             print("system probe not supported on x86")
@@ -98,32 +92,6 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
-    # TODO use pkg/version for this
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
-
-    goenv = {}
-    if go_version:
-        lines = ctx.run("gimme {version}".format(version=go_version)).stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
-        ld_vars["GoVersion"] = go_version
-
-    # extend PATH from gimme with the one from get_build_flags
-    if "PATH" in os.environ and "PATH" in goenv:
-        goenv["PATH"] += ":" + os.environ["PATH"]
-    env.update(goenv)
-
-    # Add custom ld flags
-    ldflags += ' '.join(["-X '{name}={value}'".format(name=main + key, value=value) for key, value in ld_vars.items()])
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
