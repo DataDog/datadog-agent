@@ -10,12 +10,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_version_numeric_only,
-)
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
@@ -169,7 +164,7 @@ def test(
     """
 
     if not skip_linters:
-        cfmt(ctx)
+        clang_format(ctx)
         ctidy(ctx)
 
     if not skip_object_files:
@@ -288,13 +283,25 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def cfmt(ctx, fix=False, fail_on_issue=False):
+def clang_format(ctx, targets, fix=False, fail_on_issue=False):
     """
     Format C code using clang-format
     """
-    print("checking for clang-format executable...")
     ctx.run("which clang-format")
-    print("found clang-format")
+    if isinstance(targets, str):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    # remove externally maintained files
+    ignored_files = [
+        "pkg/ebpf/c/bpf_helpers.h",
+        "pkg/ebpf/c/bpf_endian.h",
+        "pkg/ebpf/compiler/clang-stdarg.h",
+    ]
+    for f in ignored_files:
+        if f in targets:
+            targets.remove(f)
 
     fmt_cmd = "clang-format -i --style=file --fallback-style=none"
     if not fix:
@@ -302,12 +309,7 @@ def cfmt(ctx, fix=False, fail_on_issue=False):
     if fail_on_issue:
         fmt_cmd = fmt_cmd + " --Werror"
 
-    files = get_ebpf_targets()
-    # remove externally maintained files
-    files.remove("pkg/ebpf/c/bpf_helpers.h")
-    files.remove("pkg/ebpf/c/bpf_endian.h")
-
-    ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(files)))
+    ctx.run("{cmd} {files}".format(cmd=fmt_cmd, files=" ".join(targets)))
 
 
 @task
