@@ -84,8 +84,8 @@ type Server struct {
 	extraTags                 []string
 	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
-	eolTerminationUdp         bool
-	eolTerminationUds         bool
+	eolTerminationUDP         bool
+	eolTerminationUDS         bool
 	eolTerminationNamedPipe   bool
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
@@ -213,16 +213,16 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
-	eolTerminationUdp := false
-	eolTerminationUds := false
+	eolTerminationUDP := false
+	eolTerminationUDS := false
 	eolTerminationNamedPipe := false
 
 	for _, v := range config.Datadog.GetStringSlice("dogstatsd_eol_required") {
 		switch v {
 		case "udp":
-			eolTerminationUdp = true
+			eolTerminationUDP = true
 		case "uds":
-			eolTerminationUds = true
+			eolTerminationUDS = true
 		case "named_pipe":
 			eolTerminationNamedPipe = true
 		}
@@ -244,8 +244,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		eolTerminationUdp:         eolTerminationUdp,
-		eolTerminationUds:         eolTerminationUds,
+		eolTerminationUDP:         eolTerminationUDP,
+		eolTerminationUDS:         eolTerminationUDS,
 		eolTerminationNamedPipe:   eolTerminationNamedPipe,
 		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
@@ -410,10 +410,10 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 
 func (s *Server) eolEnabled(sourceType listeners.SourceType) bool {
 	switch sourceType {
-	case listeners.Uds:
-		return s.eolTerminationUds
-	case listeners.Udp:
-		return s.eolTerminationUdp
+	case listeners.UDS:
+		return s.eolTerminationUDS
+	case listeners.UDP:
+		return s.eolTerminationUDP
 	case listeners.NamedPipe:
 		return s.eolTerminationNamedPipe
 	}

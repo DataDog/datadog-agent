@@ -5,11 +5,15 @@
 
 package listeners
 
+// SourceType is the type of listener
 type SourceType int
 
 const (
-	Udp SourceType = iota
-	Uds
+	// UDP listener
+	UDP SourceType = iota
+	// UDS listener
+	UDS
+	// NamedPipe Windows named pipe listner
 	NamedPipe
 )
 

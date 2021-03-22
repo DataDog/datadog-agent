@@ -349,8 +349,8 @@ func InitConfig(config Config) {
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125)               // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")            // experimental and not officially supported for now.
 	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{}) // experimental and not officially supported for now.
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
