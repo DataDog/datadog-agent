@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/cpu"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -77,7 +76,6 @@ func CPUInfo() ([]cpu.InfoStat, error) {
 }
 
 func TestCPUCheckLinux(t *testing.T) {
-	assert.False(t, true)
 	times = CPUTimes
 	cpuInfo = CPUInfo
 	cpuCheck := new(Check)
