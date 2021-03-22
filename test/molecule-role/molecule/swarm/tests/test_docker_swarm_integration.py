@@ -10,7 +10,7 @@ testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(os.environ['MOLEC
 
 
 def test_docker_swarm_metrics(host):
-    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=3000"
 
     def wait_for_metrics():
         data = host.check_output("curl \"%s\"" % url)
@@ -25,13 +25,13 @@ def test_docker_swarm_metrics(host):
                 ''.join(message["message"]["MultiMetric"]["values"].keys())
                 for message in json_data["messages"]
                 if message["message"]["MultiMetric"]["name"] == "convertedMetric" and
-                message["message"]["MultiMetric"]["tags"]["serviceName"] == "nginx"
+                "serviceName" in message["message"]["MultiMetric"]["tags"]
             )
 
         expected = {'swarm.service.desired_replicas', 'swarm.service.running_replicas'}
         assert all([expectedMetric for expectedMetric in expected if expectedMetric in get_keys()])
 
-    util.wait_until(wait_for_metrics, 180, 3)
+    util.wait_until(wait_for_metrics, 180, 10)
 
 
 def test_docker_swarm_topology(host):
@@ -51,9 +51,9 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "nginx" and
-                    d["image"].startsWith("nginx:latest@") and
+                    str(d["image"]).startswith("nginx:latest@") and
                     "spec" in d and
-                    "global" in d["spec"]["Mode"]
+                    "Global" in d["spec"]["Mode"]
                 )
             },
             {
@@ -63,7 +63,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_stackstate-agent" and
-                    d["image"].startsWith("stackstate/stackstate-agent-2-test:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
+                    str(d["image"]).startswith("stackstate/stackstate-agent-2-test:{}@".format(os.environ['AGENT_CURRENT_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -76,7 +76,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_receiver" and
-                    d["image"].startsWith("stackstate/stackstate-receiver:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
+                    str(d["image"]).startswith("quay.io/stackstate/stackstate-receiver:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -89,7 +89,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_topic-api" and
-                    d["image"].startsWith("stackstate/stackstate-topic-api:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
+                    str(d["image"]).startswith("quay.io/stackstate/stackstate-topic-api:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -102,7 +102,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_kafka" and
-                    d["image"].startsWith("wurstmeister/kafka:2.12-2.3.1@") and
+                    str(d["image"]).startswith("wurstmeister/kafka:2.12-2.3.1@") and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -115,7 +115,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_zookeeper" and
-                    d["image"].startsWith("wurstmeister/zookeeper:latest@") and
+                    str(d["image"]).startswith("wurstmeister/zookeeper:latest@") and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -124,6 +124,7 @@ def test_docker_swarm_topology(host):
         ]
         for c in components:
             print("Running assertion for: " + c["assertion"])
+
             assert util.component_data(
                 json_data=json_data,
                 type_name=c["type"],
