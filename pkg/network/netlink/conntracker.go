@@ -57,10 +57,8 @@ type orphanEntry struct {
 
 type realConntracker struct {
 	sync.RWMutex
-	consumer      *Consumer
-	cache         *simplelru.LRU
-	orphans       *list.List
-	orphanTimeout time.Duration
+	consumer *Consumer
+	cache    *conntrackCache
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
@@ -103,20 +101,10 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 	consumer := NewConsumer(procRoot, targetRateLimit, listenAllNamespaces)
 	ctr := &realConntracker{
 		consumer:      consumer,
-		orphans:       list.New(),
+		cache:         newConntrackCache(maxStateSize, defaultOrphanTimeout),
 		maxStateSize:  maxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
-		orphanTimeout: defaultOrphanTimeout,
 	}
-
-	ctr.cache, _ = simplelru.NewLRU(maxStateSize, func(key, value interface{}) {
-		// ctr lock should be held, so it is
-		// safe to modify ctr
-		t := value.(*translationEntry)
-		if t.orphan != nil {
-			ctr.orphans.Remove(t.orphan)
-		}
-	})
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		events, err := consumer.DumpTable(family)
@@ -152,15 +140,9 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 		transport: c.Type,
 	}
 
-	v, ok := ctr.cache.Get(k)
+	t, ok := ctr.cache.Get(k)
 	if !ok {
 		return nil
-	}
-
-	t := v.(*translationEntry)
-	if t.orphan != nil {
-		ctr.orphans.Remove(t.orphan)
-		t.orphan = nil
 	}
 
 	return t.IPTranslation
@@ -169,8 +151,8 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 func (ctr *realConntracker) GetStats() map[string]int64 {
 	// only a few stats are locked
 	ctr.RLock()
-	size := ctr.cache.Len()
-	orphanSize := ctr.orphans.Len()
+	size := ctr.cache.cache.Len()
+	orphanSize := ctr.cache.orphans.Len()
 	ctr.RUnlock()
 
 	m := map[string]int64{
@@ -235,7 +217,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 				continue
 			}
 
-			ctr.add(c, false)
+			ctr.cache.Add(c, false)
 		}
 	}
 }
@@ -258,45 +240,9 @@ func (ctr *realConntracker) register(c Con) int {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	ctr.add(c, true)
+	ctr.cache.Add(c, true)
 
 	return 0
-}
-
-func (ctr *realConntracker) add(c Con, orphan bool) {
-	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
-		key, ok := formatKey(keyTuple)
-		if !ok {
-			return
-		}
-
-		if v, ok := ctr.cache.Peek(key); ok {
-			// value is going to get replaced
-			// by the call to Add below, make
-			// sure orphan is removed
-			t := v.(*translationEntry)
-			if t.orphan != nil {
-				ctr.orphans.Remove(t.orphan)
-			}
-		}
-
-		t := &translationEntry{
-			IPTranslation: formatIPTranslation(transTuple),
-		}
-		if orphan {
-			t.orphan = ctr.orphans.PushFront(&orphanEntry{
-				key:     key,
-				expires: time.Now().Add(ctr.orphanTimeout),
-			})
-		}
-
-		ctr.cache.Add(key, t)
-	}
-
-	log.Tracef("%s", c)
-
-	registerTuple(c.Origin, c.Reply)
-	registerTuple(c.Reply, c.Origin)
 }
 
 func (ctr *realConntracker) run() error {
@@ -333,17 +279,94 @@ func (ctr *realConntracker) compact() {
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	removed = ctr.removeOrphans(time.Now())
+	removed = ctr.cache.removeOrphans(time.Now())
 }
 
-func (ctr *realConntracker) removeOrphans(now time.Time) (removed int64) {
-	for b := ctr.orphans.Back(); b != nil; b = ctr.orphans.Back() {
+type conntrackCache struct {
+	cache         *simplelru.LRU
+	orphans       *list.List
+	orphanTimeout time.Duration
+}
+
+func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache {
+	c := &conntrackCache{
+		orphans:       list.New(),
+		orphanTimeout: orphanTimeout,
+	}
+
+	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
+		t := value.(*translationEntry)
+		if t.orphan != nil {
+			c.orphans.Remove(t.orphan)
+		}
+	})
+
+	return c
+}
+
+func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
+	v, ok := cc.cache.Get(k)
+	if !ok {
+		return nil, false
+	}
+
+	t := v.(*translationEntry)
+	if t.orphan != nil {
+		cc.orphans.Remove(t.orphan)
+		t.orphan = nil
+	}
+
+	return t, true
+}
+
+func (cc *conntrackCache) Remove(k connKey) bool {
+	return cc.cache.Remove(k)
+}
+
+func (cc *conntrackCache) Add(c Con, orphan bool) {
+	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
+		key, ok := formatKey(keyTuple)
+		if !ok {
+			return
+		}
+
+		if v, ok := cc.cache.Peek(key); ok {
+			// value is going to get replaced
+			// by the call to Add below, make
+			// sure orphan is removed
+			t := v.(*translationEntry)
+			if t.orphan != nil {
+				cc.orphans.Remove(t.orphan)
+			}
+		}
+
+		t := &translationEntry{
+			IPTranslation: formatIPTranslation(transTuple),
+		}
+		if orphan {
+			t.orphan = cc.orphans.PushFront(&orphanEntry{
+				key:     key,
+				expires: time.Now().Add(cc.orphanTimeout),
+			})
+		}
+
+		cc.cache.Add(key, t)
+	}
+
+	log.Tracef("%s", c)
+
+	registerTuple(c.Origin, c.Reply)
+	registerTuple(c.Reply, c.Origin)
+}
+
+func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
+	for b := cc.orphans.Back(); b != nil; b = cc.orphans.Back() {
 		o := b.Value.(*orphanEntry)
 		if !o.expires.Before(now) {
 			break
 		}
 
-		ctr.cache.Remove(o.key)
+		cc.cache.Remove(o.key)
 		removed++
 		log.Tracef("removed orphan %+v", o.key)
 	}

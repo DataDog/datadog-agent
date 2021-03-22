@@ -4,7 +4,6 @@
 package netlink
 
 import (
-	"container/list"
 	"crypto/rand"
 	"net"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
-	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -233,10 +231,10 @@ func TestConntrackerMemoryAllocation(t *testing.T) {
 	}
 }
 
-func TestConntrackerAdd(t *testing.T) {
+func TestConntrackCacheAdd(t *testing.T) {
 	t.Run("orphan false", func(t *testing.T) {
-		rt := newConntracker(10)
-		rt.add(
+		cache := newConntrackCache(10, defaultOrphanTimeout)
+		cache.Add(
 			makeTranslatedConn(
 				net.ParseIP("1.1.1.1"),
 				net.ParseIP("2.2.2.2"),
@@ -246,14 +244,14 @@ func TestConntrackerAdd(t *testing.T) {
 				80,
 				80),
 			false)
-		require.Equal(t, 2, rt.cache.Len())
-		require.Equal(t, 0, rt.orphans.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, 2, cache.cache.Len())
+		require.Equal(t, 0, cache.orphans.Len())
+		crossCheckCacheOrphans(t, cache)
 	})
 
 	t.Run("orphan true", func(t *testing.T) {
-		rt := newConntracker(10)
-		rt.add(
+		cache := newConntrackCache(10, defaultOrphanTimeout)
+		cache.Add(
 			makeTranslatedConn(
 				net.ParseIP("1.1.1.1"),
 				net.ParseIP("2.2.2.2"),
@@ -263,9 +261,9 @@ func TestConntrackerAdd(t *testing.T) {
 				80,
 				80),
 			true)
-		require.Equal(t, 2, rt.cache.Len())
-		require.Equal(t, 2, rt.orphans.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, 2, cache.cache.Len())
+		require.Equal(t, 2, cache.orphans.Len())
+		crossCheckCacheOrphans(t, cache)
 
 		tests := []struct {
 			k                   connKey
@@ -295,10 +293,10 @@ func TestConntrackerAdd(t *testing.T) {
 		}
 
 		for _, te := range tests {
-			v, ok := rt.cache.Get(te.k)
+			v, ok := cache.cache.Get(te.k)
 			require.True(t, ok, "translation entry not found for key %+v", te.k)
+			require.NotNil(t, v)
 			tr := v.(*translationEntry)
-			require.NotNil(t, tr.IPTranslation)
 			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
 			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
 			require.NotNil(t, tr.orphan)
@@ -307,15 +305,15 @@ func TestConntrackerAdd(t *testing.T) {
 			// only way to check if tr.orphan is in
 			// rt.orphans is to remove it from
 			// rt.orphans
-			ol := rt.orphans.Len()
-			rt.orphans.Remove(tr.orphan)
-			require.Equal(t, ol-1, rt.orphans.Len())
+			ol := cache.orphans.Len()
+			cache.orphans.Remove(tr.orphan)
+			require.Equal(t, ol-1, cache.orphans.Len())
 		}
 	})
 
 	t.Run("orphan true, existing key", func(t *testing.T) {
-		rt := newConntracker(10)
-		rt.add(
+		cache := newConntrackCache(10, defaultOrphanTimeout)
+		cache.Add(
 			makeTranslatedConn(
 				net.ParseIP("1.1.1.1"),
 				net.ParseIP("2.2.2.2"),
@@ -325,13 +323,13 @@ func TestConntrackerAdd(t *testing.T) {
 				80,
 				80),
 			true)
-		require.Equal(t, 2, rt.cache.Len())
-		require.Equal(t, 2, rt.orphans.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, 2, cache.cache.Len())
+		require.Equal(t, 2, cache.orphans.Len())
+		crossCheckCacheOrphans(t, cache)
 
 		// add a connection with the same origin
 		// values but different reply
-		rt.add(
+		cache.Add(
 			makeTranslatedConn(
 				net.ParseIP("1.1.1.1"),
 				net.ParseIP("4.4.4.4"),
@@ -341,9 +339,9 @@ func TestConntrackerAdd(t *testing.T) {
 				80,
 				80),
 			true)
-		require.Equal(t, 3, rt.cache.Len())
-		require.Equal(t, 3, rt.orphans.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, 3, cache.cache.Len())
+		require.Equal(t, 3, cache.orphans.Len())
+		crossCheckCacheOrphans(t, cache)
 
 		tests := []struct {
 			k                   connKey
@@ -383,10 +381,9 @@ func TestConntrackerAdd(t *testing.T) {
 		}
 
 		for _, te := range tests {
-			v, ok := rt.cache.Get(te.k)
+			v, ok := cache.cache.Get(te.k)
 			require.True(t, ok, "translation entry not found for key %+v", te.k)
 			tr := v.(*translationEntry)
-			require.NotNil(t, tr.IPTranslation)
 			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
 			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
 			require.NotNil(t, tr.orphan)
@@ -395,24 +392,24 @@ func TestConntrackerAdd(t *testing.T) {
 			// only way to check if tr.orphan is in
 			// rt.orphans is to remove it from
 			// rt.orphans
-			ol := rt.orphans.Len()
-			rt.orphans.Remove(tr.orphan)
-			require.Equal(t, ol-1, rt.orphans.Len())
+			ol := cache.orphans.Len()
+			cache.orphans.Remove(tr.orphan)
+			require.Equal(t, ol-1, cache.orphans.Len())
 		}
 	})
 }
 
-func TestConntrackerRemoveOrphans(t *testing.T) {
+func TestConntrackCacheRemoveOrphans(t *testing.T) {
 	t.Run("empty orphans list", func(t *testing.T) {
 		rt := newConntracker(10)
-		rt.orphanTimeout = defaultOrphanTimeout
+		rt.cache.orphanTimeout = defaultOrphanTimeout
 
-		require.Equal(t, int64(0), rt.removeOrphans(time.Now().Add(rt.orphanTimeout).Add(time.Second)))
+		require.Equal(t, int64(0), rt.cache.removeOrphans(time.Now().Add(rt.cache.orphanTimeout).Add(time.Second)))
 	})
 
 	t.Run("all orphans expired", func(t *testing.T) {
 		rt := newConntracker(20)
-		rt.orphanTimeout = defaultOrphanTimeout
+		rt.cache.orphanTimeout = defaultOrphanTimeout
 
 		ipGen := randomIPGen()
 		for i := 0; i < rt.maxStateSize/2; i++ {
@@ -420,45 +417,45 @@ func TestConntrackerRemoveOrphans(t *testing.T) {
 			rt.register(c)
 		}
 
-		require.Equal(t, int64(rt.maxStateSize), rt.removeOrphans(time.Now().Add(rt.orphanTimeout).Add(time.Minute)))
-		require.Equal(t, 0, rt.orphans.Len())
-		require.Equal(t, 0, rt.cache.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, int64(rt.maxStateSize), rt.cache.removeOrphans(time.Now().Add(rt.cache.orphanTimeout).Add(time.Minute)))
+		require.Equal(t, 0, rt.cache.orphans.Len())
+		require.Equal(t, 0, rt.cache.cache.Len())
+		crossCheckCacheOrphans(t, rt.cache)
 	})
 
 	t.Run("partial orphans expired", func(t *testing.T) {
 		rt := newConntracker(20)
 		ipGen := randomIPGen()
 
-		rt.orphanTimeout = time.Second
+		rt.cache.orphanTimeout = time.Second
 		for i := 0; i < rt.maxStateSize/4; i++ {
 			c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
 			rt.register(c)
 		}
 
-		rt.orphanTimeout = time.Minute
+		rt.cache.orphanTimeout = time.Minute
 		for i := 0; i < rt.maxStateSize/4; i++ {
 			c := makeTranslatedConn(ipGen(), ipGen(), ipGen(), 6, 12345, 80, 80)
 			rt.register(c)
 		}
 
-		require.Equal(t, int64(rt.maxStateSize/2), rt.removeOrphans(time.Now().Add(5*time.Second)))
-		require.Equal(t, rt.maxStateSize/2, rt.orphans.Len())
-		require.Equal(t, rt.maxStateSize/2, rt.cache.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, int64(rt.maxStateSize/2), rt.cache.removeOrphans(time.Now().Add(5*time.Second)))
+		require.Equal(t, rt.maxStateSize/2, rt.cache.orphans.Len())
+		require.Equal(t, rt.maxStateSize/2, rt.cache.cache.Len())
+		crossCheckCacheOrphans(t, rt.cache)
 
-		require.Equal(t, int64(rt.maxStateSize/2), rt.removeOrphans(time.Now().Add(2*time.Minute)))
-		require.Equal(t, 0, rt.orphans.Len())
-		require.Equal(t, 0, rt.cache.Len())
-		crossCheckCacheOrphans(t, rt)
+		require.Equal(t, int64(rt.maxStateSize/2), rt.cache.removeOrphans(time.Now().Add(2*time.Minute)))
+		require.Equal(t, 0, rt.cache.orphans.Len())
+		require.Equal(t, 0, rt.cache.cache.Len())
+		crossCheckCacheOrphans(t, rt.cache)
 	})
 
 }
 
-func crossCheckCacheOrphans(t *testing.T, rt *realConntracker) {
-	for l := rt.orphans.Front(); l != nil; l = l.Next() {
+func crossCheckCacheOrphans(t *testing.T, cc *conntrackCache) {
+	for l := cc.orphans.Front(); l != nil; l = l.Next() {
 		o := l.Value.(*orphanEntry)
-		v, ok := rt.cache.Get(o.key)
+		v, ok := cc.cache.Get(o.key)
 		require.True(t, ok)
 		require.Equal(t, l, v.(*translationEntry).orphan)
 	}
@@ -467,15 +464,9 @@ func crossCheckCacheOrphans(t *testing.T, rt *realConntracker) {
 func newConntracker(maxSize int) *realConntracker {
 	rt := &realConntracker{
 		maxStateSize: maxSize,
-		orphans:      list.New(),
+		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
 	}
 
-	rt.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
-		t := value.(*translationEntry)
-		if t.orphan != nil {
-			rt.orphans.Remove(t.orphan)
-		}
-	})
 	return rt
 }
 
