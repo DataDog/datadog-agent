@@ -51,7 +51,10 @@ notify-on-tagged-success:
 notify-on-failure:
   extends: .slack-notifier-base
   rules:
-    - when: on_failure
+    - <<: *if_master_branch
+      when: on_failure
+    - <<: *if_deploy
+      when: on_failure
   dependencies: []
   script:
     - set +x
