@@ -148,6 +148,7 @@ type AgentConfig struct {
 	CollectDNSStats   bool
 	DNSTimeout        time.Duration
 	CollectDNSDomains bool
+	MaxDNSStats       int
 
 	// Check config
 	EnabledChecks  []string

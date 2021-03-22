@@ -21,5 +21,4 @@ type AgentContext struct {
 type Signal struct {
 	*AgentContext `json:"agent"`
 	Title         string `json:"title"`
-	Msg           string `json:"msg,omitempty"`
 }

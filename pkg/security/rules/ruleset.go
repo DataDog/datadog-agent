@@ -337,8 +337,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
@@ -351,8 +350,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	eventType := event.GetType()
 
