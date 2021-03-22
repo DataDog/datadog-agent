@@ -172,7 +172,7 @@ def test(
 
     if not skip_linters:
         clang_format(ctx)
-        ctidy(ctx)
+        clang_tidy(ctx)
 
     if not skip_object_files:
         build_object_files(ctx, bundle_ebpf=bundle_ebpf)
@@ -316,14 +316,13 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
 
 
 @task
-def ctidy(ctx, fix=False, fail_on_issue=False):
+def clang_tidy(ctx, fix=False, fail_on_issue=False):
     """
     Lint C code using clang-tidy
     """
 
     print("checking for clang-tidy executable...")
     ctx.run("which clang-tidy")
-    print("found clang-tidy")
 
     build_flags = get_ebpf_build_flags()
     build_flags.append("-DDEBUG=1")
