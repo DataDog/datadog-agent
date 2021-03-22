@@ -283,7 +283,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
 
 
 @task
-def clang_format(ctx, targets, fix=False, fail_on_issue=False):
+def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
     """
     Format C code using clang-format
     """
@@ -292,6 +292,9 @@ def clang_format(ctx, targets, fix=False, fail_on_issue=False):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
+
+    if not targets:
+        targets = get_ebpf_targets()
 
     # remove externally maintained files
     ignored_files = [
