@@ -81,6 +81,7 @@ func Test_loadProfiles(t *testing.T) {
 
 	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	invalidYamlProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "invalid_yaml_file.yaml"))
+	validationErrorProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "validation_error.yaml"))
 	type logCount struct {
 		log   string
 		count int
@@ -161,6 +162,18 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileDefMap: profileDefinitionMap{},
 			expectedLogs: []logCount{
 				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
+			},
+		},
+		{
+			name: "validation error profile",
+			inputProfileConfigMap: profileConfigMap{
+				"f5-big-ip": {
+					validationErrorProfile,
+				},
+			},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"validation errors: cannot compile `match`", 1},
 			},
 		},
 	}
