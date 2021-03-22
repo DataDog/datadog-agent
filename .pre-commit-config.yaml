@@ -51,3 +51,4 @@ repos:
       language: system
       require_serial: true
       files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
+      exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
