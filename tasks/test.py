@@ -237,7 +237,7 @@ def test(
             failed_modules.append(module.full_path())
 
         if json:
-            with open(json, 'a') as json_file, open(os.path.join(module.full_path(), TMP_JSON), 'r') as module_file:
+            with open(json, 'ab') as json_file, open(os.path.join(module.full_path(), TMP_JSON), 'rb') as module_file:
                 json_file.write(module_file.read())
 
     if failed_modules:
