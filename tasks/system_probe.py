@@ -23,6 +23,9 @@ BUNDLE_TAG = "ebpf_bindata"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
+CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
+LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
+
 DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
 KITCHEN_DIR = os.path.join("test", "kitchen")
@@ -51,20 +54,11 @@ def build(
     Build the system_probe
     """
 
-    # Only build ebpf files on unix
-    if not windows:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
-
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
-    )
-
     # generate windows resources
     if windows:
         windres_target = "pe-x86-64"
         if arch == "x86":
-            print("system probe not supported on x86")
-            raise
+            raise Exit(message="system probe not supported on x86")
 
         ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
@@ -88,11 +82,17 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
+    else:
+        # Only build ebpf files on unix
+        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+    )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-
     if with_bcc:
         build_tags.append(BCC_TAG)
 
@@ -164,11 +164,11 @@ def test(
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
     if os.getenv("GOPATH") is None:
-        print(
-            "GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to preserve "
-            "your environment "
+        raise Exit(
+            code=1,
+            message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
+            "preserve your environment",
         )
-        raise Exit(code=1)
 
     if not skip_linters:
         clang_format(ctx)
@@ -494,33 +494,76 @@ def get_ebpf_build_flags():
     return flags
 
 
-def build_object_files(ctx, bundle_ebpf=False):
-    """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
-    """
-
-    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently, and result in us not building a
-    # new .o file
-    print("checking for clang executable...")
-    ctx.run("which clang")
-    print("found clang")
-
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    build_dir = os.path.join(bpf_dir, "bytecode", "build")
-    build_runtime_dir = os.path.join(build_dir, "runtime")
-
+def build_network_ebpf_files(ctx, build_dir):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    flags = get_ebpf_build_flags()
-    cmd = "clang {flags} -c '{c_file}' -o '{bc_file}'"
-    llc_cmd = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
-
-    ctx.run("mkdir -p {build_dir}".format(build_dir=build_dir))
-    ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
     bindata_files = []
+    compiled_programs = [
+        "tracer",
+        "offset-guess",
+    ]
 
+    network_flags = get_ebpf_build_flags()
+    network_flags.append("-I{}".format(network_c_dir))
+    for p in compiled_programs:
+        # Build both the standard and debug version
+        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
+        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
+        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
+
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
+        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
+        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+
+        bindata_files.extend([obj_file, debug_obj_file])
+
+    return bindata_files
+
+
+def build_security_ebpf_files(ctx, build_dir):
+    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
+    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
+    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
+    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
+    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
+
+    security_flags = get_ebpf_build_flags()
+    security_flags.append("-I{}".format(security_agent_c_dir))
+
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+            c_file=security_c_file,
+            bc_file=security_bc_file,
+        )
+    )
+    ctx.run(LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
+
+    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
+    ctx.run(
+        CLANG_CMD.format(
+            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+            c_file=security_c_file,
+            bc_file=security_agent_syscall_wrapper_bc_file,
+        )
+    )
+    ctx.run(
+        LLC_CMD.format(
+            flags=" ".join(security_flags),
+            bc_file=security_agent_syscall_wrapper_bc_file,
+            obj_file=security_agent_syscall_wrapper_obj_file,
+        )
+    )
+    return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
+
+
+def build_bcc_files(ctx, build_dir):
     corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
     corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
     bcc_files = [
@@ -532,63 +575,30 @@ def build_object_files(ctx, bundle_ebpf=False):
     ]
     for f in bcc_files:
         ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
-        bindata_files.append(os.path.join(build_dir, os.path.basename(f)))
 
-    compiled_programs = [
-        "tracer",
-        "offset-guess",
-    ]
-    network_flags = list(flags)
-    network_flags.append("-I{}".format(network_c_dir))
-    for p in compiled_programs:
-        # Build both the standard and debug version
-        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
-        bc_file = os.path.join(build_dir, "{}.bc".format(p))
-        obj_file = os.path.join(build_dir, "{}.o".format(p))
-        ctx.run(cmd.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
-        ctx.run(llc_cmd.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
+    return [os.path.join(build_dir, os.path.basename(f)) for f in bcc_files]
 
-        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        ctx.run(cmd.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
-        ctx.run(llc_cmd.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
-        bindata_files.extend([obj_file, debug_obj_file])
+def build_object_files(ctx, bundle_ebpf=False):
+    """build_object_files builds only the eBPF object
+    set bundle_ebpf to False to disable replacing the assets
+    """
 
-    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
-    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
-    security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
-    security_bc_file = os.path.join(build_dir, "runtime-security.bc")
-    security_agent_obj_file = os.path.join(build_dir, "runtime-security.o")
-    security_flags = list(flags)
-    security_flags.append("-I{}".format(security_agent_c_dir))
+    # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
+    print("checking for clang executable...")
+    ctx.run("which clang")
 
-    ctx.run(
-        cmd.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
-            c_file=security_c_file,
-            bc_file=security_bc_file,
-        )
-    )
-    ctx.run(llc_cmd.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
+    bpf_dir = os.path.join(".", "pkg", "ebpf")
+    build_dir = os.path.join(bpf_dir, "bytecode", "build")
+    build_runtime_dir = os.path.join(build_dir, "runtime")
 
-    security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
-    security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
-    ctx.run(
-        cmd.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
-            c_file=security_c_file,
-            bc_file=security_agent_syscall_wrapper_bc_file,
-        )
-    )
-    ctx.run(
-        llc_cmd.format(
-            flags=" ".join(security_flags),
-            bc_file=security_agent_syscall_wrapper_bc_file,
-            obj_file=security_agent_syscall_wrapper_obj_file,
-        )
-    )
-    bindata_files.extend([security_agent_obj_file, security_agent_syscall_wrapper_obj_file])
+    ctx.run("mkdir -p {build_dir}".format(build_dir=build_dir))
+    ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
+
+    bindata_files = []
+    bindata_files.extend(build_bcc_files(ctx, build_dir=build_dir))
+    bindata_files.extend(build_network_ebpf_files(ctx, build_dir=build_dir))
+    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
 
     generate_runtime_files(ctx)
 
