@@ -196,6 +196,11 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
+    if json:
+        TMP_JSON = 'tmp.json'
+        if os.path.isfile(json):
+            os.remove(json)
+
     cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
@@ -210,7 +215,7 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
-        "json_flag": '--jsonfile "{}" '.format(json) if json else "",
+        "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if json else "",
     }
 
     for module in modules:
@@ -225,6 +230,10 @@ def test(
                 env=env,
                 out_stream=test_profiler,
             )
+
+        if json:
+            with open(json, 'a') as json_file, open(os.path.join(module.full_path(), TMP_JSON), 'r') as module_file:
+                json_file.write(module_file.read())
 
     if coverage:
         print("\n--- Test coverage:")
