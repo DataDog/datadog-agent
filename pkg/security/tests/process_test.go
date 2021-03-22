@@ -87,8 +87,8 @@ func TestProcessContext(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
 		},
 		{
-			ID:         "test_rule_args",
-			Expression: `exec.args in [~"*-al*"]`,
+			ID:         "test_rule_args_envs",
+			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
 		},
 		{
 			ID:         "test_rule_tty",
@@ -140,7 +140,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	t.Run("args", func(t *testing.T) {
+	t.Run("args-envs", func(t *testing.T) {
 		executable := "/usr/bin/ls"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -151,12 +151,14 @@ func TestProcessContext(t *testing.T) {
 		}
 
 		cmd := exec.Command(executable, "-al", "--password", "secret", "--custom", "secret")
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
+			// args
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil || len(args.(string)) == 0 {
 				t.Error("not able to get args")
@@ -175,6 +177,25 @@ func TestProcessContext(t *testing.T) {
 				t.Error("arg not found")
 			}
 
+			// envs
+			envs, err := event.GetFieldValue("exec.envs")
+			if err != nil || len(envs.([]string)) == 0 {
+				t.Error("not able to get envs")
+			}
+
+			contains = func(s string) bool {
+				for _, env := range envs.([]string) {
+					if s == env {
+						return true
+					}
+				}
+				return false
+			}
+
+			if !contains("LD_LIBRARY_PATH") {
+				t.Errorf("env not found: %v", event)
+			}
+
 			// trigger serialization to test scrubber
 			str := event.String()
 
@@ -182,8 +203,8 @@ func TestProcessContext(t *testing.T) {
 				t.Error("args not serialized")
 			}
 
-			if strings.Contains(str, "secret") {
-				t.Error("secret exposed")
+			if strings.Contains(str, "secret") || strings.Contains(str, "/tmp/lib") {
+				t.Error("secret or env values exposed")
 			}
 		}
 	})
@@ -205,6 +226,7 @@ func TestProcessContext(t *testing.T) {
 		}
 
 		cmd := exec.Command(executable, "-al", long)
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
@@ -227,6 +249,7 @@ func TestProcessContext(t *testing.T) {
 			num = append(num, "aaa")
 		}
 		cmd = exec.Command(executable, num...)
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err = test.GetEvent()
