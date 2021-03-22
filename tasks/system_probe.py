@@ -213,7 +213,7 @@ def kitchen_prepare(ctx):
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output("go list -f '{{ .Dir }}' -tags linux_bpf %s" % pkg, shell=True)
+            check_output("go list -f '{{{{ .Dir }}}}' -tags {tags} {pkg}".format(tags=BPF_TAG, pkg=pkg), shell=True)
             .decode('utf-8')
             .strip()
             .split("\n")
@@ -263,7 +263,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     build_object_files(ctx, bundle_ebpf=False)
 
-    cmd = 'go build -mod={go_mod} {build_type} -tags linux_bpf -o {bin_path} {path}'
+    cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(
@@ -272,6 +272,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
             bin_path=bin_path,
             go_mod=go_mod,
             build_type="" if incremental_build else "-a",
+            tags=BPF_TAG,
         )
     )
 
@@ -613,7 +614,7 @@ def generate_runtime_files(ctx):
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
-        ctx.run("go generate -mod=mod -tags linux_bpf {}".format(f))
+        ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
 
 
 def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
