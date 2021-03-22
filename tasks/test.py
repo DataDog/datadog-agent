@@ -218,6 +218,8 @@ def test(
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if json else "",
     }
 
+    any_failure = False
+    last_failed = None
     for module in modules:
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
@@ -225,15 +227,24 @@ def test(
             continue
 
         with ctx.cd(module.full_path()):
-            ctx.run(
+            res = ctx.run(
                 cmd.format(pkg_folder=' '.join("{}/...".format(t) for t in module.targets), **args),
                 env=env,
                 out_stream=test_profiler,
+                warn=True,
             )
+
+        if res.exited is None or res.exited > 0:
+            any_failure = True
+            last_failed = module.full_path()
 
         if json:
             with open(json, 'a') as json_file, open(os.path.join(module.full_path(), TMP_JSON), 'r') as module_file:
                 json_file.write(module_file.read())
+
+    if any_failure:
+        # Exit if any of the modules failed
+        raise Exit(code=1, message="Last failed module: '{}'".format(last_failed))
 
     if coverage:
         print("\n--- Test coverage:")
