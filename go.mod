@@ -40,8 +40,8 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.59.0+incompatible
-	github.com/DataDog/datadog-go v4.5.0+incompatible
+	github.com/DataDog/agent-payload v4.62.0+incompatible
+	github.com/DataDog/datadog-go v4.4.0+incompatible
 	github.com/DataDog/datadog-operator v0.3.1
 	github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
@@ -49,7 +49,6 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/sketches-go v1.0.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210209165213-28eb1cc35a8d
-	github.com/DataDog/zstd v1.4.8 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
