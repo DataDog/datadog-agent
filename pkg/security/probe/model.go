@@ -136,6 +136,14 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	return e.ID
 }
 
+// ResolveContainerTags resolves the container tags of the event
+func (ev *Event) ResolveContainerTags(e *model.ContainerContext) string {
+	if len(e.Tags) == 0 && e.ID == "" {
+		e.Tags, _ = ev.resolvers.TagsResolver.Resolve(e.ID)
+	}
+	return e.Tags
+}
+
 // UnmarshalProcess unmarshal a Process
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event

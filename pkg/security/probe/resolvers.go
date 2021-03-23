@@ -18,6 +18,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,10 +33,11 @@ type Resolvers struct {
 	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
+	TagsResolver      *TagsResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
+func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*Resolvers, error) {
 	dentryResolver, err := NewDentryResolver(probe)
 	if err != nil {
 		return nil, err
@@ -58,6 +60,7 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
+		TagsResolver:      NewTagsResolver(config),
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.CookieCacheSize))
@@ -196,6 +199,10 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 	r.MountResolver.Start(ctx)
+
+	if err := r.TagsResolver.Start(ctx); err != nil {
+		return err
+	}
 
 	return r.DentryResolver.Start()
 }
