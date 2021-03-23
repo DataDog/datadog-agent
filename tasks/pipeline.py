@@ -195,6 +195,10 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
         elif owner == "@DataDog/do-not-notify":
             # Jobs owned by @DataDog/do-not-notify do not send team messages
             pass
+        elif owner == "@DataDog/agent-all":
+            # Jobs owned by @DataDog/agent-all will already be in the global
+            # message, do not overwrite the failed jobs list
+            pass
         else:
             messages_to_send[owner].failed_jobs = jobs
 
