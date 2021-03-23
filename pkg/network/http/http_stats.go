@@ -44,20 +44,38 @@ type RequestStats [5]struct {
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
 	count     int
 	latencies *ddsketch.DDSketch
+
+	firstLatency float64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 func (r *RequestStats) CombineWith(newStats RequestStats) {
 	for i := 0; i < 5; i++ {
-		r[i].count += newStats[i].count
+		statusClass := 100 * (i + 1)
+
+		if newStats[i].count == 0 {
+			continue
+		}
+
+		if newStats[i].count == 1 {
+			r.AddRequest(statusClass, newStats[i].firstLatency)
+			continue
+		}
 
 		if r[i].latencies == nil {
-			r[i].latencies = newStats[i].latencies
-		} else if newStats[i].latencies != nil {
-			err := r[i].latencies.MergeWith(newStats[i].latencies)
-			if err != nil {
-				log.Debugf("Error merging HTTP transactions: %v", err)
+			if err := r.initSketch(i); err != nil {
+				continue
 			}
+
+			if r[i].count == 1 {
+				r[i].latencies.Add(r[i].firstLatency)
+			}
+		}
+
+		r[i].count += newStats[i].count
+		err := r[i].latencies.MergeWith(newStats[i].latencies)
+		if err != nil {
+			log.Debugf("error merging http transactions: %v", err)
 		}
 	}
 }
@@ -78,17 +96,31 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 	i := statusClass/100 - 1
 	r[i].count++
 
+	// We postpone the creation of histograms when we have only one latency sample
+	if r[i].count == 1 {
+		r[i].firstLatency = latency
+		return
+	}
+
 	if r[i].latencies == nil {
-		var err error
-		r[i].latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-		if err != nil {
-			log.Debugf("Error recording HTTP transaction latency: could not create new ddsketch: %v", err)
+		if err := r.initSketch(i); err != nil {
 			return
 		}
+
+		// Add the defered latency sample
+		r[i].latencies.Add(r[i].firstLatency)
 	}
 
 	err := r[i].latencies.Add(latency)
 	if err != nil {
-		log.Debugf("Error recording HTTP transaction latency: could not add latency to ddsketch: %v", err)
+		log.Debugf("error recording http transaction latency: could not add latency to ddsketch: %v", err)
 	}
+}
+
+func (r *RequestStats) initSketch(i int) (err error) {
+	r[i].latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
+	}
+	return
 }

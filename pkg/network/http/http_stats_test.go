@@ -53,7 +53,7 @@ func TestCombineWith(t *testing.T) {
 			verifyQuantile(t, stats[i].latencies, 0.5, 15.0)
 			verifyQuantile(t, stats[i].latencies, 1.0, 20.0)
 		} else {
-			assert.Equal(t, 0, stats[i].count)
+			assert.Equal(t, 0, stats[i].count, "eita deu ruim %v", i)
 			assert.True(t, stats[i].latencies == nil)
 		}
 	}
