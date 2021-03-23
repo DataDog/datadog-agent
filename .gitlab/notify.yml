@@ -30,10 +30,10 @@ notify-on-success:
     AUTHOR=$(git show -s --format="%an" HEAD)
 
     if [ "$DEPLOY_AGENT" = "true" ]; then
-      MESSAGE_TEXT=":host-green: :rocket: Deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      MESSAGE_TEXT=":host-green: :rocket: datadog-agent deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     else
-      MESSAGE_TEXT=":host-green: :merged: Merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
+      MESSAGE_TEXT=":host-green: :merged: datadog-agent merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     fi
     postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
