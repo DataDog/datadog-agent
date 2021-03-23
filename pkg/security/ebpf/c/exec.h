@@ -345,16 +345,22 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
 SEC("kprobe/exit_itimers")
 int kprobe_exit_itimers(struct pt_regs *ctx) {
-    struct signal_struct *signal = (struct signal_struct *)PT_REGS_PARM1(ctx);
+    void *signal = (void *)PT_REGS_PARM1(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
     struct proc_cache_t *entry = get_proc_cache(tgid);
     if (entry) {
+        u64 tty_offset;
+        LOAD_CONSTANT("tty_offset", tty_offset);
+
+        u64 tty_name_offset;
+        LOAD_CONSTANT("tty_name_offset", tty_name_offset);
+
         struct tty_struct *tty;
-        bpf_probe_read(&tty, sizeof(tty), &signal->tty);
-        bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, tty->name);
+        bpf_probe_read(&tty, sizeof(tty), (char *)signal + tty_offset);
+        bpf_probe_read_str(entry->tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
     }
 
     return 0;

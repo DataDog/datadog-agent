@@ -270,6 +270,7 @@ def kitchen_prepare(ctx):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
+            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )

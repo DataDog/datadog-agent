@@ -23,6 +23,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 var originalConfig = config.Datadog
@@ -286,7 +287,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	cfg := NewDefaultAgentConfig(false)
-	h, err := getHostname(cfg.DDAgentBin)
+	h, err := getHostname(cfg.DDAgentBin, 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
 	expectedHostname, _ := os.Hostname()
@@ -707,9 +708,9 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
-		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return mockClient, nil
-		})
+		}, defaultGRPCConnectionTimeout)
 
 		assert.Nil(t, err)
 		assert.Equal(t, "unit-test-hostname", hostname)
@@ -717,9 +718,9 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
-		hostname, err := getHostnameFromGRPC(func(ctx context.Context) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return nil, grpcErr
-		})
+		}, defaultGRPCConnectionTimeout)
 
 		assert.NotNil(t, err)
 		assert.Equal(t, grpcErr, errors.Unwrap(err))
