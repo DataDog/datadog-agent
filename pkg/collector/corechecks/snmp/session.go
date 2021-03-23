@@ -86,7 +86,8 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 }
 
 func (s *snmpSession) Connect() error {
-	// TODO: Extract to PR
+	// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
+	// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
 	s.gosnmpInst.Logger = nil
 	return s.gosnmpInst.Connect()
 }

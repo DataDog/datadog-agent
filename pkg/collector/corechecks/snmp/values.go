@@ -26,7 +26,6 @@ func (v *resultValueStore) getScalarValue(oid string) (snmpValueType, error) {
 func (v *resultValueStore) getColumnValues(oid string) (map[string]snmpValueType, error) {
 	values, ok := v.columnValues[oid]
 	if !ok {
-		// TODO: Extract to PR
 		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
 	}
 	retValues := make(map[string]snmpValueType, len(values))
