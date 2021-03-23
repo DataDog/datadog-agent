@@ -22,6 +22,7 @@ AGENT_TAG = "stackstate/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "clusterchecks",
+    "docker"
 ]
 
 
