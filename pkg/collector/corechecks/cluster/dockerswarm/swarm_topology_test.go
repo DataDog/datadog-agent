@@ -33,6 +33,7 @@ var (
 			"endpoint":     swarmService.Endpoint,
 			"updateStatus": swarmService.UpdateStatus,
 			"updated":      swarmService.UpdatedAt,
+			"clusterName":  "agent-swarm",
 		},
 	}
 	containerComponent = &topology.Component{
