@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-type forwarderMaxStorage struct {
+type diskUsageLimit struct {
 	diskPath       string
 	maxSizeInBytes int64
 	disk           diskUsageRetriever
@@ -22,12 +22,12 @@ type diskUsageRetriever interface {
 	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
-func newForwarderMaxStorage(
+func newDiskUsageLimit(
 	diskPath string,
 	disk diskUsageRetriever,
 	maxSizeInBytes int64,
-	maxDiskRatio float64) *forwarderMaxStorage {
-	return &forwarderMaxStorage{
+	maxDiskRatio float64) *diskUsageLimit {
+	return &diskUsageLimit{
 		diskPath:       diskPath,
 		maxSizeInBytes: maxSizeInBytes,
 		disk:           disk,
@@ -35,7 +35,7 @@ func newForwarderMaxStorage(
 	}
 }
 
-func (s *forwarderMaxStorage) computeMaxStorage(currentSize int64) (int64, error) {
+func (s *diskUsageLimit) computeMaxStorage(currentSize int64) (int64, error) {
 	usage, err := s.disk.GetUsage(s.diskPath)
 	if err != nil {
 		return 0, err
@@ -46,7 +46,7 @@ func (s *forwarderMaxStorage) computeMaxStorage(currentSize int64) (int64, error
 	return minInt64(s.maxSizeInBytes, currentSize+availableDiskUsage), nil
 }
 
-func (s *forwarderMaxStorage) getMaxSizeInBytes() int64 {
+func (s *diskUsageLimit) getMaxSizeInBytes() int64 {
 	return s.maxSizeInBytes
 }
 

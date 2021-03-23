@@ -28,13 +28,13 @@ func TestComputeMaxStorage(t *testing.T) {
 			Total:     100,
 		}}
 	maxSizeInBytes := int64(30)
-	storage := newForwarderMaxStorage("", disk, maxSizeInBytes, 0.9)
+	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
 
-	max, err := storage.computeMaxStorage(10)
+	max, err := diskUsageLimit.computeMaxStorage(10)
 	r.NoError(err)
 	r.Equal(maxSizeInBytes, max)
 
-	max, err = storage.computeMaxStorage(5)
+	max, err = diskUsageLimit.computeMaxStorage(5)
 	r.NoError(err)
 	r.Equal(30-int64(100*(1-0.9))+5, max)
 }

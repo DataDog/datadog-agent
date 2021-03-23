@@ -25,7 +25,7 @@ const retryFileFormat = "2006_01_02__15_04_05_"
 type transactionsFileStorage struct {
 	serializer         *HTTPTransactionsSerializer
 	storagePath        string
-	maxStorage         *forwarderMaxStorage
+	diskUsageLimit     *diskUsageLimit
 	filenames          []string
 	currentSizeInBytes int64
 	telemetry          transactionsFileStorageTelemetry
@@ -34,7 +34,7 @@ type transactionsFileStorage struct {
 func newTransactionsFileStorage(
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
-	maxStorage *forwarderMaxStorage,
+	diskUsageLimit *diskUsageLimit,
 	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
@@ -42,10 +42,10 @@ func newTransactionsFileStorage(
 	}
 
 	storage := &transactionsFileStorage{
-		serializer:  serializer,
-		storagePath: storagePath,
-		maxStorage:  maxStorage,
-		telemetry:   telemetry,
+		serializer:     serializer,
+		storagePath:    storagePath,
+		diskUsageLimit: diskUsageLimit,
+		telemetry:      telemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -54,7 +54,7 @@ func newTransactionsFileStorage(
 
 	// Check if there is an error when computing the available space
 	// in this function to warn the user sooner (and not when there is an outage)
-	_, err := maxStorage.computeMaxStorage(0)
+	_, err := diskUsageLimit.computeMaxStorage(0)
 
 	return storage, err
 }
@@ -144,12 +144,12 @@ func (s *transactionsFileStorage) getCurrentSizeInBytes() int64 {
 }
 
 func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
-	maxSizeInBytes := s.maxStorage.getMaxSizeInBytes()
+	maxSizeInBytes := s.diskUsageLimit.getMaxSizeInBytes()
 	if bufferSize > maxSizeInBytes {
 		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, maxSizeInBytes)
 	}
 
-	maxStorageInBytes, err := s.maxStorage.computeMaxStorage(s.currentSizeInBytes)
+	maxStorageInBytes, err := s.diskUsageLimit.computeMaxStorage(s.currentSizeInBytes)
 	if err != nil {
 		return err
 	}
