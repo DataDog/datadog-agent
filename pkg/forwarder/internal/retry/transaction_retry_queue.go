@@ -57,7 +57,7 @@ func BuildTransactionRetryQueue(
 		diskRatio := config.Datadog.GetFloat64("forwarder_storage_max_disk_ratio")
 
 		diskUsageLimit := newDiskUsageLimit(optionalDomainFolderPath, filesystem.NewDisk(), storageMaxSize, diskRatio)
-		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, diskUsageLimit, transactionsFileStorageTelemetry{})
+		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, diskUsageLimit, onDiskRetryQueueTelemetry{})
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.

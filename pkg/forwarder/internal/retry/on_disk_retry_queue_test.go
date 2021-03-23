@@ -18,74 +18,74 @@ import (
 
 const domainName = "domain"
 
-func TestTransactionsFileStorage(t *testing.T) {
+func TestOnDiskRetryQueue(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
 
-	s := newTestTransactionsFileStorage(a, path, 1000)
-	err := s.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
+	q := newTestOnDiskRetryQueue(a, path, 1000)
+	err := q.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
-	err = s.Serialize(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
+	err = q.Serialize(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
 	a.NoError(err)
-	a.Equal(2, s.getFilesCount())
+	a.Equal(2, q.getFilesCount())
 
-	transactions, err := s.Deserialize()
+	transactions, err := q.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint3", "endpoint4"}, getEndpointsFromTransactions(transactions))
-	a.Greater(s.getCurrentSizeInBytes(), int64(0))
+	a.Greater(q.getCurrentSizeInBytes(), int64(0))
 
-	transactions, err = s.Deserialize()
+	transactions, err = q.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
-	a.Equal(0, s.getFilesCount())
-	a.Equal(int64(0), s.getCurrentSizeInBytes())
+	a.Equal(0, q.getFilesCount())
+	a.Equal(int64(0), q.getCurrentSizeInBytes())
 }
 
-func TestTransactionsFileStorageMaxSize(t *testing.T) {
+func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
 
 	maxSizeInBytes := int64(100)
-	s := newTestTransactionsFileStorage(a, path, maxSizeInBytes)
+	q := newTestOnDiskRetryQueue(a, path, maxSizeInBytes)
 
 	i := 0
-	err := s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+	err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 	a.NoError(err)
-	maxNumberOfFiles := int(maxSizeInBytes / s.getCurrentSizeInBytes())
+	maxNumberOfFiles := int(maxSizeInBytes / q.getCurrentSizeInBytes())
 	a.Greaterf(maxNumberOfFiles, 2, "Not enough files for this test, increase maxSizeInBytes")
 
 	fileToDrop := 2
 	for i++; i < maxNumberOfFiles+fileToDrop; i++ {
-		err := s.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
+		err := q.Serialize(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
 		a.NoError(err)
 	}
-	a.LessOrEqual(s.getCurrentSizeInBytes(), maxSizeInBytes)
-	a.Equal(maxNumberOfFiles, s.getFilesCount())
+	a.LessOrEqual(q.getCurrentSizeInBytes(), maxSizeInBytes)
+	a.Equal(maxNumberOfFiles, q.getFilesCount())
 
 	for i--; i >= fileToDrop; i-- {
-		transactions, err := s.Deserialize()
+		transactions, err := q.Deserialize()
 		a.NoError(err)
 		a.Equal([]string{strconv.Itoa(i)}, getEndpointsFromTransactions(transactions))
 	}
 
-	a.Equal(0, s.getFilesCount())
+	a.Equal(0, q.getFilesCount())
 }
 
-func TestTransactionsFileStorageReloadExistingRetryFiles(t *testing.T) {
+func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a := assert.New(t)
 	path, clean := createTmpFolder(a)
 	defer clean()
 
-	storage := newTestTransactionsFileStorage(a, path, 1000)
-	err := storage.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
+	retryQueue := newTestOnDiskRetryQueue(a, path, 1000)
+	err := retryQueue.Serialize(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
 
-	newStorage := newTestTransactionsFileStorage(a, path, 1000)
-	a.Equal(storage.getCurrentSizeInBytes(), newStorage.getCurrentSizeInBytes())
-	a.Equal(storage.getFilesCount(), newStorage.getFilesCount())
-	transactions, err := newStorage.Deserialize()
+	newRetryQueue := newTestOnDiskRetryQueue(a, path, 1000)
+	a.Equal(storage.getCurrentSizeInBytes(), newRetryQueue.getCurrentSizeInBytes())
+	a.Equal(storage.getFilesCount(), newRetryQueue.getFilesCount())
+	transactions, err := newRetryQueue.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))
 }
@@ -117,15 +117,15 @@ func getEndpointsFromTransactions(transactions []transaction.Transaction) []stri
 	return endpoints
 }
 
-func newTestTransactionsFileStorage(a *assert.Assertions, path string, maxSizeInBytes int64) *transactionsFileStorage {
-	telemetry := transactionsFileStorageTelemetry{}
+func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes int64) *onDiskRetryQueue {
+	telemetry := onDiskRetryQueueTelemetry{}
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
 			Available: 10000,
 			Total:     10000,
 		}}
 	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 1)
-	storage, err := newTransactionsFileStorage(NewHTTPTransactionsSerializer(domainName, nil), path, diskUsageLimit, telemetry)
+	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(domainName, nil), path, diskUsageLimit, telemetry)
 	a.NoError(err)
 	return storage
 }

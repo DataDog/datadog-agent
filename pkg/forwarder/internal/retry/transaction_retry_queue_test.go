@@ -10,10 +10,10 @@ import (
 
 func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)
-	s, clean := newTransactionsFileStorageTest(a)
+	q, clean := newOnDiskRetryQueueTest(a)
 	defer clean()
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, 100, 0.6, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, TransactionRetryQueueTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -38,24 +38,24 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 
 func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
-	s, clean := newTransactionsFileStorageTest(a)
+	q, clean := newOnDiskRetryQueueTest(a)
 	defer clean()
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, 50, 0.1, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, TransactionRetryQueueTelemetry{})
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
 		container.Add(createTransactionWithPayloadSize(payloadSize))
 	}
 	a.Equal(40, container.getCurrentMemSizeInBytes())
-	a.Equal(3, s.getFilesCount())
+	a.Equal(3, q.getFilesCount())
 
 	assertPayloadSizeFromExtractTransactions(a, container, []int{40})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{11})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{9})
-	a.Equal(0, s.getFilesCount())
-	a.Equal(int64(0), s.getCurrentSizeInBytes())
+	a.Equal(0, q.getFilesCount())
+	a.Equal(int64(0), q.getCurrentSizeInBytes())
 }
 
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
@@ -80,11 +80,11 @@ func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 
 func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	a := assert.New(t)
-	s, clean := newTransactionsFileStorageTest(a)
+	q, clean := newOnDiskRetryQueueTest(a)
 	defer clean()
 
 	maxMemSizeInBytes := 0
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, TransactionRetryQueueTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, TransactionRetryQueueTelemetry{})
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
@@ -123,7 +123,7 @@ func createDropPrioritySorter() transaction.SortByCreatedTimeAndPriority {
 	return transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 }
 
-func newTransactionsFileStorageTest(a *assert.Assertions) (*transactionsFileStorage, func()) {
+func newOnDiskRetryQueueTest(a *assert.Assertions) (*onDiskRetryQueue, func()) {
 	path, clean := createTmpFolder(a)
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
@@ -131,7 +131,7 @@ func newTransactionsFileStorageTest(a *assert.Assertions) (*transactionsFileStor
 			Total:     10000,
 		}}
 	diskUsageLimit := newDiskUsageLimit("", disk, 1000, 1)
-	s, err := newTransactionsFileStorage(NewHTTPTransactionsSerializer("", nil), path, diskUsageLimit, transactionsFileStorageTelemetry{})
+	q, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer("", nil), path, diskUsageLimit, onDiskRetryQueueTelemetry{})
 	a.NoError(err)
-	return s, clean
+	return q, clean
 }

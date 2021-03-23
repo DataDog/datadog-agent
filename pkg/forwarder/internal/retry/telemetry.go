@@ -206,41 +206,41 @@ func (TransactionRetryQueueTelemetry) incErrorsCount() {
 	errorsCountTelemetry.add(1)
 }
 
-type transactionsFileStorageTelemetry struct{}
+type onDiskRetryQueueTelemetry struct{}
 
-func (transactionsFileStorageTelemetry) addSerializeCount() {
+func (onDiskRetryQueueTelemetry) addSerializeCount() {
 	serializeCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeCount() {
+func (onDiskRetryQueueTelemetry) addDeserializeCount() {
 	deserializeCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) setFileSize(count int64) {
+func (onDiskRetryQueueTelemetry) setFileSize(count int64) {
 	fileSizeTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) setCurrentSizeInBytes(count int64) {
+func (onDiskRetryQueueTelemetry) setCurrentSizeInBytes(count int64) {
 	currentSizeInBytesTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) setFilesCount(count int) {
+func (onDiskRetryQueueTelemetry) setFilesCount(count int) {
 	filesCountTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addReloadedRetryFilesCount(count int) {
+func (onDiskRetryQueueTelemetry) addReloadedRetryFilesCount(count int) {
 	reloadedRetryFilesCountTelemetry.add(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addFilesRemovedCount() {
+func (onDiskRetryQueueTelemetry) addFilesRemovedCount() {
 	filesRemovedCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeErrorsCount(count int) {
+func (onDiskRetryQueueTelemetry) addDeserializeErrorsCount(count int) {
 	deserializeErrorsCountTelemetry.add(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeTransactionsCount(count int) {
+func (onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
 	deserializeTransactionsCountTelemetry.add(float64(count))
 }
 
