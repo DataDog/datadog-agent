@@ -868,7 +868,7 @@ community_string: cisco-nexus
 	assert.Nil(t, err)
 
 	for i := 0; i < 100; i++ {
-		fmt.Println("i", i)
+		fmt.Println("check run #", i)
 		err = check.Run()
 		assert.Nil(t, err)
 	}
