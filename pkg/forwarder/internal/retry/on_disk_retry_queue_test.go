@@ -83,8 +83,8 @@ func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a.NoError(err)
 
 	newRetryQueue := newTestOnDiskRetryQueue(a, path, 1000)
-	a.Equal(storage.getCurrentSizeInBytes(), newRetryQueue.getCurrentSizeInBytes())
-	a.Equal(storage.getFilesCount(), newRetryQueue.getFilesCount())
+	a.Equal(retryQueue.getCurrentSizeInBytes(), newRetryQueue.getCurrentSizeInBytes())
+	a.Equal(retryQueue.getFilesCount(), newRetryQueue.getFilesCount())
 	transactions, err := newRetryQueue.Deserialize()
 	a.NoError(err)
 	a.Equal([]string{"endpoint1", "endpoint2"}, getEndpointsFromTransactions(transactions))

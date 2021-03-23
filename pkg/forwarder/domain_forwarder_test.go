@@ -245,9 +245,9 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	telemetry := retry.TransactionContainerTelemetry{}
-	transactionContainer := retry.NewTransactionContainer(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
-	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
+	telemetry := retry.TransactionRetryQueueTelemetry{}
+	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
+	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -259,12 +259,12 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		tr.On("GetPayloadSize").Return(payloadSize)
 		tr.On("GetTarget").Return("blocked")
 		tr.On("GetCreatedAt").Return(time.Now().Add(time.Duration(-payloadSize) * time.Second))
-		transactionContainer.Add(tr)
+		transactionRetryQueue.Add(tr)
 	}
 
 	forwarder.retryTransactions(time.Now())
 
-	trs, err := transactionContainer.ExtractTransactions()
+	trs, err := transactionRetryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 2)
 	require.Equal(t, 1, trs[0].GetPayloadSize())
@@ -273,10 +273,10 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	telemetry := retry.TransactionContainerTelemetry{}
-	transactionContainer := retry.NewTransactionContainer(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
+	telemetry := retry.TransactionRetryQueueTelemetry{}
+	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
 
-	return newDomainForwarder("test", transactionContainer, 1, connectionResetInterval, sorter)
+	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter)
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {
