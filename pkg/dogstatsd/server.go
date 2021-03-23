@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -86,7 +86,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	TCapture                  *debug.TrafficCapture
+	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
 	eolTerminationUDS         bool
@@ -156,7 +156,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
-	capture, err := debug.NewTrafficCapture()
+	capture, err := replay.NewTrafficCapture()
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package debug
+package replay
 
 import (
 	"bufio"
@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug/pb"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/golang/protobuf/proto"
@@ -89,6 +89,12 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	tc.writer = bufio.NewWriter(fp)
 	tc.shutdown = make(chan struct{})
 	tc.ongoing = true
+
+	err = tc.WriteHeader()
+	if err != nil {
+		log.Errorf("There was an issue writing the capture file header: %v ", err)
+		return
+	}
 
 	if tc.sharedPacketPoolManager != nil {
 		tc.sharedPacketPoolManager.SetPassthru(false)
@@ -208,6 +214,10 @@ func (tc *TrafficCaptureWriter) IsOngoing() bool {
 	defer tc.RUnlock()
 
 	return tc.ongoing
+}
+
+func (tc *TrafficCaptureWriter) WriteHeader() error {
+	return WriteHeader(tc.writer)
 }
 
 func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {

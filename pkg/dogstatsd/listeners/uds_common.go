@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,12 +54,12 @@ type UDSListener struct {
 	packetsBuffer           *packets.Buffer
 	sharedPacketPoolManager *packets.PoolManager
 	oobPoolManager          *packets.PoolManager
-	trafficCapture          *debug.TrafficCapture
+	trafficCapture          *replay.TrafficCapture
 	OriginDetection         bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *debug.TrafficCapture) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -150,9 +150,9 @@ func (l *UDSListener) Listen() {
 		packet := l.sharedPacketPoolManager.Get().(*packets.Packet)
 		udsPackets.Add(1)
 
-		var capBuff *debug.CaptureBuffer
+		var capBuff *replay.CaptureBuffer
 		if l.trafficCapture.IsOngoing() {
-			capBuff = debug.CapPool.Get().(*debug.CaptureBuffer)
+			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
 			capBuff.Pb.Ancillary = nil
 			capBuff.Pb.Payload = nil
 		}

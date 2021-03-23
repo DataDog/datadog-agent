@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -63,9 +63,9 @@ func dogstatsdReplay() error {
 
 	// TODO: tagger state probably belogs in the replay file anyways.
 	// depth should be configurable....
-	// reader, e := debug.NewTrafficCaptureReader(dsdReplayFilePath, dsdTaggerFilePath)
+	// reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, dsdTaggerFilePath)
 	depth := 10
-	reader, e := debug.NewTrafficCaptureReader(dsdReplayFilePath, depth)
+	reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth)
 	if e != nil {
 		return e
 	}

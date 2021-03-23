@@ -3,19 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package debug
+package replay
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"sync" // might be unnecessary
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/debug/pb"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
+	"github.com/h2non/filetype"
 )
 
 type TrafficCaptureReader struct {
@@ -35,6 +37,12 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	c, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+
+	// datadog capture file should be already registered with filetype via the init hooks
+	kind, _ := filetype.Match(c)
+	if kind == filetype.Unknown {
+		return nil, fmt.Errorf("unknown capture file provided")
 	}
 
 	return &TrafficCaptureReader{
