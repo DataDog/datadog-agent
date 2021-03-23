@@ -196,10 +196,10 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    if json:
-        TMP_JSON = 'tmp.json'
-        if os.path.isfile(json):
-            os.remove(json)
+    TMP_JSON = 'tmp.json'
+    if json and os.path.isfile(json):
+        print("Removing existing '{}' file".format(json))
+        os.remove(json)
 
     cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
@@ -218,8 +218,7 @@ def test(
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if json else "",
     }
 
-    any_failure = False
-    last_failed = None
+    failed_modules = []
     for module in modules:
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
@@ -235,16 +234,15 @@ def test(
             )
 
         if res.exited is None or res.exited > 0:
-            any_failure = True
-            last_failed = module.full_path()
+            failed_modules.append(module.full_path())
 
         if json:
             with open(json, 'a') as json_file, open(os.path.join(module.full_path(), TMP_JSON), 'r') as module_file:
                 json_file.write(module_file.read())
 
-    if any_failure:
+    if failed_modules:
         # Exit if any of the modules failed
-        raise Exit(code=1, message="Last failed module: '{}'".format(last_failed))
+        raise Exit(code=1, message="Unit tests failed in the following modules: {}".format(', '.join(failed_modules)))
 
     if coverage:
         print("\n--- Test coverage:")
