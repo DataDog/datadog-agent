@@ -87,7 +87,7 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 
 func (s *snmpSession) Connect() error {
 	// TODO: Extract to PR
-	s.gosnmpInst.Logger =  nil
+	s.gosnmpInst.Logger = nil
 	return s.gosnmpInst.Connect()
 }
 
