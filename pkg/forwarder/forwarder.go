@@ -210,7 +210,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		},
 		completionHandler: options.CompletionHandler,
 	}
-	var optionalRemovalPolicy *retry.FailedTransactionRemovalPolicy
+	var optionalRemovalPolicy *retry.FileRemovalPolicy
 	storageMaxSize := config.Datadog.GetInt64("forwarder_storage_max_size_in_bytes")
 
 	// Disk Persistence is a core-only feature for now.
@@ -222,7 +222,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		var err error
 
 		storagePath = path.Join(storagePath, agentFolder)
-		optionalRemovalPolicy, err = retry.NewFailedTransactionRemovalPolicy(storagePath, outdatedFileInDays, retry.FailedTransactionRemovalPolicyTelemetry{})
+		optionalRemovalPolicy, err = retry.NewFileRemovalPolicy(storagePath, outdatedFileInDays, retry.FileRemovalPolicyTelemetry{})
 		if err != nil {
 			log.Errorf("Error when initializing the removal policy: %v", err)
 		} else {

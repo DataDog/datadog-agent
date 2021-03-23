@@ -81,12 +81,12 @@ func init() {
 	newRemovalPolicyCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"new_removal_policy_count",
-		"The number of times failedTransactionRemovalPolicy is created",
+		"The number of times FileRemovalPolicy is created",
 		&removalPolicyExpvar)
 	registeredDomainCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"registered_domain_count",
-		"The number of domains registered by failedTransactionRemovalPolicy",
+		"The number of domains registered by FileRemovalPolicy",
 		&removalPolicyExpvar)
 	outdatedFilesCountTelemetry = newCounterExpvar(
 		"removal_policy",
@@ -169,21 +169,21 @@ func init() {
 		&fileStorageExpvar)
 }
 
-// FailedTransactionRemovalPolicyTelemetry handles the telemetry for FailedTransactionRemovalPolicy.
-type FailedTransactionRemovalPolicyTelemetry struct{}
+// FileRemovalPolicyTelemetry handles the telemetry for FileRemovalPolicy.
+type FileRemovalPolicyTelemetry struct{}
 
-func (FailedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
+func (FileRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
 	newRemovalPolicyCountTelemetry.add(1)
 }
 
-func (FailedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
+func (FileRemovalPolicyTelemetry) addRegisteredDomainCount() {
 	registeredDomainCountTelemetry.add(1)
 }
-func (FailedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
+func (FileRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
 	outdatedFilesCountTelemetry.add(float64(count))
 }
 
-func (FailedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
+func (FileRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
 	filesFromUnknownDomainCountTelemetry.add(float64(count))
 }
 

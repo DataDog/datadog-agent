@@ -20,19 +20,19 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// FailedTransactionRemovalPolicy handles the removal policy for failed transactions
-type FailedTransactionRemovalPolicy struct {
+// FileRemovalPolicy handles the removal policy for `.retry` files.
+type FileRemovalPolicy struct {
 	rootPath           string
 	knownDomainFolders map[string]struct{}
 	outdatedFileTime   time.Time
-	telemetry          FailedTransactionRemovalPolicyTelemetry
+	telemetry          FileRemovalPolicyTelemetry
 }
 
-// NewFailedTransactionRemovalPolicy creates a new instance of FailedTransactionRemovalPolicy
-func NewFailedTransactionRemovalPolicy(
+// NewFileRemovalPolicy creates a new instance of FileRemovalPolicy
+func NewFileRemovalPolicy(
 	rootPath string,
 	outdatedFileDayCount int,
-	telemetry FailedTransactionRemovalPolicyTelemetry) (*FailedTransactionRemovalPolicy, error) {
+	telemetry FileRemovalPolicyTelemetry) (*FileRemovalPolicy, error) {
 	if err := os.MkdirAll(rootPath, 0700); err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func NewFailedTransactionRemovalPolicy(
 
 	telemetry.addNewRemovalPolicyCount()
 
-	return &FailedTransactionRemovalPolicy{
+	return &FileRemovalPolicy{
 		rootPath:           rootPath,
 		knownDomainFolders: make(map[string]struct{}),
 		outdatedFileTime:   time.Now().Add(time.Duration(-outdatedFileDayCount*24) * time.Hour),
@@ -56,7 +56,7 @@ func NewFailedTransactionRemovalPolicy(
 }
 
 // RegisterDomain registers a domain name.
-func (p *FailedTransactionRemovalPolicy) RegisterDomain(domainName string) (string, error) {
+func (p *FileRemovalPolicy) RegisterDomain(domainName string) (string, error) {
 	folder, err := p.getFolderPathForDomain(domainName)
 	if err != nil {
 		return "", err
@@ -69,7 +69,7 @@ func (p *FailedTransactionRemovalPolicy) RegisterDomain(domainName string) (stri
 
 // RemoveOutdatedFiles removes the outdated files when a file is
 // older than outDatedFileDayCount days.
-func (p *FailedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error) {
+func (p *FileRemovalPolicy) RemoveOutdatedFiles() ([]string, error) {
 	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
 		files, err := p.removeOutdatedRetryFiles(folderPath)
 		p.telemetry.addOutdatedFilesCount(len(files))
@@ -78,7 +78,7 @@ func (p *FailedTransactionRemovalPolicy) RemoveOutdatedFiles() ([]string, error)
 }
 
 // RemoveUnknownDomains remove unknown domains.
-func (p *FailedTransactionRemovalPolicy) RemoveUnknownDomains() ([]string, error) {
+func (p *FileRemovalPolicy) RemoveUnknownDomains() ([]string, error) {
 	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
 		if _, found := p.knownDomainFolders[folderPath]; !found {
 			files, err := p.removeUnknownDomain(folderPath)
@@ -89,7 +89,7 @@ func (p *FailedTransactionRemovalPolicy) RemoveUnknownDomains() ([]string, error
 	})
 }
 
-func (p *FailedTransactionRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
+func (p *FileRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
 	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (p *FailedTransactionRemovalPolicy) forEachDomainPath(callback func(folderP
 	return paths, nil
 }
 
-func (p *FailedTransactionRemovalPolicy) getFolderPathForDomain(domainName string) (string, error) {
+func (p *FileRemovalPolicy) getFolderPathForDomain(domainName string) (string, error) {
 	// Use md5 for the folder name as the domainName is an url which can contain invalid charaters for a file path.
 	h := md5.New()
 	if _, err := io.WriteString(h, domainName); err != nil {
@@ -121,7 +121,7 @@ func (p *FailedTransactionRemovalPolicy) getFolderPathForDomain(domainName strin
 	return path.Join(p.rootPath, folder), nil
 }
 
-func (p *FailedTransactionRemovalPolicy) removeUnknownDomain(folderPath string) ([]string, error) {
+func (p *FileRemovalPolicy) removeUnknownDomain(folderPath string) ([]string, error) {
 	files, err := p.removeRetryFiles(folderPath, func(filename string) bool { return true })
 
 	// Try to remove the folder if it is empty
@@ -129,7 +129,7 @@ func (p *FailedTransactionRemovalPolicy) removeUnknownDomain(folderPath string) 
 	return files, err
 }
 
-func (p *FailedTransactionRemovalPolicy) removeOutdatedRetryFiles(folderPath string) ([]string, error) {
+func (p *FileRemovalPolicy) removeOutdatedRetryFiles(folderPath string) ([]string, error) {
 	return p.removeRetryFiles(folderPath, func(filename string) bool {
 		modTime, err := util.GetFileModTime(filename)
 		if err != nil {
@@ -139,7 +139,7 @@ func (p *FailedTransactionRemovalPolicy) removeOutdatedRetryFiles(folderPath str
 	})
 }
 
-func (p *FailedTransactionRemovalPolicy) removeRetryFiles(folderPath string, shouldRemove func(string) bool) ([]string, error) {
+func (p *FileRemovalPolicy) removeRetryFiles(folderPath string, shouldRemove func(string) bool) ([]string, error) {
 	files, err := p.getRetryFiles(folderPath)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (p *FailedTransactionRemovalPolicy) removeRetryFiles(folderPath string, sho
 	return filesRemoved, errs
 }
 
-func (p *FailedTransactionRemovalPolicy) getRetryFiles(folder string) ([]string, error) {
+func (p *FileRemovalPolicy) getRetryFiles(folder string) ([]string, error) {
 	entries, err := ioutil.ReadDir(folder)
 	if err != nil {
 		return nil, err
