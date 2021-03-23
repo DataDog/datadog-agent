@@ -60,7 +60,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
+	// c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
 
