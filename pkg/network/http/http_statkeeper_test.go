@@ -75,3 +75,23 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 
 	return tx
 }
+
+func BenchmarkProcessSameConn(b *testing.B) {
+	sk := newHTTPStatkeeper()
+	tx := generateIPv4HTTPTransaction(
+		util.AddressFromString("1.1.1.1"),
+		util.AddressFromString("2.2.2.2"),
+		1234,
+		8080,
+		"foobar",
+		404,
+		float64(30000),
+	)
+	transactions := []httpTX{tx}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sk.Process(transactions)
+	}
+}

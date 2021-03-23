@@ -182,9 +182,6 @@ func (m *Monitor) Stop() {
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
-	if m.statkeeper != nil {
-		m.statkeeper.Close()
-	}
 	m.stopped = true
 }
 
