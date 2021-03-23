@@ -37,7 +37,7 @@ var (
 	}
 	containerComponent = &topology.Component{
 		ExternalID: "urn:container:/a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
-		Type:       topology.Type{Name: "docker container"},
+		Type:       topology.Type{Name: "docker-container"},
 		Data: topology.Data{
 			"TaskID":      swarmService.TaskContainers[0].ID,
 			"name":        swarmService.TaskContainers[0].Name,
