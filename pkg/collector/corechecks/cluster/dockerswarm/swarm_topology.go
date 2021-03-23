@@ -128,7 +128,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 			log.Infof("Identifier for the task is %s", identifier)
 			taskContainerComponent := &topology.Component{
 				ExternalID: targetExternalID,
-				Type:       topology.Type{Name: "docker container"},
+				Type:       topology.Type{Name: "docker-container"},
 				Data: topology.Data{
 					"TaskID":      taskContainer.ID,
 					"name":        taskContainer.Name,
