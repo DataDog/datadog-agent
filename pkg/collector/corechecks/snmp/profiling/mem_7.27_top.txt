@@ -1,0 +1,59 @@
+§ go tool pprof profiling/mem_7.27.prof
+Type: alloc_space
+Time: Mar 23, 2021 at 10:13am (CET)
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top50
+Showing nodes accounting for 596.67MB, 95.40% of 625.43MB total
+Dropped 121 nodes (cum <= 3.13MB)
+Showing top 50 nodes out of 73
+      flat  flat%   sum%        cum   cum%
+  196.05MB 31.35% 31.35%   376.56MB 60.21%  internal/fmtsort.Sort
+     139MB 22.23% 53.57%      139MB 22.23%  reflect.copyVal
+   73.57MB 11.76% 65.34%   449.63MB 71.89%  fmt.Errorf
+      31MB  4.96% 70.29%       31MB  4.96%  reflect.mapiterinit
+   19.73MB  3.15% 73.45%    32.53MB  5.20%  fmt.Sprintf
+   15.51MB  2.48% 75.93%   465.14MB 74.37%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*resultValueStore).getColumnValues
+      14MB  2.24% 78.17%       17MB  2.72%  github.com/gosnmp/gosnmp.oidToString
+   11.50MB  1.84% 80.00%    12.77MB  2.04%  github.com/DataDog/datadog-agent/pkg/aggregator.(*checkSender).sendMetricSample
+   10.50MB  1.68% 81.68%    10.50MB  1.68%  reflect.Value.MapRange
+    7.51MB  1.20% 82.88%    11.01MB  1.76%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.resultToColumnValues
+    6.51MB  1.04% 83.93%    49.02MB  7.84%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalVBL
+    6.50MB  1.04% 84.96%       12MB  1.92%  github.com/gosnmp/gosnmp.(*GoSNMP).decodeValue
+    6.38MB  1.02% 85.99%     6.38MB  1.02%  github.com/gosnmp/gosnmp.(*GoSNMP).connect
+    5.50MB  0.88% 86.86%     5.50MB  0.88%  github.com/gosnmp/gosnmp.parseObjectIdentifier
+    5.50MB  0.88% 87.74%     5.50MB  0.88%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.copyStrings (inline)
+       5MB   0.8% 88.54%        5MB   0.8%  reflect.packEface
+    4.50MB  0.72% 89.26%     4.50MB  0.72%  strings.genSplit
+       4MB  0.64% 89.90%        4MB  0.64%  bytes.makeSlice
+    3.78MB   0.6% 90.51%     3.78MB   0.6%  fmt.(*buffer).writeString (inline)
+    3.53MB  0.56% 91.07%     3.53MB  0.56%  fmt.(*buffer).write (inline)
+    3.50MB  0.56% 91.63%     3.50MB  0.56%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.updateColumnResultValues
+    3.50MB  0.56% 92.19%    99.07MB 15.84%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOids
+       3MB  0.48% 92.67%    13.50MB  2.16%  github.com/gosnmp/gosnmp.parseRawField
+    2.50MB   0.4% 93.07%   488.75MB 78.15%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).reportColumnMetrics
+    2.02MB  0.32% 93.39%   105.60MB 16.88%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchValues
+       2MB  0.32% 93.71%     7.50MB  1.20%  github.com/gosnmp/gosnmp.marshalOID
+    1.51MB  0.24% 93.96%   100.58MB 16.08%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOidsWithBatching
+    1.50MB  0.24% 94.20%    81.06MB 12.96%  github.com/gosnmp/gosnmp.(*GoSNMP).GetBulk
+    1.50MB  0.24% 94.43%     5.50MB  0.88%  bytes.(*Buffer).grow
+    1.50MB  0.24% 94.67%     7.05MB  1.13%  github.com/DataDog/datadog-agent/pkg/aggregator.(*BufferedAggregator).run
+       1MB  0.16% 94.83%    11.50MB  1.84%  github.com/gosnmp/gosnmp.(*SnmpPacket).marshalVBL
+       1MB  0.16% 94.99%       10MB  1.60%  github.com/gosnmp/gosnmp.marshalVarbind
+    0.55MB 0.088% 95.08%     5.05MB  0.81%  github.com/DataDog/datadog-agent/pkg/aggregator.(*CheckSampler).commitSeries
+    0.50MB  0.08% 95.16%     4.50MB  0.72%  github.com/DataDog/datadog-agent/pkg/metrics.ContextMetrics.Flush
+    0.50MB  0.08% 95.24%    80.06MB 12.80%  github.com/gosnmp/gosnmp.(*GoSNMP).sendOneRequest
+    0.50MB  0.08% 95.32%    17.77MB  2.84%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).sendMetric
+    0.50MB  0.08% 95.40%    18.01MB  2.88%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricsConfig).getTags
+         0     0% 95.40%     5.50MB  0.88%  bytes.(*Buffer).Write
+         0     0% 95.40%     3.53MB  0.56%  fmt.(*fmt).pad
+         0     0% 95.40%   388.87MB 62.18%  fmt.(*pp).doPrintf
+         0     0% 95.40%   388.87MB 62.18%  fmt.(*pp).printArg
+         0     0% 95.40%   388.37MB 62.10%  fmt.(*pp).printValue
+         0     0% 95.40%     5.55MB  0.89%  github.com/DataDog/datadog-agent/pkg/aggregator.(*BufferedAggregator).handleSenderSample
+         0     0% 95.40%     5.05MB  0.81%  github.com/DataDog/datadog-agent/pkg/aggregator.(*CheckSampler).commit
+         0     0% 95.40%        7MB  1.12%  github.com/DataDog/datadog-agent/pkg/aggregator.(*checkSender).Gauge
+         0     0% 95.40%    12.50MB  2.00%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Configure
+         0     0% 95.40%   601.74MB 96.21%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Run
+         0     0% 95.40%   601.74MB 96.21%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).processSnmpMetrics
+         0     0% 95.40%       10MB  1.60%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).gauge (inline)
+         0     0% 95.40%        4MB  0.64%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).monotonicCount (inline)
