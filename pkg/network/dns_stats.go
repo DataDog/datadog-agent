@@ -2,7 +2,10 @@ package network
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DNSPacketType tells us whether the packet is a query or a reply (successful/failed)
@@ -49,15 +52,21 @@ type dnsStatKeeper struct {
 	exit             chan struct{}
 	maxSize          int // maximum size of the state map
 	deleteCount      int
+	numStats         int
+	maxStats         int
+	droppedStats     int
+	lastNumStats     int32
+	lastDroppedStats int32
 }
 
-func newDNSStatkeeper(timeout time.Duration) *dnsStatKeeper {
+func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
 		stats:            make(map[DNSKey]map[string]DNSStats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
 		maxSize:          MaxStateMapSize,
+		maxStats:         maxStats,
 	}
 
 	ticker := time.NewTicker(statsKeeper.expirationPeriod)
@@ -113,7 +122,12 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
+		if d.numStats >= d.maxStats {
+			d.droppedStats++
+			return
+		}
 		stats.DNSCountByRcode = make(map[uint32]uint32)
+		d.numStats++
 	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
@@ -132,11 +146,22 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.stats[info.key] = allStats
 }
 
+func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
+	numStats := atomic.LoadInt32(&d.lastNumStats)
+	droppedStats := atomic.LoadInt32(&d.lastDroppedStats)
+	return numStats, droppedStats
+}
+
 func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]DNSStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(map[DNSKey]map[string]DNSStats)
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
+	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
+	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
+	d.numStats = 0
+	d.droppedStats = 0
 	return ret
 }
 
@@ -181,6 +206,11 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			stats, ok := allStats[v.question]
 			if !ok {
+				if d.numStats >= d.maxStats {
+					d.droppedStats++
+					continue
+				}
+				d.numStats++
 				stats.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			stats.DNSTimeouts++

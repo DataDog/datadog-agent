@@ -1,6 +1,7 @@
 import contextlib
 import datetime
 import glob
+import json
 import os
 import shutil
 import sys
@@ -94,7 +95,7 @@ def build(
             "-i cmd/system-probe/windows_resources/system-probe.rc "
             "--target {target_arch} "
             "-O coff "
-            "-o cmd/process-agent/rsrc.syso".format(
+            "-o cmd/system-probe/rsrc.syso".format(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
@@ -270,6 +271,7 @@ def kitchen_prepare(ctx):
             ctx,
             packages=pkg,
             skip_object_files=(i != 0),
+            skip_linters=True,
             bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )
@@ -282,14 +284,36 @@ def kitchen_prepare(ctx):
 
 
 @task
-def kitchen_test(ctx):
+def kitchen_test(ctx, target=None):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
     * Then we recommend to run `inv -e system-probe.kitchen-test` directly from your (macOS) machine;
     """
+
+    # Retrieve a list of all available vagrant images
+    images = {}
+    with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
+        for platform, by_provider in json.load(f).items():
+            if "vagrant" in by_provider:
+                for image in by_provider["vagrant"]:
+                    images[image] = platform
+
+    if not (target in images):
+        print(
+            "please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n%s"
+            % (list(images.keys()))
+        )
+        raise Exit(code=1)
+
     with ctx.cd(KITCHEN_DIR):
-        ctx.run("kitchen test", env={"KITCHEN_YAML": "kitchen-vagrant-system-probe.yml"})
+        ctx.run(
+            "inv kitchen.genconfig --platform {platform} --osversions {target} --provider vagrant --testfiles system-probe-test".format(
+                target=target, platform=images[target]
+            ),
+            env={"KITCHEN_VAGRANT_PROVIDER": "virtualbox"},
+        )
+        ctx.run("kitchen test")
 
 
 @task

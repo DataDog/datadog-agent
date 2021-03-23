@@ -113,6 +113,18 @@ struct dentry * __attribute__((always_inline)) get_vfsmount_dentry(struct vfsmou
     return dentry;
 }
 
+struct super_block * __attribute__((always_inline)) get_dentry_sb(struct dentry *dentry) {
+    struct super_block *sb;
+    bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
+    return sb;
+}
+
+struct file_system_type * __attribute__((always_inline)) get_super_block_fs(struct super_block *sb) {
+    struct file_system_type *fs;
+    bpf_probe_read(&fs, sizeof(fs), &sb->s_type);
+    return fs;
+}
+
 struct super_block * __attribute__((always_inline)) get_vfsmount_sb(struct vfsmount *mnt) {
     struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &mnt->mnt_sb);

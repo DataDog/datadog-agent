@@ -265,17 +265,18 @@ func (k *KSMCheck) Cancel() {
 func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
-			if metadataMetricsRegex.MatchString(metricFamily.Name) {
-				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
-				continue
-			}
+			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
+			}
+			if metadataMetricsRegex.MatchString(metricFamily.Name) {
+				// metadata metrics are only used by the check for label joins
+				// they shouldn't be forwarded to Datadog
+				continue
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {

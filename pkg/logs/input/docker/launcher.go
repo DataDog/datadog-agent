@@ -55,6 +55,7 @@ type Launcher struct {
 	forceTailingFromFile   bool                      // will ignore known offset and always tail from file
 	tailFromFile           bool                      // If true docker will be tailed from the corresponding log file
 	fileSourcesByContainer map[string]sourceInfoPair // Keep track of locally generated sources
+	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
 // NewLauncher returns a new launcher
@@ -75,6 +76,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 		lock:                   &sync.Mutex{},
 		readTimeout:            readTimeout,
 		serviceNameFunc:        input.ServiceNameFromTags,
+		sources:                sources,
 		forceTailingFromFile:   forceTailingFromFile,
 		tailFromFile:           tailFromFile,
 		fileSourcesByContainer: make(map[string]sourceInfoPair),
@@ -326,14 +328,18 @@ func (l *Launcher) scheduleFileSource(container *Container, source *config.LogSo
 		log.Warnf("Can't tail twice the same container: %v", ShortContainerID(containerID))
 		return
 	}
-	// fileSource is a new source using the original source as its parent - keep track for later unscheduling
-	l.fileSourcesByContainer[containerID] = l.getFileSource(container, source)
+	// fileSource is a new source using the original source as its parent
+	fileSource := l.getFileSource(container, source)
+	// Keep source for later unscheduling
+	l.fileSourcesByContainer[containerID] = fileSource
+	l.sources.AddSource(fileSource.source)
 }
 
 func (l *Launcher) unscheduleFileSource(containerID string) {
 	if sourcePair, exists := l.fileSourcesByContainer[containerID]; exists {
 		sourcePair.info.RemoveMessage(containerID)
 		delete(l.fileSourcesByContainer, containerID)
+		l.sources.RemoveSource(sourcePair.source)
 	}
 }
 

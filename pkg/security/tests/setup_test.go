@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"net"
 	"os"
@@ -24,6 +23,8 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
@@ -460,8 +461,8 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 	}
 }
 
-func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
-	return tm.st.Path(filename)
+func (tm *testModule) Path(filename ...string) (string, unsafe.Pointer, error) {
+	return tm.st.Path(filename...)
 }
 
 func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
@@ -588,13 +589,15 @@ func (t *simpleTest) ProcessName() string {
 	return path.Base(executable)
 }
 
-func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
-	filename = path.Join(t.root, filename)
-	filenamePtr, err := syscall.BytePtrFromString(filename)
+func (t *simpleTest) Path(filename ...string) (string, unsafe.Pointer, error) {
+	components := []string{t.root}
+	components = append(components, filename...)
+	path := path.Join(components...)
+	filenamePtr, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return "", nil, err
 	}
-	return filename, unsafe.Pointer(filenamePtr), nil
+	return path, unsafe.Pointer(filenamePtr), nil
 }
 
 func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (err error) {
