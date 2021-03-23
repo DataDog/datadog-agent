@@ -73,7 +73,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_stackstate-agent" and
-                    str(d["image"]).startswith("stackstate/stackstate-agent-2-test:{}@".format(os.environ['AGENT_CURRENT_BRANCH'])) and
+                    str(d["image"]).startswith("stackstate/stackstate-cluster-agent-test:{}@".format(os.environ['AGENT_CURRENT_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1

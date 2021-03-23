@@ -104,4 +104,4 @@
     - debug: var=output
     - name: Wait a bit for the agent to start
       pause:
-        seconds: 60
+        seconds: 180

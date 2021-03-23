@@ -107,6 +107,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 				"spec":         s.Spec,
 				"endpoint":     s.Endpoint,
 				"updateStatus": s.UpdateStatus,
+				"clusterName":  clusterName,
 			},
 		}
 
