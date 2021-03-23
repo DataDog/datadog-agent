@@ -37,7 +37,8 @@ def get_failed_jobs(project_name, pipeline_id):
             "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
         }
-        final_failed_jobs.append(final_status)
+        if final_status["status"] == "failed" and not final_status["allow_failure"]:
+            final_failed_jobs.append(final_status)
 
     return final_failed_jobs
 
@@ -67,14 +68,13 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     for job in failed_jobs:
         # Exclude jobs that were retried and succeeded
         # Also exclude jobs allowed to fail
-        if job["status"] == "failed" and not job["allow_failure"]:
-            job_owners = owners.of(job["name"])
-            # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-            # eg. [('TEAM', '@DataDog/agent-platform')]
+        job_owners = owners.of(job["name"])
+        # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
+        # eg. [('TEAM', '@DataDog/agent-platform')]
 
-            for kind, owner in job_owners:
-                if kind == "TEAM":
-                    owners_to_notify[owner].append(job)
+        for kind, owner in job_owners:
+            if kind == "TEAM":
+                owners_to_notify[owner].append(job)
 
     return owners_to_notify
 
