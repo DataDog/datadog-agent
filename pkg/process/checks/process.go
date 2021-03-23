@@ -344,7 +344,12 @@ func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 
 func formatNetworks(pid int32, conns map[int32][]*model.Connection, interval int) *model.ProcessNetworks {
 	connRate := float32(len(conns[pid])) / float32(interval)
-	return &model.ProcessNetworks{ConnectionRate: connRate}
+	totalTraffic := uint64(0)
+	for _, conn := range conns[pid] {
+		totalTraffic += conn.LastBytesSent + conn.LastBytesReceived
+	}
+	bytesRate := float32(totalTraffic) / float32(interval)
+	return &model.ProcessNetworks{ConnectionRate: connRate, BytesRate: bytesRate}
 }
 
 // skipProcess will skip a given process if it's blacklisted or hasn't existed
