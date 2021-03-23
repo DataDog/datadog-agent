@@ -35,7 +35,7 @@ func newDiskUsageLimit(
 	}
 }
 
-func (s *diskUsageLimit) computeMaxStorage(currentSize int64) (int64, error) {
+func (s *diskUsageLimit) computeAvailableSpace(currentSize int64) (int64, error) {
 	usage, err := s.disk.GetUsage(s.diskPath)
 	if err != nil {
 		return 0, err

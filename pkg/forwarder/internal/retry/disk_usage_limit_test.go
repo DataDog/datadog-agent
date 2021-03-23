@@ -20,7 +20,7 @@ func (m diskUsageRetrieverMock) GetUsage(path string) (*filesystem.DiskUsage, er
 	return m.diskUsage, nil
 }
 
-func TestComputeMaxStorage(t *testing.T) {
+func TestComputeAvailableSpace(t *testing.T) {
 	r := require.New(t)
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
@@ -30,11 +30,11 @@ func TestComputeMaxStorage(t *testing.T) {
 	maxSizeInBytes := int64(30)
 	diskUsageLimit := newDiskUsageLimit("", disk, maxSizeInBytes, 0.9)
 
-	max, err := diskUsageLimit.computeMaxStorage(10)
+	max, err := diskUsageLimit.computeAvailableSpace(10)
 	r.NoError(err)
 	r.Equal(maxSizeInBytes, max)
 
-	max, err = diskUsageLimit.computeMaxStorage(5)
+	max, err = diskUsageLimit.computeAvailableSpace(5)
 	r.NoError(err)
 	r.Equal(30-int64(100*(1-0.9))+5, max)
 }

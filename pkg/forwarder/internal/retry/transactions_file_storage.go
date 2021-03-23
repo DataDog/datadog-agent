@@ -54,7 +54,7 @@ func newTransactionsFileStorage(
 
 	// Check if there is an error when computing the available space
 	// in this function to warn the user sooner (and not when there is an outage)
-	_, err := diskUsageLimit.computeMaxStorage(0)
+	_, err := diskUsageLimit.computeAvailableSpace(0)
 
 	return storage, err
 }
@@ -149,7 +149,7 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, maxSizeInBytes)
 	}
 
-	maxStorageInBytes, err := s.diskUsageLimit.computeMaxStorage(s.currentSizeInBytes)
+	maxStorageInBytes, err := s.diskUsageLimit.computeAvailableSpace(s.currentSizeInBytes)
 	if err != nil {
 		return err
 	}
