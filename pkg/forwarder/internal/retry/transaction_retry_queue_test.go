@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTransactionContainerAdd(t *testing.T) {
+func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)
 	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
 
-	container := NewTransactionContainer(createDropPrioritySorter(), s, 100, 0.6, TransactionContainerTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, 100, 0.6, TransactionRetryQueueTelemetry{})
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -36,12 +36,12 @@ func TestTransactionContainerAdd(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, nil)
 }
 
-func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
+func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
 
-	container := NewTransactionContainer(createDropPrioritySorter(), s, 50, 0.1, TransactionContainerTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, 50, 0.1, TransactionRetryQueueTelemetry{})
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -58,9 +58,9 @@ func TestTransactionContainerSeveralFlushToDisk(t *testing.T) {
 	a.Equal(int64(0), s.getCurrentSizeInBytes())
 }
 
-func TestTransactionContainerNoTransactionStorage(t *testing.T) {
+func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
-	container := NewTransactionContainer(createDropPrioritySorter(), nil, 50, 0.1, TransactionContainerTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, TransactionRetryQueueTelemetry{})
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
@@ -78,13 +78,13 @@ func TestTransactionContainerNoTransactionStorage(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{11, 30})
 }
 
-func TestTransactionContainerZeroMaxMemSizeInBytes(t *testing.T) {
+func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 	a := assert.New(t)
 	s, clean := newTransactionsFileStorageTest(a)
 	defer clean()
 
 	maxMemSizeInBytes := 0
-	container := NewTransactionContainer(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, TransactionContainerTelemetry{})
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), s, maxMemSizeInBytes, 0.1, TransactionRetryQueueTelemetry{})
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
@@ -105,7 +105,7 @@ func createTransactionWithPayloadSize(payloadSize int) *transaction.HTTPTransact
 
 func assertPayloadSizeFromExtractTransactions(
 	a *assert.Assertions,
-	container *TransactionContainer,
+	container *TransactionRetryQueue,
 	expectedPayloadSize []int) {
 
 	transactions, err := container.ExtractTransactions()

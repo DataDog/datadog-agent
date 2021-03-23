@@ -173,7 +173,7 @@ func TestForwarderRetry(t *testing.T) {
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
 	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
-	trs, err := forwarder.transactionContainer.ExtractTransactions()
+	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 1)
 	assert.Equal(t, trs[0], notReady)
@@ -231,7 +231,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 
 	require.Len(t, forwarder.highPrio, 0)
 	require.Len(t, forwarder.lowPrio, 0)
-	trs, err := forwarder.transactionContainer.ExtractTransactions()
+	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 2)
 
@@ -280,7 +280,7 @@ func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainFor
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {
-	require.Equal(t, expectedValue, forwarder.transactionContainer.GetTransactionCount())
+	require.Equal(t, expectedValue, forwarder.retryQueue.GetTransactionCount())
 }
 
 func newTestTransactionDomainForwarder() *testTransaction {

@@ -27,28 +27,28 @@ type TransactionPrioritySorter interface {
 	Sort([]transaction.Transaction)
 }
 
-// TransactionContainer stores transactions in memory and flush them to disk when the memory
+// TransactionRetryQueue stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
-type TransactionContainer struct {
+type TransactionRetryQueue struct {
 	transactions               []transaction.Transaction
 	currentMemSizeInBytes      int
 	maxMemSizeInBytes          int
 	flushToStorageRatio        float64
 	dropPrioritySorter         TransactionPrioritySorter
 	optionalTransactionStorage TransactionStorage
-	telemetry                  TransactionContainerTelemetry
+	telemetry                  TransactionRetryQueueTelemetry
 	mutex                      sync.RWMutex
 }
 
-// BuildTransactionContainer builds a new instance of TransactionContainer
-func BuildTransactionContainer(
+// BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
+func BuildTransactionRetryQueue(
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
 	storageMaxSize int64,
 	dropPrioritySorter TransactionPrioritySorter,
 	domain string,
-	apiKeys []string) *TransactionContainer {
+	apiKeys []string) *TransactionRetryQueue {
 	var storage TransactionStorage
 	var err error
 
@@ -60,23 +60,23 @@ func BuildTransactionContainer(
 		storage, err = newTransactionsFileStorage(serializer, optionalDomainFolderPath, maxStorage, transactionsFileStorageTelemetry{})
 
 		// If the storage on disk cannot be used, log the error and continue.
-		// Returning `nil, err` would mean not using `TransactionContainer` and so not using `forwarder_retry_queue_payloads_max_size` config.
+		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
 		if err != nil {
 			log.Errorf("Error when creating the file storage: %v", err)
 		}
 	}
 
-	return NewTransactionContainer(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, TransactionContainerTelemetry{})
+	return NewTransactionRetryQueue(dropPrioritySorter, storage, maxMemSizeInBytes, flushToStorageRatio, TransactionRetryQueueTelemetry{})
 }
 
-// NewTransactionContainer creates a new instance of NewTransactionContainer
-func NewTransactionContainer(
+// NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
+func NewTransactionRetryQueue(
 	dropPrioritySorter TransactionPrioritySorter,
 	optionalTransactionStorage TransactionStorage,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	telemetry TransactionContainerTelemetry) *TransactionContainer {
-	return &TransactionContainer{
+	telemetry TransactionRetryQueueTelemetry) *TransactionRetryQueue {
+	return &TransactionRetryQueue{
 		maxMemSizeInBytes:          maxMemSizeInBytes,
 		flushToStorageRatio:        flushToStorageRatio,
 		dropPrioritySorter:         dropPrioritySorter,
@@ -95,7 +95,7 @@ func NewTransactionContainer(
 // The first 3 transactions are flushed to the disk as 10 + 20 + 30 >= 60
 // If disk serialization failed or is not enabled, remove old transactions such as
 // `currentMemSizeInBytes` <= `maxMemSizeInBytes`
-func (tc *TransactionContainer) Add(t transaction.Transaction) (int, error) {
+func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -135,7 +135,7 @@ func (tc *TransactionContainer) Add(t transaction.Transaction) (int, error) {
 // If some transactions exist in memory extract them otherwise extract transactions
 // from the disk.
 // No transactions are in memory after calling this method.
-func (tc *TransactionContainer) ExtractTransactions() ([]transaction.Transaction, error) {
+func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transaction, error) {
 	tc.mutex.Lock()
 	defer tc.mutex.Unlock()
 
@@ -158,7 +158,7 @@ func (tc *TransactionContainer) ExtractTransactions() ([]transaction.Transaction
 }
 
 // GetCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *TransactionContainer) getCurrentMemSizeInBytes() int {
+func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
@@ -166,7 +166,7 @@ func (tc *TransactionContainer) getCurrentMemSizeInBytes() int {
 }
 
 // GetTransactionCount gets the number of transactions in the container
-func (tc *TransactionContainer) GetTransactionCount() int {
+func (tc *TransactionRetryQueue) GetTransactionCount() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
@@ -174,14 +174,14 @@ func (tc *TransactionContainer) GetTransactionCount() int {
 }
 
 // GetMaxMemSizeInBytes gets the maximum memory usage for storing transactions
-func (tc *TransactionContainer) GetMaxMemSizeInBytes() int {
+func (tc *TransactionRetryQueue) GetMaxMemSizeInBytes() int {
 	tc.mutex.RLock()
 	defer tc.mutex.RUnlock()
 
 	return tc.maxMemSizeInBytes
 }
 
-func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {
+func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {
 	sizeInBytesToFlush := int(float64(tc.maxMemSizeInBytes) * tc.flushToStorageRatio)
 	var payloadsGroupToFlush [][]transaction.Transaction
 	for tc.currentMemSizeInBytes+payloadSize > tc.maxMemSizeInBytes && len(tc.transactions) > 0 {
@@ -199,7 +199,7 @@ func (tc *TransactionContainer) extractTransactionsForDisk(payloadSize int) [][]
 	return payloadsGroupToFlush
 }
 
-func (tc *TransactionContainer) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []transaction.Transaction {
+func (tc *TransactionRetryQueue) extractTransactionsFromMemory(payloadSizeInBytesToExtract int) []transaction.Transaction {
 	i := 0
 	sizeInBytesExtracted := 0
 	var transactionsExtracted []transaction.Transaction

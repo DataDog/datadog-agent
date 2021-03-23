@@ -187,22 +187,22 @@ func (FileRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
 	filesFromUnknownDomainCountTelemetry.add(float64(count))
 }
 
-// TransactionContainerTelemetry handles the telemetry for TransactionContainer
-type TransactionContainerTelemetry struct{}
+// TransactionRetryQueueTelemetry handles the telemetry for TransactionRetryQueue
+type TransactionRetryQueueTelemetry struct{}
 
-func (TransactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
+func (TransactionRetryQueueTelemetry) setCurrentMemSizeInBytes(count int) {
 	currentMemSizeInBytesTelemetry.set(float64(count))
 }
 
-func (TransactionContainerTelemetry) setTransactionsCount(count int) {
+func (TransactionRetryQueueTelemetry) setTransactionsCount(count int) {
 	transactionsCountTelemetry.set(float64(count))
 }
 
-func (TransactionContainerTelemetry) addTransactionsDroppedCount(count int) {
+func (TransactionRetryQueueTelemetry) addTransactionsDroppedCount(count int) {
 	transactionsDroppedCountTelemetry.add(float64(count))
 }
 
-func (TransactionContainerTelemetry) incErrorsCount() {
+func (TransactionRetryQueueTelemetry) incErrorsCount() {
 	errorsCountTelemetry.add(1)
 }
 

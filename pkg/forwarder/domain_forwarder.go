@@ -34,7 +34,7 @@ type domainForwarder struct {
 	stopRetry                 chan bool
 	stopConnectionReset       chan bool
 	workers                   []*Worker
-	transactionContainer      *retry.TransactionContainer
+	retryQueue                *retry.TransactionRetryQueue
 	connectionResetInterval   time.Duration
 	internalState             uint32
 	m                         sync.Mutex // To control Start/Stop races
@@ -44,14 +44,14 @@ type domainForwarder struct {
 
 func newDomainForwarder(
 	domain string,
-	transactionContainer *retry.TransactionContainer,
+	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
 	transactionPrioritySorter retry.TransactionPrioritySorter) *domainForwarder {
 	return &domainForwarder{
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
-		transactionContainer:      transactionContainer,
+		retryQueue:                retryQueue,
 		connectionResetInterval:   connectionResetInterval,
 		internalState:             Stopped,
 		blockedList:               newBlockedEndpoints(),
@@ -74,7 +74,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	var transactions []transaction.Transaction
 	var err error
 
-	transactions, err = f.transactionContainer.ExtractTransactions()
+	transactions, err = f.retryQueue.ExtractTransactions()
 	if err != nil {
 		log.Errorf("Error when getting transactions from the retry queue", err)
 	}
@@ -90,30 +90,30 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 				transactionsRetried.Add(1)
 				tlmTxRetried.Inc(f.domain, transactionEndpointName)
 			default:
-				dropCount := f.addToTransactionContainer(t)
+				dropCount := f.addToTransactionRetryQueue(t)
 				tlmTxRequeued.Inc(f.domain, transactionEndpointName)
 				droppedWorkerBusy += dropCount
 			}
 		} else {
-			dropCount := f.addToTransactionContainer(t)
+			dropCount := f.addToTransactionRetryQueue(t)
 			transactionsRequeued.Add(1)
 			tlmTxRequeued.Inc(f.domain, transactionEndpointName)
 			droppedRetryQueueFull += dropCount
 		}
 	}
 
-	transactionCount := f.transactionContainer.GetTransactionCount()
+	transactionCount := f.retryQueue.GetTransactionCount()
 	transactionsRetryQueueSize.Set(int64(transactionCount))
 	tlmTxRetryQueueSize.Set(float64(transactionCount), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt:%d for exceeding the retry queue payloads size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.transactionContainer.GetMaxMemSizeInBytes(), droppedWorkerBusy)
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueue.GetMaxMemSizeInBytes(), droppedWorkerBusy)
 	}
 }
 
-func (f *domainForwarder) addToTransactionContainer(t transaction.Transaction) int {
-	dropCount, err := f.transactionContainer.Add(t)
+func (f *domainForwarder) addToTransactionRetryQueue(t transaction.Transaction) int {
+	dropCount, err := f.retryQueue.Add(t)
 	if err != nil {
 		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
@@ -128,8 +128,8 @@ func (f *domainForwarder) addToTransactionContainer(t transaction.Transaction) i
 }
 
 func (f *domainForwarder) requeueTransaction(t transaction.Transaction) {
-	f.addToTransactionContainer(t)
-	retryQueueSize := f.transactionContainer.GetTransactionCount()
+	f.addToTransactionRetryQueue(t)
+	retryQueueSize := f.retryQueue.GetTransactionCount()
 	transactionsRequeuedByEndpoint.Add(t.GetEndpointName(), 1)
 	transactionsRequeued.Add(1)
 	transactionsRetryQueueSize.Set(int64(retryQueueSize))
@@ -244,7 +244,7 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) error 
 	select {
 	case f.highPrio <- t:
 	default:
-		f.addToTransactionContainer(t)
+		f.addToTransactionRetryQueue(t)
 		transactionsDroppedOnInput.Add(1)
 		tlmTxDroppedOnInput.Inc(f.domain, t.GetEndpointName())
 		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)

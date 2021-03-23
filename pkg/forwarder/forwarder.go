@@ -254,7 +254,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
-			transactionContainer := retry.BuildTransactionContainer(
+			transactionContainer := retry.BuildTransactionRetryQueue(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
