@@ -73,6 +73,11 @@ func (k *EventsCheck) Configure(config, initConfig integration.Data) error {
 
 // Run executes the check.
 func (k *EventsCheck) Run() error {
+	// Running the event collection.
+	if !k.instance.CollectEvent {
+		return nil
+	}
+
 	// initialize kube api check
 	err := k.InitKubeApiCheck()
 	if err == apiserver.ErrNotLeader {
@@ -80,11 +85,6 @@ func (k *EventsCheck) Run() error {
 		return nil
 	} else if err != nil {
 		return err
-	}
-
-	// Running the event collection.
-	if !k.instance.CollectEvent {
-		return nil
 	}
 
 	sender, err := aggregator.GetSender(k.ID())
