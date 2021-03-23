@@ -85,7 +85,9 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	return nil
 }
 
-func (s *snmpSession) Connect() error {
+func (s *snmpSession) sendMetricSampleConnect() error {
+	// TODO: Extract to PR
+	s.gosnmpInst.Logger =  nil
 	return s.gosnmpInst.Connect()
 }
 

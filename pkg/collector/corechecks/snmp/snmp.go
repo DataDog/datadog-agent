@@ -51,6 +51,8 @@ func (c *Check) Run() error {
 	c.sender.gauge("datadog.snmp.check_duration", time.Since(start).Seconds(), "", tags)
 	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", tags)
 
+	fmt.Println("c.sender.submittedMetrics", c.sender.submittedMetrics)
+
 	// Commit
 	sender.Commit()
 	return checkErr

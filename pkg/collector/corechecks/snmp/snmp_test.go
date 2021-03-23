@@ -867,6 +867,9 @@ community_string: cisco-nexus
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	err = check.Run()
-	assert.Nil(t, err)
+	for i := 0; i < 100; i++ {
+		fmt.Println("i", i)
+		err = check.Run()
+		assert.Nil(t, err)
+	}
 }
