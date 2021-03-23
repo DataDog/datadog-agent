@@ -16,8 +16,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// TransactionStorage is an interface to serialize / deserialize transactions
-type TransactionStorage interface {
+// TransactionSerializer is an interface to serialize / deserialize transactions
+type TransactionSerializer interface {
 	Serialize([]transaction.Transaction) error
 	Deserialize() ([]transaction.Transaction, error)
 }
@@ -30,14 +30,14 @@ type TransactionPrioritySorter interface {
 // TransactionRetryQueue stores transactions in memory and flush them to disk when the memory
 // limit is exceeded.
 type TransactionRetryQueue struct {
-	transactions               []transaction.Transaction
-	currentMemSizeInBytes      int
-	maxMemSizeInBytes          int
-	flushToStorageRatio        float64
-	dropPrioritySorter         TransactionPrioritySorter
-	optionalTransactionStorage TransactionStorage
-	telemetry                  TransactionRetryQueueTelemetry
-	mutex                      sync.RWMutex
+	transactions                  []transaction.Transaction
+	currentMemSizeInBytes         int
+	maxMemSizeInBytes             int
+	flushToStorageRatio           float64
+	dropPrioritySorter            TransactionPrioritySorter
+	optionalTransactionSerializer TransactionSerializer
+	telemetry                     TransactionRetryQueueTelemetry
+	mutex                         sync.RWMutex
 }
 
 // BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
@@ -49,7 +49,7 @@ func BuildTransactionRetryQueue(
 	dropPrioritySorter TransactionPrioritySorter,
 	domain string,
 	apiKeys []string) *TransactionRetryQueue {
-	var storage TransactionStorage
+	var storage TransactionSerializer
 	var err error
 
 	if optionalDomainFolderPath != "" && storageMaxSize > 0 {
@@ -72,16 +72,16 @@ func BuildTransactionRetryQueue(
 // NewTransactionRetryQueue creates a new instance of NewTransactionRetryQueue
 func NewTransactionRetryQueue(
 	dropPrioritySorter TransactionPrioritySorter,
-	optionalTransactionStorage TransactionStorage,
+	optionalTransactionSerializer TransactionSerializer,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	telemetry TransactionRetryQueueTelemetry) *TransactionRetryQueue {
 	return &TransactionRetryQueue{
-		maxMemSizeInBytes:          maxMemSizeInBytes,
-		flushToStorageRatio:        flushToStorageRatio,
-		dropPrioritySorter:         dropPrioritySorter,
-		optionalTransactionStorage: optionalTransactionStorage,
-		telemetry:                  telemetry,
+		maxMemSizeInBytes:             maxMemSizeInBytes,
+		flushToStorageRatio:           flushToStorageRatio,
+		dropPrioritySorter:            dropPrioritySorter,
+		optionalTransactionSerializer: optionalTransactionSerializer,
+		telemetry:                     telemetry,
 	}
 }
 
@@ -101,10 +101,10 @@ func (tc *TransactionRetryQueue) Add(t transaction.Transaction) (int, error) {
 
 	var diskErr error
 	payloadSize := t.GetPayloadSize()
-	if tc.optionalTransactionStorage != nil {
+	if tc.optionalTransactionSerializer != nil {
 		payloadsGroupToFlush := tc.extractTransactionsForDisk(payloadSize)
 		for _, payloads := range payloadsGroupToFlush {
-			if err := tc.optionalTransactionStorage.Serialize(payloads); err != nil {
+			if err := tc.optionalTransactionSerializer.Serialize(payloads); err != nil {
 				diskErr = multierror.Append(diskErr, err)
 			}
 		}
@@ -144,8 +144,8 @@ func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transactio
 	if len(tc.transactions) > 0 {
 		transactions = tc.transactions
 		tc.transactions = nil
-	} else if tc.optionalTransactionStorage != nil {
-		transactions, err = tc.optionalTransactionStorage.Deserialize()
+	} else if tc.optionalTransactionSerializer != nil {
+		transactions, err = tc.optionalTransactionSerializer.Deserialize()
 		if err != nil {
 			tc.telemetry.incErrorsCount()
 			return nil, err
