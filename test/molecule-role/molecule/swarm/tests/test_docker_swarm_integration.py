@@ -86,7 +86,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_receiver" and
-                    str(d["image"]).startswith("quay.io/stackstate/stackstate-receiver:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
+                    str(d["image"]).startswith("quay.io/stackstate/stackstate-receiver:{}".format(os.environ['STACKSTATE_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
@@ -99,7 +99,7 @@ def test_docker_swarm_topology(host):
                     r"urn:swarm-service:/.*").findall(e_id),
                 "data": lambda d: (
                     d["name"] == "agent_topic-api" and
-                    str(d["image"]).startswith("quay.io/stackstate/stackstate-topic-api:{}@".format(os.environ['STACKSTATE_BRANCH'])) and
+                    str(d["image"]).startswith("quay.io/stackstate/stackstate-topic-api:{}".format(os.environ['STACKSTATE_BRANCH'])) and
                     "spec" in d and
                     "Replicated" in d["spec"]["Mode"] and
                     d["spec"]["Mode"]["Replicated"]["Replicas"] == 1
