@@ -75,9 +75,12 @@ func TestSwarmTopologyCollector_CollectSwarmServices(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// set mock cluster name
+	config.Datadog.Set("cluster_name", "agent-swarm")
+	expectedTags := []string{"serviceName:agent_stackstate-agent", "clusterName:agent-swarm"}
 	// check for produced metrics
-	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", expectedTags).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", expectedTags).Return().Times(1)
 	comps, relations, err := st.collectSwarmServices(testHostname, sender)
 
 	// list of swamr service components
@@ -115,9 +118,12 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// set mock cluster name
+	config.Datadog.Set("cluster_name", "agent-swarm")
+	expectedTags := []string{"serviceName:agent_stackstate-agent", "clusterName:agent-swarm"}
 	// check for produced metrics
-	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", expectedTags).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", expectedTags).Return().Times(1)
 
 	err := st.BuildSwarmTopology(testHostname, sender)
 	assert.NoError(t, err)

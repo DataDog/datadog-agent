@@ -70,7 +70,7 @@ services:
           memory: 1G
 
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    image: docker.io/stackstate/stackstate-cluster-agent-test:${AGENT_VERSION}
     deploy:
       placement:
         constraints: [ node.role == manager ]

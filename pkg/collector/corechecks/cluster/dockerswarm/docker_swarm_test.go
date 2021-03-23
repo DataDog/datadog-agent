@@ -24,12 +24,15 @@ func TestDockerSwarmCheck_True(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// set mock cluster name
+	config.Datadog.Set("cluster_name", "agent-swarm")
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
 	// Setup mock sender
 	sender := mocksender.NewMockSender(swarmcheck.ID())
-	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	expectedTags := []string{"serviceName:agent_stackstate-agent", "clusterName:agent-swarm"}
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", expectedTags).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", expectedTags).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
 
 	// set test configuration
@@ -72,12 +75,15 @@ func TestDockerSwarmCheck_FromEnv(t *testing.T) {
 	// set mock hostname
 	testHostname := "mock-host"
 	config.Datadog.Set("hostname", testHostname)
+	// set mock cluster name
+	config.Datadog.Set("cluster_name", "agent-swarm")
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
 	// Setup mock sender
 	sender := mocksender.NewMockSender(swarmcheck.ID())
-	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
-	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", []string{"serviceName:agent_stackstate-agent"}).Return().Times(1)
+	expectedTags := []string{"serviceName:agent_stackstate-agent", "clusterName:agent-swarm"}
+	sender.On("Gauge", "swarm.service.running_replicas", 2.0, "", expectedTags).Return().Times(1)
+	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", expectedTags).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
 
 	swarmcheck.Configure(nil, nil)

@@ -15,6 +15,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -86,6 +87,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 		return nil, nil, err
 	}
 
+	clusterName := clustername.GetClusterName()
 	taskContainerComponents := make([]*topology.Component, 0)
 	swarmServiceComponents := make([]*topology.Component, 0)
 	swarmServiceRelations := make([]*topology.Relation, 0)
@@ -153,8 +155,9 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 		}
 		log.Infof("Creating a running metric for Service %s with value %d", s.Name, s.RunningTasks)
 		log.Infof("Creating a desired metric for Service %s with value %d", s.Name, s.DesiredTasks)
-		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, "serviceName:"+s.Name))
-		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, "serviceName:"+s.Name))
+		metricTags := []string{"serviceName:"+s.Name, "clusterName:"+clusterName}
+		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, metricTags...))
+		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, metricTags...))
 
 	}
 	// Append TaskContainer components to same Service Component list
