@@ -9,8 +9,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -849,6 +852,13 @@ metrics:
 }
 
 func TestCheck_Profile(t *testing.T) {
+	log.SetupLogger(seelog.Disabled, "error")
+
+	// we need a webserver to get the pprof webserver
+	go func() {
+		fmt.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "profiling_conf.d"))
 	config.Datadog.Set("confd_path", file)
@@ -867,9 +877,18 @@ community_string: cisco-nexus
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	for i := 0; i < 100; i++ {
+	fmt.Println("hello world")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go checkRun(t, check, wg)
+	wg.Wait()
+}
+
+func checkRun(t *testing.T, check check.Check, wg sync.WaitGroup) {
+	defer wg.Done()
+	for i := 0; i < 1000000; i++ {
 		fmt.Println("check run #", i)
-		err = check.Run()
+		err := check.Run()
 		assert.Nil(t, err)
 	}
 }
