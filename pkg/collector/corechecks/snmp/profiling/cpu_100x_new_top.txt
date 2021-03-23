@@ -1,0 +1,172 @@
+§ go tool pprof profiling/cpu_new.prof
+Type: cpu
+Time: Mar 23, 2021 at 10:20am (CET)
+Duration: 24.90s, Total samples = 830ms ( 3.33%)
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top500
+Showing nodes accounting for 830ms, 100% of 830ms total
+      flat  flat%   sum%        cum   cum%
+     100ms 12.05% 12.05%      150ms 18.07%  runtime.netpoll
+      80ms  9.64% 21.69%      120ms 14.46%  runtime.scanobject
+      80ms  9.64% 31.33%       80ms  9.64%  syscall.syscall
+      70ms  8.43% 39.76%       70ms  8.43%  runtime.pthread_cond_wait
+      60ms  7.23% 46.99%       60ms  7.23%  runtime.madvise
+      60ms  7.23% 54.22%       60ms  7.23%  runtime.pthread_cond_signal
+      50ms  6.02% 60.24%       50ms  6.02%  runtime.kevent
+      50ms  6.02% 66.27%       50ms  6.02%  runtime.usleep
+      30ms  3.61% 69.88%       30ms  3.61%  runtime.memclrNoHeapPointers
+      30ms  3.61% 73.49%       30ms  3.61%  runtime.memmove
+      30ms  3.61% 77.11%       30ms  3.61%  runtime.nanotime1
+      20ms  2.41% 79.52%       20ms  2.41%  bytes.(*Buffer).Write
+      20ms  2.41% 81.93%       20ms  2.41%  runtime.(*waitq).dequeueSudoG (inline)
+      20ms  2.41% 84.34%       20ms  2.41%  runtime.pageIndexOf (inline)
+      10ms  1.20% 85.54%       20ms  2.41%  github.com/gosnmp/gosnmp.oidToString
+      10ms  1.20% 86.75%       10ms  1.20%  net.(*netFD).Read
+      10ms  1.20% 87.95%       10ms  1.20%  runtime.(*bmap).setoverflow (inline)
+      10ms  1.20% 89.16%       10ms  1.20%  runtime.(*mspan).init (inline)
+      10ms  1.20% 90.36%      270ms 32.53%  runtime.gcDrain
+      10ms  1.20% 91.57%       30ms  3.61%  runtime.greyobject
+      10ms  1.20% 92.77%       20ms  2.41%  runtime.makeslice
+      10ms  1.20% 93.98%       10ms  1.20%  runtime.newBucket
+      10ms  1.20% 95.18%       10ms  1.20%  runtime.pthread_cond_timedwait_relative_np
+      10ms  1.20% 96.39%       10ms  1.20%  runtime.pthread_kill
+      10ms  1.20% 97.59%       10ms  1.20%  runtime.spanOf (inline)
+      10ms  1.20% 98.80%       10ms  1.20%  syscall.rawSyscall
+      10ms  1.20%   100%       10ms  1.20%  time.(*Time).addSec
+         0     0%   100%       10ms  1.20%  fmt.Fprintln
+         0     0%   100%       10ms  1.20%  fmt.Println (inline)
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/aggregator.(*BufferedAggregator).run
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/aggregator.(*checkSender).MonotonicCount
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/aggregator.(*checkSender).sendMetricSample
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Configure
+         0     0%   100%      180ms 21.69%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Run
+         0     0%   100%      180ms 21.69%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).processSnmpMetrics
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).monotonicCount (inline)
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).reportColumnMetrics
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).reportMetrics
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).sendMetric
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricTagConfig).getTags
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricsConfig).getTags
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*snmpSession).Connect
+         0     0%   100%      110ms 13.25%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*snmpSession).GetBulk
+         0     0%   100%      210ms 25.30%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.TestCheck_Profile
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.buildConfig
+         0     0%   100%      140ms 16.87%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOids
+         0     0%   100%      140ms 16.87%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOidsWithBatching
+         0     0%   100%      150ms 18.07%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchValues
+         0     0%   100%      110ms 13.25%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.getResults
+         0     0%   100%       10ms  1.20%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.getValueFromPDU
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.loadDefaultProfiles
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.loadProfiles
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.readProfileDefinition
+         0     0%   100%       20ms  2.41%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.resultToColumnValues
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.(*GoSNMP).Connect (inline)
+         0     0%   100%      110ms 13.25%  github.com/gosnmp/gosnmp.(*GoSNMP).GetBulk
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.(*GoSNMP).connect
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.(*GoSNMP).netConnect
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.(*GoSNMP).receive
+         0     0%   100%      110ms 13.25%  github.com/gosnmp/gosnmp.(*GoSNMP).send
+         0     0%   100%      110ms 13.25%  github.com/gosnmp/gosnmp.(*GoSNMP).sendOneRequest
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalPayload
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalResponse
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalVBL
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*SnmpPacket).marshalMsg
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*SnmpPacket).marshalPDU
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.(*SnmpPacket).marshalVBL
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.ToBigInt
+         0     0%   100%       20ms  2.41%  github.com/gosnmp/gosnmp.marshalVarbind
+         0     0%   100%       10ms  1.20%  github.com/gosnmp/gosnmp.uint64ToBigInt
+         0     0%   100%       60ms  7.23%  internal/poll.(*FD).Write
+         0     0%   100%       20ms  2.41%  io/ioutil.ReadFile
+         0     0%   100%       10ms  1.20%  math/big.(*Int).Add
+         0     0%   100%       10ms  1.20%  math/big.nat.add
+         0     0%   100%       10ms  1.20%  math/big.nat.make (inline)
+         0     0%   100%       10ms  1.20%  net.(*Dialer).DialContext
+         0     0%   100%       10ms  1.20%  net.(*conn).Read
+         0     0%   100%       50ms  6.02%  net.(*conn).Write
+         0     0%   100%       50ms  6.02%  net.(*netFD).Write
+         0     0%   100%       10ms  1.20%  net.(*sysDialer).dialSerial
+         0     0%   100%       10ms  1.20%  net.(*sysDialer).dialSingle
+         0     0%   100%       10ms  1.20%  net.(*sysDialer).dialUDP
+         0     0%   100%       10ms  1.20%  net.internetSocket
+         0     0%   100%       10ms  1.20%  net.socket
+         0     0%   100%       10ms  1.20%  net.sysSocket
+         0     0%   100%       10ms  1.20%  os.(*File).Write
+         0     0%   100%       10ms  1.20%  os.(*File).write (inline)
+         0     0%   100%       20ms  2.41%  os.Open (inline)
+         0     0%   100%       20ms  2.41%  os.OpenFile
+         0     0%   100%       20ms  2.41%  os.newFile
+         0     0%   100%       20ms  2.41%  os.openFileNolog
+         0     0%   100%       10ms  1.20%  runtime.(*gcControllerState).enlistWorker
+         0     0%   100%       40ms  4.82%  runtime.(*gcWork).balance
+         0     0%   100%       30ms  3.61%  runtime.(*mcache).nextFree
+         0     0%   100%       10ms  1.20%  runtime.(*mcache).prepareForSweep
+         0     0%   100%       30ms  3.61%  runtime.(*mcache).refill
+         0     0%   100%       10ms  1.20%  runtime.(*mcache).releaseAll
+         0     0%   100%       30ms  3.61%  runtime.(*mcentral).cacheSpan
+         0     0%   100%       10ms  1.20%  runtime.(*mcentral).freeSpan
+         0     0%   100%       30ms  3.61%  runtime.(*mcentral).grow
+         0     0%   100%       10ms  1.20%  runtime.(*mcentral).uncacheSpan
+         0     0%   100%       40ms  4.82%  runtime.(*mheap).alloc
+         0     0%   100%       70ms  8.43%  runtime.(*mheap).alloc.func1
+         0     0%   100%       70ms  8.43%  runtime.(*mheap).allocSpan
+         0     0%   100%       10ms  1.20%  runtime.(*mheap).freeSpan
+         0     0%   100%       10ms  1.20%  runtime.(*mheap).freeSpan.func1
+         0     0%   100%       10ms  1.20%  runtime.(*mspan).sweep
+         0     0%   100%       10ms  1.20%  runtime.acquirep
+         0     0%   100%       20ms  2.41%  runtime.checkTimers
+         0     0%   100%       10ms  1.20%  runtime.findObject
+         0     0%   100%      160ms 19.28%  runtime.findrunnable
+         0     0%   100%      260ms 31.33%  runtime.gcBgMarkWorker
+         0     0%   100%      270ms 32.53%  runtime.gcBgMarkWorker.func2
+         0     0%   100%       40ms  4.82%  runtime.goready.func1
+         0     0%   100%       20ms  2.41%  runtime.growslice
+         0     0%   100%       30ms  3.61%  runtime.handoff
+         0     0%   100%       10ms  1.20%  runtime.largeAlloc
+         0     0%   100%       10ms  1.20%  runtime.lock
+         0     0%   100%       10ms  1.20%  runtime.mProf_Malloc
+         0     0%   100%       10ms  1.20%  runtime.makeBucketArray
+         0     0%   100%       10ms  1.20%  runtime.makemap
+         0     0%   100%       50ms  6.02%  runtime.mallocgc
+         0     0%   100%       10ms  1.20%  runtime.mallocgc.func1
+         0     0%   100%       10ms  1.20%  runtime.mapassign_faststr
+         0     0%   100%      170ms 20.48%  runtime.mcall
+         0     0%   100%      170ms 20.48%  runtime.mstart
+         0     0%   100%       50ms  6.02%  runtime.mstart1
+         0     0%   100%       30ms  3.61%  runtime.nanotime (inline)
+         0     0%   100%       20ms  2.41%  runtime.newobject (partial-inline)
+         0     0%   100%       10ms  1.20%  runtime.newproc.func1
+         0     0%   100%       10ms  1.20%  runtime.newproc1
+         0     0%   100%       70ms  8.43%  runtime.notesleep
+         0     0%   100%       10ms  1.20%  runtime.notetsleep
+         0     0%   100%       10ms  1.20%  runtime.notetsleep_internal
+         0     0%   100%       60ms  7.23%  runtime.notewakeup
+         0     0%   100%       10ms  1.20%  runtime.osyield (inline)
+         0     0%   100%      170ms 20.48%  runtime.park_m
+         0     0%   100%      100ms 12.05%  runtime.pollWork
+         0     0%   100%       10ms  1.20%  runtime.preemptM (inline)
+         0     0%   100%       10ms  1.20%  runtime.preemptone
+         0     0%   100%       10ms  1.20%  runtime.profilealloc
+         0     0%   100%       40ms  4.82%  runtime.ready
+         0     0%   100%       10ms  1.20%  runtime.resetspinning
+         0     0%   100%       10ms  1.20%  runtime.runqgrab
+         0     0%   100%       10ms  1.20%  runtime.runqsteal
+         0     0%   100%      170ms 20.48%  runtime.schedule
+         0     0%   100%       20ms  2.41%  runtime.selectgo
+         0     0%   100%       80ms  9.64%  runtime.semasleep
+         0     0%   100%       60ms  7.23%  runtime.semawakeup
+         0     0%   100%       10ms  1.20%  runtime.signalM (inline)
+         0     0%   100%       60ms  7.23%  runtime.startm
+         0     0%   100%       10ms  1.20%  runtime.stkbucket
+         0     0%   100%       80ms  9.64%  runtime.stopm
+         0     0%   100%       60ms  7.23%  runtime.sysUsed (inline)
+         0     0%   100%       50ms  6.02%  runtime.sysmon
+         0     0%   100%      390ms 46.99%  runtime.systemstack
+         0     0%   100%       60ms  7.23%  runtime.wakep (inline)
+         0     0%   100%       20ms  2.41%  syscall.Fstat
+         0     0%   100%       10ms  1.20%  syscall.Socket
+         0     0%   100%       60ms  7.23%  syscall.Write (inline)
+         0     0%   100%       10ms  1.20%  syscall.socket
+         0     0%   100%       60ms  7.23%  syscall.write
+         0     0%   100%      210ms 25.30%  testing.tRunner
+         0     0%   100%       10ms  1.20%  time.Time.Add

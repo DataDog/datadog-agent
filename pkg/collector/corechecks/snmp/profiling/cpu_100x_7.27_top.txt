@@ -1,0 +1,159 @@
+§ go tool pprof profiling/cpu_7.27.prof
+Type: cpu
+Time: Mar 23, 2021 at 10:12am (CET)
+Duration: 28.09s, Total samples = 2.75s ( 9.79%)
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top500
+Showing nodes accounting for 2.54s, 92.36% of 2.75s total
+Dropped 91 nodes (cum <= 0.01s)
+      flat  flat%   sum%        cum   cum%
+     0.41s 14.91% 14.91%      0.41s 14.91%  runtime.madvise
+     0.25s  9.09% 24.00%      0.25s  9.09%  syscall.syscall
+     0.17s  6.18% 30.18%      0.17s  6.18%  runtime.memmove
+     0.16s  5.82% 36.00%      0.16s  5.82%  runtime.pthread_cond_signal
+     0.15s  5.45% 41.45%      0.15s  5.45%  runtime.memclrNoHeapPointers
+     0.13s  4.73% 46.18%      0.82s 29.82%  internal/fmtsort.Sort
+     0.13s  4.73% 50.91%      0.21s  7.64%  runtime.scanobject
+     0.10s  3.64% 54.55%      0.10s  3.64%  runtime.pthread_cond_wait
+     0.07s  2.55% 57.09%      0.07s  2.55%  runtime.(*gcSweepBuf).push
+     0.06s  2.18% 59.27%      0.13s  4.73%  internal/fmtsort.compare
+     0.06s  2.18% 61.45%      0.06s  2.18%  runtime.nanotime1
+     0.06s  2.18% 63.64%      0.06s  2.18%  runtime.stkbucket
+     0.05s  1.82% 65.45%      0.05s  1.82%  cmpbody
+     0.05s  1.82% 67.27%      0.18s  6.55%  internal/fmtsort.(*SortedMap).Less
+     0.05s  1.82% 69.09%      0.05s  1.82%  runtime.(*mspan).refillAllocCache
+     0.05s  1.82% 70.91%      0.08s  2.91%  runtime.netpoll
+     0.04s  1.45% 72.36%      0.04s  1.45%  runtime.usleep
+     0.03s  1.09% 73.45%      0.03s  1.09%  runtime.(*mspan).init (inline)
+     0.03s  1.09% 74.55%      0.06s  2.18%  runtime.greyobject
+     0.03s  1.09% 75.64%      0.03s  1.09%  runtime.kevent
+     0.03s  1.09% 76.73%      0.03s  1.09%  runtime.nextFreeFast (inline)
+     0.03s  1.09% 77.82%      0.03s  1.09%  runtime.write1
+     0.03s  1.09% 78.91%      0.08s  2.91%  strconv.genericFtoa
+     0.02s  0.73% 79.64%      0.04s  1.45%  fmt.(*fmt).fmtS
+     0.02s  0.73% 80.36%      0.05s  1.82%  fmt.(*pp).handleMethods
+     0.02s  0.73% 81.09%      1.09s 39.64%  fmt.(*pp).printValue
+     0.02s  0.73% 81.82%      0.02s  0.73%  reflect.flag.kind (inline)
+     0.02s  0.73% 82.55%      0.02s  0.73%  runtime.(*itabTableType).find
+     0.02s  0.73% 83.27%      0.02s  0.73%  runtime.findObject
+     0.02s  0.73% 84.00%      0.02s  0.73%  runtime.heapBitsSetType
+     0.02s  0.73% 84.73%      0.02s  0.73%  runtime.mapiterinit
+     0.02s  0.73% 85.45%      0.02s  0.73%  runtime.markBits.isMarked (inline)
+     0.02s  0.73% 86.18%      0.03s  1.09%  strconv.(*extFloat).ShortestDecimal
+     0.01s  0.36% 86.55%      0.09s  3.27%  fmt.(*fmt).fmtFloat
+     0.01s  0.36% 86.91%      0.02s  0.73%  fmt.(*fmt).padString
+     0.01s  0.36% 87.27%      0.10s  3.64%  fmt.(*pp).fmtFloat
+     0.01s  0.36% 87.64%      0.30s 10.91%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.getResults
+     0.01s  0.36% 88.00%      0.02s  0.73%  github.com/gosnmp/gosnmp.parseObjectIdentifier
+     0.01s  0.36% 88.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.(*parser).scalar
+     0.01s  0.36% 88.73%      0.21s  7.64%  reflect.(*MapIter).Value
+     0.01s  0.36% 89.09%      0.02s  0.73%  reflect.Value.Kind (inline)
+     0.01s  0.36% 89.45%      0.12s  4.36%  reflect.typedmemmove
+     0.01s  0.36% 89.82%      0.33s 12.00%  runtime.gcDrain
+     0.01s  0.36% 90.18%      0.03s  1.09%  runtime.getitab
+     0.01s  0.36% 90.55%      0.03s  1.09%  runtime.gosched_m
+     0.01s  0.36% 90.91%      0.02s  0.73%  runtime.lock
+     0.01s  0.36% 91.27%      0.44s 16.00%  runtime.mallocgc
+     0.01s  0.36% 91.64%      0.09s  3.27%  runtime.newobject
+     0.01s  0.36% 92.00%      0.11s  4.00%  runtime.typedmemmove
+     0.01s  0.36% 92.36%      0.02s  0.73%  sort.symMerge
+         0     0% 92.36%      1.09s 39.64%  fmt.(*pp).doPrintf
+         0     0% 92.36%      0.04s  1.45%  fmt.(*pp).fmtString
+         0     0% 92.36%      1.09s 39.64%  fmt.(*pp).printArg
+         0     0% 92.36%      1.12s 40.73%  fmt.Errorf
+         0     0% 92.36%      0.02s  0.73%  fmt.getField
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Configure
+         0     0% 92.36%      1.49s 54.18%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).Run
+         0     0% 92.36%      1.49s 54.18%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*Check).processSnmpMetrics
+         0     0% 92.36%      1.13s 41.09%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).reportColumnMetrics
+         0     0% 92.36%      1.13s 41.09%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*metricSender).reportMetrics
+         0     0% 92.36%      1.12s 40.73%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*resultValueStore).getColumnValues
+         0     0% 92.36%      0.29s 10.55%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.(*snmpSession).GetBulk
+         0     0% 92.36%      1.54s 56.00%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.TestCheck_Profile
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.buildConfig
+         0     0% 92.36%      0.33s 12.00%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOids
+         0     0% 92.36%      0.34s 12.36%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchColumnOidsWithBatching
+         0     0% 92.36%      0.35s 12.73%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.fetchValues
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.loadDefaultProfiles
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.loadProfiles
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.readProfileDefinition
+         0     0% 92.36%      0.05s  1.82%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.recursivelyExpandBaseProfiles
+         0     0% 92.36%      0.02s  0.73%  github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp.resultToColumnValues
+         0     0% 92.36%      0.29s 10.55%  github.com/gosnmp/gosnmp.(*GoSNMP).GetBulk
+         0     0% 92.36%      0.28s 10.18%  github.com/gosnmp/gosnmp.(*GoSNMP).send
+         0     0% 92.36%      0.28s 10.18%  github.com/gosnmp/gosnmp.(*GoSNMP).sendOneRequest
+         0     0% 92.36%      0.03s  1.09%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalPayload
+         0     0% 92.36%      0.03s  1.09%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalResponse
+         0     0% 92.36%      0.03s  1.09%  github.com/gosnmp/gosnmp.(*GoSNMP).unmarshalVBL
+         0     0% 92.36%      0.02s  0.73%  github.com/gosnmp/gosnmp.(*SnmpPacket).marshalMsg
+         0     0% 92.36%      0.03s  1.09%  github.com/gosnmp/gosnmp.parseRawField
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.(*parser).document
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.(*parser).mapping
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.(*parser).parse
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.(*parser).sequence
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.Unmarshal (inline)
+         0     0% 92.36%      0.02s  0.73%  gopkg.in/yaml%2ev2.unmarshal
+         0     0% 92.36%      0.22s  8.00%  internal/poll.(*FD).Write
+         0     0% 92.36%      0.03s  1.09%  io/ioutil.ReadFile
+         0     0% 92.36%      0.22s  8.00%  net.(*conn).Write
+         0     0% 92.36%      0.22s  8.00%  net.(*netFD).Write
+         0     0% 92.36%      0.03s  1.09%  os.Open (inline)
+         0     0% 92.36%      0.03s  1.09%  os.OpenFile
+         0     0% 92.36%      0.03s  1.09%  os.openFileNolog
+         0     0% 92.36%      0.06s  2.18%  reflect.(*MapIter).Key
+         0     0% 92.36%      0.06s  2.18%  reflect.(*MapIter).Next
+         0     0% 92.36%      0.03s  1.09%  reflect.Value.MapRange
+         0     0% 92.36%      0.25s  9.09%  reflect.copyVal
+         0     0% 92.36%      0.05s  1.82%  reflect.mapiterinit
+         0     0% 92.36%      0.13s  4.73%  reflect.unsafe_New
+         0     0% 92.36%      0.07s  2.55%  runtime.(*gcWork).balance
+         0     0% 92.36%      0.30s 10.91%  runtime.(*mcache).nextFree
+         0     0% 92.36%      0.29s 10.55%  runtime.(*mcache).refill
+         0     0% 92.36%      0.29s 10.55%  runtime.(*mcentral).cacheSpan
+         0     0% 92.36%      0.24s  8.73%  runtime.(*mcentral).grow
+         0     0% 92.36%      0.24s  8.73%  runtime.(*mheap).alloc
+         0     0% 92.36%      0.51s 18.55%  runtime.(*mheap).alloc.func1
+         0     0% 92.36%      0.52s 18.91%  runtime.(*mheap).allocSpan
+         0     0% 92.36%      0.03s  1.09%  runtime.assertE2I2
+         0     0% 92.36%      0.03s  1.09%  runtime.checkTimers
+         0     0% 92.36%      0.25s  9.09%  runtime.findrunnable
+         0     0% 92.36%      0.31s 11.27%  runtime.gcBgMarkWorker
+         0     0% 92.36%      0.33s 12.00%  runtime.gcBgMarkWorker.func2
+         0     0% 92.36%      0.13s  4.73%  runtime.goready.func1
+         0     0% 92.36%      0.02s  0.73%  runtime.goschedImpl
+         0     0% 92.36%      0.02s  0.73%  runtime.growslice
+         0     0% 92.36%      0.06s  2.18%  runtime.handoff
+         0     0% 92.36%      0.06s  2.18%  runtime.mProf_Malloc
+         0     0% 92.36%      0.02s  0.73%  runtime.makeBucketArray
+         0     0% 92.36%      0.03s  1.09%  runtime.makemap
+         0     0% 92.36%      0.16s  5.82%  runtime.makeslice
+         0     0% 92.36%      0.28s 10.18%  runtime.mcall
+         0     0% 92.36%      0.61s 22.18%  runtime.mstart
+         0     0% 92.36%      0.04s  1.45%  runtime.mstart1
+         0     0% 92.36%      0.06s  2.18%  runtime.nanotime (inline)
+         0     0% 92.36%      0.03s  1.09%  runtime.netpollBreak
+         0     0% 92.36%      0.10s  3.64%  runtime.notesleep
+         0     0% 92.36%      0.17s  6.18%  runtime.notewakeup
+         0     0% 92.36%      0.25s  9.09%  runtime.park_m
+         0     0% 92.36%      0.03s  1.09%  runtime.pollWork
+         0     0% 92.36%      0.06s  2.18%  runtime.profilealloc
+         0     0% 92.36%      0.13s  4.73%  runtime.ready
+         0     0% 92.36%      0.26s  9.45%  runtime.schedule
+         0     0% 92.36%      0.10s  3.64%  runtime.semasleep
+         0     0% 92.36%      0.17s  6.18%  runtime.semawakeup
+         0     0% 92.36%      0.04s  1.45%  runtime.slicebytetostring
+         0     0% 92.36%      0.15s  5.45%  runtime.startm
+         0     0% 92.36%      0.10s  3.64%  runtime.stopm
+         0     0% 92.36%      0.41s 14.91%  runtime.sysUsed (inline)
+         0     0% 92.36%      0.04s  1.45%  runtime.sysmon
+         0     0% 92.36%      0.98s 35.64%  runtime.systemstack
+         0     0% 92.36%      0.14s  5.09%  runtime.wakep (inline)
+         0     0% 92.36%      0.03s  1.09%  runtime.write (inline)
+         0     0% 92.36%      0.19s  6.91%  sort.Stable
+         0     0% 92.36%      0.17s  6.18%  sort.insertionSort
+         0     0% 92.36%      0.19s  6.91%  sort.stable
+         0     0% 92.36%      0.08s  2.91%  strconv.AppendFloat (inline)
+         0     0% 92.36%      0.03s  1.09%  syscall.Open
+         0     0% 92.36%      0.22s  8.00%  syscall.Write (inline)
+         0     0% 92.36%      0.22s  8.00%  syscall.write
+         0     0% 92.36%      1.54s 56.00%  testing.tRunner
