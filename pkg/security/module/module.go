@@ -194,6 +194,7 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	m.cancelFnc()
 
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
@@ -267,8 +268,7 @@ func (m *Module) metricsSender() {
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 			if m.config.RuntimeEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentRuntimeRunning, 1, tags, 1)
-			}
-			if m.config.FIMEnabled {
+			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentFIMRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
@@ -326,7 +326,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
-	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 5, Burst: 10}
+	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 0, Burst: 0}
 
 	m := &Module{
 		config:         cfg,

@@ -31,13 +31,15 @@ func (td *testDrive) Root() string {
 	return td.mountPoint
 }
 
-func (td *testDrive) Path(filename string) (string, unsafe.Pointer, error) {
-	filename = path.Join(td.mountPoint, filename)
-	filenamePtr, err := syscall.BytePtrFromString(filename)
+func (td *testDrive) Path(filename ...string) (string, unsafe.Pointer, error) {
+	components := []string{td.mountPoint}
+	components = append(components, filename...)
+	path := path.Join(components...)
+	filenamePtr, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return "", nil, err
 	}
-	return filename, unsafe.Pointer(filenamePtr), nil
+	return path, unsafe.Pointer(filenamePtr), nil
 }
 
 func newTestDrive(fsType string, mountOpts []string) (*testDrive, error) {

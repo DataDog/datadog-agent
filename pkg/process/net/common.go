@@ -157,10 +157,10 @@ func newSystemProbe() *RemoteSysProbeUtil {
 }
 
 func (r *RemoteSysProbeUtil) init() error {
-	if resp, err := r.httpClient.Get(statusURL); err != nil {
+	if resp, err := r.httpClient.Get(statsURL); err != nil {
 		return err
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statusURL, resp.StatusCode)
+		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil
 }
