@@ -67,8 +67,8 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
-		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
-		log.Infof("DNS Stats Collection has been enabled.")
+		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, cfg.MaxDNSStats)
+		log.Infof("DNS Stats Collection has been enabled. Maximum number of stats objects: %d", cfg.MaxDNSStats)
 		if cfg.CollectDNSDomains {
 			log.Infof("DNS domain collection has been enabled")
 		}
@@ -128,6 +128,11 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
+	if s.statKeeper != nil {
+		numStats, droppedStats := s.statKeeper.GetNumStats()
+		stats["num_stats"] = int64(numStats)
+		stats["dropped_stats"] = int64(droppedStats)
+	}
 	return stats
 }
 
