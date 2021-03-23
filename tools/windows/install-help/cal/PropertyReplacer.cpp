@@ -171,7 +171,7 @@ std::wstring replace_yaml_properties(
         
         if (propValue)
         {
-            if (PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever)))
+            if (!PropertyReplacer::match(input, std::get<Regex>(prop)).replace_with(std::get<Replacement>(prop)(*propValue, propertyRetriever)))
             {
                 if (failedToReplace != nullptr)
                 {
@@ -184,26 +184,44 @@ std::wstring replace_yaml_properties(
     if (processEnabledProp)
     {
         std::wstring processEnabled = to_bool(*processEnabledProp) ? L"true" : L"disabled";
-        PropertyReplacer::match(input, L"process_config:")
-            .then(L"^[ #]*enabled:.*")
-            // Note that this is a string, and should be between ""
-            .replace_with(L"  enabled: \"" + processEnabled + L"\"");
+        if (!PropertyReplacer::match(input, L"process_config:")
+                 .then(L"^[ #]*enabled:.*")
+                 // Note that this is a string, and should be between ""
+                 .replace_with(L"  enabled: \"" + processEnabled + L"\""))
+        {
+            if (failedToReplace != nullptr)
+            {
+                failedToReplace->push_back(L"PROCESS_ENABLED");
+            }
+        }
     }
 
     auto apmEnabled = propertyRetriever(L"APM_ENABLED");
     if (apmEnabled)
     {
-        PropertyReplacer::match(input, L"apm_config:")
-            .then(L"^[ #]*enabled:.*")
-            .replace_with(L"  enabled: " + *apmEnabled);
+        if (!PropertyReplacer::match(input, L"apm_config:")
+                 .then(L"^[ #]*enabled:.*")
+                 .replace_with(L"  enabled: " + *apmEnabled))
+        {
+            if (failedToReplace != nullptr)
+            {
+                failedToReplace->push_back(L"APM_ENABLED");
+            }
+        }
     }
 
     auto traceUrl = propertyRetriever(L"TRACE_DD_URL");
     if (traceUrl)
     {
-        PropertyReplacer::match(input, L"apm_config:")
-            .then(L"^[ #]*apm_dd_url:.*")
-            .replace_with(format_simple_value(L"  apm_dd_url: ")(*traceUrl, propertyRetriever));
+        if (!PropertyReplacer::match(input, L"apm_config:")
+                 .then(L"^[ #]*apm_dd_url:.*")
+                 .replace_with(format_simple_value(L"  apm_dd_url: ")(*traceUrl, propertyRetriever)))
+        {
+            if (failedToReplace != nullptr)
+            {
+                failedToReplace->push_back(L"TRACE_DD_URL");
+            }
+        }
     }
 
     return input;

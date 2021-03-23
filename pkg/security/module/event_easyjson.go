@@ -49,8 +49,6 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule(in *jle
 			}
 		case "title":
 			out.Title = string(in.String())
-		case "msg":
-			out.Msg = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -78,11 +76,6 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityModule(out *jw
 		const prefix string = ",\"title\":"
 		out.RawString(prefix)
 		out.String(string(in.Title))
-	}
-	if in.Msg != "" {
-		const prefix string = ",\"msg\":"
-		out.RawString(prefix)
-		out.String(string(in.Msg))
 	}
 	out.RawByte('}')
 }

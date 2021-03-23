@@ -318,8 +318,8 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 }
 
 func scrubArgsEnvs(process *model.Process, e *Event) ([]string, []string) {
-	args := process.Args
-	envs := process.Envs
+	args := process.ArgsArray
+	envs := process.EnvsArray
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
@@ -451,11 +451,10 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ctx := eval.Context{}
-	ctx.SetObject(e.GetPointer())
+	ctx := eval.NewContext(e.GetPointer())
 
 	it := &model.ProcessAncestorsIterator{}
-	ptr := it.Front(&ctx)
+	ptr := it.Front(ctx)
 
 	first := true
 	for ptr != nil {

@@ -465,24 +465,43 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	{{$Mock := .Mock}}
 	{{range $Name, $Field := .Fields}}
 	{{$EvaluatorType := "eval.StringEvaluator"}}
+	{{if $Field.Iterator}}
+		{{$EvaluatorType = "eval.StringArrayEvaluator"}}
+	{{end}}
 	{{if eq $Field.ReturnType "int"}}
-	{{$EvaluatorType = "eval.IntEvaluator"}}
+		{{$EvaluatorType = "eval.IntEvaluator"}}
+		{{if $Field.Iterator}}
+			{{$EvaluatorType = "eval.IntArrayEvaluator"}}
+		{{end}}
 	{{else if eq $Field.ReturnType "bool"}}
-	{{$EvaluatorType = "eval.BoolEvaluator"}}
+		{{$EvaluatorType = "eval.BoolEvaluator"}}
+		{{if $Field.Iterator}}
+			{{$EvaluatorType = "eval.BoolArrayEvaluator"}}
+		{{end}}
 	{{end}}
 
 	case "{{$Name}}":
 		return &{{$EvaluatorType}}{
-			EvalFnc: func(ctx *eval.Context) {{$Field.ReturnType}} {
-				{{if $Field.Iterator}}
-					var result {{$Field.ReturnType}}
+			{{- if $Field.Iterator}}
+				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
+					if ptr := ctx.Cache[field]; ptr != nil {
+						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
+							return *result
+						}
+					}
 
-					reg := ctx.Registers[regID]
-					if reg.Value != nil {
+					var results []{{$Field.ReturnType}}
+
+					iterator := &{{$Field.Iterator.ReturnType}}{}
+
+					value := iterator.Front(ctx)
+					for value != nil {
+						var result {{$Field.ReturnType}}
+
 						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := (*{{$Field.Iterator.OrigType}})(reg.Value)
+							element := (*{{$Field.Iterator.OrigType}})(value)
 						{{else}}
-							elementPtr := (*{{$Field.Iterator.OrigType}})(reg.Value)
+							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
 							element := *elementPtr
 						{{end}}
 
@@ -499,22 +518,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{else}}
 							result = {{$Return}}
 						{{end}}
+
+						results = append(results, result)
+
+						value = iterator.Next()
 					}
 
-					return result
-				{{else}}
+					ctx.Cache[field] = unsafe.Pointer(&results)
+
+					return results
+				},
+			{{- else}}
+				EvalFnc: func(ctx *eval.Context) {{$Field.ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{if and (ne $Field.Handler "") (not $Mock)}}
 						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
 					{{end}}
 
-					{{if eq $Field.ReturnType "int"}}
+					{{- if eq $Field.ReturnType "int"}}
 						return int({{$Return}})
-					{{else}}
+					{{- else}}
 						return {{$Return}}
-					{{end}}
-				{{end}}
-			},
+					{{end -}}
+				},
+			{{end -}}
 			Field: field,
 			{{if $Field.Iterator}}
 				Weight: eval.IteratorWeight,
@@ -546,8 +573,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{if $Field.Iterator}}
 			var values []{{$Field.ReturnType}}
 
-			ctx := &eval.Context{}
-			ctx.SetObject(unsafe.Pointer(e))
+			ctx := eval.NewContext(unsafe.Pointer(e))
 
 			iterator := &{{$Field.Iterator.ReturnType}}{}
 			ptr := iterator.Front(ctx)

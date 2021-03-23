@@ -37,8 +37,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	}
 	evaluator, _ := f.model.GetEvaluator(field, "")
 
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	value := evaluator.(eval.Evaluator).Eval(ctx)
 

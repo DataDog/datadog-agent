@@ -160,6 +160,7 @@ class TempDir:
         print("created tempdir: {name}".format(name=self.fname))
         return self.fname
 
-    def __exit__(self):
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
         print("deleting tempdir: {name}".format(name=self.fname))
         shutil.rmtree(self.fname)
