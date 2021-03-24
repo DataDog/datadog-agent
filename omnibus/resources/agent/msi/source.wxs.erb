@@ -431,7 +431,7 @@
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
       <!-- always stop the services, regardless of what's going on -->
-      <Custom Action='StopDDServices' After='StopServices'> </Custom>
+      <Custom Action='StopDDServices' Before='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
            is from the perspective of the installer being run; on upgrade the
@@ -439,10 +439,10 @@
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
       <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
-      <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
+      <Custom Action='FinalizeInstall' Before='StartServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
+      <Custom Action='StartDDServices' After='StartServices'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->

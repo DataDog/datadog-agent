@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	defaultWorkers           = 2
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
+	tagSeparator             = ","
 )
 
 func init() {
@@ -415,6 +417,19 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "tags":
+		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	}
 	return []byte{}, ErrNotSupported
+}
+
+func convertToCommaSepTags(tags []string) string {
+	normalizedTags := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		// Convert comma `,` to `_` since comma is used as separator.
+		// `,` is not an allowed character for tags and will be converted to `_` by backend anyway,
+		// so, converting `,` to `_` shouldn't have any impact.
+		normalizedTags = append(normalizedTags, strings.ReplaceAll(tag, tagSeparator, "_"))
+	}
+	return strings.Join(normalizedTags, tagSeparator)
 }

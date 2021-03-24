@@ -69,7 +69,7 @@ type Config struct {
 	CustomSensitiveWords []string
 }
 
-// IsEnabled returns true if any feature is enabled
+// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }

@@ -49,8 +49,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/sketches-go v1.0.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210209165213-28eb1cc35a8d
-	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
-	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
+	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.15
@@ -122,7 +121,6 @@ require (
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
 	github.com/mailru/easyjson v0.7.6
 	github.com/mdlayher/netlink v1.1.0
-	github.com/mholt/archiver v3.1.1+incompatible
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
 	github.com/moby/sys/mountinfo v0.4.0
@@ -134,7 +132,6 @@ require (
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/philhofer/fwd v1.0.0 // indirect
-	github.com/pierrec/lz4 v2.5.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.5.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da

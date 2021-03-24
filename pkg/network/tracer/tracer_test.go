@@ -1755,7 +1755,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(googlePublicDNSIPv4), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
