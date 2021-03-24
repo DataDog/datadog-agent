@@ -345,13 +345,18 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	nodesMessages, clusterMessage, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID, o.apiClient)
+	nodesMessages, clusterModel, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		o.Warnf("Unable to process node list: %s", err) //nolint:errcheck
 		return
 	}
-
 	sendNodesMetadata(sender, nodesList, nodesMessages, o.clusterID)
+
+	clusterMessage, clusterErr := extractClusterMessage(o.orchestratorConfig, o.clusterID, o.apiClient, groupID, clusterModel)
+	if clusterErr != nil {
+		_ = o.Warnf("Could not collect orchestrator cluster information: %s, will still send nodes information", err)
+		return
+	}
 	sendClusterMetadata(sender, clusterMessage, o.clusterID)
 }
 
@@ -368,21 +373,12 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
-	var stats orchestrator.CheckStats
-	if clusterMessage != nil {
-		stats = orchestrator.CheckStats{
-			CacheHits: 0,
-			CacheMiss: 1,
-			NodeType:  orchestrator.K8sCluster,
-		}
-		sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
-	} else {
-		stats = orchestrator.CheckStats{
-			CacheHits: 1,
-			CacheMiss: 0,
-			NodeType:  orchestrator.K8sCluster,
-		}
+	stats := orchestrator.CheckStats{
+		CacheHits: 1,
+		CacheMiss: 0,
+		NodeType:  orchestrator.K8sCluster,
 	}
+	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 

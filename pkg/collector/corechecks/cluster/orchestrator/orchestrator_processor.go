@@ -10,6 +10,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -278,10 +278,9 @@ func getKubeSystemCreationTimeStamp(coreClient corev1client.CoreV1Interface) (me
 
 // processNodesList process a nodes list into nodes process messages and cluster process message.
 // error can only be returned if cluster resource are being collected as it needs information from the apiserver.
-func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient) ([]model.MessageBody, model.MessageBody, error) {
+func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, model.Cluster, error) {
 	start := time.Now()
 	nodeMsgs := make([]*model.Node, 0, len(nodesList))
-	nodeCount := int32(len(nodesList))
 	kubeletVersions := map[string]int32{}
 	podCap := uint32(0)
 	podAllocatable := uint32(0)
@@ -332,10 +331,10 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 	}
 
 	chunks := chunkNodes(nodeMsgs, groupSize, cfg.MaxPerMessage)
-	messages := make([]model.MessageBody, 0, groupSize)
+	nodeMessages := make([]model.MessageBody, 0, groupSize)
 
 	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorNode{
+		nodeMessages = append(nodeMessages, &model.CollectorNode{
 			ClusterName: cfg.KubeClusterName,
 			ClusterId:   clusterID,
 			GroupId:     groupID,
@@ -345,20 +344,20 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
-	clusterMessage, err := extractClusterMessage(cfg, clusterID, client, groupID, nodeCount, kubeletVersions, podCap, podAllocatable, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap)
-	if err != nil {
-		log.Warn("Could not collect orchestrator cluster information, will still send collected nodes information")
-		return messages, nil, nil
-	}
-	if orchestrator.SkipKubernetesResource(types.UID(clusterID), clusterMessage.Cluster.ResourceVersion, orchestrator.K8sCluster) {
-		return messages, nil, nil
-	}
-
 	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
-	return messages, clusterMessage, nil
+	return nodeMessages, model.Cluster{
+		KubeletVersions:   kubeletVersions,
+		PodCapacity:       podCap,
+		PodAllocatable:    podAllocatable,
+		MemoryAllocatable: memoryAllocatable,
+		MemoryCapacity:    memoryCap,
+		CpuAllocatable:    cpuAllocatable,
+		CpuCapacity:       cpuCap,
+		NodeCount:         int32(len(nodesList)),
+	}, nil
 }
 
-func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient, groupID, nodeCount int32, kubeletVersions map[string]int32, podCap, podAllocatable uint32, memoryAllocatable, memoryCap, cpuAllocatable, cpuCap uint64) (*model.CollectorCluster, error) {
+func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient, groupID int32, cluster model.Cluster) (*model.CollectorCluster, error) {
 
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
 	if err != nil {
@@ -372,32 +371,33 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 		return nil, err
 	}
 
-	cluster := &model.Cluster{
-		NodeCount:         nodeCount,
-		KubeletVersions:   kubeletVersions,
-		ApiServerVersions: map[string]int32{apiVersion.String(): 1},
-		PodCapacity:       podCap,
-		PodAllocatable:    podAllocatable,
-		MemoryAllocatable: memoryAllocatable,
-		MemoryCapacity:    memoryCap,
-		CpuAllocatable:    cpuAllocatable,
-		CpuCapacity:       cpuCap,
-	}
+	cluster.ApiServerVersions = map[string]int32{apiVersion.String(): 1}
 
 	if !kubeSystemCreationTimestamp.IsZero() {
 		cluster.CreationTimestamp = kubeSystemCreationTimestamp.Unix()
 	}
 
-	if err := fillClusterResourceVersion(cluster); err != nil {
+	if err := fillClusterResourceVersion(&cluster); err != nil {
 		log.Warnf("Failed to compute cluster resource version: %s", err.Error())
 		return nil, err
 	}
+
+	if orchestrator.SkipKubernetesResource(types.UID(clusterID), cluster.ResourceVersion, orchestrator.K8sCluster) {
+		stats := orchestrator.CheckStats{
+			CacheHits: 1,
+			CacheMiss: 0,
+			NodeType:  orchestrator.K8sCluster,
+		}
+		orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
+		return nil, nil
+	}
+
 
 	clusterMessage := &model.CollectorCluster{
 		ClusterName: cfg.KubeClusterName,
 		ClusterId:   clusterID,
 		GroupId:     groupID,
-		Cluster:     cluster,
+		Cluster:     &cluster,
 		Tags:        cfg.ExtraTags,
 	}
 	return clusterMessage, nil
