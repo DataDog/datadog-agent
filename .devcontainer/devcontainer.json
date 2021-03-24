@@ -66,6 +66,11 @@
             "venv": true,
             ".vendor-new": true,
             ".metals": true
-        }
+        },
+        "todo-tree.highlights.defaultHighlight": {
+            "icon": "alert",
+            "type": "text",
+            "foreground": "red",
+        },
     }
 }
