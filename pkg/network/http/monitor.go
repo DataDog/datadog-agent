@@ -28,7 +28,7 @@ type Monitor struct {
 	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
-	pollRequests chan chan map[Key]map[string]RequestStats
+	pollRequests chan chan map[Key]RequestStats
 	statkeeper   *httpStatKeeper
 
 	// termination
@@ -82,7 +82,7 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		perfMap:       pm,
 		perfHandler:   h,
 		telemetry:     newTelemetry(),
-		pollRequests:  make(chan chan map[Key]map[string]RequestStats),
+		pollRequests:  make(chan chan map[Key]RequestStats),
 		closeFilterFn: closeFilterFn,
 		statkeeper:    statkeeper,
 	}, nil
@@ -139,8 +139,8 @@ func (m *Monitor) Start() error {
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
-// [source, dest tuple] -> [request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	if m == nil {
 		return nil
 	}
@@ -151,7 +151,7 @@ func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
 		return nil
 	}
 
-	reply := make(chan map[Key]map[string]RequestStats, 1)
+	reply := make(chan map[Key]RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
 	return <-reply

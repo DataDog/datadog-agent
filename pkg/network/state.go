@@ -36,7 +36,7 @@ type State interface {
 		latestTime uint64,
 		latestConns []ConnectionStats,
 		dns map[DNSKey]map[string]DNSStats,
-		http map[http.Key]map[string]http.RequestStats,
+		http map[http.Key]http.RequestStats,
 	) []ConnectionStats
 
 	// StoreClosedConnection stores a new closed connection
@@ -83,7 +83,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	dnsStats          map[DNSKey]map[string]DNSStats
-	httpStatsDelta    map[http.Key]map[string]http.RequestStats
+	httpStatsDelta    map[http.Key]http.RequestStats
 }
 
 type networkState struct {
@@ -139,7 +139,7 @@ func (ns *networkState) Connections(
 	latestTime uint64,
 	latestConns []ConnectionStats,
 	dnsStats map[DNSKey]map[string]DNSStats,
-	httpStats map[http.Key]map[string]http.RequestStats,
+	httpStats map[http.Key]http.RequestStats,
 ) []ConnectionStats {
 	ns.Lock()
 	defer ns.Unlock()
@@ -270,16 +270,34 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 // addHTTPStats fills in the HTTP stats for each connection
 func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
+	// Auxilliary index so we can go from http.Key to ConnectionStat object
+	reverseIndex := make(map[http.Key]int, len(conns))
 	for i := range conns {
 		conn := &conns[i]
-		key := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort)
-		if _, ok := ns.clients[id].httpStatsDelta[key]; ok {
-			conn.HTTPStatsByPath = ns.clients[id].httpStatsDelta[key]
+		key := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
+		reverseIndex[key] = i
+	}
+
+	// [TODO] Here we re-aggregate HTTP transactions per connection to keep compatibility
+	// with the current agent-payload model, but we should follow up on this in a subsequent PR
+	allDeltas := ns.clients[id].httpStatsDelta
+	for key, delta := range allDeltas {
+		path := key.Path
+		key.Path = ""
+		i, ok := reverseIndex[key]
+		if !ok {
+			continue
 		}
+
+		conn := &conns[i]
+		if conn.HTTPStatsByPath == nil {
+			conn.HTTPStatsByPath = make(map[string]http.RequestStats)
+		}
+		conn.HTTPStatsByPath[path] = delta
 	}
 
 	// flush the HTTP stats from client state
-	ns.clients[id].httpStatsDelta = make(map[http.Key]map[string]http.RequestStats)
+	ns.clients[id].httpStatsDelta = make(map[http.Key]http.RequestStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -366,33 +384,25 @@ func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]DNSStats) {
 }
 
 // storeHTTPStats stores latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(stats map[http.Key]map[string]http.RequestStats) {
-	for key, statsByPath := range stats {
+func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) {
+	for key, stats := range allStats {
 		for _, client := range ns.clients {
-			// If we've seen HTTP stats for this key already, let's combine the two
-			if prevStatsByPath, ok := client.httpStatsDelta[key]; ok {
-				client.httpStatsDelta[key] = combineHTTPStats(prevStatsByPath, statsByPath)
-			} else if len(client.httpStatsDelta) >= ns.maxHTTPStats {
+			prevStats, ok := client.httpStatsDelta[key]
+			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
 				ns.telemetry.httpStatsDropped++
 				continue
-			} else {
-				client.httpStatsDelta[key] = statsByPath
 			}
-		}
-	}
-}
 
-// combineHTTPStats combines 2 maps of http stats by adding new stats to the old stats map
-func combineHTTPStats(prevStatsByPath map[string]http.RequestStats, newStatsByPath map[string]http.RequestStats) map[string]http.RequestStats {
-	for path, newStats := range newStatsByPath {
-		if prevStats, ok := prevStatsByPath[path]; ok {
-			prevStats.CombineWith(newStats)
-			prevStatsByPath[path] = prevStats
-		} else {
-			prevStatsByPath[path] = newStats
+			// TODO: we'll always create a new DDSketch when a new (client,
+			// key) is addded and this is a pretty expensive operation. We could
+			// instead simply be using the existing stats.latencies object, but we could
+			// be inadvertently mutating the same object in the context of
+			// multiple clients. As an optimization we can re-use the DDSKetch object
+			// for the "main client" and simply skip it's creation for the "debug" client
+			prevStats.CombineWith(stats)
+			client.httpStatsDelta[key] = prevStats
 		}
 	}
-	return prevStatsByPath
 }
 
 // newClient creates a new client and returns true if the given client already exists
@@ -406,7 +416,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
 		dnsStats:          map[DNSKey]map[string]DNSStats{},
-		httpStatsDelta:    map[http.Key]map[string]http.RequestStats{},
+		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false

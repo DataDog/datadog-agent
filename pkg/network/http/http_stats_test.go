@@ -17,15 +17,15 @@ func TestAddRequest(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		if i == 3 {
-			assert.Equal(t, 3, stats[i].count)
-			assert.Equal(t, 3.0, stats[i].latencies.GetCount())
+			assert.Equal(t, 3, stats[i].Count)
+			assert.Equal(t, 3.0, stats[i].Latencies.GetCount())
 
-			verifyQuantile(t, stats[i].latencies, 0.0, 10.0)  // min item
-			verifyQuantile(t, stats[i].latencies, 0.99, 15.0) // median
-			verifyQuantile(t, stats[i].latencies, 1.0, 20.0)  // max item
+			verifyQuantile(t, stats[i].Latencies, 0.0, 10.0)  // min item
+			verifyQuantile(t, stats[i].Latencies, 0.99, 15.0) // median
+			verifyQuantile(t, stats[i].Latencies, 1.0, 20.0)  // max item
 		} else {
-			assert.Equal(t, 0, stats[i].count)
-			assert.True(t, stats[i].latencies == nil)
+			assert.Equal(t, 0, stats[i].Count)
+			assert.Nil(t, stats[i].Latencies)
 		}
 	}
 }
@@ -33,8 +33,8 @@ func TestAddRequest(t *testing.T) {
 func TestCombineWith(t *testing.T) {
 	var stats RequestStats
 	for i := 0; i < 5; i++ {
-		assert.Equal(t, 0, stats[i].count)
-		assert.True(t, stats[i].latencies == nil)
+		assert.Equal(t, 0, stats[i].Count)
+		assert.True(t, stats[i].Latencies == nil)
 	}
 
 	var stats2, stats3, stats4 RequestStats
@@ -48,13 +48,13 @@ func TestCombineWith(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		if i == 3 {
-			assert.Equal(t, 3, stats[i].count)
-			verifyQuantile(t, stats[i].latencies, 0.0, 10.0)
-			verifyQuantile(t, stats[i].latencies, 0.5, 15.0)
-			verifyQuantile(t, stats[i].latencies, 1.0, 20.0)
+			assert.Equal(t, 3, stats[i].Count)
+			verifyQuantile(t, stats[i].Latencies, 0.0, 10.0)
+			verifyQuantile(t, stats[i].Latencies, 0.5, 15.0)
+			verifyQuantile(t, stats[i].Latencies, 1.0, 20.0)
 		} else {
-			assert.Equal(t, 0, stats[i].count, "eita deu ruim %v", i)
-			assert.True(t, stats[i].latencies == nil)
+			assert.Equal(t, 0, stats[i].Count, "eita deu ruim %v", i)
+			assert.True(t, stats[i].Latencies == nil)
 		}
 	}
 }
