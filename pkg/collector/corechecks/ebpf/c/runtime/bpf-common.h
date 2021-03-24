@@ -4,7 +4,7 @@
 #include <linux/bpf.h>
 #include <linux/cgroup.h>
 
-static inline __attribute__((always_inline)) int get_cgroup_name(char* buf, size_t sz) {
+static __always_inline int get_cgroup_name(char* buf, size_t sz) {
     memset(buf, 0, sz);
 
     struct task_struct* cur_tsk = (struct task_struct*)bpf_get_current_task();
@@ -29,7 +29,7 @@ static inline __attribute__((always_inline)) int get_cgroup_name(char* buf, size
     if (bpf_probe_read(&name, sizeof(name), &kn->name) < 0)
         return -1;
 
-    if (bpf_probe_read_str(buf, sz, name) < 0)
+    if (bpf_probe_read_str(buf, sz, (void*) name) < 0)
         return -1;
 
     return 0;
