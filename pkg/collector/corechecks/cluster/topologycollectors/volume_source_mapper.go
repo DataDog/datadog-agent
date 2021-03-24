@@ -8,9 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// VolumeSourceMapper maps a VolumeSource to an external Volume topology component externalID
 type VolumeSourceMapper func(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error)
 
-var allVolumeSourceMappers []VolumeSourceMapper = []VolumeSourceMapper{
+var allVolumeSourceMappers = []VolumeSourceMapper{
 	createAwsEbsVolume,
 	createAzureDiskVolume,
 	createAzureFileVolume,
@@ -87,7 +88,7 @@ func createCephFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 
 	for idx < len(volume.CephFS.Monitors) {
 		identifiers = append(identifiers, vc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(idx)...))
-		idx += 1
+		idx++
 	}
 
 	return vc.createStackStateVolumeComponent(pod, volume, extID, identifiers)

@@ -8,9 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// PersistentVolumeSourceMapper maps a PersistentVolumeSource to an external Volume topology component
 type PersistentVolumeSourceMapper func(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error)
 
-var allPersistentVolumeSourceMappers []PersistentVolumeSourceMapper = []PersistentVolumeSourceMapper{
+var allPersistentVolumeSourceMappers = []PersistentVolumeSourceMapper{
 	mapAwsEbsPersistentVolume,
 	mapAzureDiskPersistentVolume,
 	mapAzureFilePersistentVolume,
@@ -82,7 +83,7 @@ func mapCephFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 
 	for idx < len(volume.Spec.CephFS.Monitors) {
 		identifiers = append(identifiers, pc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(idx)...))
-		idx += 1
+		idx++
 	}
 
 	return pc.createStackStateVolumeComponent(volume, extID, identifiers)
