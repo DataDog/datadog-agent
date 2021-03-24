@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+// allCapabilities hold all the supported filtering capabilities
 var allCapabilities = make(map[eval.EventType]Capabilities)
 
 // Capability represents the type of values we are able to filter kernel side
@@ -89,6 +90,14 @@ func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 			FieldValueTypes: eval.ScalarValueType,
 		},
 	}
+}
+
+func GetCapababilities() map[eval.EventType]rules.FieldCapabilities {
+	capabilities := make(map[eval.EventType]rules.FieldCapabilities)
+	for eventType, eventCapabilities := range allCapabilities {
+		capabilities[eventType] = eventCapabilities.GetFieldCapabilities()
+	}
+	return capabilities
 }
 
 func init() {
