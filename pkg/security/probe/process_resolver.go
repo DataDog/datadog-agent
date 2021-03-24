@@ -221,7 +221,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.FileFields = *info
 		entry.Process.PathnameStr = pathnameStr
 		entry.Process.BasenameStr = path.Base(pathnameStr)
-		entry.ContainerID = string(containerID)
+		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 	}
@@ -381,17 +381,24 @@ func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry
 	return entry.ContainerPath
 }
 
-func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEntry, data []byte, unmarshalContext bool) (int, error) {
-	read, err := entry.UnmarshalBinary(data, unmarshalContext)
+func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
+	// unmarshal container ID first
+	id, err := model.UnmarshalString(data, 64)
 	if err != nil {
-		return read, err
+		return 0, err
+	}
+	entry.ContainerID = id
+
+	read, err := entry.UnmarshalBinary(data[64:])
+	if err != nil {
+		return read + 64, err
 	}
 
 	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
 
-	return read, err
+	return read + 64, err
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -412,8 +419,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	entry := NewProcessCacheEntry()
 	data := append(entryb, cookieb...)
 
-	_, err = p.unmarshalProcessCacheEntry(entry, data, true)
-	if err != nil {
+	if _, err = p.unmarshalFromKernelMaps(entry, data); err != nil {
 		return nil
 	}
 	entry.Pid = pid
@@ -424,11 +430,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
-	if err != nil {
-		return nil
+	if entry.ContainerID == "" {
+		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+		if err == nil {
+			entry.ContainerID = string(containerID)
+		}
 	}
-	entry.ContainerID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)

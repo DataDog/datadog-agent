@@ -128,7 +128,17 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
 	return e.RootStr
 }
 
-// ResolveContainerID resolves the container ID of the event
+// ResolveProcessContainerID resolves the container ID of the event
+func (ev *Event) ResolveProcessContainerID(e *model.Process) string {
+	if len(e.ContainerID) == 0 {
+		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+			e.ContainerID = entry.ContainerID
+		}
+	}
+	return e.ContainerID
+}
+
+// ResolveProcessContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
@@ -150,17 +160,18 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
-	entry.ContainerID = ev.ContainerContext.ID
 	entry.ProcessContext = model.ProcessContext{
 		Pid: ev.ProcessContext.Pid,
 		Tid: ev.ProcessContext.Tid,
 	}
-	ev.processCacheEntry = entry
 
-	n, err := ev.resolvers.ProcessResolver.unmarshalProcessCacheEntry(ev.processCacheEntry, data, false)
+	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
 		return n, err
 	}
+	entry.Process.ContainerID = ev.ContainerContext.ID
+
+	ev.processCacheEntry = entry
 
 	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
 	// resolvers, and the data was parsed in the ProcessCacheEntry structure. We couldn't introduce resolvers for these

@@ -530,6 +530,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "exec.cookie":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1504,6 +1514,37 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.container.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]string)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []string
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.ContainerID
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -2431,6 +2472,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ProcessContext.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.cookie":
@@ -3953,6 +4004,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.comm",
 
+		"exec.container.id",
+
 		"exec.cookie",
 
 		"exec.egid",
@@ -4135,6 +4188,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.comm",
 
+		"process.ancestors.container.id",
+
 		"process.ancestors.cookie",
 
 		"process.ancestors.egid",
@@ -4198,6 +4253,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.cap_permitted",
 
 		"process.comm",
+
+		"process.container.id",
 
 		"process.cookie",
 
@@ -4672,6 +4729,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ResolveProcessComm(&e.Exec.Process), nil
 
+	case "exec.container.id":
+
+		return e.Exec.Process.ContainerID, nil
+
 	case "exec.cookie":
 
 		return int(e.ResolveProcessCookie(&e.Exec.Process)), nil
@@ -5082,6 +5143,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.container.id":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.ContainerID
 
 			values = append(values, result)
 
@@ -5739,6 +5822,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.comm":
 
 		return e.ResolveProcessComm(&e.ProcessContext.Process), nil
+
+	case "process.container.id":
+
+		return e.ProcessContext.Process.ContainerID, nil
 
 	case "process.cookie":
 
@@ -6454,6 +6541,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.comm":
 		return "exec", nil
 
+	case "exec.container.id":
+		return "exec", nil
+
 	case "exec.cookie":
 		return "exec", nil
 
@@ -6727,6 +6817,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.comm":
 		return "*", nil
 
+	case "process.ancestors.container.id":
+		return "*", nil
+
 	case "process.ancestors.cookie":
 		return "*", nil
 
@@ -6821,6 +6914,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.comm":
+		return "*", nil
+
+	case "process.container.id":
 		return "*", nil
 
 	case "process.cookie":
@@ -7441,6 +7537,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.container.id":
+
+		return reflect.String, nil
+
 	case "exec.cookie":
 
 		return reflect.Int, nil
@@ -7805,6 +7905,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.container.id":
+
+		return reflect.String, nil
+
 	case "process.ancestors.cookie":
 
 		return reflect.Int, nil
@@ -7930,6 +8034,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.comm":
+
+		return reflect.String, nil
+
+	case "process.container.id":
 
 		return reflect.String, nil
 
@@ -8984,6 +9092,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "exec.container.id":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
+		}
+		e.Exec.Process.ContainerID = str
+
+		return nil
+
 	case "exec.cookie":
 
 		var ok bool
@@ -9935,6 +10054,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.ancestors.container.id":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = str
+
+		return nil
+
 	case "process.ancestors.cookie":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -10382,6 +10516,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
 		}
 		e.ProcessContext.Process.Comm = str
+
+		return nil
+
+	case "process.container.id":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerID"}
+		}
+		e.ProcessContext.Process.ContainerID = str
 
 		return nil
 

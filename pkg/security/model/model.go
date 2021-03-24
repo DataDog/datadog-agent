@@ -222,16 +222,15 @@ func (e *Process) GetPathResolutionError() string {
 // Process represents a process
 type Process struct {
 	// proc_cache_t
-	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
-
-	ContainerID string `field:"-"`
 
 	PathnameStr         string `field:"file.path,ResolveProcessInode"`
 	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
 	BasenameStr         string `field:"file.name,ResolveProcessBasename"`
 	Filesystem          string `field:"file.filesystem,ResolveProcessFilesystem"`
 	PathResolutionError error  `field:"-"`
+
+	ContainerID string `field:"container.id" handler:"ResolveProcessContainerID"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
@@ -410,7 +409,7 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
-// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
+// ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
 }

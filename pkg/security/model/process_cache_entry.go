@@ -77,23 +77,3 @@ func (pc *ProcessCacheEntry) String() string {
 	}
 	return s
 }
-
-// UnmarshalBinary reads the binary representation of itself
-func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool) (int, error) {
-	var read int
-
-	if unmarshalContext {
-		offset, err := pc.UnmarshalContainerID(data)
-		if err != nil {
-			return 0, err
-		}
-		read += offset
-	}
-
-	offset, err := pc.Process.UnmarshalBinary(data[read:])
-	if err != nil {
-		return 0, err
-	}
-
-	return read + offset, nil
-}

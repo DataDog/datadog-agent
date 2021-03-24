@@ -11,16 +11,22 @@ import (
 	"bytes"
 	"time"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
-
-// ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
-var ErrNotEnoughData = errors.New("not enough data")
 
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
+	id, err := UnmarshalString(data, 64)
+	if err != nil {
+		return 0, err
+	}
+	e.ID = id
+
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -54,22 +60,6 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.UID = ByteOrder.Uint32(data[0:4])
 	e.GID = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
-		return 0, ErrNotEnoughData
-	}
-
-	idRaw := [64]byte{}
-	SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
-	e.ID = string(bytes.Trim(idRaw[:], "\x00"))
-	if len(e.ID) > 1 && len(e.ID) < 64 {
-		e.ID = ""
-	}
-
-	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -131,22 +121,6 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.CapEffective = ByteOrder.Uint64(data[24:32])
 	e.CapPermitted = ByteOrder.Uint64(data[32:40])
 	return 40, nil
-}
-
-// UnmarshalContainerID unmarshal container ID
-func (e *Process) UnmarshalContainerID(data []byte) (int, error) {
-	if len(data) < 64 {
-		return 0, ErrNotEnoughData
-	}
-
-	idRaw := [64]byte{}
-	SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
-	e.ContainerID = string(bytes.Trim(idRaw[:], "\x00"))
-	if len(e.ContainerID) > 1 && len(e.ContainerID) < 64 {
-		e.ContainerID = ""
-	}
-
-	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
