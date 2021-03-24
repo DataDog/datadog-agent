@@ -301,8 +301,22 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns Approvers for the given event type and the fields
-func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+// GetApprovers returns all approvers
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
+	approvers := make(map[eval.EventType]Approvers)
+	for _, eventType := range rs.GetEventTypes() {
+		eventApprovers, err := rs.GetEventApprovers(eventType, fieldCaps[eventType])
+		if err != nil {
+			continue
+		}
+		approvers[eventType] = eventApprovers
+	}
+
+	return approvers, nil
+}
+
+// GetEventApprovers returns approvers for the given event type and the fields
+func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, ErrNoEventTypeBucket{EventType: eventType}

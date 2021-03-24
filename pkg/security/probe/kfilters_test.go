@@ -153,7 +153,8 @@ func TestIsParentDiscarder(t *testing.T) {
 
 func TestApproverAncestors(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
-	rs := rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, log.DatadogAgentLogger{}))
+	m := &model.Model{}
+	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, log.DatadogAgentLogger{}))
 	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
@@ -161,11 +162,29 @@ func TestApproverAncestors(t *testing.T) {
 		t.Fatal("no capabilities for open")
 	}
 
-	approvers, err := rs.GetApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+}
+
+func TestApproverAncestors2(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+	m := &model.Model{}
+	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, log.DatadogAgentLogger{}))
+	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
