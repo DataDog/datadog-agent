@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -34,6 +35,10 @@ const (
 	defaultTimeout    = 5 * time.Minute
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
+)
+
+var (
+	errTaggerStreamNotStarted = errors.New("tagger stream not started")
 )
 
 // Tagger holds a connection to a remote tagger, processes incoming events from
@@ -95,6 +100,10 @@ func (t *Tagger) Init() error {
 
 	err = t.startTaggerStream(defaultTimeout)
 	if err != nil {
+		// tagger stopped before being connected
+		if err == errTaggerStreamNotStarted {
+			return nil
+		}
 		return err
 	}
 
@@ -289,7 +298,7 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 	return backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
-			return nil
+			return errTaggerStreamNotStarted
 		default:
 		}
 
