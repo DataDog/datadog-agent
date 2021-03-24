@@ -8,20 +8,24 @@ package topologycollectors
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/stretchr/testify/assert"
 	coreV1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"testing"
-	"time"
 )
 
 func TestPersistentVolumeCollector(t *testing.T) {
 
 	componentChannel := make(chan *topology.Component)
 	defer close(componentChannel)
+
+	relationChannel := make(chan *topology.Relation)
+	defer close(relationChannel)
 
 	creationTime = v1.Time{Time: time.Now().Add(-1 * time.Hour)}
 	pathType = coreV1.HostPathFileOrCreate
@@ -36,7 +40,7 @@ func TestPersistentVolumeCollector(t *testing.T) {
 		Type: &pathType,
 	}
 
-	cmc := NewPersistentVolumeCollector(componentChannel, NewTestCommonClusterCollector(MockPersistentVolumeAPICollectorClient{}))
+	cmc := NewPersistentVolumeCollector(componentChannel, relationChannel, NewTestCommonClusterCollector(MockPersistentVolumeAPICollectorClient{}))
 	expectedCollectorName := "Persistent Volume Collector"
 	RunCollectorTest(t, cmc, expectedCollectorName)
 

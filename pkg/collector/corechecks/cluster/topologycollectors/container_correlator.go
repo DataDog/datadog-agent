@@ -4,9 +4,10 @@ package topologycollectors
 
 import (
 	"fmt"
+
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -74,13 +75,6 @@ func (cc *ContainerCorrelator) CorrelateFunction() error {
 		// map container to exposed ports
 		containerPorts := make(map[string]ContainerPort)
 		for _, c := range containerCorrelation.Containers {
-
-			// map relations between the container and the volume
-			for _, mount := range c.VolumeMounts {
-				containerExternalID := cc.buildContainerExternalID(pod.Namespace, pod.Name, c.Name)
-				volumeExternalID := cc.buildVolumeExternalID(pod.Namespace, mount.Name)
-				cc.RelationChan <- cc.containerToVolumeStackStateRelation(containerExternalID, volumeExternalID, mount)
-			}
 
 			for _, port := range c.Ports {
 				containerPorts[fmt.Sprintf("%s_%s", c.Image, c.Name)] = ContainerPort{
@@ -183,25 +177,6 @@ func (cc *ContainerCorrelator) podToContainerStackStateRelation(podExternalID, c
 	relation := cc.CreateRelation(podExternalID, containerExternalID, "encloses")
 
 	log.Tracef("Created StackState pod -> container relation %s->%s", relation.SourceID, relation.TargetID)
-
-	return relation
-}
-
-// Create a StackState relation from a Kubernetes / OpenShift Container to a Volume
-func (cc *ContainerCorrelator) containerToVolumeStackStateRelation(containerExternalID, volumeExternalID string, mount v1.VolumeMount) *topology.Relation {
-	log.Tracef("Mapping kubernetes container to volume relation: %s -> %s", containerExternalID, volumeExternalID)
-
-	data := map[string]interface{}{
-		"name":             mount.Name,
-		"readOnly":         mount.ReadOnly,
-		"mountPath":        mount.MountPath,
-		"subPath":          mount.SubPath,
-		"mountPropagation": mount.MountPropagation,
-	}
-
-	relation := cc.CreateRelationData(containerExternalID, volumeExternalID, "mounts", data)
-
-	log.Tracef("Created StackState container -> volume relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }
