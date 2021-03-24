@@ -84,5 +84,6 @@ services:
       STS_COLLECT_SWARM_TOPOLOGY: "true"
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
+      STS_DOCKER_SWARM: "true"
     depends_on:
       - receiver

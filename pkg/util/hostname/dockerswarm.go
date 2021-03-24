@@ -3,21 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2019 Datadog, Inc.
 
-// +build kubeapiserver
-// +build !kubelet
-
-// This provider is only useful for the cluser-agent, that does
-// not have kubelet compiled it. Disable it for the node-agent
-// that already has the kubelet provider available.
+// +build docker
 
 package hostname
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 )
 
 func init() {
-	if config.IsKubernetes() == true {
-		RegisterHostnameProvider("kube_apiserver", apiserver.HostnameProvider)
+	if config.IsDockerSwarm() == true {
+		RegisterHostnameProvider("dockerswarm", func() (string, error) {
+			return clustername.GetClusterName(), nil
+		})
 	}
 }

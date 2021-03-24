@@ -678,6 +678,13 @@ func IsKubernetes() bool {
 	return false
 }
 
+func IsDockerSwarm() bool {
+	if os.Getenv("STS_DOCKER_SWARM") != "" {
+		return true
+	}
+	return false
+}
+
 // SetOverrides provides an externally accessible method for
 // overriding config variables.
 // This method must be called before Load() to be effective.

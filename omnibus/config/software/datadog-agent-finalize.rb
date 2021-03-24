@@ -37,6 +37,8 @@ build do
             delete "#{conf_dir}/disk.d"
             # docker isn't supported by windows
             delete "#{conf_dir}/docker.d"
+            # docker swarm isn't supported by windows
+            delete "#{conf_dir}/docker_swarm.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
