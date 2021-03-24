@@ -120,7 +120,7 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 
 func (c *APIClient) connect() error {
 	var err error
-	if config.IsKubernetes(){
+	if config.IsKubernetes() == false{
 		log.Debugf("Skipping API Client connect because it's not running in Kubernetes mode..")
 		return nil
 	}
