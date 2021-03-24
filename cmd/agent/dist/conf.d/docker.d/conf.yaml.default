@@ -68,12 +68,6 @@ instances:
     #
     # collect_container_topology: true
 
-    # Collect docker swarm topology
-    # Collects all docker swarm topology, currently only docker swarm services.
-    # Defaults to true.
-    #
-    # collect_swarm_topology: true
-
     # Allows ad-hoc spike filtering in some rare cases when the system happen to report incorrect metrics.
     # This will drop points if the computed rate is higher than the cap value
     # capped_metrics:

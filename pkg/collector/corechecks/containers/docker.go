@@ -49,7 +49,6 @@ type DockerConfig struct {
 	CollectVolumeCount       bool   `yaml:"collect_volume_count"`
 	// sts
 	CollectContainerTopology bool `yaml:"collect_container_topology"`
-	CollectSwarmTopology     bool `yaml:"collect_swarm_topology"`
 	// sts
 	Tags              []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
 	CollectEvent      bool               `yaml:"collect_events"`
@@ -67,7 +66,6 @@ func (c *DockerConfig) Parse(data []byte) error {
 	// default values
 	c.CollectEvent = true
 	c.CollectContainerTopology = true
-	c.CollectSwarmTopology = true
 	c.CollectContainerSizeFreq = 5
 
 	if err := yaml.Unmarshal(data, c); err != nil {

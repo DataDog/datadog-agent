@@ -32,7 +32,6 @@ collect_events: true
 collect_container_size: true
 collect_images_stats: true
 collect_exit_codes: true
-collect_swarm_topology: false
 tags:
   - instanceTag:MustBeHere
 `

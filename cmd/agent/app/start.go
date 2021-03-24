@@ -41,7 +41,6 @@ import (
 
 	// register core checks
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster"
-	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/dockerswarm"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/containers"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/embed"
 	_ "github.com/StackVista/stackstate-agent/pkg/collector/corechecks/net"
