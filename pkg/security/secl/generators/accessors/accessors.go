@@ -484,11 +484,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &{{$EvaluatorType}}{
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
+					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
 						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
 							return *result
 						}
 					}
+					{{end -}}
 
 					var results []{{$Field.ReturnType}}
 
@@ -524,7 +526,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						value = iterator.Next()
 					}
 
+					{{- if not $Mock }}
 					ctx.Cache[field] = unsafe.Pointer(&results)
+					{{end}}
 
 					return results
 				},
