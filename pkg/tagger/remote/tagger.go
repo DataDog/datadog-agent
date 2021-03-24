@@ -266,6 +266,8 @@ func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
 				StandardTags:                entity.StandardTags,
 			},
 		})
+
+		fmt.Printf("QQQQQQQQQQQQqqq: %+v\n", convertEntityID(entity.Id))
 	}
 
 	// if the tagger was not ready by this point, it means an error

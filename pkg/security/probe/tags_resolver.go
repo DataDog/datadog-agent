@@ -50,7 +50,7 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		<-ctx.Done
+		<-ctx.Done()
 		t.tagger.Stop()
 	}()
 
@@ -58,8 +58,8 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 }
 
 // ResolverTags returns the tags for the given id
-func (t *TagsResolver) Resolve(entityID string) []string {
-	tags, _ := t.tagger.Standard(entityID)
+func (t *TagsResolver) Resolve(id string) []string {
+	tags, _ := t.tagger.Tag("container_id://"+id, collectors.LowCardinality)
 	return tags
 }
 

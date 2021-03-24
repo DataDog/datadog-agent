@@ -137,9 +137,9 @@ func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (ev *Event) ResolveContainerTags(e *model.ContainerContext) string {
-	if len(e.Tags) == 0 && e.ID == "" {
-		e.Tags, _ = ev.resolvers.TagsResolver.Resolve(e.ID)
+func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
+	if len(e.Tags) == 0 && e.ID != "" {
+		e.Tags = ev.resolvers.TagsResolver.Resolve(e.ID)
 	}
 	return e.Tags
 }

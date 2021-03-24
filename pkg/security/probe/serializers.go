@@ -483,8 +483,11 @@ func newEventSerializer(event *Event) *EventSerializer {
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
-	if event.ResolveContainerID(&event.ContainerContext) != "" {
-		s.ContainerContextSerializer = newContainerContextSerializer(&event.ContainerContext, event)
+	if id := event.ResolveContainerID(&event.ContainerContext); id != "" {
+		s.ContainerContextSerializer = &ContainerContextSerializer{
+			ID:   id,
+			Tags: event.ResolveContainerTags(&event.ContainerContext),
+		}
 	}
 
 	s.UserContextSerializer.User = s.ProcessContextSerializer.User
