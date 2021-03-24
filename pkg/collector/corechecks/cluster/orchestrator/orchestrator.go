@@ -373,6 +373,10 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
+	if clusterMessage == nil {
+		return
+	}
+
 	stats := orchestrator.CheckStats{
 		CacheHits: 1,
 		CacheMiss: 0,

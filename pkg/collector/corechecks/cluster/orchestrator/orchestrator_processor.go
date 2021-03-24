@@ -10,7 +10,6 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -391,7 +391,6 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 		orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 		return nil, nil
 	}
-
 
 	clusterMessage := &model.CollectorCluster{
 		ClusterName: cfg.KubeClusterName,
