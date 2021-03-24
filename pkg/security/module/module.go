@@ -156,15 +156,35 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, agentLogger.DatadogAgentLogger{}))
+	ruleSetOpts := rules.NewOptsWithParams(
+		model.SECLConstants,
+		sprobe.SupportedDiscarders,
+		m.getEventTypeEnabled(),
+		sprobe.AllCustomRuleIDs(),
+		model.SECLLegacyAttributes,
+		agentLogger.DatadogAgentLogger{})
+
+	ruleSet := m.probe.NewRuleSet(ruleSetOpts)
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
 	}
 
+	model := &sprobe.Model{}
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, ruleSetOpts)
+	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	if loadErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies: %+v", loadErr.Error())
+	}
+
+	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		return err
+	}
+
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet)
+	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
 		return err
 	}
