@@ -98,6 +98,7 @@ func getSnooper(
 			CollectLocalDNS:   collectLocalDNS,
 			DNSTimeout:        dnsTimeout,
 			CollectDNSDomains: collectDNSDomains,
+			MaxDNSStats:       10000,
 		},
 		packetSrc,
 	)
