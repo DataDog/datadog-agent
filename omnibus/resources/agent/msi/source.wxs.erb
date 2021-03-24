@@ -683,6 +683,7 @@
             PYVER=[PYVER];
             HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED];
             NPM=[NPM];
+            EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION];
             ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
