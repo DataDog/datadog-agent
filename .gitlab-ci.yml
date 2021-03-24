@@ -580,6 +580,7 @@ molecule_tests_integrations:
 molecule_tests_swarm:
   stage: acceptance
   needs:
+    - pre_release_cluster_agent_image
     - pre_release_image
   dependencies: []
   <<: *molecule_base

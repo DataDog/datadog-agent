@@ -678,6 +678,7 @@ func IsKubernetes() bool {
 	return false
 }
 
+// IsDockerSwarm returns whether the Agent is running on a Swarm cluster
 func IsDockerSwarm() bool {
 	if os.Getenv("STS_DOCKER_SWARM") != "" {
 		return true
