@@ -129,11 +129,7 @@ func (t *Tagger) Stop() error {
 func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]string, error) {
 	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality))
 
-	entity, err := t.store.getEntity(entityID)
-	if err != nil {
-		return nil, err
-	}
-
+	entity := t.store.getEntity(entityID)
 	if entity != nil {
 		return entity.GetTags(cardinality), nil
 	}
@@ -152,9 +148,9 @@ func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinali
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	entity, err := t.store.getEntity(entityID)
-	if err != nil {
-		return nil, err
+	entity := t.store.getEntity(entityID)
+	if entity == nil {
+		return []string{}, nil
 	}
 
 	return entity.StandardTags, nil
