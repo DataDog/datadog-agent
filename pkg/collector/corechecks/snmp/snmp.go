@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -141,4 +142,28 @@ func snmpFactory() check.Check {
 
 func init() {
 	core.RegisterCheck(snmpCheckName, snmpFactory)
+}
+
+
+// PrintMemUsage outputs the current, total and OS memory being used. As well as the number
+// of garage collection cycles completed.
+func PrintMemUsage(msg string, prevAlloc uint64) uint64 {
+	//runtime.GC()
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("%20s", msg)
+	fmt.Printf("\tAlloc = %v KiB", bToKb(int64(m.Alloc)))
+	fmt.Printf("\tDiff Alloc = %v KiB", bToKb(int64(m.Alloc) - int64(prevAlloc)))
+	fmt.Printf("\tTotalAlloc = %v KiB", bToKb(int64(m.TotalAlloc)))
+	fmt.Printf("\tSys = %v KiB", bToKb(int64(m.Sys)))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+
+	return m.Alloc
+}
+
+func bToKb(b int64) int64 {
+	return b / 1024
 }

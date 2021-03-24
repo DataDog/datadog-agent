@@ -865,28 +865,83 @@ func TestCheck_Profile(t *testing.T) {
 
 	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
 
-	check := snmpFactory()
+	m := PrintMemUsage("init", 0)
+	m = PrintMemUsage("Before check1", m)
+	m = PrintMemUsage("Before check1b", m)
+	m = PrintMemUsage("Before check1c", m)
 
+	check := snmpFactory()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 127.0.0.1
 port: 1161
 community_string: cisco-nexus
+profile: cisco-nexus
 `)
-
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	m = PrintMemUsage("Check run check1", m)
+	check.Run()
+	m = PrintMemUsage("After check1", m)
+	m = PrintMemUsage("Before check2", m)
 
-	fmt.Println("hello world")
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go checkRun(t, check, wg)
-	wg.Wait()
+	check2 := snmpFactory()
+	// language=yaml
+	rawInstanceConfig2 := []byte(`
+ip_address: 127.0.0.2
+port: 1161
+community_string: cisco-nexus
+profile: cisco-nexus
+`)
+	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+	m = PrintMemUsage("After check2", m)
+	m = PrintMemUsage("Before check3", m)
+
+	check3 := snmpFactory()
+	// language=yaml
+	rawInstanceConfig3 := []byte(`
+ip_address: 127.0.0.3
+port: 1161
+community_string: cisco-nexus
+profile: cisco-nexus
+`)
+	err = check3.Configure(rawInstanceConfig3, []byte(``), "test")
+	assert.Nil(t, err)
+	m = PrintMemUsage("After check3", m)
+	m = PrintMemUsage("Before check4", m)
+
+	check4 := snmpFactory()
+	// language=yaml
+	rawInstanceConfig4 := []byte(`
+ip_address: 127.0.0.4
+port: 1161
+community_string: cisco-nexus
+profile: cisco-nexus
+`)
+	err = check4.Configure(rawInstanceConfig4, []byte(``), "test")
+	assert.Nil(t, err)
+	m = PrintMemUsage("After check4", m)
+
+	fmt.Printf("%p\n", check)
+	fmt.Printf("%p\n", check2)
+	fmt.Printf("%p\n", check3)
+	fmt.Printf("%p\n", check4)
+
+	//check.Run()
+	//
+	//m = PrintMemUsage(m)
+
+	//fmt.Println("hello world")
+	//var wg sync.WaitGroup
+	//wg.Add(1)
+	//go checkRun(t, check, wg)
+	//wg.Wait()
 }
 
 func checkRun(t *testing.T, check check.Check, wg sync.WaitGroup) {
 	defer wg.Done()
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 1; i++ {
 		fmt.Println("check run #", i)
 		err := check.Run()
 		assert.Nil(t, err)
