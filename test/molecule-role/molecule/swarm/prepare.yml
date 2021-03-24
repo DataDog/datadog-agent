@@ -88,11 +88,6 @@
         src: files/docker-compose.yml
         dest: /home/ubuntu/
         mode: preserve
-    - name: Copy docker swarm check config file
-      copy:
-        src: files/conf.yaml
-        dest: /home/ubuntu/conf.yaml
-        mode: preserve
     - name: Create StacSktate Agent Service on Master
       command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
       args:
