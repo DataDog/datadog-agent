@@ -182,8 +182,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, OOMKillCheckName)
 	}
 
-	if config.Datadog.GetBool("runtime_security_config.enabled") {
-		log.Info("runtime_security_config.enabled=true, enabling system-probe")
+	if config.Datadog.GetBool("runtime_security_config.enabled") || config.Datadog.GetBool("runtime_security_config.fim_enabled") {
+		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		a.EnableSystemProbe = true
 	}
 

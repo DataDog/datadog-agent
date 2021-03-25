@@ -89,6 +89,13 @@ func detectFeatures() {
 }
 
 func detectContainerFeatures() {
+	if IsKubernetes() {
+		detectedFeatures[Kubernetes] = struct{}{}
+		if Datadog.GetBool("orchestrator_explorer.enabled") {
+			detectedFeatures[KubeOrchestratorExplorer] = struct{}{}
+		}
+	}
+
 	// Docker
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		detectedFeatures[Docker] = struct{}{}
@@ -121,16 +128,15 @@ func detectContainerFeatures() {
 	}
 
 	if criSocket != "" {
-		detectedFeatures[Cri] = struct{}{}
+		// Containerd support was historically meant for K8S
+		// However, containerd is now used standalone elsewhere.
+		// TODO: Consider having a dedicated setting for containerd standalone
+		if IsKubernetes() {
+			detectedFeatures[Cri] = struct{}{}
+		}
+
 		if strings.Contains(criSocket, "containerd") {
 			detectedFeatures[Containerd] = struct{}{}
-		}
-	}
-
-	if IsKubernetes() {
-		detectedFeatures[Kubernetes] = struct{}{}
-		if Datadog.GetBool("orchestrator_explorer.enabled") {
-			detectedFeatures[KubeOrchestratorExplorer] = struct{}{}
 		}
 	}
 
