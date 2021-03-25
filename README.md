@@ -78,7 +78,7 @@ on setting up a windows dev environment, refer to [Windows Dev Env](devenv).
 
 ## Testing
 
-Run tests using `invoke test`. During development add the `--skip-linters` option to skip straight to the tests. 
+Run tests using `invoke test`. During development, add the `--skip-linters` option to skip straight to the tests. 
 ```
 invoke test --targets=./pkg/aggregator/... --skip-linters
 ```
