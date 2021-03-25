@@ -1,119 +1,76 @@
-data "aws_ami" "app_server_ami" {
-  most_recent = true
-  owners      = ["801119661308"] # Amazon
+resource "aws_security_group" "winrmopen" {
+  name        = "gitlab-agent6-winrm-open"
+  description = "Access for troubleshouting purposes"
+  vpc_id      = data.aws_vpc.default.id
 
-  filter {
-    name = "name"
-    values = ["Windows_Server-2016-English-Full-Base-*"]
-    #    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+  ingress {
+    from_port       = 5985
+    to_port         = 5985
+    protocol        = "tcp"
+    cidr_blocks     = [var.support_network]
   }
 
-  filter {
-    name = "virtualization-type"
-    values = ["hvm"]
+  ingress {
+    from_port       = 5986
+    to_port         = 5986
+    protocol        = "tcp"
+    cidr_blocks     = [var.support_network]
   }
 
-  filter {
-    name = "root-device-type"
-    values = ["ebs"]
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    cidr_blocks     = [var.support_network]
+  }
+
+  ingress {
+    from_port       = 3389
+    to_port         = 3389
+    protocol        = "tcp"
+    cidr_blocks     = [var.support_network]
+  }
+
+  egress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
+    cidr_blocks     = ["0.0.0.0/0"]
   }
 
 }
 
 
-resource "aws_instance" "gitlab-runner" {
+resource "aws_instance" "windows_runner" {
+  ami                         = data.aws_ami.ami.id
+  associate_public_ip_address = "true"
+  availability_zone           = data.aws_availability_zone.default.id
 
-  ami = "${data.aws_ami.app_server_ami.image_id}"
-  instance_type = "t3.large"
-  security_groups = ["winrms-open"]
+  credit_specification {
+    cpu_credits = "standard"
+  }
 
-  key_name = "${var.KEY_NAME}"
+  instance_type           = "t3.large"
+  key_name                = var.keyname
 
   root_block_device {
-    volume_size = "200"
-    volume_type = "standard"
+    delete_on_termination = "true"
+    encrypted             = "false"
+#    iops                  = "100"
+    volume_size           = "150"
+    volume_type           = "gp2"
   }
 
-  tags {
-    Name = "Windows Gitlab Runner ${terraform.workspace}"
-  }
-  user_data = <<EOF
-<powershell>
-net user ${var.INSTANCE_USERNAME} '${var.INSTANCE_PASSWORD}' /add /y
-net localgroup administrators ${var.INSTANCE_USERNAME} /add
-net accounts /maxpwage:unlimited
+  subnet_id         = data.aws_subnet.default.id
 
-# Disable Complex Passwords
-# Reference: http://vlasenko.org/2011/04/27/removing-password-complexity-requirements-from-windows-server-2008-core/
-$seccfg = [IO.Path]::GetTempFileName()
-secedit /export /cfg $seccfg
-(Get-Content $seccfg) | Foreach-Object {$_ -replace "PasswordComplexity\s*=\s*1", "PasswordComplexity=0"} | Set-Content $seccfg
-secedit /configure /db $env:windir\security\new.sdb /cfg $seccfg /areas SECURITYPOLICY
-del $seccfg
-Write-Host "Complex Passwords have been disabled." -ForegroundColor Green
-
-# Disable Internet Explorer Security
-# http://stackoverflow.com/a/9368555/2067999
-$AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
-$UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
-Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value 0
-Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value 0
-
-Set-ExecutionPolicy Bypass -Scope Process -Force;
-iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/bootstrap.ps1'))
-
-</powershell>
-EOF
-
-provisioner "file" {
-  source = "deployed.txt"
-  destination = "C:/deployed.txt"
-}
-
-connection {
-  type = "winrm"
-  timeout = "6m"
-  user = "${var.INSTANCE_USERNAME}"
-  password = "${var.INSTANCE_PASSWORD}"
-  https = true
-  insecure = true
-  port = 5986
+  tags = {
+    Environment = "gitlab"
+    Name        = "STS BACKWARD AGENT6 win builder"
   }
 
-}
+  tenancy                = "default"
+  vpc_security_group_ids = [aws_security_group.winrmopen.id]
 
+  user_data = file("cloud-init.txt")
 
-locals {
-  Makefile = <<MAKEFILE
-check:
-	ansible windows -i hosts -m win_ping
-
-provision:
-<<<<<<< HEAD:.cd-builders/windows/runner-gitlab/instance.tf
-	.cd-builders/windows/runner-gitlab/instance.tf
-=======
-    ansible_gitlab_runner.sh
->>>>>>> master:.cd-builders/windows/runner-gitlab/instance.tf
-
-MAKEFILE
-
-  hostsfile = <<HOSTS
-[windows]
-${aws_instance.gitlab-runner.public_ip}
-
-[windows:vars]
-ansible_user=${var.INSTANCE_USERNAME}
-ansible_password=${var.INSTANCE_PASSWORD}
-ansible_connection=winrm
-ansible_winrm_server_cert_validation=ignore
-
-HOSTS
-}
-
-output "Makefile" {
-  value = "${local.Makefile}"
-}
-
-output "hosts" {
-  value = "${local.hostsfile}"
 }

@@ -183,6 +183,8 @@ func (suite *KubeletTestSuite) SetupTest() {
 	mockConfig.Set("kubelet_client_crt", "")
 	mockConfig.Set("kubelet_client_key", "")
 	mockConfig.Set("kubelet_client_ca", "")
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
+	mockConfig.Set("kubelet_fallback_to_insecure", true)
 	mockConfig.Set("kubelet_tls_verify", true)
 	mockConfig.Set("kubelet_auth_token_path", "")
 	mockConfig.Set("kubelet_wait_on_missing_container", 0)

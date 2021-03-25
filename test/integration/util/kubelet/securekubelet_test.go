@@ -42,6 +42,7 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 	mockConfig.Set("kubelet_auth_token_path", "")
 	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
@@ -83,6 +84,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 	mockConfig.Set("kubelet_client_crt", "")
 	mockConfig.Set("kubelet_client_key", "")
 	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 	mockConfig.Set("kubelet_client_ca", "")
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
@@ -90,6 +92,46 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 	require.NotNil(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "Get https://127.0.0.1:10250/pods: x509: ")
 	assert.Regexp(suite.T(), "10255: \\w+: connection refused", err.Error())
+}
+
+// TestSecureUnknownAuthHTTPSKubelet with:
+// - https
+// - kubelet_fallback_to_unverified_tls
+// - WITHOUT cacert (expecting success)
+func (suite *SecureTestSuite) TestTLSWithoutCAFallbackToUnverified() {
+	mockConfig := config.Mock()
+
+	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", true)
+	mockConfig.Set("kubelet_client_ca", "")
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+
+	ku, err := kubelet.GetKubeUtil()
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
+	b, code, err := ku.QueryKubelet("/healthz")
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
+	assert.Equal(suite.T(), "ok", string(b))
+
+	b, code, err = ku.QueryKubelet("/pods")
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
+	assert.Equal(suite.T(), emptyPodList, string(b))
+
+	podList, err := ku.GetLocalPodList()
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), 0, len(podList))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        "https://127.0.0.1:10250",
+			"verify_tls": "false",
+			"ca_cert":    "",
+		}, ku.GetRawConnectionInfo())
 }
 
 // TestTLSWithCACertificate with:
@@ -104,6 +146,7 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
 	mockConfig.Set("kubelet_auth_token_path", "")
 	mockConfig.Set("kubelet_tls_verify", true)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 	mockConfig.Set("kubelet_client_crt", suite.certsConfig.CertFilePath)
 	mockConfig.Set("kubelet_client_key", suite.certsConfig.KeyFilePath)
 	mockConfig.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)

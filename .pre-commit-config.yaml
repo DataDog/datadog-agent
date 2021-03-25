@@ -12,3 +12,9 @@ repos:
     - id: detect-aws-credentials
       args:
         - --allow-missing-credentials
+  - repo: https://github.com/voronenko/pre-commit-cdci.git
+    rev: a9a4baade8c0ef8fdcac73b03ad65b6b5c627595 # get latest tag from release tab
+    hooks:
+      - id: gitlabci_validate
+
+
