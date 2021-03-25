@@ -150,16 +150,15 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 			Iif:     iifName,
 		})
 
-	if err == nil && len(routes) == 1 {
-		r := routes[0]
-		log.Tracef("route for src=%s dst=%s: scope=%s gw=%+v if=%d", source, dest, r.Scope, r.Gw, r.LinkIndex)
-		return Route{
-			Gateway: util.AddressFromNetIP(r.Gw),
-			IfIndex: r.LinkIndex,
-		}, true
+	if err != nil || len(routes) != 1 {
+		log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
+		return Route{}, false
 	}
 
-	log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
-
-	return Route{}, false
+	r := routes[0]
+	log.Tracef("route for src=%s dst=%s: scope=%s gw=%+v if=%d", source, dest, r.Scope, r.Gw, r.LinkIndex)
+	return Route{
+		Gateway: util.AddressFromNetIP(r.Gw),
+		IfIndex: r.LinkIndex,
+	}, true
 }
