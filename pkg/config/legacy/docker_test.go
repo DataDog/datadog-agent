@@ -63,7 +63,6 @@ instances:
   collect_disk_stats: true
   collect_volume_count: true
   collect_container_topology: true
-  collect_swarm_topology: true
   tags:
   - tag:value
   - value
