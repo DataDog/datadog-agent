@@ -2,14 +2,15 @@ package snmp
 
 import (
 	"fmt"
-	"runtime"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"runtime"
+	"time"
+
+	//"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -145,23 +146,25 @@ func init() {
 }
 
 
+var preAlloc uint64
+
 // PrintMemUsage outputs the current, total and OS memory being used. As well as the number
 // of garage collection cycles completed.
-func PrintMemUsage(msg string, prevAlloc uint64) uint64 {
-	//runtime.GC()
+func PrintMemUsage(msg string) {
+	runtime.GC()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
 
 	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("%20s", msg)
+	fmt.Printf("%-30s", msg)
 	fmt.Printf("\tAlloc = %v KiB", bToKb(int64(m.Alloc)))
-	fmt.Printf("\tDiff Alloc = %v KiB", bToKb(int64(m.Alloc) - int64(prevAlloc)))
+	fmt.Printf("\tDiff Alloc = %v KiB", bToKb(int64(m.Alloc) - int64(preAlloc)))
 	fmt.Printf("\tTotalAlloc = %v KiB", bToKb(int64(m.TotalAlloc)))
 	fmt.Printf("\tSys = %v KiB", bToKb(int64(m.Sys)))
 	fmt.Printf("\tNumGC = %v\n", m.NumGC)
 
-	return m.Alloc
+	preAlloc = m.Alloc
 }
 
 func bToKb(b int64) int64 {
