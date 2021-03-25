@@ -224,5 +224,13 @@ std::wstring replace_yaml_properties(
         }
     }
 
+    // Remove duplicated entries
+    if (failedToReplace != nullptr)
+    {
+        std::sort(failedToReplace->begin(), failedToReplace->end());
+        auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
+        failedToReplace->erase(last, failedToReplace->end());
+    }
+
     return input;
 }
