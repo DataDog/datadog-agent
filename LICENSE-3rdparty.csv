@@ -54,7 +54,7 @@ core,"github.com/DataDog/sketches-go/ddsketch/mapping",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/store",Apache-2.0
 core,"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1",Apache-2.0
-core,"github.com/DataDog/zstd",NewBSD
+core,"github.com/DataDog/zstd_0",NewBSD
 core,"github.com/Djarvur/go-err113",MIT
 core,"github.com/Masterminds/goutils",Apache-2.0
 core,"github.com/Masterminds/semver",MIT

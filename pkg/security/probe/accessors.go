@@ -1405,7 +1405,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1422,7 +1421,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1439,7 +1437,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1456,7 +1453,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1473,7 +1469,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1490,7 +1485,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1507,7 +1501,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1524,7 +1517,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1541,7 +1533,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1558,7 +1549,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1575,7 +1565,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1592,7 +1581,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1609,7 +1597,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1626,7 +1613,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1643,7 +1629,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1660,7 +1645,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1677,7 +1661,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1694,7 +1677,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1711,7 +1693,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1728,7 +1709,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1745,7 +1725,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1762,7 +1741,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1779,7 +1757,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1796,7 +1773,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1813,7 +1789,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1830,7 +1805,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1847,7 +1821,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1864,7 +1837,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1881,7 +1853,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1898,7 +1869,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1915,7 +1885,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1932,7 +1901,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1949,7 +1917,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -1966,7 +1933,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -1983,7 +1949,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2000,7 +1965,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2017,7 +1981,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2034,7 +1997,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2051,7 +2013,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2068,7 +2029,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2085,7 +2045,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2102,7 +2061,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2119,7 +2077,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2136,7 +2093,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2153,7 +2109,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2170,7 +2125,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2187,7 +2141,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2204,7 +2157,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2221,7 +2173,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2238,7 +2189,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2255,7 +2205,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2272,7 +2221,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2289,7 +2237,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2306,7 +2253,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2323,7 +2269,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2340,7 +2285,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2357,7 +2301,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2374,7 +2317,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2391,7 +2333,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2408,7 +2349,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2425,7 +2365,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []int
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2442,7 +2381,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
@@ -2459,7 +2397,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						return *result
 					}
 				}
-
 				var results []string
 
 				iterator := &model.ProcessAncestorsIterator{}
@@ -2476,7 +2413,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
 				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results

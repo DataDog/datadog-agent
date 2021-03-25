@@ -1399,12 +1399,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1422,8 +1416,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1433,12 +1425,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1456,8 +1442,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1467,12 +1451,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1490,8 +1468,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1501,12 +1477,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1524,8 +1494,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1535,12 +1503,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1558,8 +1520,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1569,12 +1529,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1592,8 +1546,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1603,12 +1555,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1626,8 +1572,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1637,12 +1581,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1660,8 +1598,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1671,12 +1607,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.container_path":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1694,8 +1624,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1705,12 +1633,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1728,8 +1650,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1739,12 +1659,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1762,8 +1676,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1773,12 +1685,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1796,8 +1702,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1807,12 +1711,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1830,8 +1728,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1841,12 +1737,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1864,8 +1754,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1875,12 +1763,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1898,8 +1780,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1909,12 +1789,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1932,8 +1806,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1943,12 +1815,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -1966,8 +1832,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -1977,12 +1841,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2000,8 +1858,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2011,12 +1867,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2034,8 +1884,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2045,12 +1893,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2068,8 +1910,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2079,12 +1919,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2102,8 +1936,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2113,12 +1945,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2136,8 +1962,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2147,12 +1971,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2170,8 +1988,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2181,12 +1997,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2204,8 +2014,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2215,12 +2023,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2238,8 +2040,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2249,12 +2049,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2272,8 +2066,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2283,12 +2075,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2306,8 +2092,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2317,12 +2101,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2340,8 +2118,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2351,12 +2127,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2374,8 +2144,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2385,12 +2153,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2408,8 +2170,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2419,12 +2179,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]int)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []int
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2442,8 +2196,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
 				return results
 			}, Field: field,
 
@@ -2453,12 +2205,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-
 				var results []string
 
 				iterator := &ProcessAncestorsIterator{}
@@ -2475,8 +2221,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					value = iterator.Next()
 				}
-
-				ctx.Cache[field] = unsafe.Pointer(&results)
 
 				return results
 			}, Field: field,
