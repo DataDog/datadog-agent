@@ -83,7 +83,7 @@ Run tests using `invoke test`. During development, add the `--skip-linters` opti
 invoke test --targets=./pkg/aggregator/... --skip-linters
 ```
 
-When testing code that depends on [rtloader](/rtloader) make sure to first build & install it.
+When testing code that depends on [rtloader](/rtloader), build and install it first.
 ```
 invoke rtloader.make && invoke rtloader.install
 invoke test --targets=./pkg/collector/python --skip-linters
