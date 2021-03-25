@@ -3,6 +3,7 @@ extends: default
 
 ignore: |
   .venv/
+  conf.yaml
 
 rules:
   braces:
@@ -13,6 +14,3 @@ rules:
     level: error
   line-length: disable
   truthy: disable
-
-ignore: |
-  conf.yaml
