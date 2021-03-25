@@ -2111,12 +2111,12 @@ func TestHTTPStats(t *testing.T) {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
 	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
 	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
+	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
 	// it sees both sides of the req/resp so will register two 200s
-	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
-	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
-	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
-	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
+	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
+	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
+	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
+	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

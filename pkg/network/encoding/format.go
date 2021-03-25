@@ -60,7 +60,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	// c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
+	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
 	return c
 }
 
@@ -258,19 +258,17 @@ func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]
 		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
 
 		for i := 0; i < 5; i++ {
-			status := model.HTTPResponseStatus(i)
-			count := uint32(stats.Count(status))
-
-			var latencyBytes []byte
-			if latencies := stats.Latencies(status); latencies != nil {
-				latencyBytes, _ = proto.Marshal(latencies.ToProto())
+			data := new(model.HTTPStats_Data)
+			data.Count = uint32(stats[i].Count)
+			if latencies := stats[i].Latencies; latencies != nil {
+				blob, _ := proto.Marshal(latencies.ToProto())
+				data.Latencies = blob
+			} else {
+				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
 			}
-
-			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
-				Count:     count,
-				Latencies: latencyBytes,
-			}
+			ms.StatsByResponseStatus[i] = data
 		}
+
 		formattedStatsByPath[path] = &ms
 	}
 

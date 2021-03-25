@@ -72,6 +72,7 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 			// The other bucket (newStats) has multiple samples and therefore a DDSketch object
 			// We first ensure that the bucket we're merging to has a DDSketch object
 			if r[i].Latencies == nil {
+				// TODO: Consider calling Copy() on the other sketch instead
 				if err := r.initSketch(i); err != nil {
 					continue
 				}

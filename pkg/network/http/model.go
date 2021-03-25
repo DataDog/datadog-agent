@@ -84,17 +84,6 @@ func (tx *httpTX) Method() string {
 	}
 }
 
-func (tx *httpTX) ToKey() Key {
-	return Key{
-		SrcIPHigh: uint64(tx.tup.saddr_h),
-		SrcIPLow:  uint64(tx.tup.saddr_l),
-		SrcPort:   uint16(tx.tup.sport),
-		DstIPHigh: uint64(tx.tup.daddr_h),
-		DstIPLow:  uint64(tx.tup.daddr_l),
-		DstPort:   uint16(tx.tup.dport),
-	}
-}
-
 // RequestLatency returns the latency of the request in ms
 func (tx *httpTX) RequestLatency() float64 {
 	return float64((tx.response_last_seen - tx.request_started) / (1000000))
