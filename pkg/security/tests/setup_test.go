@@ -766,7 +766,7 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 
 	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+		t.Errorf("incorrect container_path, should contain `docker`: %s \n %v", path, event)
 	}
 }
 

@@ -110,23 +110,12 @@ func getExecProbes() []*manager.Probe {
 func getExecTailCallRoutes() []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
-	for i := uint32(0); i != 5; i++ {
+	for i := uint32(0); i != 10; i++ {
 		route := manager.TailCallRoute{
-			ProgArrayName: "args_progs",
+			ProgArrayName: "args_envs_progs",
 			Key:           i,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: fmt.Sprintf("kprobe/args_progs_%d", i),
-			},
-		}
-		routes = append(routes, route)
-	}
-
-	for i := uint32(0); i != 5; i++ {
-		route := manager.TailCallRoute{
-			ProgArrayName: "envs_progs",
-			Key:           i,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: fmt.Sprintf("kprobe/envs_progs_%d", i),
+				Section: fmt.Sprintf("kprobe/parse_args_envs"),
 			},
 		}
 		routes = append(routes, route)

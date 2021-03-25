@@ -243,9 +243,11 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, strings.HasSuffix(argv[1], "..."), true, "args not truncated")
 		}
 
+		nArgs := 200
+
 		// number of args overflow
 		num := []string{"-al"}
-		for i := 0; i != 100; i++ {
+		for i := 0; i != nArgs; i++ {
 			num = append(num, "aaa")
 		}
 		cmd = exec.Command(executable, num...)
@@ -263,12 +265,12 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			n := len(argv)
-			if n == 0 || n > 100 {
-				t.Errorf("incorrect number of args")
+			if n == 0 || n > nArgs {
+				t.Errorf("incorrect number of args %d: %s", n, args.(string))
 			}
 
 			if argv[n-1] != "..." {
-				t.Error("arg not truncated")
+				t.Errorf("arg not truncated: %s", args.(string))
 			}
 		}
 	})
