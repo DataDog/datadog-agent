@@ -7,4 +7,4 @@ docker-squash==1.0.8
 requests==2.23.0
 PyYAML==5.4
 toml==0.9.4
-flake8==3.9.0
+requests==2.23.0
