@@ -98,8 +98,7 @@ static __always_inline int check_sock(struct sock* sk) {
 
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg(struct pt_regs* ctx) {
-    struct sock* sk;
-    bpf_probe_read(&sk, sizeof(sk),(void*) ctx->di);
+    struct sock* sk = PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_recvmsg, &pid_tgid, &sk, BPF_ANY);
     return check_sock(sk);
@@ -118,8 +117,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs* ctx) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
-    struct sock* sk;
-    bpf_probe_read(&sk, sizeof(sk), (void*) ctx->di);
+    struct sock* sk = PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&who_sendmsg, &pid_tgid, &sk, BPF_ANY);
 
