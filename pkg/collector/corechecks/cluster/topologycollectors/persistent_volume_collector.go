@@ -3,8 +3,6 @@
 package topologycollectors
 
 import (
-	"fmt"
-
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -47,9 +45,11 @@ func (pvc *PersistentVolumeCollector) CollectorFunction() error {
 			return err
 		}
 
-		pvc.ComponentChan <- volumeSource
+		if volumeSource != nil {
+			pvc.ComponentChan <- volumeSource
 
-		pvc.RelationChan <- pvc.persistentVolumeToSourceStackStateRelation(component.ExternalID, volumeSource.ExternalID)
+			pvc.RelationChan <- pvc.persistentVolumeToSourceStackStateRelation(component.ExternalID, volumeSource.ExternalID)
+		}
 	}
 
 	return nil
@@ -67,7 +67,9 @@ func (pvc *PersistentVolumeCollector) persistentVolumeSourceToStackStateComponen
 		}
 	}
 
-	return nil, fmt.Errorf("Unknown PersistentVolumeSource for PersistentVolume '%s'", pv.Name)
+	log.Errorf("Unknown PersistentVolumeSource for PersistentVolume '%s'", pv.Name)
+
+	return nil, nil
 }
 
 // Creates a Persistent Volume StackState component from a Kubernetes / OpenShift Cluster
@@ -92,7 +94,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"status":            persistentVolume.Status.Phase,
 			"statusMessage":     persistentVolume.Status.Message,
 			"storageClassName":  persistentVolume.Spec.StorageClassName,
-			"source":            persistentVolume.Spec.PersistentVolumeSource,
 		},
 	}
 
@@ -104,19 +105,27 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 	return component
 }
 
-func (pvc *PersistentVolumeCollector) createStackStateVolumeComponent(pv v1.PersistentVolume, externalID string, identifiers []string) (*topology.Component, error) {
+func (pvc *PersistentVolumeCollector) createStackStateVolumeSourceComponent(pv v1.PersistentVolume, name, externalID string, identifiers []string, addTags map[string]string) (*topology.Component, error) {
 
 	tags := pvc.initTags(pv.ObjectMeta)
+	for k, v := range addTags {
+		tags[k] = v
+	}
+
+	data := map[string]interface{}{
+		"name":   name,
+		"source": pv.Spec.PersistentVolumeSource,
+		"tags":   tags,
+	}
+
+	if identifiers != nil {
+		data["identifiers"] = identifiers
+	}
 
 	component := &topology.Component{
 		ExternalID: externalID,
-		Type:       topology.Type{Name: "volume"},
-		Data: map[string]interface{}{
-			"name":        pv.Name,
-			"source":      pv.Spec.PersistentVolumeSource,
-			"identifiers": identifiers,
-			"tags":        tags,
-		},
+		Type:       topology.Type{Name: "volume-source"},
+		Data:       data,
 	}
 
 	log.Tracef("Created StackState volume component %s: %v", externalID, component.JSONString())

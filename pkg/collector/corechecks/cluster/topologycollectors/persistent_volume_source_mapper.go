@@ -40,7 +40,13 @@ func mapAwsEbsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", volume.Spec.AWSElasticBlockStore.VolumeID, fmt.Sprint(volume.Spec.AWSElasticBlockStore.Partition))
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "aws-ebs",
+		"volume-id": volume.Spec.AWSElasticBlockStore.VolumeID,
+		"partition": fmt.Sprint(volume.Spec.AWSElasticBlockStore.Partition),
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.AWSElasticBlockStore.VolumeID, extID, nil, tags)
 }
 
 func mapAzureDiskPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -50,7 +56,13 @@ func mapAzureDiskPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persi
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("azure-disk", volume.Spec.AzureDisk.DiskName)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "azure-disk",
+		"disk-name": volume.Spec.AzureDisk.DiskName,
+		"disk-uri":  volume.Spec.AzureDisk.DataDiskURI,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.AzureDisk.DiskName, extID, nil, tags)
 }
 
 func mapAzureFilePersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -60,7 +72,12 @@ func mapAzureFilePersistentVolume(pc *PersistentVolumeCollector, volume v1.Persi
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("azure-file", volume.Spec.AzureFile.ShareName)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":       "azure-file",
+		"share-name": volume.Spec.AzureFile.ShareName,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.AzureFile.ShareName, extID, nil, tags)
 }
 
 func mapCephFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -86,7 +103,12 @@ func mapCephFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 		idx++
 	}
 
-	return pc.createStackStateVolumeComponent(volume, extID, identifiers)
+	tags := map[string]string{
+		"kind": "ceph-fs",
+		"path": volume.Spec.CephFS.Path,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, "ceph-fs", extID, identifiers, tags)
 }
 
 func mapCinderPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -96,7 +118,12 @@ func mapCinderPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("cinder", volume.Spec.Cinder.VolumeID)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "cinder",
+		"volume-id": volume.Spec.Cinder.VolumeID,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.Cinder.VolumeID, extID, nil, tags)
 }
 
 func mapFCPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -105,13 +132,21 @@ func mapFCPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVo
 	}
 
 	ids := []string{}
+
+	tags := map[string]string{
+		"kind": "fibre-channel",
+	}
+
 	if len(volume.Spec.FC.TargetWWNs) > 0 {
-		for _, wwn := range volume.Spec.FC.TargetWWNs {
+		for i, wwn := range volume.Spec.FC.TargetWWNs {
 			ids = append(ids, pc.GetURNBuilder().BuildExternalVolumeExternalID("fibre-channel", fmt.Sprintf("%s-lun-%d", wwn, *volume.Spec.FC.Lun)))
+			tags[fmt.Sprintf("wwn-%d", i)] = wwn
 		}
+		tags["lun"] = fmt.Sprint(*volume.Spec.FC.Lun)
 	} else if len(volume.Spec.FC.WWIDs) > 0 {
-		for _, wwid := range volume.Spec.FC.WWIDs {
+		for i, wwid := range volume.Spec.FC.WWIDs {
 			ids = append(ids, pc.GetURNBuilder().BuildExternalVolumeExternalID("fibre-channel", wwid))
+			tags[fmt.Sprintf("wwid-%d", i)] = wwid
 		}
 	} else {
 		return nil, fmt.Errorf("Either volume.FC.TargetWWNs or volume.FC.WWIDs needs to be set")
@@ -119,7 +154,8 @@ func mapFCPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVo
 
 	extID := ids[0]
 	identifiers := ids[1:]
-	return pc.createStackStateVolumeComponent(volume, extID, identifiers)
+
+	return pc.createStackStateVolumeSourceComponent(volume, "fibre-channel", extID, identifiers, tags)
 }
 
 func mapFlexPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -128,7 +164,13 @@ func mapFlexPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persistent
 	}
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("flex", volume.Spec.FlexVolume.Driver)
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":   "flex",
+		"driver": volume.Spec.FlexVolume.Driver,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.FlexVolume.Driver, extID, nil, tags)
 }
 
 // mapFlockerVolume DEPRECATED
@@ -137,13 +179,20 @@ func mapFlockerPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persist
 		return nil, nil
 	}
 
+	tags := map[string]string{
+		"kind": "flocker",
+	}
+
 	var extID string
 	if volume.Spec.Flocker.DatasetName != "" {
 		extID = pc.GetURNBuilder().BuildExternalVolumeExternalID("flocker", volume.Spec.Flocker.DatasetName)
+		tags["dataset"] = volume.Spec.Flocker.DatasetName
 	} else {
 		extID = pc.GetURNBuilder().BuildExternalVolumeExternalID("flocker", volume.Spec.Flocker.DatasetUUID)
+		tags["dataset"] = volume.Spec.Flocker.DatasetUUID
 	}
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	return pc.createStackStateVolumeSourceComponent(volume, tags["dataset"], extID, nil, tags)
 }
 
 func mapGcePersistentDiskPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -152,7 +201,13 @@ func mapGcePersistentDiskPersistentVolume(pc *PersistentVolumeCollector, volume 
 	}
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("gce-pd", volume.Spec.GCEPersistentDisk.PDName)
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":    "gce-pd",
+		"pd-name": volume.Spec.GCEPersistentDisk.PDName,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.GCEPersistentDisk.PDName, extID, nil, tags)
 }
 
 func mapGlusterFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -161,7 +216,14 @@ func mapGlusterFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persi
 	}
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("gluster-fs", volume.Spec.Glusterfs.EndpointsName, volume.Spec.Glusterfs.Path)
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":      "gluster-fs",
+		"endpoints": volume.Spec.Glusterfs.EndpointsName,
+		"path":      volume.Spec.Glusterfs.Path,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.Glusterfs.EndpointsName, extID, nil, tags)
 }
 
 func mapIscsiPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -176,7 +238,15 @@ func mapIscsiPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persisten
 		identifiers = append(identifiers, pc.GetURNBuilder().BuildExternalVolumeExternalID("iscsi", tp, volume.Spec.ISCSI.IQN, fmt.Sprint(volume.Spec.ISCSI.Lun)))
 	}
 
-	return pc.createStackStateVolumeComponent(volume, extID, identifiers)
+	tags := map[string]string{
+		"kind":          "iscsi",
+		"target-portal": volume.Spec.ISCSI.TargetPortal,
+		"iqn":           volume.Spec.ISCSI.IQN,
+		"lun":           fmt.Sprint(volume.Spec.ISCSI.Lun),
+		"interface":     volume.Spec.ISCSI.ISCSIInterface,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.ISCSI.TargetPortal, extID, identifiers, tags)
 }
 
 func mapNfsPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -186,7 +256,13 @@ func mapNfsPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentV
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("nfs", volume.Spec.NFS.Server, volume.Spec.NFS.Path)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":   "nfs",
+		"server": volume.Spec.NFS.Server,
+		"path":   volume.Spec.NFS.Path,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.NFS.Server, extID, nil, tags)
 }
 
 func mapPhotonPersistentDiskPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -196,7 +272,12 @@ func mapPhotonPersistentDiskPersistentVolume(pc *PersistentVolumeCollector, volu
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("photon", volume.Spec.PhotonPersistentDisk.PdID)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":  "photon",
+		"pd-id": volume.Spec.PhotonPersistentDisk.PdID,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.PhotonPersistentDisk.PdID, extID, nil, tags)
 }
 
 func mapPortWorxPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -206,7 +287,12 @@ func mapPortWorxPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persis
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("portworx", volume.Spec.PortworxVolume.VolumeID)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "portworx",
+		"volume-id": volume.Spec.PortworxVolume.VolumeID,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.PortworxVolume.VolumeID, extID, nil, tags)
 }
 
 func mapQuobytePersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -220,7 +306,15 @@ func mapQuobytePersistentVolume(pc *PersistentVolumeCollector, volume v1.Persist
 	}
 
 	extID := ids[0]
-	return pc.createStackStateVolumeComponent(volume, extID, ids[1:])
+
+	tags := map[string]string{
+		"kind":     "quobyte",
+		"volume":   volume.Spec.Quobyte.Volume,
+		"registry": volume.Spec.Quobyte.Registry,
+		"user":     volume.Spec.Quobyte.User,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.Quobyte.Volume, extID, ids[1:], tags)
 }
 
 func mapRbdPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -229,12 +323,20 @@ func mapRbdPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentV
 	}
 
 	ids := []string{}
-	for _, mon := range volume.Spec.RBD.CephMonitors {
+	tags := map[string]string{
+		"kind":  "rados",
+		"pool":  volume.Spec.RBD.RBDPool,
+		"image": volume.Spec.RBD.RBDImage,
+	}
+
+	for i, mon := range volume.Spec.RBD.CephMonitors {
 		ids = append(ids, pc.GetURNBuilder().BuildExternalVolumeExternalID("rbd", mon, fmt.Sprintf("%s-image-%s", volume.Spec.RBD.RBDPool, volume.Spec.RBD.RBDImage)))
+		tags[fmt.Sprintf("monitor-%d", i)] = mon
 	}
 
 	extID := ids[0]
-	return pc.createStackStateVolumeComponent(volume, extID, ids[1:])
+
+	return pc.createStackStateVolumeSourceComponent(volume, "rados", extID, ids[1:], tags)
 }
 
 // mapScaleIoVolume DEPRECATED
@@ -245,7 +347,14 @@ func mapScaleIoPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persist
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("scale-io", volume.Spec.ScaleIO.Gateway, volume.Spec.ScaleIO.System)
 
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+	tags := map[string]string{
+		"kind":              "scale-io",
+		"gateway":           volume.Spec.ScaleIO.Gateway,
+		"system":            volume.Spec.ScaleIO.System,
+		"protection-domain": volume.Spec.ScaleIO.ProtectionDomain,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.ScaleIO.Gateway, extID, nil, tags)
 }
 
 func mapStorageOsPersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -259,7 +368,14 @@ func mapStorageOsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persi
 	}
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("storage-os", ns, volume.Spec.StorageOS.VolumeName)
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":             "storage-os",
+		"volume":           volume.Spec.StorageOS.VolumeName,
+		"volume-namespace": volume.Spec.StorageOS.VolumeNamespace,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.StorageOS.VolumeName, extID, nil, tags)
 }
 
 func mapVspherePersistentVolume(pc *PersistentVolumeCollector, volume v1.PersistentVolume) (*topology.Component, error) {
@@ -268,5 +384,12 @@ func mapVspherePersistentVolume(pc *PersistentVolumeCollector, volume v1.Persist
 	}
 
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("vsphere", volume.Spec.VsphereVolume.VolumePath)
-	return pc.createStackStateVolumeComponent(volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":           "vsphere",
+		"volume-path":    volume.Spec.VsphereVolume.VolumePath,
+		"storage-policy": volume.Spec.VsphereVolume.StoragePolicyName,
+	}
+
+	return pc.createStackStateVolumeSourceComponent(volume, volume.Spec.VsphereVolume.VolumePath, extID, nil, tags)
 }
