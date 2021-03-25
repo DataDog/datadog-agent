@@ -90,3 +90,10 @@ build_clang_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+
+print_env:
+  stage: deps_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  script:
+    - env
