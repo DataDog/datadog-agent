@@ -13,10 +13,30 @@ After you have refactored, if needed, and listed the packages that you want to e
 1. Create a `.golangci.yml` file in the module root folder. You can use the one on the main folder as a starting point. This defines how the `golangci-lint` CI check works.
 1. Create `go.mod` and `go.sum` files in the module root folder. You can use `go mod init && go mod tidy` within the module folder as a starting point. Ensure the `go version` line matches the version in the main `go.mod` file.
 1. On each module that depends on the current one, add a `require` directive with the module path with version `v0.0.0`.
+   ```
+    require (
+        // ...
+        github.com/DataDog/datadog-agent/path/to/module v.0.0.0
+        // ...
+    )
+    ```
 1. On each module that depends on the current one, add a `replace` directive to replace the module with the repository where it lives.
+    ```
+    // main go.mod file
+    replace (
+ 	    github.com/DataDog/datadog-agent/path/to/module => ./path/to/module
+    )
+    ```
 1. Update the `DEFAULT_MODULES` dictionary on the `tasks/modules.py` file. You need to:
     - create a new module, specifying the path, targets, dependencies and a condition to run tests (if any) and
     - update the dependencies of other modules if they depend on this one.
+   For example, if `pkg/A` depends on `pkg/B` and `pkg/B` is Windows only, we would specify:
+   ```python
+   DEFAULT_MODULES = {
+    "pkg/A": GoModule("pkg/A", dependencies=["pkg/B"]),
+    "pkg/B": GoModule("pkg/B", condition=lambda: sys.platform == "win32")
+   }
+   ```
 
 ## Go nested modules tooling
 
