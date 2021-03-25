@@ -53,6 +53,8 @@ type Config struct {
 	ContextName        string          `mapstructure:"context_name"`
 	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
 	ADIdentifier       string          `mapstructure:"ad_identifier"`
+	Loader             string          `mapstructure:"loader"`
+	Tags               []string        `mapstructure:"tags"`
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
@@ -111,6 +113,7 @@ func (c *Config) Digest(address string) string {
 	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
 	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
 	h.Write([]byte(c.ContextName))             //nolint:errcheck
+	h.Write([]byte(c.Loader))                  //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))

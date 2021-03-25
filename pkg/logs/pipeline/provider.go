@@ -6,6 +6,7 @@
 package pipeline
 
 import (
+	"context"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -23,7 +24,7 @@ type Provider interface {
 	Stop()
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
-	Flush()
+	Flush(ctx context.Context)
 }
 
 // provider implements providing logic
@@ -102,8 +103,13 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.
-func (p *provider) Flush() {
+func (p *provider) Flush(ctx context.Context) {
 	for _, p := range p.pipelines {
-		p.Flush()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			p.Flush(ctx)
+		}
 	}
 }

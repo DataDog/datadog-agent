@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"runtime"
-	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats/quantile"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,10 +65,10 @@ type Agent struct {
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
-	statsChan := make(chan []stats.Bucket, 100)
+	statsChan := make(chan pb.StatsPayload, 100)
 
 	agnt := &Agent{
-		Concentrator:      stats.NewConcentrator(conf.BucketInterval.Nanoseconds(), statsChan, time.Now()),
+		Concentrator:      stats.NewConcentrator(conf, statsChan, time.Now()),
 		Blacklister:       filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:          filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:   sampler.NewPrioritySampler(conf, dynConf),
@@ -176,6 +174,7 @@ func (a *Agent) Process(p *api.Payload) {
 	ts := p.Source
 	ss := new(writer.SampledSpans)
 	var sinputs []stats.Input
+	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	for _, t := range p.Traces {
 		if len(t) == 0 {
 			log.Debugf("Skipping received empty trace")
@@ -246,14 +245,14 @@ func (a *Agent) Process(p *api.Payload) {
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:         t,
-			WeightedTrace: stats.NewWeightedTrace(t, root),
-			Root:          root,
-			Env:           env,
+			Trace:            t,
+			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			Root:             root,
+			Env:              env,
+			ClientDroppedP0s: p.ClientDroppedP0s > 0,
 		}
 
 		events, keep := a.sample(ts, pt)
-
 		if !p.ClientComputedStats {
 			if sinputs == nil {
 				sinputs = make([]stats.Input, 0, len(p.Traces))
@@ -294,76 +293,14 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
-	out := stats.Payload{
-		HostName: in.Hostname,
-		Env:      in.Env,
-	}
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)
 			a.obfuscator.ObfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
-
-			statusCode := ""
-			if b.HTTPStatusCode != 0 {
-				statusCode = strconv.Itoa(int(b.HTTPStatusCode))
-			}
-			newb := stats.Bucket{
-				Start:            int64(group.Start),
-				Duration:         int64(group.Duration),
-				Counts:           make(map[string]stats.Count),
-				Distributions:    make(map[string]stats.Distribution),
-				ErrDistributions: make(map[string]stats.Distribution),
-			}
-			aggr := stats.NewAggregation(out.Env, b.Resource, b.Service, "", statusCode, in.Version, b.Synthetics)
-			tagset := aggr.ToTagSet()
-			key := stats.GrainKey(b.Name, stats.HITS, aggr)
-			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.HITS,
-				TagSet:  tagset,
-				Value:   float64(b.Hits),
-			}
-			key = stats.GrainKey(b.Name, stats.ERRORS, aggr)
-			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.ERRORS,
-				TagSet:  tagset,
-				Value:   float64(b.Errors),
-			}
-			key = stats.GrainKey(b.Name, stats.DURATION, aggr)
-			newb.Counts[key] = stats.Count{
-				Key:     key,
-				Name:    b.Name,
-				Measure: stats.DURATION,
-				TagSet:  tagset,
-				Value:   float64(b.Duration),
-			}
-			if hits, errors, err := quantile.DDToGKSketches(b.OkSummary, b.ErrorSummary); err != nil {
-				log.Errorf("Error handling distributions: %v", err)
-			} else {
-				newb.Distributions[key] = stats.Distribution{
-					Key:     key,
-					Name:    b.Name,
-					Measure: stats.DURATION,
-					TagSet:  tagset,
-					Summary: hits,
-				}
-				newb.ErrDistributions[key] = stats.Distribution{
-					Key:     key,
-					Name:    b.Name,
-					Measure: stats.DURATION,
-					TagSet:  tagset,
-					Summary: errors,
-				}
-			}
-			out.Stats = append(out.Stats, newb)
 		}
 	}
-
-	a.StatsWriter.SendPayload(&out)
+	a.StatsWriter.SendPayload(pb.StatsPayload{Stats: []pb.ClientStatsPayload{in}})
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
@@ -413,7 +350,7 @@ func (a *Agent) runSamplers(pt ProcessedTrace, hasPriority bool) bool {
 // ErrorSampler are run in parallel. The ExceptionSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(pt ProcessedTrace) bool {
-	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env) {
+	if a.PrioritySampler.Sample(pt.Trace, pt.Root, pt.Env, pt.ClientDroppedP0s) {
 		return true
 	}
 	if traceContainsError(pt.Trace) {

@@ -13,15 +13,15 @@ type DatadogAgentLogger struct{}
 
 // Tracef is used to print a trace level log
 func (l DatadogAgentLogger) Tracef(format string, params ...interface{}) {
-	log.Tracef(format, params)
+	log.Tracef(format, params...)
 }
 
 // Debugf is used to print a trace level log
 func (l DatadogAgentLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params)
+	log.Debugf(format, params...)
 }
 
 // Errorf is used to print an error
 func (l DatadogAgentLogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params)
+	return log.Errorf(format, params...)
 }

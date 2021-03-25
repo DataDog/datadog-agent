@@ -1,16 +1,36 @@
 #include "stdafx.h"
-const wchar_t *opts[] = {L"-bindir", L"-confdir", L"-uname", L"-password"};
+const wchar_t *opts[] = {L"-bindir", L"-confdir",    L"-uname",      L"-password",   L"-api_key",
+                         L"-site",   L"-proxy_host", L"-proxy_port", L"-proxy_user", L"-proxy_password"};
 
-const wchar_t *calargs[] = {L"PROJECTLOCATION", L"APPLICATIONDATADIRECTORY", L"DDAGENTUSER_NAME",
-                            L"DDAGENTUSER_PASSWORD"};
+const wchar_t *calargs[] = {L"PROJECTLOCATION",  L"APPLICATIONDATADIRECTORY",
+                            L"DDAGENTUSER_NAME", L"DDAGENTUSER_PASSWORD",
+                            L"APIKEY",           L"SITE",
+                            L"PROXY_HOST",       L"PROXY_PORT",
+                            L"PROXY_USER",       L"PROXY_PASSWORD"};
 
-const wchar_t *defaults[] = {L"C:\\Program Files\\Datadog\\Datadog Agent\\", L"C:\\ProgramData\\Datadog\\", L"", L""};
+const wchar_t *defaults[] = {L"C:\\Program Files\\Datadog\\Datadog Agent\\",
+                             L"C:\\ProgramData\\Datadog\\",
+                             L"",
+                             L"",
+                             L"",
+                             L"",
+                             L"",
+                             L"",
+                             L"",
+                             L""};
+
 typedef enum _cmdargs
 {
     ARG_BINDIR = 0,
     ARG_CONFDIR,
     ARG_USERNAME,
     ARG_PASSWORD,
+    ARG_APIKEY,
+    ARG_SITE,
+    ARG_PROXY_HOST,
+    ARG_PROXY_PORT,
+    ARG_PROXY_USER,
+    ARG_PROXY_PASSWORD,
     ARG_LAST
 } CMDARGS;
 

@@ -32,7 +32,7 @@ func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the RTProcessCheck.
-func (r *RTProcessCheck) Name() string { return "rtprocess" }
+func (r *RTProcessCheck) Name() string { return config.RTProcessCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTProcessCheck) RealTime() bool { return true }

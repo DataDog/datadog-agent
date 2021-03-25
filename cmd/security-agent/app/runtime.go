@@ -99,17 +99,22 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), securityLogger.DatadogAgentLogger{})
-	model := &sprobe.Model{}
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, securityLogger.DatadogAgentLogger{})
+	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err != nil {
+	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
 		return err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(cfg, nil)
 
-	report, err := rsa.Apply(ruleSet)
+	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
 		return err
 	}

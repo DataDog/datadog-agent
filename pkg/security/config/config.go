@@ -65,9 +65,11 @@ type Config struct {
 	AgentMonitoringEvents bool
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
+	// CustomSensitiveWords defines words to add to the scrubber
+	CustomSensitiveWords []string
 }
 
-// IsEnabled returns true if any feature is enabled
+// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
@@ -95,6 +97,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
+		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
 	}
 
 	// if runtime is enabled then we force fim

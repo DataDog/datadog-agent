@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -51,7 +52,6 @@ type Probe struct {
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
-
 	// Events section
 	handler   EventHandler
 	monitor   *Monitor
@@ -59,8 +59,10 @@ type Probe struct {
 	event     *Event
 	perfMap   *manager.PerfMap
 	reOrderer *ReOrderer
+	scrubber  *pconfig.DataScrubber
 
 	// Approvers / discarders section
+	erpc               *ERPC
 	pidDiscarders      *pidDiscarders
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
@@ -164,7 +166,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 	if err != nil {
 		return err
 	}
-	p.pidDiscarders = newPidDiscarders(pidDiscardersMap)
+	p.pidDiscarders = newPidDiscarders(pidDiscardersMap, p.erpc)
 
 	inodeDiscardersMap, err := p.Map("inode_discarders")
 	if err != nil {
@@ -176,7 +178,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 		return err
 	}
 
-	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.resolvers.DentryResolver); err != nil {
+	if p.inodeDiscarders, err = newInodeDiscarders(inodeDiscardersMap, discarderRevisionsMap, p.erpc, p.resolvers.DentryResolver); err != nil {
 		return err
 	}
 
@@ -261,7 +263,7 @@ func (p *Probe) zeroEvent() *Event {
 }
 
 func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.Process, &event.Container)
+	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -278,12 +280,6 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 	} else {
 		log.Tracef("remove dentry cache entry for inode %d", inode)
 		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-
-		// If a temporary file is created and deleted in a row a discarder can be added
-		// after the in-kernel discarder cleanup and thus a discarder will be pushed for a deleted file.
-		// If the inode is reused this can be a problem.
-		// Call a user space remove function to ensure the discarder will be removed.
-		p.inodeDiscarders.removeInode(mountID, inode)
 	}
 }
 
@@ -302,7 +298,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	eventType := event.GetEventType()
 	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, p.perfMap, int(CPU))
 
-	if eventType == model.InvalidateDentryEventType {
+	// no need to dispatch events
+	switch eventType {
+	case model.InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -310,7 +308,15 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
 
-		// no need to dispatch
+		return
+	case model.ArgsEnvsEventType:
+		if _, err := event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		p.resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
+
 		return
 	}
 
@@ -367,7 +373,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Rmdir.MountID, event.Rmdir.Inode, event.Rmdir.DiscarderRevision)
+		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.DiscarderRevision)
 	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -375,7 +381,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Unlink.MountID, event.Unlink.Inode, event.Unlink.DiscarderRevision)
+		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.DiscarderRevision)
 	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -414,19 +420,45 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.Process.Pid, event.processCacheEntry))
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExecEventType:
-		if _, err := event.UnmarshalExecEvent(data[offset:]); err != nil {
+		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.Process.Pid, event.processCacheEntry))
+		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
+		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
+
+		if _, err := p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
+			log.Debugf("failed to resolve exec path: %s", err)
+		}
+		p.resolvers.ProcessResolver.SetProcessContainerPath(event.processCacheEntry)
+
+		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
 	case model.ExitEventType:
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.Process.Pid, event.ResolveEventTimestamp())
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
+	case model.SetuidEventType:
+		if _, err := event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
+	case model.SetgidEventType:
+		if _, err := event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
+	case model.CapsetEventType:
+		if _, err := event.Capset.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -612,15 +644,14 @@ func (p *Probe) FlushDiscarders() error {
 	time.Sleep(100 * time.Millisecond)
 
 	var discardedInodes []inodeDiscarder
-	var inodeParams inodeDiscarderParameters
+	var mapValue [256]byte
 	var inode inodeDiscarder
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &mapValue); {
 		discardedInodes = append(discardedInodes, inode)
 	}
 
 	var discardedPids []uint32
-	var pidParams pidDiscarderParameters
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
+	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &mapValue); {
 		discardedPids = append(discardedPids, pid)
 	}
 
@@ -693,7 +724,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers)
+		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.Logger = seclog.DatadogAgentLogger{}
 
@@ -702,6 +733,11 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
+	erpc, err := NewERPC()
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := &Probe{
@@ -711,6 +747,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		ctx:            ctx,
 		cancelFnc:      cancel,
 		statsdClient:   client,
+		erpc:           erpc,
 	}
 	p.detectKernelVersion()
 
@@ -742,14 +779,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Value: getSuperBlockMagicOffset(p),
 		},
 	)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 
 	resolvers, err := NewResolvers(p, client)
 	if err != nil {
 		return nil, err
 	}
-
 	p.resolvers = resolvers
-	p.event = NewEvent(p.resolvers)
 
 	p.reOrderer = NewReOrderer(p.handleEvent,
 		ExtractEventInfo,
@@ -760,6 +798,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			MetricRate: 5 * time.Second,
 		})
 
+	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
+
+	p.event = NewEvent(p.resolvers, p.scrubber)
+
 	eventZero.resolvers = p.resolvers
+	eventZero.scrubber = p.scrubber
+
 	return p, nil
 }

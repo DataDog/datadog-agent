@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+// allCapabilities hold all the supported filtering capabilities
 var allCapabilities = make(map[eval.EventType]Capabilities)
 
 // Capability represents the type of values we are able to filter kernel side
@@ -59,11 +60,11 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 
 func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
-		event + ".filename": {
+		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + ".basename": {
+		event + ".file.name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
@@ -72,32 +73,41 @@ func oneBasenameCapabilities(event string) Capabilities {
 
 func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
-		event + "." + field1 + ".filename": {
+		event + "." + field1 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field1 + ".basename": {
+		event + "." + field1 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field2 + ".filename": {
+		event + "." + field2 + ".path": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
-		event + "." + field2 + ".basename": {
+		event + "." + field2 + ".name": {
 			PolicyFlags:     PolicyFlagBasename,
 			FieldValueTypes: eval.ScalarValueType,
 		},
 	}
 }
 
+// GetCapababilities returns all the filtering capabilities
+func GetCapababilities() map[eval.EventType]rules.FieldCapabilities {
+	capabilities := make(map[eval.EventType]rules.FieldCapabilities)
+	for eventType, eventCapabilities := range allCapabilities {
+		capabilities[eventType] = eventCapabilities.GetFieldCapabilities()
+	}
+	return capabilities
+}
+
 func init() {
 	allCapabilities["chmod"] = oneBasenameCapabilities("chmod")
 	allCapabilities["chown"] = oneBasenameCapabilities("chown")
-	allCapabilities["link"] = twoBasenameCapabilities("link", "source", "target")
+	allCapabilities["link"] = twoBasenameCapabilities("link", "file", "file.destination")
 	allCapabilities["mkdir"] = oneBasenameCapabilities("mkdir")
 	allCapabilities["open"] = openCapabilities
-	allCapabilities["rename"] = twoBasenameCapabilities("rename", "old", "new")
+	allCapabilities["rename"] = twoBasenameCapabilities("rename", "file", "file.destination")
 	allCapabilities["rmdir"] = oneBasenameCapabilities("rmdir")
 	allCapabilities["unlink"] = oneBasenameCapabilities("unlink")
 	allCapabilities["utimes"] = oneBasenameCapabilities("utimes")

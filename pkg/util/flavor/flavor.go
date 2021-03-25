@@ -31,7 +31,7 @@ func SetFlavor(flavor string) {
 	agentFlavor = flavor
 
 	if agentFlavor == IotAgent {
-		config.Datadog.Set("iot_host", true)
+		config.Datadog.SetDefault("iot_host", true)
 	}
 }
 

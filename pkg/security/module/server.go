@@ -98,12 +98,12 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	agentContext := &AgentContext{
-		RuleID: rule.Definition.ID,
+		RuleID:      rule.Definition.ID,
+		RuleVersion: rule.Definition.Version,
 	}
 
 	ruleEvent := &Signal{
-		Title:        rule.Definition.ID,
-		Msg:          rule.Definition.Description,
+		Title:        rule.Definition.Description,
 		AgentContext: agentContext,
 	}
 

@@ -5,6 +5,13 @@ require 'rbconfig'
 require 'yaml'
 require 'find'
 
+#
+# this enables RSpec output so that individual tests ("it behaves like...") are
+# logged.
+RSpec.configure do |c|
+  c.default_formatter = "documentation"
+end
+
 os_cache = nil
 
 # We retrieve the value defined in kitchen.yml because there is no simple way
@@ -247,7 +254,6 @@ def flavor_service_status(flavor)
   service = get_service_name(flavor)
   if os == :windows
     status_out = `sc interrogate #{service} 2>&1`
-    puts status_out
     status_out.include?('RUNNING')
   else
     if has_systemctl
@@ -446,7 +452,7 @@ shared_examples_for "an installed Agent" do
   }
 
   it 'is properly signed' do
-    puts "swsc is #{skip_windows_signing_check}"
+    puts "skipping windows signing check #{skip_windows_signing_check}" if os == :windows and skip_windows_signing_check
     #puts "is an upgrade is #{is_upgrade}"
     if os == :windows and !skip_windows_signing_check
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.

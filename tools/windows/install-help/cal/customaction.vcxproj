@@ -96,7 +96,7 @@
     </ClCompile>
     <Link>
       <TargetMachine>MachineX86</TargetMachine>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>userenv.lib;bcrypt.lib;version.lib;advapi32.lib;wcautil.lib;dutil.lib;netapi32.lib;msi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
@@ -115,7 +115,7 @@
     </ClCompile>
     <Link>
       <TargetMachine>MachineX86</TargetMachine>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
@@ -136,6 +136,7 @@
       <AdditionalDependencies>userenv.lib;bcrypt.lib;version.lib;advapi32.lib;wcautil.lib;dutil.lib;netapi32.lib;msi.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(WIX)sdk\VS2017\lib\x64</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>CustomAction.def</ModuleDefinitionFile>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -160,6 +161,7 @@
     <ClCompile Include="doUninstall.cpp" />
     <ClCompile Include="Error.cpp" />
     <ClCompile Include="FinalizeInstall.cpp" />
+    <ClCompile Include="PropertyReplacer.cpp" />
     <ClCompile Include="rollback.cpp" />
     <ClCompile Include="TargetMachine.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -183,6 +185,7 @@
     <ClInclude Include="ddreg.h" />
     <ClInclude Include="Error.h" />
     <ClInclude Include="lmerr_str.h" />
+    <ClInclude Include="PropertyReplacer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="SID.h" />
     <ClInclude Include="stdafx.h" />

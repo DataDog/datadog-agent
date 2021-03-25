@@ -69,8 +69,9 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		},
 	} {
 		cfg.MaxConnsPerMessage = tc.maxSize
-		tm := &model.CollectorConnectionsTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", tm, nil)
+		ctm := &model.CollectorConnectionsTelemetry{}
+		rctm := map[string]*model.RuntimeCompilationTelemetry{}
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -89,9 +90,11 @@ func TestNetworkConnectionBatching(t *testing.T) {
 
 			// ensure only first chunk has telemetry
 			if i == 0 {
-				assert.NotNil(t, connections.Telemetry)
+				assert.NotNil(t, connections.ConnTelemetry)
+				assert.NotNil(t, connections.CompilationTelemetryByAsset)
 			} else {
-				assert.Nil(t, connections.Telemetry)
+				assert.Nil(t, connections.ConnTelemetry)
+				assert.Nil(t, connections.CompilationTelemetryByAsset)
 			}
 		}
 		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
@@ -109,7 +112,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -150,7 +153,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -196,7 +199,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, domains)
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains)
 
 	assert.Len(t, chunks, 4)
 	total := 0

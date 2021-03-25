@@ -3,54 +3,56 @@
 package http
 
 import (
+	"fmt"
+	"sync/atomic"
 	"time"
 )
 
 type telemetry struct {
-	then   time.Time
-	hits   map[int]int
-	misses int
+	then   int64
+	hits   [5]int64
+	misses int64
 }
 
 func newTelemetry() *telemetry {
-	t := new(telemetry)
-	t.reset()
-	return t
+	return &telemetry{
+		then: time.Now().Unix(),
+	}
 }
 
 func (t *telemetry) aggregate(txs []httpTX, err error) {
 	for _, tx := range txs {
-		t.hits[tx.StatusClass()]++
+		if i := tx.StatusClass()/100 - 1; i >= 0 && i < len(t.hits) {
+			atomic.AddInt64(&t.hits[i], 1)
+		}
 	}
 
 	if err == errLostBatch {
-		t.misses++
+		atomic.AddInt64(&t.misses, int64(HTTPBatchSize))
 	}
 }
 
-func (t *telemetry) getStats() (time.Time, map[string]int64) {
-	now := time.Now()
-	delta := float64(now.Sub(t.then).Seconds())
-	data := map[string]int64{
-		"1XX_request_count":     int64(t.hits[100]),
-		"2XX_request_count":     int64(t.hits[200]),
-		"3XX_request_count":     int64(t.hits[300]),
-		"4XX_request_count":     int64(t.hits[400]),
-		"5XX_request_count":     int64(t.hits[500]),
-		"1XX_request_rate":      int64(float64(t.hits[100]) / delta),
-		"2XX_request_rate":      int64(float64(t.hits[200]) / delta),
-		"3XX_request_rate":      int64(float64(t.hits[300]) / delta),
-		"4XX_request_rate":      int64(float64(t.hits[400]) / delta),
-		"5XX_request_rate":      int64(float64(t.hits[500]) / delta),
-		"requests_missed_count": int64(t.misses * HTTPBatchSize),
-		"requests_missed_rate":  int64(float64(t.misses*HTTPBatchSize) / delta),
+func (t *telemetry) get() (time.Time, map[string]int64) {
+	var (
+		now     = time.Now()
+		then    = atomic.SwapInt64(&t.then, now.Unix())
+		misses  = atomic.SwapInt64(&t.misses, 0)
+		data    = make(map[string]int64)
+		elapsed = now.Unix() - then
+	)
+
+	if elapsed == 0 {
+		return now, nil
 	}
-	t.reset()
+
+	for i := range t.hits {
+		count := atomic.SwapInt64(&t.hits[i], 0)
+		data[fmt.Sprintf("%dXX_request_count", i+1)] = count
+		data[fmt.Sprintf("%dXX_request_rate", i+1)] = count / elapsed
+	}
+
+	data["requests_missed_count"] = misses
+	data["requests_missed_rate"] = misses / elapsed
+
 	return now, data
-}
-
-func (t *telemetry) reset() {
-	t.then = time.Now()
-	t.hits = make(map[int]int)
-	t.misses = 0
 }

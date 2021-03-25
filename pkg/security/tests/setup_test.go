@@ -24,6 +24,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
@@ -56,6 +58,8 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  custom_sensitive_words:
+    - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
@@ -457,8 +461,28 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 	}
 }
 
-func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
-	return tm.st.Path(filename)
+func (tm *testModule) Path(filename ...string) (string, unsafe.Pointer, error) {
+	return tm.st.Path(filename...)
+}
+
+func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
+	testFile, testFilePtr, err := tm.st.Path(filename)
+	if err != nil {
+		return testFile, testFilePtr, err
+	}
+
+	// Create file
+	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
+	if errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	syscall.Close(int(fd))
+
+	// Chown the file
+	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
+		return testFile, testFilePtr, error(errno)
+	}
+	return testFile, testFilePtr, err
 }
 
 func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
@@ -565,13 +589,15 @@ func (t *simpleTest) ProcessName() string {
 	return path.Base(executable)
 }
 
-func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
-	filename = path.Join(t.root, filename)
-	filenamePtr, err := syscall.BytePtrFromString(filename)
+func (t *simpleTest) Path(filename ...string) (string, unsafe.Pointer, error) {
+	components := []string{t.root}
+	components = append(components, filename...)
+	path := path.Join(components...)
+	filenamePtr, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return "", nil, err
 	}
-	return filename, unsafe.Pointer(filenamePtr), nil
+	return path, unsafe.Pointer(filenamePtr), nil
 }
 
 func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (err error) {
@@ -645,6 +671,9 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			return nil, err
 		}
 		t.toRemove = true
+		if err := os.Chmod(t.root, 0o711); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := t.load(macros, rules); err != nil {
@@ -652,6 +681,19 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 
 	return t, nil
+}
+
+// systemUmask caches the system umask between tests
+var systemUmask int
+
+func applyUmask(fileMode int) int {
+	if systemUmask == 0 {
+		// Get the system umask to compute the right access mode
+		systemUmask = unix.Umask(0)
+		// the previous line overrides the system umask, change it back
+		_ = unix.Umask(systemUmask)
+	}
+	return fileMode &^ systemUmask
 }
 
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
@@ -718,11 +760,11 @@ func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.
 }
 
 func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	return waitForDiscarder(test, "open.filename", filename)
+	return waitForDiscarder(test, "open.file.path", filename)
 }
 
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	return waitForProbeEvent(test, "open.filename", filename)
+	return waitForProbeEvent(test, "open.file.path", filename)
 }
 
 func TestEnv(t *testing.T) {

@@ -28,7 +28,8 @@ const (
 // DatadogMetricInternal is a flatten, easier to use, representation of `DatadogMetric` CRD
 type DatadogMetricInternal struct {
 	ID                   string
-	Query                string
+	query                string
+	resolvedQuery        *string
 	Valid                bool
 	Active               bool
 	Deleted              bool
@@ -45,7 +46,7 @@ type DatadogMetricInternal struct {
 func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) DatadogMetricInternal {
 	internal := DatadogMetricInternal{
 		ID:                   id,
-		Query:                datadogMetric.Spec.Query,
+		query:                datadogMetric.Spec.Query,
 		Valid:                false,
 		Active:               false,
 		Deleted:              false,
@@ -71,6 +72,8 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		}
 	}
 
+	internal.resolveQuery(internal.query)
+
 	// If UpdateTime is not set, it means it's a newly created DatadogMetric
 	// We'll need a proper update time to generate status, so setting to current time
 	if internal.UpdateTime.IsZero() {
@@ -95,7 +98,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscalerReference string) DatadogMetricInternal {
 	return DatadogMetricInternal{
 		ID:                   id,
-		Query:                query,
+		query:                query,
 		Valid:                false,
 		Active:               true,
 		Deleted:              false,
@@ -106,9 +109,30 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
-// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric` Spec, returns modified instance
+// Query returns the query that should be used to fetch metrics
+func (d *DatadogMetricInternal) Query() string {
+	if d.resolvedQuery != nil {
+		return *d.resolvedQuery
+	}
+	return d.query
+}
+
+// RawQuery returns the query that should be used to create DDM objects
+func (d *DatadogMetricInternal) RawQuery() string {
+	return d.query
+}
+
+// UpdateFrom updates the `DatadogMetricInternal` from `DatadogMetric` Spec
 func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSpec) {
-	d.Query = currentSpec.Query
+	if d.shouldResolveQuery(currentSpec) {
+		d.resolveQuery(currentSpec.Query)
+	}
+	d.query = currentSpec.Query
+}
+
+// shouldResolveQuery returns whether we should try to resolve a new query
+func (d *DatadogMetricInternal) shouldResolveQuery(spec datadoghq.DatadogMetricSpec) bool {
+	return d.resolvedQuery == nil || d.query != spec.Query
 }
 
 // IsNewerThan returns true if the current `DatadogMetricInternal` has been updated more recently than `DatadogMetric` Status
@@ -204,4 +228,33 @@ func (d *DatadogMetricInternal) newCondition(status bool, updateTime metav1.Time
 	}
 
 	return condition
+}
+
+// resolveQuery tries to resolve the query and set the DatadogMetricInternal fields accordingly
+func (d *DatadogMetricInternal) resolveQuery(query string) {
+	resolvedQuery, err := resolveQuery(query)
+	if err != nil {
+		log.Errorf("Unable to resolve DatadogMetric query %q: %w", d.query, err)
+		d.Valid = false
+		d.Error = fmt.Errorf("Cannot resolve query: %v", err)
+		d.UpdateTime = time.Now().UTC()
+		d.resolvedQuery = nil
+		return
+	}
+	if resolvedQuery != "" {
+		d.resolvedQuery = &resolvedQuery
+		return
+	}
+	d.resolvedQuery = &d.query
+}
+
+// SetQueries is only used for testing in other packages
+func (d *DatadogMetricInternal) SetQueries(q string) {
+	d.query = q
+	d.resolvedQuery = &q
+}
+
+// SetQueries is only used for testing in other packages
+func (d *DatadogMetricInternal) SetQuery(q string) {
+	d.query = q
 }

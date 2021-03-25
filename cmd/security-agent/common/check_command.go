@@ -79,6 +79,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		log.Info("Waiting for APIClient")
 		apiCl, err := apiserver.WaitForAPIClient(ctx)
 		if err != nil {
 			return err

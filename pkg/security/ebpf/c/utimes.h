@@ -23,7 +23,7 @@ struct utime_event_t {
 
 int __attribute__((always_inline)) trace__sys_utimes() {
     struct policy_t policy = fetch_policy(EVENT_UTIME);
-    if (discarded_by_process(policy.mode, EVENT_UTIME)) {
+    if (is_discarded_by_process(policy.mode, EVENT_UTIME)) {
         return 0;
     }
 
@@ -82,12 +82,7 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
             .tv_sec = syscall->setattr.mtime.tv_sec,
             .tv_usec = syscall->setattr.mtime.tv_nsec,
         },
-        .file = {
-            .inode = syscall->setattr.path_key.ino,
-            .mount_id = syscall->setattr.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
-            .path_id = syscall->setattr.path_key.path_id,
-        },
+        .file = syscall->setattr.file,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

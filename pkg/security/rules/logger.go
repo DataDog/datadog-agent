@@ -23,15 +23,15 @@ type DefaultLogger struct{}
 
 // Tracef is used to print a trace level log
 func (l DefaultLogger) Tracef(format string, params ...interface{}) {
-	log.Tracef(format, params)
+	log.Tracef(format, params...)
 }
 
 // Debugf is used to print a trace level log
 func (l DefaultLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params)
+	log.Debugf(format, params...)
 }
 
 // Errorf is used to print an error
 func (l DefaultLogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params)
+	return log.Errorf(format, params...)
 }

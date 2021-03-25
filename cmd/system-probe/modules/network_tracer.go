@@ -30,7 +30,7 @@ var inactivityLogDuration = 10 * time.Minute
 var NetworkTracer = api.Factory{
 	Name: "network_tracer",
 	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("Network") {
+		if !cfg.CheckIsEnabled(config.NetworkCheckName) {
 			log.Infof("Network tracer disabled")
 			return nil, api.ErrNotEnabled
 		}
@@ -61,8 +61,6 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 	var runCounter uint64
-
-	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
 
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
