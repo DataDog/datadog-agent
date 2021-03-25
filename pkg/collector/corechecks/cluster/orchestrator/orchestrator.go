@@ -357,7 +357,9 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 		_ = o.Warnf("Could not collect orchestrator cluster information: %s, will still send nodes information", err)
 		return
 	}
-	sendClusterMetadata(sender, clusterMessage, o.clusterID)
+	if clusterMessage != nil {
+		sendClusterMetadata(sender, clusterMessage, o.clusterID)
+	}
 }
 
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
@@ -373,13 +375,9 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
-	if clusterMessage == nil {
-		return
-	}
-
 	stats := orchestrator.CheckStats{
-		CacheHits: 1,
-		CacheMiss: 0,
+		CacheHits: 0,
+		CacheMiss: 1,
 		NodeType:  orchestrator.K8sCluster,
 	}
 	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
