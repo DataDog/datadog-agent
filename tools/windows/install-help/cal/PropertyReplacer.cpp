@@ -228,17 +228,19 @@ std::wstring replace_yaml_properties(
     if (ec2UseWindowsPrefixDetection)
     {
         if (!PropertyReplacer::match(input, L"^[ #]*ec2_use_windows_prefix_detection:.*")
-                 .replace_with(format_simple_value(L"ec2_use_windows_prefix_detection: ")(*ec2UseWindowsPrefixDetection, propertyRetriever)))
+                 .replace_with(format_simple_value(L"ec2_use_windows_prefix_detection: ")(*ec2UseWindowsPrefixDetection,
+                                                                                          propertyRetriever)))
         {
             input.append(L"\nec2_use_windows_prefix_detection: " + *ec2UseWindowsPrefixDetection + L"\n");
         }
 
-    // Remove duplicated entries
-    if (failedToReplace != nullptr)
-    {
-        std::sort(failedToReplace->begin(), failedToReplace->end());
-        auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
-        failedToReplace->erase(last, failedToReplace->end());
+        // Remove duplicated entries
+        if (failedToReplace != nullptr)
+        {
+            std::sort(failedToReplace->begin(), failedToReplace->end());
+            auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
+            failedToReplace->erase(last, failedToReplace->end());
+        }
     }
 
     return input;
