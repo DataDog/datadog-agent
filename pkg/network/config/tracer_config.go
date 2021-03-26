@@ -47,6 +47,10 @@ func TracerConfigFromConfig(cfg *config.AgentConfig) *Config {
 	tracerConfig.CollectDNSStats = cfg.CollectDNSStats
 	tracerConfig.CollectDNSDomains = cfg.CollectDNSDomains
 
+	if cfg.MaxDNSStats > 0 {
+		tracerConfig.MaxDNSStats = cfg.MaxDNSStats
+	}
+
 	if to := cfg.DNSTimeout; to > 0 {
 		tracerConfig.DNSTimeout = cfg.DNSTimeout
 	}

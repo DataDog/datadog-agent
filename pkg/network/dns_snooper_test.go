@@ -98,6 +98,7 @@ func getSnooper(
 			CollectLocalDNS:   collectLocalDNS,
 			DNSTimeout:        dnsTimeout,
 			CollectDNSDomains: collectDNSDomains,
+			MaxDNSStats:       10000,
 		},
 		packetSrc,
 	)
@@ -412,7 +413,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
 		require.Equal(t, 1, len(allStats[key1][d].DNSCountByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][d].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
+		assert.Equal(t, uint32(1), allStats[key1][d].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][d])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail

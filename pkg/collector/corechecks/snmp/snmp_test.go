@@ -71,13 +71,14 @@ func createMockSession() *mockSession {
 	return session
 }
 
-func setConfdPath() {
+func setConfdPathAndCleanProfiles() {
+	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
 }
 
 func TestBasicSample(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
@@ -237,7 +238,7 @@ tags:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -304,7 +305,7 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -330,6 +331,11 @@ profiles:
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
 			{
 				Name:  "1.3.6.1.2.1.1.5.0",
 				Type:  gosnmp.OctetString,
@@ -413,7 +419,7 @@ profiles:
 		},
 	}
 
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
@@ -435,7 +441,7 @@ profiles:
 }
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -554,13 +560,14 @@ profiles:
 	}
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
+		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
 	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
@@ -574,7 +581,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	session.connectErr = fmt.Errorf("can't connect")
 	check := Check{session: session}
@@ -605,7 +612,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckID(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	// language=yaml
@@ -684,6 +691,11 @@ func TestCheck_Run(t *testing.T) {
 				Value: []byte("foo_sys_name"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
@@ -735,12 +747,12 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket: sysObjectIDPacketOkMock,
 			valuesPacket:      valuesPacketErrMock,
 			valuesError:       fmt.Errorf("no value"),
-			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setConfdPath()
+			setConfdPathAndCleanProfiles()
 			session := createMockSession()
 			session.connectErr = tt.sessionConnError
 			check := Check{session: session}
@@ -762,7 +774,7 @@ ip_address: 1.2.3.4
 			mocksender.SetSender(sender, check.ID())
 
 			session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -785,7 +797,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
