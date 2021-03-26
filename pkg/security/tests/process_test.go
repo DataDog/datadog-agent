@@ -68,19 +68,16 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
 			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT == 0`,
 		},
 		{
-			ID:         "test_rule_ancestors",
-			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name == "%s"`, path.Base(executable)),
+			ID: "test_rule_ancestors",
+			Expression: `open.file.path == "/tmp/test-process-ancestors" && process.ancestors[_].file.name == "dash" &&` +
+				`process.ancestors[_].file.container_path != "abc" && ` +
+				`process.ancestors[_].container.id != ""`,
 		},
 		{
 			ID:         "test_rule_pid1",
@@ -101,6 +98,14 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_rule_args_options",
 			Expression: `exec.args_options in ["block-size=123"]`,
+		},
+		{
+			ID: "test_rule_args_envs",
+			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"] &&` +
+				`process.ancestors[_].file.container_path != "abc" && ` +
+				`process.ancestors[_].container.id != "" && ` +
+				`exec.file.container_path != "abc" && ` +
+				`exec.container.id != ""`,
 		},
 		{
 			ID:         "test_rule_tty",
@@ -140,6 +145,12 @@ func TestProcessContext(t *testing.T) {
 		}
 		return executable
 	}
+	dockerWrapper := newDockerWrapper()
+	err = dockerWrapper.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerWrapper.Stop()
 
 	t.Run("inode", func(t *testing.T) {
 		executable, err := os.Executable()
@@ -164,10 +175,15 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	t.Run("args-envs", func(t *testing.T) {
+	dockerWrapper.Run(t, "args-envs", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		if testEnvironment == DockerEnvironment {
+			t.Skip()
+		}
 		lsExecutable := which("ls")
-		cmd := exec.Command(lsExecutable, "-al", "--password", "secret", "--custom", "secret")
-		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		args := []string{"-al", "--password", "secret", "--custom", "secret"}
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		cmd := cmdFunc(lsExecutable, args, envs)
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
@@ -222,6 +238,8 @@ func TestProcessContext(t *testing.T) {
 			if strings.Contains(str, "secret") || strings.Contains(str, "/tmp/lib") {
 				t.Error("secret or env values exposed")
 			}
+
+			testStringFieldContains(t, event, "exec.file.container_path", "docker")
 		}
 	})
 
@@ -384,31 +402,15 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	t.Run("ancestors", func(t *testing.T) {
-		shell := "/usr/bin/sh"
-		if resolved, err := os.Readlink(shell); err == nil {
-			shell = resolved
-		}
-		shell = path.Base(shell)
-
+	dockerWrapper.Run(t, "ancestors", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		executable := "/usr/bin/touch"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/touch"
-			}
-		}
-
-		testFile, _, err := test.Path("test-process-ancestors")
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
-		cmd := exec.Command(shell, "-c", "$("+executable+" "+testFile+")")
-		if _, err := cmd.CombinedOutput(); err != nil {
+		args := []string{"-c", "$(" + executable + " /tmp/test-process-ancestors)"}
+
+		cmd := cmdFunc("/usr/bin/sh", args, nil)
+		if err := cmd.Run(); err != nil {
 			t.Error(err)
 		}
 
@@ -462,9 +464,11 @@ func TestProcessContext(t *testing.T) {
 				t.Error("Wrong rule triggered")
 			}
 
-			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != shell {
-				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
+			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != "sh" {
+				t.Errorf("ancestor `sh` expected, got %v, event:%v", ancestor, event)
 			}
+
+			testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 		}
 	})
 }
@@ -491,7 +495,7 @@ func TestProcessExec(t *testing.T) {
 	defer test.Close()
 
 	cmd := exec.Command("sh", "-c", executable+" /dev/null")
-	if _, err := cmd.CombinedOutput(); err != nil {
+	if err := cmd.Run(); err != nil {
 		t.Error(err)
 	}
 
@@ -540,7 +544,7 @@ func TestProcessMetadata(t *testing.T) {
 
 	t.Run("executable", func(t *testing.T) {
 		cmd := exec.Command(testFile)
-		if _, err := cmd.CombinedOutput(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Error(err)
 		}
 
@@ -610,7 +614,7 @@ func TestProcessLineage(t *testing.T) {
 	defer test.Close()
 
 	cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
-	if _, err := cmd.CombinedOutput(); err != nil {
+	if err := cmd.Run(); err != nil {
 		t.Error(err)
 	}
 

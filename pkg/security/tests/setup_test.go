@@ -761,6 +761,29 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
+func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string, expected string) {
+	t.Helper()
+
+	// check container path
+	value, err := event.GetFieldValue(fieldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	switch value.(type) {
+	case string:
+		if !strings.Contains(value.(string), expected) {
+			t.Errorf("expected value `%s` for `%s` not found", expected, fieldPath)
+		}
+	case []string:
+		for _, v := range value.([]string) {
+			if strings.Contains(v, expected) {
+				return
+			}
+		}
+		t.Errorf("expected value `%s` for `%s` not found in for `%+v`", expected, fieldPath, value)
+	}
+}
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	t.Helper()
 
@@ -768,14 +791,7 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 		return
 	}
 
-	path, err := event.GetFieldValue(fieldPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s \n %v", path, event)
-	}
+	testStringFieldContains(t, event, fieldPath, "docker")
 }
 
 func (tm *testModule) flushChannels(duration time.Duration) {
