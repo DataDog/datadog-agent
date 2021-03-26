@@ -16,6 +16,7 @@ import (
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -169,7 +170,8 @@ func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
 		}
 	}
 
-	elf, err := netebpf.ReadBPFModule("build", true)
+	cfg := config.NewDefaultConfig()
+	elf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(elf, mgrOptions)
 	require.NoError(t, err)
