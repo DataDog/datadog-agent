@@ -28,9 +28,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - chmod 755 /tmp/system-probe/system-probe
-    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}-${BCC_VERSION}.tar.xz /tmp/libbcc.tar.xz
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE

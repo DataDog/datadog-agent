@@ -11,11 +11,8 @@
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
     - inv -e deps
-    # Retrieve libbcc from S3
-    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz /tmp/libbcc.tar.xz
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz /tmp/clang.tar.xz
     - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
-    - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
     - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   script:
     - inv -e system-probe.build --embedded-path=$DATADOG_AGENT_EMBEDDED_PATH
