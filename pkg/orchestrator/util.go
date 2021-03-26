@@ -21,17 +21,21 @@ const (
 	K8sService
 	// K8sNode represents a Kubernetes Node
 	K8sNode
+	// K8sCluster represents a Kubernetes Cluster
+	K8sCluster
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
-	return []NodeType{K8sNode, K8sPod, K8sReplicaSet, K8sDeployment, K8sService}
+	return []NodeType{K8sCluster, K8sNode, K8sPod, K8sReplicaSet, K8sDeployment, K8sService}
 }
 
 func (n NodeType) String() string {
 	switch n {
 	case K8sNode:
 		return "Node"
+	case K8sCluster:
+		return "Cluster"
 	case K8sService:
 		return "Service"
 	case K8sReplicaSet:
