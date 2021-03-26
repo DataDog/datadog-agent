@@ -148,7 +148,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		log.Error("could not parse the config for the API server")
+		_ = log.Error("could not parse the config for the API server")
 		return err
 	}
 
@@ -207,7 +207,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
 			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
 		default:
-			o.Warnf("Unsupported collector: %s", v) //nolint:errcheck
+			_ = o.Warnf("Unsupported collector: %s", v)
 		}
 	}
 
@@ -258,13 +258,13 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 	}
 	deployList, err := o.deployLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list deployments: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list deployments: %s", err)
 		return
 	}
 
 	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process deployment list: %v", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process deployment list: %v", err)
 		return
 	}
 
@@ -285,13 +285,13 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 	}
 	rsList, err := o.rsLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list replica sets: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list replica sets: %s", err)
 		return
 	}
 
 	messages, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process replica set list: %v", err) //nolint:errcheck
+		_ = log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
@@ -312,14 +312,14 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 	}
 	serviceList, err := o.serviceLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list services: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list services: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	messages, err := processServiceList(serviceList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process service list: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process service list: %s", err)
 		return
 	}
 
@@ -340,14 +340,14 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 	nodesList, err := o.nodesLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list nodes: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list nodes: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	nodesMessages, clusterModel, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process node list: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process node list: %s", err)
 		return
 	}
 	sendNodesMetadata(sender, nodesList, nodesMessages, o.clusterID)
@@ -390,14 +390,14 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list pods: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list pods: %s", err)
 		return
 	}
 
 	// we send an empty hostname for unassigned pods
 	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
-		o.Warnf("Unable to process pod list: %v", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process pod list: %v", err)
 		return
 	}
 
@@ -422,13 +422,13 @@ func (o *OrchestratorCheck) Cancel() {
 func (o *OrchestratorCheck) runLeaderElection() error {
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.") //nolint:errcheck
+		_ = o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
 		return err
 	}
 
 	err = leaderEngine.EnsureLeaderElectionRuns()
 	if err != nil {
-		o.Warn("Leader Election process failed to start") //nolint:errcheck
+		_ = o.Warn("Leader Election process failed to start")
 		return err
 	}
 

@@ -358,7 +358,6 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 }
 
 func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, client *apiserver.APIClient, groupID int32, cluster model.Cluster) (*model.CollectorCluster, error) {
-
 	kubeSystemCreationTimestamp, err := getKubeSystemCreationTimeStamp(client.Cl.CoreV1())
 	if err != nil {
 		log.Warnf("Error getting server kube system creation timestamp: %s", err.Error())
