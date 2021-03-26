@@ -161,7 +161,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	log.Debug("Trying to determine a reliable host name automatically...")
 
 	// if fargate we strip the hostname
-	if fargate.IsFargateInstance() {
+	if fargate.IsFargateInstance(ctx) {
 		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
 	}

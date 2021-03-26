@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -23,7 +24,7 @@ type ECSFargateCollector struct{}
 
 // Detect tries to connect to the ECS metadata API
 func (c *ECSFargateCollector) Detect() error {
-	if ecsutil.IsFargateInstance() {
+	if ecsutil.IsFargateInstance(context.TODO()) {
 		return nil
 	}
 	return fmt.Errorf("failed to connect to task metadata API")

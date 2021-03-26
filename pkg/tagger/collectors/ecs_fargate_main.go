@@ -40,7 +40,7 @@ type ECSFargateCollector struct {
 func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	var err error
 
-	if !ecsutil.IsFargateInstance() {
+	if !ecsutil.IsFargateInstance(context.TODO()) {
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 	}
 

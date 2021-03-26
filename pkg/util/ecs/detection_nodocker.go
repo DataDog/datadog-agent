@@ -16,7 +16,7 @@ func IsECSInstance() bool {
 
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
 // It detects it by getting and unmarshalling the metadata API response.
-func IsFargateInstance() bool {
+func IsFargateInstance(ctx context.Context) bool {
 	return false
 }
 

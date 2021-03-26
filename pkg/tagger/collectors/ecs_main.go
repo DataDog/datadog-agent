@@ -43,7 +43,7 @@ type ECSCollector struct {
 
 // Detect tries to connect to the ECS agent
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	if ecsutil.IsFargateInstance() {
+	if ecsutil.IsFargateInstance(context.TODO()) {
 		return NoCollection, fmt.Errorf("ECS collector is disabled on Fargate")
 	}
 

@@ -6,6 +6,8 @@
 package collectors
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
@@ -46,7 +48,7 @@ func staticFactory() Collector {
 
 func init() {
 	// Only register collector if it is an ECS Fargate or EKS Fargate instance
-	if fargate.IsFargateInstance() {
+	if fargate.IsFargateInstance(context.TODO()) {
 		registerCollector(staticCollectorName, staticFactory, NodeOrchestrator)
 	}
 }

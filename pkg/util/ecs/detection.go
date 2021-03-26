@@ -39,7 +39,7 @@ func IsECSInstance() bool {
 // It detects it by getting and unmarshalling the metadata API response.
 // This function identifies Fargate on ECS only. Make sure to use the Fargate pkg
 // to identify Fargate instances in other orchestrators (e.g EKS Fargate)
-func IsFargateInstance() bool {
+func IsFargateInstance(ctx context.Context) bool {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
@@ -60,7 +60,7 @@ func IsFargateInstance() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTask(context.TODO())
+		_, err = client.GetTask(ctx)
 		if err != nil {
 			log.Debug(err)
 			return newBoolEntry(false)
@@ -72,7 +72,7 @@ func IsFargateInstance() bool {
 
 // IsRunningOn returns true if the agent is running on ECS/Fargate
 func IsRunningOn(ctx context.Context) bool {
-	return IsECSInstance() || IsFargateInstance()
+	return IsECSInstance() || IsFargateInstance(ctx)
 }
 
 // HasEC2ResourceTags returns whether the metadata endpoint in ECS exposes
@@ -97,7 +97,7 @@ func HasEC2ResourceTags() bool {
 
 // HasFargateResourceTags returns whether the metadata endpoint in Fargate
 // exposes resource tags.
-func HasFargateResourceTags() bool {
+func HasFargateResourceTags(ctx context.Context) bool {
 	return queryCacheBool(hasFargateResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V2()
 		if err != nil {
@@ -105,7 +105,7 @@ func HasFargateResourceTags() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTaskWithTags(context.TODO())
+		_, err = client.GetTaskWithTags(ctx)
 		return newBoolEntry(err == nil)
 	})
 }
