@@ -14,6 +14,7 @@ import (
 
 const (
 	snmpCheckName = "snmp"
+	snmpLoaderTag = "loader:core"
 )
 
 // Check aggregates metrics from one Check instance
@@ -100,7 +101,7 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 }
 
 func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(copyStrings(tags), "loader:core")
+	newTags := append(copyStrings(tags), snmpLoaderTag)
 
 	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
 
