@@ -27,18 +27,22 @@ const (
 	fileTemplate = "datadog-capture-%d"
 )
 
+// CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
+// message used for serialization.
 type CaptureBuffer struct {
 	Pb   pb.UnixDogstatsdMsg
 	Oob  *[]byte
 	Buff *packets.Packet
 }
 
+// CapPool is a pool of CaptureBuffer
 var CapPool = sync.Pool{
 	New: func() interface{} {
 		return new(CaptureBuffer)
 	},
 }
 
+// TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
 	File     *os.File
 	writer   *bufio.Writer
@@ -53,6 +57,7 @@ type TrafficCaptureWriter struct {
 	sync.RWMutex
 }
 
+// NewTrafficCaptureWriter creaes a TrafficCaptureWriter instance.
 func NewTrafficCaptureWriter(l string, depth int) (*TrafficCaptureWriter, error) {
 
 	return &TrafficCaptureWriter{
@@ -61,6 +66,7 @@ func NewTrafficCaptureWriter(l string, depth int) (*TrafficCaptureWriter, error)
 	}, nil
 }
 
+// Path returns the path to file where the traffic capture will be written.
 func (tc *TrafficCaptureWriter) Path() (string, error) {
 	tc.RLock()
 	defer tc.RUnlock()
@@ -72,6 +78,7 @@ func (tc *TrafficCaptureWriter) Path() (string, error) {
 	return filepath.Abs(tc.File.Name())
 }
 
+// Capture start the traffic capture and writes the packets to file for the specified duration.
 func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 
 	log.Debugf("Starting capture...")
@@ -157,6 +164,7 @@ cleanup:
 	}
 }
 
+// StopCapture stops the ongoing capture if ongoine and returns an error, if any.
 func (tc *TrafficCaptureWriter) StopCapture() error {
 	tc.Lock()
 	defer tc.Unlock()
@@ -181,6 +189,7 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 	return tc.File.Close()
 }
 
+// Enqueue enqueues a capture buffer so it's written to file.
 func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) {
 	tc.RLock()
 	if tc.ongoing {
@@ -189,6 +198,7 @@ func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) {
 	tc.RUnlock()
 }
 
+// RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.
 func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager) error {
 	if tc.sharedPacketPoolManager != nil {
 		return fmt.Errorf("OOB Pool Manager already registered with the writer")
@@ -199,6 +209,7 @@ func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager
 	return nil
 }
 
+// RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCaptureWriter.
 func (tc *TrafficCaptureWriter) RegisterOOBPoolManager(p *packets.PoolManager) error {
 	if tc.oobPacketPoolManager != nil {
 		return fmt.Errorf("OOB Pool Manager already registered with the writer")
@@ -209,6 +220,7 @@ func (tc *TrafficCaptureWriter) RegisterOOBPoolManager(p *packets.PoolManager) e
 	return nil
 }
 
+// IsOngoing returns whether a capture is ongoing for this TrafficCaptureWriter instance.
 func (tc *TrafficCaptureWriter) IsOngoing() bool {
 	tc.RLock()
 	defer tc.RUnlock()
@@ -216,10 +228,12 @@ func (tc *TrafficCaptureWriter) IsOngoing() bool {
 	return tc.ongoing
 }
 
+// WriteHeader writes the .dog file format header to the capture file.
 func (tc *TrafficCaptureWriter) WriteHeader() error {
 	return WriteHeader(tc.writer)
 }
 
+// WriteNext writes the next CaptureBuffer after serializing it to a protobuf format.
 func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
 	buff, err := proto.Marshal(&msg.Pb)
 	if err != nil {
@@ -235,6 +249,7 @@ func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
 	return nil
 }
 
+// Write writes the byte slice argument to file.
 func (tc *TrafficCaptureWriter) Write(p []byte) (int, error) {
 	buf := make([]byte, 4)
 	binary.LittleEndian.PutUint32(buf, uint32(len(p)))
@@ -250,6 +265,7 @@ func (tc *TrafficCaptureWriter) Write(p []byte) (int, error) {
 	return n + 4, err
 }
 
+// Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.
 func Read(r io.Reader) ([]byte, error) {
 	buf := make([]byte, 4)
 	if _, err := io.ReadFull(r, buf); err != nil {

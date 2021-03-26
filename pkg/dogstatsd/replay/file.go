@@ -37,6 +37,7 @@ func datadogMatcher(buf []byte) bool {
 	return true
 }
 
+// WriteHeader writes the datadog header to the Writer argument to conform to the .dog file format.
 func WriteHeader(w *bufio.Writer) error {
 
 	//Write header

@@ -13,12 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// TrafficCapture allows capturing traffic from our listeners and writing it to file
 type TrafficCapture struct {
 	Writer *TrafficCaptureWriter
 
 	sync.RWMutex
 }
 
+// NewTrafficCapture creates a TrafficCapture instance.
 func NewTrafficCapture() (*TrafficCapture, error) {
 	location := config.Datadog.GetString("dogstatsd_uds_capture_path")
 	writer, err := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_uds_capture_depth"))
@@ -33,6 +35,7 @@ func NewTrafficCapture() (*TrafficCapture, error) {
 	return tc, nil
 }
 
+// IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
 func (tc *TrafficCapture) IsOngoing() bool {
 	tc.RLock()
 	defer tc.RUnlock()
@@ -44,6 +47,7 @@ func (tc *TrafficCapture) IsOngoing() bool {
 	return tc.Writer.IsOngoing()
 }
 
+// Start starts a TrafficCapture and returns an error in the event of an issue.
 func (tc *TrafficCapture) Start(d time.Duration) error {
 	if tc.IsOngoing() {
 		return fmt.Errorf("Ongoing capture in progress")
@@ -55,6 +59,7 @@ func (tc *TrafficCapture) Start(d time.Duration) error {
 
 }
 
+// Stop stops an ongoing TrafficCapture and returns an error in the event of an issue.
 func (tc *TrafficCapture) Stop() error {
 	tc.Lock()
 	defer tc.Unlock()
@@ -67,6 +72,7 @@ func (tc *TrafficCapture) Stop() error {
 	return nil
 }
 
+// Path returns the path to the underlying TrafficCapture file, and an error if any.
 func (tc *TrafficCapture) Path() (string, error) {
 	tc.RLock()
 	defer tc.RUnlock()

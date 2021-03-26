@@ -9,8 +9,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"sync" // might be unnecessary
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
@@ -20,6 +21,7 @@ import (
 	"github.com/h2non/filetype"
 )
 
+// TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
 	Contents []byte
 	Traffic  chan *pb.UnixDogstatsdMsg
@@ -30,11 +32,23 @@ type TrafficCaptureReader struct {
 	sync.Mutex
 }
 
+// NewTrafficCaptureReader creates a TrafficCaptureReader instance
 func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, error) {
 
-	// TODO: think about the following approach
-	// read entire thing into memory for performance reasons
-	c, err := ioutil.ReadFile(path)
+	// MMap file so that we can have reasonable performance with very large files
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	fd := int(f.Fd())
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	size := int(stat.Size())
+
+	c, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +65,7 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	}, nil
 }
 
+// Read reads the contents of the traffic capture and writes each packet to a channel
 func (tc *TrafficCaptureReader) Read() {
 	tc.Shutdown = make(chan struct{})
 	defer close(tc.Shutdown)
@@ -77,6 +92,7 @@ func (tc *TrafficCaptureReader) Read() {
 	}
 }
 
+// ReadNext reads the next packet found in the file and returns the protobuf representation and an error if any.
 func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 
 	tc.Lock()
