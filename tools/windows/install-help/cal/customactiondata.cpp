@@ -39,8 +39,7 @@ bool CustomActionData::init(const std::wstring &data)
 
     while (std::getline(ss, token))
     {
-        // now 'token'  has the key=val; do the same thing for the key=value
-        bool boolval = false;
+        // 'token' contains "<key>=<value>"
         std::wstringstream instream(token);
         std::wstring key, val;
         if (std::getline(instream, key, L'='))
@@ -48,7 +47,7 @@ bool CustomActionData::init(const std::wstring &data)
             trim_string(key);
             std::getline(instream, val);
             trim_string(val);
-            if (key.length() > 0 && val.length() > 0)
+            if (!key.empty() && !val.empty())
             {
                 this->values[key] = val;
             }
