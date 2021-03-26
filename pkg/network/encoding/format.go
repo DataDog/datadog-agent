@@ -32,7 +32,7 @@ type RouteIdx struct {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats map[string]*model.HTTPStats) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -60,7 +60,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
+	c.HttpStatsByPath = httpStats
 	return c
 }
 
@@ -127,6 +127,40 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		ret[asset] = t
 	}
 	return ret
+}
+
+func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[string]*model.HTTPStats {
+	aggregated := make(map[http.Key]map[string]*model.HTTPStats, len(httpData))
+	for key, stats := range httpData {
+		path := key.Path
+		key.Path = ""
+
+		statsByPath := aggregated[key]
+		if statsByPath == nil {
+			statsByPath = make(map[string]*model.HTTPStats)
+			aggregated[key] = statsByPath
+		}
+
+		ms := &model.HTTPStats{
+			StatsByResponseStatus: make([]*model.HTTPStats_Data, 5),
+		}
+
+		for i := 0; i < 5; i++ {
+			data := new(model.HTTPStats_Data)
+			data.Count = uint32(stats[i].Count)
+			if latencies := stats[i].Latencies; latencies != nil {
+				blob, _ := proto.Marshal(latencies.ToProto())
+				data.Latencies = blob
+			} else {
+				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
+			}
+			ms.StatsByResponseStatus[i] = data
+		}
+
+		statsByPath[path] = ms
+	}
+
+	return aggregated
 }
 
 func returnToPool(c *model.Connections) {
@@ -248,29 +282,4 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
-}
-
-func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
-	formattedStatsByPath := make(map[string]*model.HTTPStats)
-
-	for path, stats := range statsByPath {
-		var ms model.HTTPStats
-		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
-
-		for i := 0; i < 5; i++ {
-			data := new(model.HTTPStats_Data)
-			data.Count = uint32(stats[i].Count)
-			if latencies := stats[i].Latencies; latencies != nil {
-				blob, _ := proto.Marshal(latencies.ToProto())
-				data.Latencies = blob
-			} else {
-				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
-			}
-			ms.StatsByResponseStatus[i] = data
-		}
-
-		formattedStatsByPath[path] = &ms
-	}
-
-	return formattedStatsByPath
 }

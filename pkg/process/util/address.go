@@ -37,6 +37,10 @@ func NetIPFromAddress(addr Address) net.IP {
 }
 
 func ToLowHigh(addr Address) (l, h uint64) {
+	if addr == nil {
+		return
+	}
+
 	switch b := addr.Bytes(); len(b) {
 	case 4:
 		return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)

@@ -31,13 +31,13 @@ const (
 // - sent and received bytes per connection
 type State interface {
 	// Connections returns the list of connections for the given client when provided the latest set of active connections
-	Connections(
+	GetDelta(
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
 		dns map[DNSKey]map[string]DNSStats,
 		http map[http.Key]http.RequestStats,
-	) []ConnectionStats
+	) Delta
 
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn *ConnectionStats)
@@ -56,6 +56,12 @@ type State interface {
 
 	// DebugState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
+}
+
+// Delta representes a delta of network data compared to the last call to State.
+type Delta struct {
+	Connections []ConnectionStats
+	HTTP        map[http.Key]http.RequestStats
 }
 
 type telemetry struct {
@@ -134,13 +140,13 @@ func (ns *networkState) getClients() []string {
 // Connections returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
-func (ns *networkState) Connections(
+func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
 	dnsStats map[DNSKey]map[string]DNSStats,
 	httpStats map[http.Key]http.RequestStats,
-) []ConnectionStats {
+) Delta {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -172,12 +178,14 @@ func (ns *networkState) Connections(
 		if len(httpStats) > 0 {
 			ns.storeHTTPStats(httpStats)
 		}
-		ns.addHTTPStats(id, latestConns)
 
 		// copy to ensure return value doesn't get clobbered
 		conns := make([]ConnectionStats, len(latestConns))
 		copy(conns, latestConns)
-		return conns
+		return Delta{
+			Connections: conns,
+			HTTP:        ns.getHTTPDelta(id),
+		}
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -204,9 +212,11 @@ func (ns *networkState) Connections(
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
 	}
-	ns.addHTTPStats(id, conns)
 
-	return conns
+	return Delta{
+		Connections: conns,
+		HTTP:        ns.getHTTPDelta(id),
+	}
 }
 
 func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
@@ -266,38 +276,6 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 	// flush the DNS stats
 	ns.clients[id].dnsStats = make(map[DNSKey]map[string]DNSStats)
-}
-
-// addHTTPStats fills in the HTTP stats for each connection
-func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
-	// Auxilliary index so we can go from http.Key to ConnectionStat object
-	reverseIndex := make(map[http.Key]int, len(conns))
-	for i := range conns {
-		conn := &conns[i]
-		key := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
-		reverseIndex[key] = i
-	}
-
-	// [TODO] Here we re-aggregate HTTP transactions per connection to keep compatibility
-	// with the current agent-payload model, but we should follow up on this in a subsequent PR
-	allDeltas := ns.clients[id].httpStatsDelta
-	for key, delta := range allDeltas {
-		path := key.Path
-		key.Path = ""
-		i, ok := reverseIndex[key]
-		if !ok {
-			continue
-		}
-
-		conn := &conns[i]
-		if conn.HTTPStatsByPath == nil {
-			conn.HTTPStatsByPath = make(map[string]http.RequestStats)
-		}
-		conn.HTTPStatsByPath[path] = delta
-	}
-
-	// flush the HTTP stats from client state
-	ns.clients[id].httpStatsDelta = make(map[http.Key]http.RequestStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -393,16 +371,16 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) 
 				continue
 			}
 
-			// TODO: we'll always create a new DDSketch when a new (client,
-			// key) is addded and this is a pretty expensive operation. We could
-			// instead simply be using the existing stats.latencies object, but we could
-			// be inadvertently mutating the same object in the context of
-			// multiple clients. As an optimization we can re-use the DDSKetch object
-			// for the "main client" and simply skip it's creation for the "debug" client
 			prevStats.CombineWith(stats)
 			client.httpStatsDelta[key] = prevStats
 		}
 	}
+}
+
+func (ns *networkState) getHTTPDelta(clientID string) map[http.Key]http.RequestStats {
+	delta := ns.clients[clientID].httpStatsDelta
+	ns.clients[clientID].httpStatsDelta = make(map[http.Key]http.RequestStats)
+	return delta
 }
 
 // newClient creates a new client and returns true if the given client already exists

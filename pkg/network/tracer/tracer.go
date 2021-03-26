@@ -616,12 +616,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.flushIdle <- done
 	<-done
 
-	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
-	names := t.reverseDNS.Resolve(conns)
+	delta := t.state.GetDelta(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	names := t.reverseDNS.Resolve(delta.Connections)
 	ctm := t.getConnTelemetry(len(latestConns))
 	rctm := t.getRuntimeCompilationTelemetry()
 
-	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, CompilationTelemetryByAsset: rctm}, nil
+	return &network.Connections{
+		Conns:                       delta.Connections,
+		DNS:                         names,
+		HTTP:                        delta.HTTP,
+		ConnTelemetry:               ctm,
+		CompilationTelemetryByAsset: rctm,
+	}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {

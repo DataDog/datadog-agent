@@ -60,13 +60,19 @@ func TestSerialization(t *testing.T) {
 						Alias: "subnet-foo",
 					},
 				},
-				HTTPStatsByPath: map[string]http.RequestStats{
-					"/testpath": httpReqStats,
-				},
 			},
 		},
 		DNS: map[util.Address][]string{
 			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("10.1.1.1"),
+				util.AddressFromString("10.2.2.2"),
+				1000,
+				9000,
+				"/testpath",
+			): httpReqStats,
 		},
 	}
 
@@ -249,13 +255,22 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
-	statsByPath := map[string]http.RequestStats{
-		"/testpath": httpReqStats,
+	key := http.NewKey(
+		util.AddressFromString("10.1.1.1"),
+		util.AddressFromString("10.2.2.2"),
+		1000,
+		9000,
+		"/testpath",
+	)
+	statsByKey := map[http.Key]http.RequestStats{
+		key: httpReqStats,
 	}
-	formattedStats := formatHTTPStatsByPath(statsByPath)
+	formattedStats := FormatHTTPStats(statsByKey)
 
+	// Now path will be nested in the map
+	key.Path = ""
 	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := formattedStats["/testpath"].StatsByResponseStatus
+	statsByResponseStatus := formattedStats[key]["/testpath"].StatsByResponseStatus
 	assert.Len(t, statsByResponseStatus, 5)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
