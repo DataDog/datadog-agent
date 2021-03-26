@@ -440,8 +440,8 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         res = ctx.run("go build main.go", warn=True)
         if res.exited is None or res.exited > 0:
             errors_found.append("could not build test module importing external modules")
-        if os.path.isfile(os.path.join(ctx.cwd(), "main")):
-            os.remove(os.path.join(ctx.cwd(), "main"))
+        if os.path.isfile(os.path.join(ctx.cwd, "main")):
+            os.remove(os.path.join(ctx.cwd, "main"))
 
     if errors_found:
         message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
