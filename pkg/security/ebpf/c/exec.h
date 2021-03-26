@@ -9,8 +9,9 @@
 
 #define MAX_PERF_STR_BUFF_LEN 128
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT 32
+#define MAX_ARRAY_ELEMENT_PER_TAIL 32
 #define MAX_ARRAY_ELEMENT_SIZE 4096
+#define MAX_ARGS_ELEMENTS 160
 
 struct args_envs_event_t {
     struct kevent_t event;
@@ -76,6 +77,8 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         return;
     }
 
+    array_ref->truncated = 0;
+
     u32 key = 0;
     struct str_array_buffer_t *buff = bpf_map_lookup_elem(&str_array_buffers, &key);
     if (!buff) {
@@ -92,7 +95,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
     int i = 0, n = 0, buff_offset = 0, perf_offset = 0;
 
     #pragma unroll
-    for (i = 0; i < MAX_ARRAY_ELEMENT; i++) {
+    for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         void *ptr = &(buff->value[(buff_offset + sizeof(n)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
 
         n = bpf_probe_read_str(ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)str);
@@ -127,7 +130,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
         }
     }
     array_ref->index = index;
-    array_ref->truncated = i == MAX_ARRAY_ELEMENT;
+    array_ref->truncated = i == MAX_ARRAY_ELEMENT_PER_TAIL;
 
     // flush remaining values
     if (event.size > 0) {
@@ -150,7 +153,7 @@ int parse_args_envs(struct pt_regs *ctx) {
     }
 
     struct str_array_ref_t *array = &syscall->exec.args;
-    if (syscall->exec.next_tail > 4) {
+    if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
         array = &syscall->exec.envs;
     }
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);

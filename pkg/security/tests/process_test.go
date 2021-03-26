@@ -553,7 +553,7 @@ func TestProcessLineage(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -562,7 +562,7 @@ func TestProcessLineage(t *testing.T) {
 	}
 	defer test.Close()
 
-	cmd := exec.Command(executable, "/dev/null")
+	cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Error(err)
 	}
