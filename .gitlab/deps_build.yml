@@ -102,7 +102,9 @@ build_clang_arm64:
   script:
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir build-out
-    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version ${env:WINDOWS_PYTHON_VERSION} -OutDir c:\mnt\build-out"
+    - $cmd = "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version ${env:WINDOWS_PYTHON_VERSION} -OutDir c:\mnt\build-out"
+    - if ($ARCH -eq "x86") { $cmd += " -x86" }
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C $cmd
     - get-childitem build-out
   timeout: 0h 30m
   artifacts:
