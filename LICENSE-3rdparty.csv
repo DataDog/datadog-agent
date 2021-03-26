@@ -353,6 +353,10 @@ core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger",NewB
 core,"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/runtime",NewBSD
 core,"github.com/grpc-ecosystem/grpc-gateway/utilities",NewBSD
+core,"github.com/h2non/filetype",MIT
+core,"github.com/h2non/filetype/matchers",MIT
+core,"github.com/h2non/filetype/matchers/isobmff",MIT
+core,"github.com/h2non/filetype/types",MIT
 core,"github.com/hashicorp/consul/api",MPL-2.0
 core,"github.com/hashicorp/errwrap",MPL-2.0
 core,"github.com/hashicorp/go-cleanhttp",MPL-2.0
