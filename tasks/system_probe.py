@@ -21,7 +21,6 @@ EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfil
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
-BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
@@ -44,7 +43,6 @@ def build(
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
-    with_bcc=True,
     go_mod="mod",
     windows=is_windows,
     arch="x64",
@@ -94,8 +92,6 @@ def build(
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if with_bcc:
-        build_tags.append(BCC_TAG)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
@@ -588,22 +584,6 @@ def build_security_ebpf_files(ctx, build_dir):
     return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
 
 
-def build_bcc_files(ctx, build_dir):
-    corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
-    corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
-    bcc_files = [
-        os.path.join(corechecks_bcc_dir, "tcp-queue-length-kern.c"),
-        os.path.join(corechecks_c_dir, "tcp-queue-length-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "oom-kill-kern.c"),
-        os.path.join(corechecks_c_dir, "oom-kill-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "bpf-common.h"),
-    ]
-    for f in bcc_files:
-        ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
-
-    return [os.path.join(build_dir, os.path.basename(f)) for f in bcc_files]
-
-
 def build_object_files(ctx, bundle_ebpf=False):
     """build_object_files builds only the eBPF object
     set bundle_ebpf to False to disable replacing the assets
@@ -621,7 +601,6 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    bindata_files.extend(build_bcc_files(ctx, build_dir=build_dir))
     bindata_files.extend(build_network_ebpf_files(ctx, build_dir=build_dir))
     bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
 
@@ -635,6 +614,8 @@ def build_object_files(ctx, bundle_ebpf=False):
 @task
 def generate_runtime_files(ctx):
     runtime_compiler_files = [
+        "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
+        "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
         "./pkg/network/tracer/compile.go",
         "./pkg/security/probe/compile.go",
     ]
