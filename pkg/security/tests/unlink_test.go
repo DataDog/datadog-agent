@@ -39,8 +39,8 @@ func TestUnlink(t *testing.T) {
 
 	inode := getInode(t, testFile)
 
-	t.Run("unlink", func(t *testing.T) {
-		if _, _, err := syscall.Syscall(syscall.SYS_UNLINK, uintptr(testFilePtr), 0, 0); err != 0 {
+	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
+		if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 			t.Fatal(err)
 		}
 
@@ -57,7 +57,7 @@ func TestUnlink(t *testing.T) {
 
 			testContainerPath(t, event, "unlink.file.container_path")
 		}
-	})
+	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
 	if err != nil {

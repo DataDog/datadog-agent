@@ -66,6 +66,13 @@ static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
 static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user_str;
+static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel_str;
+static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
+static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel;
+#endif
+
 #pragma clang diagnostic pop
 
 /* llvm builtin functions that eBPF C program may use to

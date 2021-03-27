@@ -182,8 +182,6 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
     };
     cache_syscall(&syscall);
 
-    bpf_tail_call(ctx, &args_envs_progs, syscall.exec.next_tail);
-
     return 0;
 }
 
@@ -407,6 +405,26 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     }
 
     return 0;
+}
+
+int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
+    return 0;
+}
+
+SEC("kprobe/prepare_binprm")
+int kprobe_prepare_binprm(struct pt_regs *ctx) {
+    return parse_args_and_env(ctx);
+}
+
+SEC("kprobe/bprm_execve")
+int kprobe_bprm_execve(struct pt_regs *ctx) {
+    return parse_args_and_env(ctx);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {

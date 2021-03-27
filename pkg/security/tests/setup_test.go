@@ -517,16 +517,14 @@ func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) 
 	}
 
 	// Create file
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
-	if errno != 0 {
-		return testFile, testFilePtr, error(errno)
+	f, err := os.OpenFile(testFile, os.O_CREATE, os.FileMode(mode))
+	if err != nil {
+		return "", nil, err
 	}
-	syscall.Close(int(fd))
+	f.Close()
 
 	// Chown the file
-	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
-		return testFile, testFilePtr, error(errno)
-	}
+	err = os.Chown(testFile, user, group)
 	return testFile, testFilePtr, err
 }
 
@@ -796,6 +794,19 @@ func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.E
 		case <-timeout:
 			return nil, errors.New("timeout")
 		}
+	}
+}
+
+func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		syscallNB, found := supportedSyscalls[syscall]
+		if !found {
+			t.Skipf("%s is not supported", syscall)
+		}
+
+		test(t, syscallNB)
 	}
 }
 
