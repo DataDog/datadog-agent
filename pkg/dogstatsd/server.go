@@ -225,6 +225,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			eolTerminationUDS = true
 		case "named_pipe":
 			eolTerminationNamedPipe = true
+		default:
+			log.Errorf("Invalid dogstatsd_eol_required value: %s", v)
 		}
 	}
 

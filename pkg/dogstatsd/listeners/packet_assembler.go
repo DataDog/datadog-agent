@@ -34,6 +34,7 @@ func newPacketAssembler(flushTimer time.Duration, packetsBuffer *packetsBuffer, 
 		sharedPacketPool: sharedPacketPool,
 		packetsBuffer:    packetsBuffer,
 		flushTimer:       time.NewTicker(flushTimer),
+		packetSourceType: packetSourceType,
 		closeChannel:     make(chan struct{}),
 	}
 	go packetAssembler.flushLoop()
