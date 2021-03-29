@@ -105,3 +105,7 @@ by all workers.
 
 A `HTTPTransaction` contains every information about a payload and how/where to
 send it. On failure a transaction will be retried later (see blockedEndpoints).
+
+#### Retry mechanism
+
+If the network becomes unavailable, the Agent can store the metrics in memory or on disk. See [retry package](internal/retry/README.md) for additional information.
