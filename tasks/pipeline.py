@@ -200,7 +200,9 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             # message, do not overwrite the failed jobs list
             pass
         else:
-            messages_to_send[owner].failed_jobs = jobs
+            pass
+            # TODO: enable also jobs
+            # messages_to_send[owner].failed_jobs = jobs
 
     # Send messages
     for owner, message in messages_to_send.items():
