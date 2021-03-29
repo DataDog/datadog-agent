@@ -46,6 +46,7 @@ from .test import (
     check_gitlab_broken_dependencies,
     e2e_tests,
     install_shellcheck,
+    install_tools,
     integration_tests,
     lint_filenames,
     lint_milestone,
@@ -85,6 +86,7 @@ ns.add_task(make_simple_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
+ns.add_task(install_tools)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

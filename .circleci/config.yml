@@ -81,6 +81,10 @@ jobs:
           name: test rtloader
           command: |
             inv rtloader.test
+      - run:
+          name: install go tooling
+          command: |
+            inv -e install-tools
       - save_cache:
           <<: *save_deps
           paths:
