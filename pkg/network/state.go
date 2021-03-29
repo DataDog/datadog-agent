@@ -30,7 +30,7 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
-	// Connections returns the list of connections for the given client when provided the latest set of active connections
+	// GetDelta returns the a Delta object for  given client when provided the latest set of active connections
 	GetDelta(
 		clientID string,
 		latestTime uint64,
@@ -58,7 +58,7 @@ type State interface {
 	DumpState(clientID string) map[string]interface{}
 }
 
-// Delta representes a delta of network data compared to the last call to State.
+// Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
 	Connections []ConnectionStats
 	HTTP        map[http.Key]http.RequestStats
