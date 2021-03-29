@@ -169,7 +169,9 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 
 	for _, e := range entities {
 		resp.Entities[e.ID] = response.TaggerListEntity{
-			Tags: e.GetTags(collectors.HighCardinality),
+			Tags: map[string][]string{
+				remoteSource: e.GetTags(collectors.HighCardinality),
+			},
 		}
 	}
 

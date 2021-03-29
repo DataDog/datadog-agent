@@ -137,15 +137,19 @@ def load_targets(_, targethash, selections):
     for selection in selections.split(","):
         selectionpattern = re.compile("^{}$".format(selection))
 
+        matched = False
         for key in targethash:
             if commentpattern.match(key):
                 continue
             if selectionpattern.search(key):
+                matched = True
                 if key not in returnlist:
                     returnlist.append(key)
                 else:
                     print("Skipping duplicate target key {} (matched search {})\n".format(key, selection))
 
+        if not matched:
+            raise Exit(message="Couldn't find any match for target {}\n".format(selection), code=7)
     return returnlist
 
 
