@@ -114,9 +114,12 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		sharedPacketPoolManager: sharedPacketPoolManager,
 		trafficCapture:          capture,
 	}
-	err = listener.trafficCapture.Writer.RegisterSharedPoolManager(listener.sharedPacketPoolManager)
-	if err != nil {
-		return nil, err
+
+	if listener.trafficCapture != nil {
+		err = listener.trafficCapture.Writer.RegisterSharedPoolManager(listener.sharedPacketPoolManager)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -129,9 +132,11 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		}
 
 		listener.oobPoolManager = packets.NewPoolManager(pool)
-		err = listener.trafficCapture.Writer.RegisterOOBPoolManager(listener.oobPoolManager)
-		if err != nil {
-			return nil, err
+		if listener.trafficCapture != nil {
+			err = listener.trafficCapture.Writer.RegisterOOBPoolManager(listener.oobPoolManager)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -151,7 +156,7 @@ func (l *UDSListener) Listen() {
 		udsPackets.Add(1)
 
 		var capBuff *replay.CaptureBuffer
-		if l.trafficCapture.IsOngoing() {
+		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
 			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
 			capBuff.Pb.Ancillary = nil
 			capBuff.Pb.Payload = nil
