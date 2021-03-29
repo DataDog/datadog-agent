@@ -286,7 +286,7 @@ jobs:
           name: Run tests
           command: |
             source ~/.build_setup
-
+            inv -e install-tools
             inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 
