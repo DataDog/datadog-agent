@@ -83,9 +83,12 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 				continue
 			}
 
-			// If we had a latency sample in this bucket we now add it to the DDSketch
+			// If we have a latency sample in this bucket we now add it to the DDSketch
 			if r[i].Count == 1 {
-				r[i].Latencies.Add(r[i].FirstLatencySample)
+				err := r[i].Latencies.Add(r[i].FirstLatencySample)
+				if err != nil {
+					log.Debugf("could not add request latency to ddsketch: %v", err)
+				}
 			}
 		}
 
@@ -118,12 +121,15 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 		}
 
 		// Add the defered latency sample
-		r[i].Latencies.Add(r[i].FirstLatencySample)
+		err := r[i].Latencies.Add(r[i].FirstLatencySample)
+		if err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
+		}
 	}
 
 	err := r[i].Latencies.Add(latency)
 	if err != nil {
-		log.Debugf("error recording http transaction latency: could not add latency to ddsketch: %v", err)
+		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
 }
 
