@@ -357,13 +357,12 @@ def get_licenses_list(ctx):
     exceptions = []
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
-        if 'exceptions' in wwhrd_conf:
-            for pkg in wwhrd_conf['exceptions']:
-                if pkg.endswith("/..."):
-                    # TODO(python3.9): use removesuffix
-                    exceptions_wildcard.append(pkg[: -len("/...")])
-                else:
-                    exceptions.append(pkg)
+        for pkg in wwhrd_conf['exceptions']:
+            if pkg.endswith("/..."):
+                # TODO(python3.9): use removesuffix
+                exceptions_wildcard.append(pkg[: -len("/...")])
+            else:
+                exceptions.append(pkg)
 
     def is_excluded(pkg):
         if package in exceptions:
