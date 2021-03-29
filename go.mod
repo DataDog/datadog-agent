@@ -66,7 +66,6 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
-	github.com/client9/misspell v0.3.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
@@ -85,9 +84,7 @@ require (
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20170926063155-7524189396c6 // indirect
 	github.com/fatih/color v1.9.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
-	github.com/frapposelli/wwhrd v0.2.4
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/fzipp/gocyclo v0.3.1
 	github.com/go-ini/ini v1.55.0
 	github.com/go-ole/go-ole v1.2.5
 	github.com/go-openapi/spec v0.19.8 // indirect
@@ -100,13 +97,10 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
-	github.com/golangci/golangci-lint v1.27.0
 	github.com/google/gopacket v1.1.17
 	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
-	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/gorilla/mux v1.7.4
 	github.com/gosnmp/gosnmp v1.29.0
-	github.com/goware/modvendor v0.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/hashicorp/consul/api v1.4.0
@@ -120,6 +114,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/klauspost/compress v1.11.12 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb // Pinned to kubernetes-1.16.2
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
@@ -128,6 +123,7 @@ require (
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
 	github.com/moby/sys/mountinfo v0.4.0
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
@@ -154,6 +150,7 @@ require (
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.2
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
+	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
@@ -165,11 +162,9 @@ require (
 	go.etcd.io/etcd v0.0.0-20191023171146-3cf2f69b5738
 	go.uber.org/automaxprocs v1.2.0
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
-	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/mod v0.3.1-0.20200828183125-ce943fd02449 // indirect
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
-	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20210303074136-134d130e1a04
 	golang.org/x/text v0.3.5
@@ -180,13 +175,13 @@ require (
 	google.golang.org/grpc v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	gotest.tools v2.2.0+incompatible
-	gotest.tools/gotestsum v0.5.3
-	honnef.co/go/tools v0.0.1-2020.1.5
+	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 	k8s.io/api v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2

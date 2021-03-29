@@ -290,7 +290,7 @@ def deps_vendored(ctx, verbose=False):
     # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
     # For this reason, we need to use a 3rd party tool to copy these files.
     # We won't need this if/when we change to non-vendored modules
-    ctx.run('go run github.com/goware/modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
+    ctx.run('modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
 
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     # This may happen because of the introduction of nested modules
@@ -357,12 +357,13 @@ def get_licenses_list(ctx):
     exceptions = []
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
-        for pkg in wwhrd_conf['exceptions']:
-            if pkg.endswith("/..."):
-                # TODO(python3.9): use removesuffix
-                exceptions_wildcard.append(pkg[: -len("/...")])
-            else:
-                exceptions.append(pkg)
+        if 'exceptions' in wwhrd_conf:
+            for pkg in wwhrd_conf['exceptions']:
+                if pkg.endswith("/..."):
+                    # TODO(python3.9): use removesuffix
+                    exceptions_wildcard.append(pkg[: -len("/...")])
+                else:
+                    exceptions.append(pkg)
 
     def is_excluded(pkg):
         if package in exceptions:

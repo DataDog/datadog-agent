@@ -49,8 +49,9 @@ TOOL_LIST = [
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    for tool in TOOL_LIST:
-        ctx.run("go install {}".format(tool))
+    with ctx.cd("internal/tools"):
+        for tool in TOOL_LIST:
+            ctx.run("go install {}".format(tool))
 
 
 @task()
