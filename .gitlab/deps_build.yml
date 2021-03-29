@@ -44,6 +44,8 @@ build_libbcc_arm64:
       allow_failure: true
   stage: deps_build
   script:
+    # use tmpdir to prevent git remote capture by clang build
+    - mkdir /tmp/clangbuild && cd /tmp/clangbuild
     - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/clang-11.0.1.src.tar.xz -O clang.src.tar.xz
     - wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.1/llvm-11.0.1.src.tar.xz -O llvm.src.tar.xz
     - mkdir clang && tar xf clang.src.tar.xz --strip-components=1 --no-same-owner -C clang
