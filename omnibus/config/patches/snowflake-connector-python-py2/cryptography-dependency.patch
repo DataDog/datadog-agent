@@ -13,7 +13,7 @@ index 0da6a8a..761de39 100644
 -        'cffi>=1.9,<1.14',
 -        'cryptography>=1.8.2,<3.0.0',
 +        'cffi>=1.9,<1.15',
-+        'cryptography>=1.8.2,<3.4',
++        'cryptography>=1.8.2,<4.0.0',
          'ijson<3.0.0',
 -        'pyjwt<2.0.0',
 +        'pyjwt<3.0.0',

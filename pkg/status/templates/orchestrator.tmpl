@@ -61,6 +61,8 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+    Cluster:
+      Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Clusters}} Miss: {{.CacheMiss.Clusters}})
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

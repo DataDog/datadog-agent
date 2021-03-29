@@ -6,7 +6,7 @@ TEST_F(CustomActionDataTest, With_DomainUser_Parse_Correctly)
 {
     CustomActionData customActionCtx;
     customActionCtx.init(LR"(
-    DDAGENTUSER_NAME=TEST\username;
+    DDAGENTUSER_NAME=TEST\username
 )");
     EXPECT_EQ(customActionCtx.Username(), L"TEST\\username");
     EXPECT_EQ(customActionCtx.UnqualifiedUsername(), L"username");
@@ -26,7 +26,7 @@ TEST_F(CustomActionDataTest, With_SingleEmptyProperty_Parse_Correctly)
 {
     CustomActionData customActionCtx;
     customActionCtx.init(LR"(
-        TEST_PROPERTY=;
+        TEST_PROPERTY=
 )");
     expect_string_equal(customActionCtx, L"TEST_PROPERTY", L"");
 }
@@ -35,7 +35,7 @@ TEST_F(CustomActionDataTest, With_SinglePropertyWithSpacea_Parse_Correctly)
 {
     CustomActionData customActionCtx;
     customActionCtx.init(LR"(
-        PROP_WITH_SPACE=    ;
+        PROP_WITH_SPACE=    
 )");
     expect_string_equal(customActionCtx, L"PROP_WITH_SPACE", L"");
 }
@@ -44,9 +44,9 @@ TEST_F(CustomActionDataTest, With_ManyEmptyProperties_Parse_Correctly)
 {
     CustomActionData customActionCtx;
     customActionCtx.init(LR"(
-        PROXY_HOST=;
-        PROXY_PORT=;
-        PROXY_USER=;
+        PROXY_HOST=
+        PROXY_PORT=
+        PROXY_USER=
 )");
     expect_string_equal(customActionCtx, L"PROXY_HOST", L"");
     expect_string_equal(customActionCtx, L"PROXY_PORT", L"");
@@ -57,18 +57,18 @@ TEST_F(CustomActionDataTest, With_Properties_Parse_Correctly)
 {
     CustomActionData customActionCtx;
     customActionCtx.init(LR"(
-    TAGS=k1:v1,k2:v2;
-    HOSTNAME=dd-agent-installopts;
-    CMD_PORT=4999;
-    PROXY_HOST=proxy.foo.com;
-    PROXY_PORT=1234;
-    PROXY_USER=puser;
-    PROXY_PASSWORD=ppass;
-    SITE=eu;
-    DD_URL=https://someurl.datadoghq.com;
-    LOGS_DD_URL=https://logs.someurl.datadoghq.com;
-    PROCESS_DD_URL=https://process.someurl.datadoghq.com;
-    TRACE_DD_URL=https://trace.someurl.datadoghq.com;
+    TAGS=k1:v1,k2:v2
+    HOSTNAME=dd-agent-installopts
+    CMD_PORT=4999
+    PROXY_HOST=proxy.foo.com
+    PROXY_PORT=1234
+    PROXY_USER=puser
+    PROXY_PASSWORD=ppass
+    SITE=eu
+    DD_URL=https://someurl.datadoghq.com
+    LOGS_DD_URL=https://logs.someurl.datadoghq.com
+    PROCESS_DD_URL=https://process.someurl.datadoghq.com
+    TRACE_DD_URL=https://trace.someurl.datadoghq.com
 )");
     expect_string_equal(customActionCtx, L"TAGS", L"k1:v1,k2:v2");
     expect_string_equal(customActionCtx, L"HOSTNAME", L"dd-agent-installopts");

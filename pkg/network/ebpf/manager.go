@@ -84,7 +84,7 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 			{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPRetransmit)},
 			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.TCPv4DestroySock)},
+			{Section: string(probes.InetCskListenStop)},
 			{Section: string(probes.UDPDestroySock)},
 			{Section: string(probes.UDPDestroySockReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.InetBind)},
