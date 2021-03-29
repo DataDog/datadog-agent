@@ -15,6 +15,7 @@ type genericPool interface {
 	Put(x interface{})
 }
 
+// PoolManager helps manage sync pools so multiple references to the same pool objects may be held.
 type PoolManager struct {
 	pool genericPool
 	refs sync.Map
@@ -24,6 +25,7 @@ type PoolManager struct {
 	sync.RWMutex
 }
 
+// NewPoolManager creates a PoolManager to manage the underlying genericPool.
 func NewPoolManager(gp genericPool) *PoolManager {
 	return &PoolManager{
 		pool:     gp,
@@ -31,10 +33,14 @@ func NewPoolManager(gp genericPool) *PoolManager {
 	}
 }
 
+// Get gets an object from the pool.
 func (p *PoolManager) Get() interface{} {
 	return p.pool.Get()
 }
 
+// Put declares intent to return an object to the pool. In passthru mode the object is immediately
+// returned to the pool, otherwise we wait until the object is put by all (only 2 currently supported)
+// reference holders before actually returning it to the object pool.
 func (p *PoolManager) Put(x interface{}) {
 
 	if p.IsPassthru() {
@@ -62,10 +68,12 @@ func (p *PoolManager) Put(x interface{}) {
 	p.RUnlock()
 }
 
+// IsPassthru returns a boolean telling us if the PoolManager is in passthru mode or not.
 func (p *PoolManager) IsPassthru() bool {
 	return atomic.LoadInt32(&(p.passthru)) != 0
 }
 
+// SetPassthru sets the passthru mode to the specified value.
 func (p *PoolManager) SetPassthru(b bool) {
 	if b {
 		atomic.StoreInt32(&(p.passthru), 1)
@@ -74,6 +82,7 @@ func (p *PoolManager) SetPassthru(b bool) {
 	}
 }
 
+// Flush flushes all objects back to the object pool, and stops tracking any pending objects.
 func (p *PoolManager) Flush() {
 	p.Lock()
 	defer p.Unlock()

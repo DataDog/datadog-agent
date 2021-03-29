@@ -26,6 +26,7 @@ type Assembler struct {
 	sync.Mutex
 }
 
+// NewAssembler creates a new Assembler instance using the specified flush duration, buffer and pool manager
 func NewAssembler(flushTimer time.Duration, packetsBuffer *Buffer, sharedPacketPoolManager *PoolManager, packetSourceType SourceType) *Assembler {
 	packetAssembler := &Assembler{
 		// retrieve an available packet from the packet pool,
@@ -54,6 +55,7 @@ func (p *Assembler) flushLoop() {
 	}
 }
 
+// AddMessage adds a new dogstatsd message to the buffer
 func (p *Assembler) AddMessage(message []byte) {
 	p.Lock()
 	if p.packetLength == 0 {
@@ -82,6 +84,7 @@ func (p *Assembler) flush() {
 	p.packetLength = 0
 }
 
+// Close closes the packet assembler
 func (p *Assembler) Close() {
 	p.Lock()
 	close(p.closeChannel)

@@ -32,6 +32,7 @@ type Buffer struct {
 	m             sync.Mutex
 }
 
+// NewBuffer creates a new buffer of packets of specified size
 func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets) *Buffer {
 	pb := &Buffer{
 		bufferSize:    bufferSize,
@@ -58,6 +59,7 @@ func (pb *Buffer) flushLoop() {
 	}
 }
 
+// Append appends a packet to the packet buffer and flushes if the buffer size is to be exceeded.
 func (pb *Buffer) Append(packet *Packet) {
 	pb.m.Lock()
 	defer pb.m.Unlock()
@@ -76,6 +78,7 @@ func (pb *Buffer) flush() {
 	}
 }
 
+// Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
 }
