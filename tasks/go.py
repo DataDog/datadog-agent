@@ -350,7 +350,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
-    deps_vendored(ctx, verbose=True)
+    deps_vendored(ctx)
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
