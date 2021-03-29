@@ -84,6 +84,10 @@ func TestProcessContext(t *testing.T) {
 			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name == "%s"`, path.Base(executable)),
 		},
 		{
+			ID:         "test_rule_pid1",
+			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
+		},
+		{
 			ID:         "test_rule_args",
 			Expression: `exec.args in [~"*-al*"]`,
 		},
@@ -358,6 +362,52 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if rule.ID != "test_rule_ancestors" {
+				t.Error("Wrong rule triggered")
+			}
+
+			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != shell {
+				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
+			}
+		}
+	})
+
+	t.Run("pid1", func(t *testing.T) {
+		shell := "/usr/bin/sh"
+		if resolved, err := os.Readlink(shell); err == nil {
+			shell = resolved
+		}
+		shell = path.Base(shell)
+
+		executable := "/usr/bin/touch"
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/touch"
+			}
+		}
+
+		testFile, _, err := test.Path("test-process-pid1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		cmd := exec.Command(shell, "-c", "$("+executable+" "+testFile+")")
+		if _, err := cmd.CombinedOutput(); err != nil {
+			t.Error(err)
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			if filename := event.ResolveProcessInode(&event.Exec.Process); filename != executable {
+				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
+			}
+
+			if rule.ID != "test_rule_pid1" {
 				t.Error("Wrong rule triggered")
 			}
 
