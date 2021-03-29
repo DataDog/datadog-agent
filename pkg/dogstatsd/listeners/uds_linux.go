@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -54,24 +55,24 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 func processUDSOrigin(ancillary []byte) (string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
-		return NoOrigin, err
+		return packets.NoOrigin, err
 	}
 	if len(messages) == 0 {
-		return NoOrigin, fmt.Errorf("ancillary data empty")
+		return packets.NoOrigin, fmt.Errorf("ancillary data empty")
 	}
 	cred, err := unix.ParseUnixCredentials(&messages[0])
 	if err != nil {
-		return NoOrigin, err
+		return packets.NoOrigin, err
 	}
 
 	if cred.Pid == 0 {
-		return NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
+		return packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
 			"probably to another namespace. Is the agent in host PID mode?")
 	}
 
 	entity, err := getEntityForPID(cred.Pid)
 	if err != nil {
-		return NoOrigin, err
+		return packets.NoOrigin, err
 	}
 	return entity, nil
 }
@@ -92,12 +93,12 @@ func getEntityForPID(pid int32) (string, error) {
 		cache.Cache.Set(key, entity, pidToEntityCacheDuration)
 		return entity, nil
 	case errNoContainerMatch:
-		// No runtime detected, cache the `NoOrigin` result
-		cache.Cache.Set(key, NoOrigin, pidToEntityCacheDuration)
-		return NoOrigin, nil
+		// No runtime detected, cache the `packets.NoOrigin` result
+		cache.Cache.Set(key, packets.NoOrigin, pidToEntityCacheDuration)
+		return packets.NoOrigin, nil
 	default:
 		// Other lookup error, retry next time
-		return NoOrigin, err
+		return packets.NoOrigin, err
 	}
 }
 

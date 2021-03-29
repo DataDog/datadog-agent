@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"golang.org/x/sys/unix"
 )
 
@@ -33,7 +34,9 @@ func TestUDSPassCred(t *testing.T) {
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 
-	s, err := NewUDSListener(nil, NewPacketPool(512))
+	pool := packets.NewPool(512)
+	poolManager := packets.NewPoolManager(pool)
+	s, err := NewUDSListener(nil, poolManager, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)
