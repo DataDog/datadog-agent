@@ -129,6 +129,7 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 	return ret
 }
 
+// FormatHTTPStats converts the HTTP map into a suitable format for serialization
 func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[string]*model.HTTPStats {
 	aggregated := make(map[http.Key]map[string]*model.HTTPStats, len(httpData))
 	for key, stats := range httpData {

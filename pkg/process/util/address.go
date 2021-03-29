@@ -36,6 +36,7 @@ func NetIPFromAddress(addr Address) net.IP {
 	return net.IP(addr.Bytes())
 }
 
+// ToLowHigh converts an address into a pair of uint64 numbers
 func ToLowHigh(addr Address) (l, h uint64) {
 	if addr == nil {
 		return
