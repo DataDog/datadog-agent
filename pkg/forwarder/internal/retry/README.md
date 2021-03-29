@@ -25,7 +25,7 @@ At the beginning, the retry queue in memory is empty. When the transactions `tr1
 When adding the transactions `tr6` and `tr7`, the retry queue becomes full again and the `tr4` and `tr3` are serialized to the on-disk transaction file `File 2`.
 ![Adding transactions to the retry queue](images/Enqueue.png)
 
-##### Extracting transactions from the retry queue
+##### Removing transactions from the retry queue
 
 Once the Agent is able to send data again, initially `tr7`, `tr6` and `tr5` are returned since they are the ones residing in the in-memory queue.
 When those transactions are sent, `File 2` content is read and removed, sending the transactions `tr4` and `tr3`.
