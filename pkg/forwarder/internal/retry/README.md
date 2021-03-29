@@ -13,7 +13,7 @@ To avoid running out of storage space, by default the Agent stores the metrics o
 
 ### How does it work?
 
-When the retry queue in memory is full and a new transaction need to be added, some transactions from the retry queue are removed and serialized into a new file on disk. The amount of transactions is controlled by the option `forwarder_flush_to_disk_mem_ratio`.
+When the retry queue in memory is full and a new transaction need to be added, some transactions from the retry queue are removed and serialized into a new file on disk. The amount of transaction data serialized at a time from the Agent is controlled by the option `forwarder_flush_to_disk_mem_ratio`.
 
 When the forwarder attemps to retry previously failed transactions, it retries first the HTTP transactions stored in memory. If the in-memory retry queue is empty, the forwarder retries the transactions stored in the newest file and remove it.
 
