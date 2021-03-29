@@ -131,7 +131,15 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
 func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[string]*model.HTTPStats {
-	aggregated := make(map[http.Key]map[string]*model.HTTPStats, len(httpData))
+	var (
+		aggregated = make(map[http.Key]map[string]*model.HTTPStats, len(httpData))
+
+		// Pre-allocate some of the objects
+		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
+		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
+		poolIdx  = 0
+	)
+
 	for key, stats := range httpData {
 		path := key.Path
 		key.Path = ""
@@ -143,21 +151,23 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[s
 		}
 
 		ms := &model.HTTPStats{
-			StatsByResponseStatus: make([]*model.HTTPStats_Data, 5),
+			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
 		}
 
-		for i := 0; i < 5; i++ {
-			data := new(model.HTTPStats_Data)
+		for i := 0; i < len(stats); i++ {
+			data := &dataPool[poolIdx+i]
+			ms.StatsByResponseStatus[i] = data
 			data.Count = uint32(stats[i].Count)
+
 			if latencies := stats[i].Latencies; latencies != nil {
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
 			} else {
 				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
 			}
-			ms.StatsByResponseStatus[i] = data
 		}
 
+		poolIdx += http.NumStatusClasses
 		statsByPath[path] = ms
 	}
 

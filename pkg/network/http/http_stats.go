@@ -39,9 +39,12 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
 // will be between 99 and 101
 const RelativeAccuracy = 0.01
 
+// NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
+const NumStatusClasses = 5
+
 // RequestStats stores stats for HTTP requests to a particular path, organized by the class
 // of the response code (1XX, 2XX, 3XX, 4XX, 5XX)
-type RequestStats [5]struct {
+type RequestStats [NumStatusClasses]struct {
 	// Note: every time we add a latency value to the DDSketch below, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
