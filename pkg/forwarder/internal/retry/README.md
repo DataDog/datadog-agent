@@ -4,7 +4,7 @@
 If the network becomes unavailable, the Agent stores the metrics in memory.
 The maximum memory usage for storing the metrics is defined by the `forwarder_retry_queue_payloads_max_size` configuration setting. When this limit is reached and Agent's on-disk transaction storage is not enabled (see below), the metrics are dropped.
 
-The Agent can store the metrics on disk when the memory limit is reached.
+The Agent can also store the metrics that have not yet been sent on disk when the memory limit is reached.
 Enable this capability by setting `forwarder_storage_max_size_in_bytes` to a positive value indicating the maximum amount of storage space, in bytes, that the Agent can use to store the metrics on disk.
 
 The metrics are stored in the folder defined by the `forwarder_storage_path` setting, which is by default `/opt/datadog-agent/run/transactions_to_retry` on Unix systems and `C:\ProgramData\Datadog\run\transactions_to_retry` on Windows.
