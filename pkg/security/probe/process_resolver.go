@@ -625,6 +625,11 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		entry.Ancestor = parent
+	}
+
 	if entry = p.insertEntry(pid, entry); entry == nil {
 		return nil, false
 	}
