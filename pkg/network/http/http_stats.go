@@ -60,35 +60,37 @@ type RequestStats [5]struct {
 func (r *RequestStats) CombineWith(newStats RequestStats) {
 	for i := 0; i < len(r); i++ {
 		statusClass := 100 * (i + 1)
-		switch newStats[i].Count {
-		case 0:
-			// No data to be merged
+
+		if newStats[i].Count == 0 {
+			// Nothing to do in this case
 			continue
-		case 1:
+		}
+
+		if newStats[i].Count == 1 {
 			// The other bucket has a single latency sample, so we "manually" add it
 			r.AddRequest(statusClass, newStats[i].FirstLatencySample)
 			continue
-		default:
-			// The other bucket (newStats) has multiple samples and therefore a DDSketch object
-			// We first ensure that the bucket we're merging to has a DDSketch object
-			if r[i].Latencies == nil {
-				// TODO: Consider calling Copy() on the other sketch instead
-				if err := r.initSketch(i); err != nil {
-					continue
-				}
+		}
 
-				// If we had a latency sample in this bucket we now add it to the DDSketch
-				if r[i].Count == 1 {
-					r[i].Latencies.Add(r[i].FirstLatencySample)
-				}
+		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
+		// We first ensure that the bucket we're merging to has a DDSketch object
+		if r[i].Latencies == nil {
+			// TODO: Consider calling Copy() on the other sketch instead
+			if err := r.initSketch(i); err != nil {
+				continue
 			}
 
-			// Finally merge both sketches
-			r[i].Count += newStats[i].Count
-			err := r[i].Latencies.MergeWith(newStats[i].Latencies)
-			if err != nil {
-				log.Debugf("error merging http transactions: %v", err)
+			// If we had a latency sample in this bucket we now add it to the DDSketch
+			if r[i].Count == 1 {
+				r[i].Latencies.Add(r[i].FirstLatencySample)
 			}
+		}
+
+		// Finally merge both sketches
+		r[i].Count += newStats[i].Count
+		err := r[i].Latencies.MergeWith(newStats[i].Latencies)
+		if err != nil {
+			log.Debugf("error merging http transactions: %v", err)
 		}
 	}
 }
