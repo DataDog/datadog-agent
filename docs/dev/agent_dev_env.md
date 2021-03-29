@@ -190,10 +190,13 @@ To get the dependency graphs, you may also need to install the `dot` executable 
 ## Pre-commit hooks
 
 It is optional but recommended to install `pre-commit` to run a number of checks done by the CI locally.
+
+### Installation
+
 To install it, run:
 
 ```sh
-pip install pre-commit
+python3 -m pip install pre-commit
 pre-commit install
 ```
 
@@ -205,6 +208,21 @@ inv install-shellcheck --destination <path>
 ```
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
+
+### Skipping `pre-commit`
+
+If you want to skip `pre-commit` for a specific commit you can add `--no-verify` to the `git commit` command.
+
+### Running `pre-commit` manually
+
+If you want to run one of the checks manually, you can run `pre-commit run <check name>`.
+
+You can run it on all files with the `--all-files` flag.
+```sh
+pre-commit run flake8 --all-files  # run flake8 on all files
+```
+
+See `pre-commit run --help` for further options.
 
 # Setting up your Windows development environment
 

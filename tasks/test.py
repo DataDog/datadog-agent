@@ -227,7 +227,10 @@ def test(
 
         with ctx.cd(module.full_path()):
             res = ctx.run(
-                cmd.format(pkg_folder=' '.join("{}/...".format(t) for t in module.targets), **args),
+                cmd.format(
+                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    **args
+                ),
                 env=env,
                 out_stream=test_profiler,
                 warn=True,
