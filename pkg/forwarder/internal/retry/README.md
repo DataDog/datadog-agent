@@ -7,7 +7,7 @@ The maximum memory usage for storing the metrics is defined by the `forwarder_re
 The Agent can also store the metrics that have not yet been sent on disk when the memory limit is reached.
 Enable this capability by setting `forwarder_storage_max_size_in_bytes` to a positive value indicating the maximum amount of storage space, in bytes, that the Agent can use to store the metrics on disk.
 
-The metrics are stored in the folder defined by the `forwarder_storage_path` setting, which is by default `/opt/datadog-agent/run/transactions_to_retry` on Unix systems and `C:\ProgramData\Datadog\run\transactions_to_retry` on Windows.
+On-disk metrics are stored in the folder defined by the `forwarder_storage_path` setting, which is by default `/opt/datadog-agent/run/transactions_to_retry` on Unix systems and `C:\ProgramData\Datadog\run\transactions_to_retry` on Windows.
 
 To avoid running out of storage space, the Agent stores the metrics on disk only if the total storage space used is less than 95 percent. This limit is defined by `forwarder_storage_max_disk_ratio` setting.
 
