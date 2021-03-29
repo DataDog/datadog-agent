@@ -10,10 +10,6 @@ require (
 	github.com/golangci/golangci-lint v1.27.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/goware/modvendor v0.3.0
-	github.com/mailru/easyjson v0.7.6
-	github.com/ryanuber/go-license v0.0.0-20180405065157-c69f41c2c8d6 // indirect
-	github.com/shuLhan/go-bindata v3.6.1+incompatible
-	github.com/sirupsen/logrus v1.4.2 // indirect
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
