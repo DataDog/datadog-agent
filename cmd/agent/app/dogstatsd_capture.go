@@ -71,7 +71,8 @@ var dogstatsdCaptureCmd = &cobra.Command{
 func dogstatsdCapture() error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	token, err := security.FetchAuthToken()
 	if err != nil {
