@@ -29,7 +29,7 @@ When adding the transactions `tr6` and `tr7`, the retry queue becomes full again
 
 Once the Agent is able to send data again, initially `tr7`, `tr6` and `tr5` are returned since they are the ones residing in the in-memory queue.
 When those transactions are sent, `File 2` content is read and removed, sending the transactions `tr4` and `tr3`.
-During the third call, `tr2` and `tr1` are returned and `File 1` is removed.
+Finally, `File 1` is read and removed, sending the `tr2` and `tr1` to the intake.
 
 ![Extracting transactions from the retry queue](images/Extract.png)
 
