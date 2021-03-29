@@ -31,7 +31,7 @@ Once the Agent is able to send data again, initially `tr7`, `tr6` and `tr5` are 
 When those transactions are sent, `File 2` content is read and removed, sending the transactions `tr4` and `tr3`.
 Finally, `File 1` is read and removed, sending the `tr2` and `tr1` to the intake.
 
-![Extracting transactions from the retry queue](images/Extract.png)
+![Removing transactions from the retry queue](images/Extract.png)
 
 #### Implementations notes
 
