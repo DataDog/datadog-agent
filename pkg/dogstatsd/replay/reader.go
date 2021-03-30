@@ -9,9 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 	"sync" // might be unnecessary
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
@@ -36,19 +34,7 @@ type TrafficCaptureReader struct {
 func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, error) {
 
 	// MMap file so that we can have reasonable performance with very large files
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fd := int(f.Fd())
-
-	stat, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	size := int(stat.Size())
-
-	c, err := syscall.Mmap(fd, 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
+	c, err := getFileMap(path)
 	if err != nil {
 		return nil, err
 	}

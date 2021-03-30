@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
@@ -29,28 +30,28 @@ const pipeNamePrefix = `\\.\pipe\`
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
 	pipe           net.Listener
-	packetManager  *packets.packetManager
+	packetManager  *packets.PacketManager
 	connections    *namedPipeConnections
-	trafficCapture *debug.TrafficCapture // Currently ignored
+	trafficCapture *replay.TrafficCapture // Currently ignored
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, capture *debug.TrafficCapture) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*NamedPipeListener, error) {
 
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
-		packets.newPacketManagerFromConfig(packetOut, sharedPacketPoolManager),
+		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager),
 		capture)
 }
 
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
-	packetManager *packets.packetManager,
-	capture *debug.TrafficCapture) (*NamedPipeListener, error) {
+	packetManager *packets.PacketManager,
+	capture *replay.TrafficCapture) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -126,7 +127,7 @@ func (l *NamedPipeListener) Listen() {
 		switch {
 		case err == nil:
 			l.connections.newConn <- conn
-			buffer := l.packetManager.createBuffer()
+			buffer := l.packetManager.CreateBuffer()
 			go l.listenConnection(conn, buffer)
 
 		case err.Error() == "use of closed network connection":
@@ -169,8 +170,8 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			if messageSize > 0 {
 				namedPipeTelemetry.onReadSuccess(messageSize)
 
-				// packetAssembler merges multiple packets together and sends them when its buffer is full
-				l.packetManager.packetAssembler.addMessage(buffer[:messageSize])
+				// PacketAssembler merges multiple packets together and sends them when its buffer is full
+				l.packetManager.PacketAssembler.AddMessage(buffer[:messageSize])
 			}
 
 			startWriteIndex = endIndex - messageSize
@@ -194,7 +195,7 @@ func (l *NamedPipeListener) Stop() {
 	// Wait until all connections are closed
 	<-l.connections.allConnsClosed
 
-	l.packetManager.close()
+	l.packetManager.Close()
 	l.pipe.Close()
 }
 
