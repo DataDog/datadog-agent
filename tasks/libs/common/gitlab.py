@@ -97,10 +97,10 @@ class Gitlab(object):
         path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
         return self.make_request(path, json=True)
 
-    def artifact(self, project_name, job_id):
+    def artifact(self, project_name, job_id, artifact_name):
         from urllib.parse import quote
 
-        path = "/projects/{}/jobs/{}/artifacts/test_output.json".format(quote(project_name, safe=""), job_id)
+        path = "/projects/{}/jobs/{}/artifacts/{}".format(quote(project_name, safe=""), job_id, artifact_name)
         response = self.make_request(path, stream=True)
         if response.status_code != 200:
             return None

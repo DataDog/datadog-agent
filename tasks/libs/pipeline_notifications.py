@@ -53,7 +53,7 @@ def read_owners(owners_file):
 def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     gitlab = Gitlab()
     owners = read_owners(owners_file)
-    test_output = gitlab.artifact(project_name, job["id"])
+    test_output = gitlab.artifact(project_name, job["id"], "test_output.json")
     if test_output:
         for line in test_output.iter_lines():
             json_test = json.loads(line)
