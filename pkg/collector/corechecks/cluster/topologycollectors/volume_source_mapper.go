@@ -45,7 +45,14 @@ func createAwsEbsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", volume.AWSElasticBlockStore.VolumeID, fmt.Sprint(volume.AWSElasticBlockStore.Partition))
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":      "aws-ebs",
+		"volume-id": volume.AWSElasticBlockStore.VolumeID,
+		"partition": fmt.Sprint(volume.AWSElasticBlockStore.Partition),
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createAzureDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -55,7 +62,13 @@ func createAzureDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("azure-disk", volume.AzureDisk.DiskName)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "azure-disk",
+		"disk-name": volume.AzureDisk.DiskName,
+		"disk-uri":  volume.AzureDisk.DataDiskURI,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createAzureFileVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -65,12 +78,22 @@ func createAzureFileVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("azure-file", volume.AzureFile.ShareName)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":       "azure-file",
+		"share-name": volume.AzureFile.ShareName,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createCephFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
 	if volume.CephFS == nil {
 		return "", nil
+	}
+
+	tags := map[string]string{
+		"kind": "ceph-fs",
+		"path": volume.CephFS.Path,
 	}
 
 	components := func(idx int) []string {
@@ -82,16 +105,19 @@ func createCephFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(0)...)
+	tags["monitors-0"] = volume.CephFS.Monitors[0]
 
 	idx := 1
 	identifiers := []string{}
 
 	for idx < len(volume.CephFS.Monitors) {
 		identifiers = append(identifiers, vc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(idx)...))
+		tags[fmt.Sprintf("monitors-%d", idx)] = volume.CephFS.Monitors[idx]
+
 		idx++
 	}
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, identifiers)
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
 func createCinderVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -101,7 +127,12 @@ func createCinderVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("cinder", volume.Cinder.VolumeID)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "cinder",
+		"volume-id": volume.Cinder.VolumeID,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createConfigMapVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -111,7 +142,7 @@ func createConfigMapVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 
 	extID := vc.GetURNBuilder().BuildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	return extID, nil
 }
 
 func createEmptyDirVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -121,7 +152,11 @@ func createEmptyDirVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 
 	extID := vc.GetURNBuilder().BuildVolumeExternalID("empty-dir", fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, volume.Name))
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind": "empty-dir",
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createFCVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -130,13 +165,23 @@ func createFCVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (
 	}
 
 	ids := []string{}
+
+	tags := map[string]string{
+		"kind": "fibre-channel",
+	}
+
 	if len(volume.FC.TargetWWNs) > 0 {
-		for _, wwn := range volume.FC.TargetWWNs {
+		for i, wwn := range volume.FC.TargetWWNs {
 			ids = append(ids, vc.GetURNBuilder().BuildExternalVolumeExternalID("fibre-channel", fmt.Sprintf("%s-lun-%d", wwn, *volume.FC.Lun)))
+			tags[fmt.Sprintf("wwn-%d", i)] = wwn
 		}
+		tags["lun"] = fmt.Sprint(*volume.FC.Lun)
+
 	} else if len(volume.FC.WWIDs) > 0 {
-		for _, wwid := range volume.FC.WWIDs {
+		for i, wwid := range volume.FC.WWIDs {
 			ids = append(ids, vc.GetURNBuilder().BuildExternalVolumeExternalID("fibre-channel", wwid))
+			tags[fmt.Sprintf("wwid-%d", i)] = wwid
+
 		}
 	} else {
 		return "", fmt.Errorf("Either volume.FC.TargetWWNs or volume.FC.WWIDs needs to be set")
@@ -144,7 +189,7 @@ func createFCVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (
 
 	extID := ids[0]
 	identifiers := ids[1:]
-	return vc.createStackStateVolumeComponent(pod, volume, extID, identifiers)
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
 func createFlexVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -153,7 +198,13 @@ func createFlexVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume)
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("flex", volume.FlexVolume.Driver)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":   "flex",
+		"driver": volume.FlexVolume.Driver,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createFlockerVolume DEPRECATED
@@ -162,13 +213,19 @@ func createFlockerVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		return "", nil
 	}
 
+	tags := map[string]string{
+		"kind": "flocker",
+	}
+
 	var extID string
 	if volume.Flocker.DatasetName != "" {
 		extID = vc.GetURNBuilder().BuildExternalVolumeExternalID("flocker", volume.Flocker.DatasetName)
+		tags["dataset"] = volume.Flocker.DatasetName
 	} else {
 		extID = vc.GetURNBuilder().BuildExternalVolumeExternalID("flocker", volume.Flocker.DatasetUUID)
+		tags["dataset"] = volume.Flocker.DatasetUUID
 	}
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createGcePersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -177,7 +234,13 @@ func createGcePersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volu
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("gce-pd", volume.GCEPersistentDisk.PDName)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":    "gce-pd",
+		"pd-name": volume.GCEPersistentDisk.PDName,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createGitRepoVolume DEPRECATED
@@ -187,7 +250,14 @@ func createGitRepoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("git-repo", volume.GitRepo.Repository)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":       "git-repo",
+		"repository": volume.GitRepo.Repository,
+		"revision":   volume.GitRepo.Revision,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createGlusterFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -196,7 +266,14 @@ func createGlusterFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("gluster-fs", volume.Glusterfs.EndpointsName, volume.Glusterfs.Path)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":      "gluster-fs",
+		"endpoints": volume.Glusterfs.EndpointsName,
+		"path":      volume.Glusterfs.Path,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createHostPathVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -207,7 +284,14 @@ func createHostPathVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("hostpath", pod.NodeName, volume.HostPath.Path)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":     "hostpath",
+		"nodename": pod.NodeName,
+		"path":     volume.HostPath.Path,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createIscsiVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -222,7 +306,15 @@ func createIscsiVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume
 		identifiers = append(identifiers, vc.GetURNBuilder().BuildExternalVolumeExternalID("iscsi", tp, volume.ISCSI.IQN, fmt.Sprint(volume.ISCSI.Lun)))
 	}
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, identifiers)
+	tags := map[string]string{
+		"kind":          "iscsi",
+		"target-portal": volume.ISCSI.TargetPortal,
+		"iqn":           volume.ISCSI.IQN,
+		"lun":           fmt.Sprint(volume.ISCSI.Lun),
+		"interface":     volume.ISCSI.ISCSIInterface,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
 func createNfsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -232,7 +324,13 @@ func createNfsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) 
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("nfs", volume.NFS.Server, volume.NFS.Path)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":   "nfs",
+		"server": volume.NFS.Server,
+		"path":   volume.NFS.Path,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createPhotonPersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -242,7 +340,12 @@ func createPhotonPersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, v
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("photon", volume.PhotonPersistentDisk.PdID)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":  "photon",
+		"pd-id": volume.PhotonPersistentDisk.PdID,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createPortWorxVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -252,7 +355,12 @@ func createPortWorxVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("portworx", volume.PortworxVolume.VolumeID)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":      "portworx",
+		"volume-id": volume.PortworxVolume.VolumeID,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createProjectedVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -262,7 +370,10 @@ func createProjectedVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("projected", uuid.New())
 
-	_, err := vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind": "projection",
+	}
+	_, err := vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 	if err != nil {
 		return "", err
 	}
@@ -295,8 +406,15 @@ func createQuobyteVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		ids = append(ids, vc.GetURNBuilder().BuildExternalVolumeExternalID("quobyte", reg, volume.Quobyte.Volume))
 	}
 
+	tags := map[string]string{
+		"kind":     "quobyte",
+		"volume":   volume.Quobyte.Volume,
+		"registry": volume.Quobyte.Registry,
+		"user":     volume.Quobyte.User,
+	}
+
 	extID := ids[0]
-	return vc.createStackStateVolumeComponent(pod, volume, extID, ids[1:])
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
 }
 
 func createRbdVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -305,12 +423,19 @@ func createRbdVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) 
 	}
 
 	ids := []string{}
-	for _, mon := range volume.RBD.CephMonitors {
+	tags := map[string]string{
+		"kind":  "rados",
+		"pool":  volume.RBD.RBDPool,
+		"image": volume.RBD.RBDImage,
+	}
+
+	for i, mon := range volume.RBD.CephMonitors {
 		ids = append(ids, vc.GetURNBuilder().BuildExternalVolumeExternalID("rbd", mon, fmt.Sprintf("%s-image-%s", volume.RBD.RBDPool, volume.RBD.RBDImage)))
+		tags[fmt.Sprintf("monitor-%d", i)] = mon
 	}
 
 	extID := ids[0]
-	return vc.createStackStateVolumeComponent(pod, volume, extID, ids[1:])
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
 }
 
 func createSecretVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -320,7 +445,12 @@ func createSecretVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 
 	extID := vc.GetURNBuilder().BuildSecretExternalID(pod.Namespace, volume.Secret.SecretName)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":       "secret",
+		"secretName": volume.Secret.SecretName,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createScaleIoVolume DEPRECATED
@@ -331,7 +461,14 @@ func createScaleIoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("scale-io", volume.ScaleIO.Gateway, volume.ScaleIO.System)
 
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+	tags := map[string]string{
+		"kind":              "scale-io",
+		"gateway":           volume.ScaleIO.Gateway,
+		"system":            volume.ScaleIO.System,
+		"protection-domain": volume.ScaleIO.ProtectionDomain,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createStorageOsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -345,7 +482,14 @@ func createStorageOsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("storage-os", ns, volume.StorageOS.VolumeName)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":             "storage-os",
+		"volume":           volume.StorageOS.VolumeName,
+		"volume-namespace": volume.StorageOS.VolumeNamespace,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 func createVsphereVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
@@ -354,5 +498,12 @@ func createVsphereVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("vsphere", volume.VsphereVolume.VolumePath)
-	return vc.createStackStateVolumeComponent(pod, volume, extID, nil)
+
+	tags := map[string]string{
+		"kind":           "vsphere",
+		"volume-path":    volume.VsphereVolume.VolumePath,
+		"storage-policy": volume.VsphereVolume.StoragePolicyName,
+	}
+
+	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }

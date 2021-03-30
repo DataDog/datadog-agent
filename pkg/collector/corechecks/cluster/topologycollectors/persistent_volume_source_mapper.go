@@ -93,19 +93,22 @@ func mapCephFsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 		return c
 	}
 
+	tags := map[string]string{
+		"kind": "ceph-fs",
+		"path": volume.Spec.CephFS.Path,
+	}
+
 	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(0)...)
+	tags["monitors-0"] = volume.Spec.CephFS.Monitors[0]
 
 	idx := 1
 	identifiers := []string{}
 
 	for idx < len(volume.Spec.CephFS.Monitors) {
 		identifiers = append(identifiers, pc.GetURNBuilder().BuildExternalVolumeExternalID("ceph-fs", components(idx)...))
-		idx++
-	}
+		tags[fmt.Sprintf("monitors-%d", idx)] = volume.Spec.CephFS.Monitors[idx]
 
-	tags := map[string]string{
-		"kind": "ceph-fs",
-		"path": volume.Spec.CephFS.Path,
+		idx++
 	}
 
 	return pc.createStackStateVolumeSourceComponent(volume, "ceph-fs", extID, identifiers, tags)

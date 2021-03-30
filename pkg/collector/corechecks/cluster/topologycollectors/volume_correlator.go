@@ -139,7 +139,11 @@ func (vc *VolumeCorrelator) mapVolumeAndRelationToStackState(pod PodIdentifier, 
 		if !found {
 			volumeExternalID = vc.GetURNBuilder().BuildVolumeExternalID("empty-dir", fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, volume.Name))
 
-			_, err := vc.createStackStateVolumeComponent(pod, volume, volumeExternalID, nil)
+			tags := map[string]string{
+				"kind": "empty-dir",
+			}
+
+			_, err := vc.createStackStateVolumeSourceComponent(pod, volume, volumeExternalID, nil, tags)
 			if err != nil {
 				return "", err
 			}
@@ -191,19 +195,27 @@ func (vc *VolumeCorrelator) projectedVolumeToProjectionStackStateRelation(projec
 	return relation
 }
 
-func (vc *VolumeCorrelator) createStackStateVolumeComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string) (string, error) {
+func (vc *VolumeCorrelator) createStackStateVolumeSourceComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string, addTags map[string]string) (string, error) {
 
 	tags := vc.initTags(metav1.ObjectMeta{Namespace: pod.Namespace})
+	for k, v := range addTags {
+		tags[k] = v
+	}
+
+	data := map[string]interface{}{
+		"name":   volume.Name,
+		"source": volume.VolumeSource,
+		"tags":   tags,
+	}
+
+	if identifiers != nil {
+		data["identifiers"] = identifiers
+	}
 
 	component := &topology.Component{
 		ExternalID: externalID,
 		Type:       topology.Type{Name: "volume"},
-		Data: map[string]interface{}{
-			"name":        volume.Name,
-			"source":      volume.VolumeSource,
-			"identifiers": identifiers,
-			"tags":        tags,
-		},
+		Data:       data,
 	}
 
 	log.Tracef("Created StackState volume component %s: %v", externalID, component.JSONString())
