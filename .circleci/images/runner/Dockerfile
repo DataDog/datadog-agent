@@ -3,33 +3,16 @@ FROM ubuntu:18.04
 # Pre-requisites
 # python3.7-dev is required by rtloader
 RUN set -ex \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        curl \
-        doxygen \
-        file \
-        g++ \
-        gcc \
-        git \
+    && apt-get update && apt-get install -y --no-install-recommends \
         gnupg ca-certificates \
-        graphviz \
-        libpq-dev \
-        libsnmp-base \
-        libsnmp-dev \
-        libssl-dev \
-        libsystemd-dev \
-        make \
-        pkg-config \
+        gcc g++ make git ssh curl pkg-config file \
         python3.7-dev \
-        python3-distutils \
-        python3-pip \
-        python3-setuptools \
-        python3-yaml \
-        snmp-mibs-downloader \
-        ssh
+        python3-setuptools python3-distutils python3-pip python3-yaml \
+        libssl-dev libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev \
+        doxygen graphviz
 
 # Golang
-ENV GIMME_GO_VERSION 1.15.10
+ENV GIMME_GO_VERSION 1.14.12
 ENV GOROOT /root/.gimme/versions/go$GIMME_GO_VERSION.linux.amd64
 ENV GOPATH /go
 ENV PATH $GOROOT/bin:$GOPATH/bin:$PATH
@@ -54,8 +37,7 @@ RUN set -ex \
     # clang-format v8
     && echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main" >> /etc/apt/sources.list \
     && curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
-    && apt-get update \
-    && apt-get -t llvm-toolchain-bionic-8 install -y --no-install-recommends \
+    && apt-get update && apt-get -t llvm-toolchain-bionic-8 install -y --no-install-recommends \
         clang-format-8
 
 # Setup entrypoint
