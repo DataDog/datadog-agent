@@ -81,11 +81,11 @@ else
   dependency "vc_redist"
 
   if windows_arch_i386?
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
+    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/python-windows-#{version}-x86.zip",
            :sha256 => "c8309b3351610a7159e91e55f09f7341bc3bbdd67d2a5e3049a9d1157e5a9110",
            :extract => :seven_zip
   else
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
+    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
          :sha256 => "7989b2efe6106a3df82c47d403dbb166db6d4040f3654871323df7e724a9fdd2",
          :extract => :seven_zip
   end

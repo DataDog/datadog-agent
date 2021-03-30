@@ -72,12 +72,12 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
+    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/python-windows-#{version}-x86.zip",
             :sha256 => "3429dea4f0ad7ab03fb611948285386fa46ebf0f3f905cdde18a5419c87650e9"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
+    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
          :sha256 => "27adbfb9cba23d0403f0dd2a1e7681fb101ef263eefea17c225c65c25a4a30e5"
 
   end
