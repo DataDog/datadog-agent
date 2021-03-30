@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -30,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -82,6 +85,7 @@ type OrchestratorCheck struct {
 	clusterID               string
 	groupID                 int32
 	isCLCRunner             bool
+	apiClient               *apiserver.APIClient
 	unassignedPodLister     corelisters.PodLister
 	unassignedPodListerSync cache.InformerSynced
 	deployLister            appslisters.DeploymentLister
@@ -144,7 +148,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		log.Error("could not parse the config for the API server")
+		_ = log.Error("could not parse the config for the API server")
 		return err
 	}
 
@@ -160,6 +164,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 	apiCl, err := apiserver.WaitForAPIClient(apiCtx)
+	o.apiClient = apiCl
 	if err != nil {
 		return err
 	}
@@ -202,7 +207,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
 			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
 		default:
-			o.Warnf("Unsupported collector: %s", v) //nolint:errcheck
+			_ = o.Warnf("Unsupported collector: %s", v)
 		}
 	}
 
@@ -253,13 +258,13 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 	}
 	deployList, err := o.deployLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list deployments: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list deployments: %s", err)
 		return
 	}
 
 	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process deployment list: %v", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process deployment list: %v", err)
 		return
 	}
 
@@ -280,13 +285,13 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 	}
 	rsList, err := o.rsLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list replica sets: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list replica sets: %s", err)
 		return
 	}
 
 	messages, err := processReplicaSetList(rsList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		log.Errorf("Unable to process replica set list: %v", err) //nolint:errcheck
+		_ = log.Errorf("Unable to process replica set list: %v", err)
 		return
 	}
 
@@ -307,14 +312,14 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 	}
 	serviceList, err := o.serviceLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list services: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list services: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
 	messages, err := processServiceList(serviceList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process service list: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process service list: %s", err)
 		return
 	}
 
@@ -335,26 +340,48 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 	nodesList, err := o.nodesLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list nodes: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list nodes: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
+	nodesMessages, clusterModel, err := processNodesList(nodesList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		o.Warnf("Unable to process node list: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process node list: %s", err)
 		return
 	}
+	sendNodesMetadata(sender, nodesList, nodesMessages, o.clusterID)
 
+	clusterMessage, clusterErr := extractClusterMessage(o.orchestratorConfig, o.clusterID, o.apiClient, groupID, clusterModel)
+	if clusterErr != nil {
+		_ = o.Warnf("Could not collect orchestrator cluster information: %s, will still send nodes information", err)
+		return
+	}
+	if clusterMessage != nil {
+		sendClusterMetadata(sender, clusterMessage, o.clusterID)
+	}
+}
+
+func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
 	stats := orchestrator.CheckStats{
-		CacheHits: len(nodesList) - len(messages),
-		CacheMiss: len(messages),
+		CacheHits: len(nodesList) - len(nodesMessages),
+		CacheMiss: len(nodesMessages),
 		NodeType:  orchestrator.K8sNode,
 	}
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeNode)
+	sender.OrchestratorMetadata(nodesMessages, clusterID, forwarder.PayloadTypeNode)
+}
+
+func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
+	stats := orchestrator.CheckStats{
+		CacheHits: 0,
+		CacheMiss: 1,
+		NodeType:  orchestrator.K8sCluster,
+	}
+	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
 func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
@@ -363,14 +390,14 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 	podList, err := o.unassignedPodLister.List(labels.Everything())
 	if err != nil {
-		o.Warnf("Unable to list pods: %s", err) //nolint:errcheck
+		_ = o.Warnf("Unable to list pods: %s", err)
 		return
 	}
 
 	// we send an empty hostname for unassigned pods
 	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
-		o.Warnf("Unable to process pod list: %v", err) //nolint:errcheck
+		_ = o.Warnf("Unable to process pod list: %v", err)
 		return
 	}
 
@@ -395,13 +422,13 @@ func (o *OrchestratorCheck) Cancel() {
 func (o *OrchestratorCheck) runLeaderElection() error {
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.") //nolint:errcheck
+		_ = o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
 		return err
 	}
 
 	err = leaderEngine.EnsureLeaderElectionRuns()
 	if err != nil {
-		o.Warn("Leader Election process failed to start") //nolint:errcheck
+		_ = o.Warn("Leader Election process failed to start")
 		return err
 	}
 

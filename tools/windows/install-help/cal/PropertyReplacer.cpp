@@ -147,23 +147,23 @@ std::wstring replace_yaml_properties(
     };
     for (auto prop : std::vector<std::tuple<std::wstring, std::wstring, formatter_func>>
     {
-         {L"APIKEY",                L"^[ #]*api_key:.*",        format_simple_value(L"api_key: ")},
-         {L"SITE",                  L"^[ #]*site:.*",           format_simple_value(L"site: ")},
-         {L"HOSTNAME",              L"^[ #]*hostname:.*",       format_simple_value(L"hostname: ")},
-         {L"LOGS_ENABLED",          L"^[ #]*logs_config:.*",    simple_replace(L"logs_config:")},
-         {L"LOGS_ENABLED",          L"^[ #]*logs_enabled:.*",   format_simple_value(L"logs_enabled: ")},
-         {L"LOGS_DD_URL",           L"^[ #]*logs_config:.*",    simple_replace(L"logs_config:")},
-         {L"LOGS_DD_URL",           L"^[ #]*logs_dd_url:.*",    format_simple_value(L"  logs_dd_url: ")},
-         {L"PROCESS_ENABLED",       L"^[ #]*process_config:.*", simple_replace(L"process_config:")},
-         {L"PROCESS_DD_URL",        L"^[ #]*process_config:.*", format_simple_value(L"process_config:\n  process_dd_url: ")},
-         {L"APM_ENABLED",           L"^[ #]*apm_config:.*",     simple_replace(L"apm_config:")},
-         {L"TRACE_DD_URL",          L"^[ #]*apm_config:.*",     simple_replace(L"apm_config:")},
-         {L"CMD_PORT",              L"^[ #]*cmd_port:.*",       format_simple_value(L"cmd_port: ")},
-         {L"DD_URL",                L"^[ #]*dd_url:.*",         format_simple_value(L"dd_url: ")},
-         {L"PYVER",                 L"^[ #]*python_version:.*", format_simple_value(L"python_version: ")},
-         {L"PROXY_HOST",            L"^[ #]*proxy:.*",          format_proxy},
-         {L"HOSTNAME_FQDN_ENABLED", L"^[ #]*hostname_fqdn:.*",  format_simple_value(L"hostname_fqdn:")},
-         {L"TAGS", L"^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>", format_tags},
+         {L"APIKEY",                            L"^[ #]*api_key:.*",                                        format_simple_value(L"api_key: ")},
+         {L"SITE",                              L"^[ #]*site:.*",                                           format_simple_value(L"site: ")},
+         {L"HOSTNAME",                          L"^[ #]*hostname:.*",                                       format_simple_value(L"hostname: ")},
+         {L"LOGS_ENABLED",                      L"^[ #]*logs_config:.*",                                    simple_replace(L"logs_config:")},
+         {L"LOGS_ENABLED",                      L"^[ #]*logs_enabled:.*",                                   format_simple_value(L"logs_enabled: ")},
+         {L"LOGS_DD_URL",                       L"^[ #]*logs_config:.*",                                    simple_replace(L"logs_config:")},
+         {L"LOGS_DD_URL",                       L"^[ #]*logs_dd_url:.*",                                    format_simple_value(L"  logs_dd_url: ")},
+         {L"PROCESS_ENABLED",                   L"^[ #]*process_config:.*",                                 simple_replace(L"process_config:")},
+         {L"PROCESS_DD_URL",                    L"^[ #]*process_config:.*",                                 format_simple_value(L"process_config:\n  process_dd_url: ")},
+         {L"APM_ENABLED",                       L"^[ #]*apm_config:.*",                                     simple_replace(L"apm_config:")},
+         {L"TRACE_DD_URL",                      L"^[ #]*apm_config:.*",                                     simple_replace(L"apm_config:")},
+         {L"CMD_PORT",                          L"^[ #]*cmd_port:.*",                                       format_simple_value(L"cmd_port: ")},
+         {L"DD_URL",                            L"^[ #]*dd_url:.*",                                         format_simple_value(L"dd_url: ")},
+         {L"PYVER",                             L"^[ #]*python_version:.*",                                 format_simple_value(L"python_version: ")},
+         {L"PROXY_HOST",                        L"^[ #]*proxy:.*",                                          format_proxy},
+         {L"HOSTNAME_FQDN_ENABLED",             L"^[ #]*hostname_fqdn:.*",                                  format_simple_value(L"hostname_fqdn: ")},
+         {L"TAGS",                              L"^[ #]*tags:(?:(?:.|\n)*?)^[ #]*- <TAG_KEY>:<TAG_VALUE>",  format_tags},
     })
     {
         auto propKey = std::get<WxsKey>(prop);
@@ -224,12 +224,23 @@ std::wstring replace_yaml_properties(
         }
     }
 
-    // Remove duplicated entries
-    if (failedToReplace != nullptr)
+    auto ec2UseWindowsPrefixDetection = propertyRetriever(L"EC2_USE_WINDOWS_PREFIX_DETECTION");
+    if (ec2UseWindowsPrefixDetection)
     {
-        std::sort(failedToReplace->begin(), failedToReplace->end());
-        auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
-        failedToReplace->erase(last, failedToReplace->end());
+        if (!PropertyReplacer::match(input, L"^[ #]*ec2_use_windows_prefix_detection:.*")
+                 .replace_with(format_simple_value(L"ec2_use_windows_prefix_detection: ")(*ec2UseWindowsPrefixDetection,
+                                                                                          propertyRetriever)))
+        {
+            input.append(L"\nec2_use_windows_prefix_detection: " + *ec2UseWindowsPrefixDetection + L"\n");
+        }
+
+        // Remove duplicated entries
+        if (failedToReplace != nullptr)
+        {
+            std::sort(failedToReplace->begin(), failedToReplace->end());
+            auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
+            failedToReplace->erase(last, failedToReplace->end());
+        }
     }
 
     return input;
