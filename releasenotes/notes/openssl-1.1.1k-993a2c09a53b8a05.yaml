@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Upgrade embedded openssl to ``1.1.1k``.
