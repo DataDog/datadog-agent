@@ -126,7 +126,6 @@ var tcpKprobeCalledString = map[C.__u64]string{
 }
 
 const listenIPv4 = "127.0.0.2"
-const googlePublicDNSIPv4 = "8.8.4.4"
 const interfaceLocalMulticastIPv6 = "ff01::1"
 
 var zero uint64
@@ -706,6 +705,7 @@ type eventGenerator struct {
 	conn     net.Conn
 	udpConn  net.Conn
 	udp6Conn *net.UDPConn
+	udpDone  func()
 }
 
 func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
@@ -718,6 +718,12 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 
 	go acceptHandler(l)
 
+	// Spin up UDP server
+	udpAddr, udpDone, err := newUDPServer(addr)
+	if err != nil {
+		return nil, err
+	}
+
 	// Establish connection that will be used in the offset guessing
 	c, err := net.Dial(l.Addr().Network(), l.Addr().String())
 	if err != nil {
@@ -725,7 +731,7 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		return nil, err
 	}
 
-	udpConn, err := net.Dial("udp", net.JoinHostPort(googlePublicDNSIPv4, "53"))
+	udpConn, err := net.Dial("udp", udpAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -743,7 +749,7 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		}
 	}
 
-	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn}, nil
+	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
 }
 
 // Generate an event for offset guessing
@@ -831,6 +837,10 @@ func (e *eventGenerator) Close() {
 	if e.udp6Conn != nil {
 		e.udp6Conn.Close()
 	}
+
+	if e.udpDone != nil {
+		e.udpDone()
+	}
 }
 
 func acceptHandler(l net.Listener) {
@@ -881,4 +891,31 @@ func logAndAdvance(status *tracerStatus, offset C.__u64, next C.__u64) {
 		log.Debugf("Started offset guessing for %v", whatString[next])
 		status.what = next
 	}
+}
+
+func newUDPServer(addr string) (string, func(), error) {
+	ln, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return "", nil, err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		b := make([]byte, 10)
+		for {
+			ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+			_, _, err := ln.ReadFrom(b)
+			if err != nil && !os.IsTimeout(err) {
+				return
+			}
+		}
+	}()
+
+	doneFn := func() {
+		ln.Close()
+		<-done
+	}
+	return ln.LocalAddr().String(), doneFn, nil
 }

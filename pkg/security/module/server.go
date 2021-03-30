@@ -103,8 +103,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	}
 
 	ruleEvent := &Signal{
-		Title:        rule.Definition.ID,
-		Msg:          rule.Definition.Description,
+		Title:        rule.Definition.Description,
 		AgentContext: agentContext,
 	}
 

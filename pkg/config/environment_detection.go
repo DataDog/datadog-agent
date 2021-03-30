@@ -7,60 +7,65 @@ package config
 
 import (
 	"os"
-	"path"
-	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Feature represents a feature of current environment
-type Feature int
+type Feature string
 
 const (
-	// Docker socket present
-	Docker Feature = iota
-	// Containerd socket present
-	Containerd
-	// Cri is any cri socket present
-	Cri
-	// Kubernetes environment
-	Kubernetes
-	// ECSFargate environment
-	ECSFargate
-	// EKSFargate environment
-	EKSFargate
-	// KubeOrchestratorExplorer can be enabled
-	KubeOrchestratorExplorer
-)
-
-const (
-	autoconfEnvironmentVariable = "AUTCONFIG_FROM_ENVIRONMENT"
-
-	defaultLinuxDockerSocket       = "/var/run/docker.sock"
-	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
-	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
-	defaultLinuxCrioSocket         = "/var/run/crio/crio.sock"
-	defaultHostMountPrefix         = "/host"
-	unixSocketPrefix               = "unix://"
-	winNamedPipePrefix             = "npipe://"
+	autoconfEnvironmentVariable         = "AUTOCONFIG_FROM_ENVIRONMENT"
+	autoconfEnvironmentVariableWithTypo = "AUTCONFIG_FROM_ENVIRONMENT"
 )
 
 // FeatureMap represents all detected features
 type FeatureMap map[Feature]struct{}
 
+func (fm FeatureMap) String() string {
+	features := make([]string, 0, len(fm))
+	for f := range fm {
+		features = append(features, string(f))
+	}
+
+	return strings.Join(features, ",")
+}
+
 var (
-	detectedFeatures = make(FeatureMap)
+	detectedFeatures FeatureMap
+	featureLock      sync.RWMutex
 )
 
 // GetDetectedFeatures returns all detected features (detection only performed once)
 func GetDetectedFeatures() FeatureMap {
+	featureLock.RLock()
+	defer featureLock.RUnlock()
+
+	if detectedFeatures == nil {
+		// If this function is called while feature detection has not run
+		// it means Confifguration has not been loaded, which is an unexpected flow in our code
+		// It's not useful to do lazy detection as it would also mean Configuration has not been loaded
+		panic("Trying to access features before detection has run")
+	}
+
 	return detectedFeatures
 }
 
 // IsFeaturePresent returns if a particular feature is activated
 func IsFeaturePresent(feature Feature) bool {
+	featureLock.RLock()
+	defer featureLock.RUnlock()
+
+	if detectedFeatures == nil {
+		// If this function is called while feature detection has not run
+		// it means Confifguration has not been loaded, which is an unexpected flow in our code
+		// It's not useful to do lazy detection as it would also mean Configuration has not been loaded
+		panic("Trying to access features before detection has run")
+	}
+
 	_, found := detectedFeatures[feature]
 	return found
 }
@@ -68,131 +73,38 @@ func IsFeaturePresent(feature Feature) bool {
 // IsAutoconfigEnabled returns if autoconfig from environment is activated or not
 // We cannot rely on Datadog config as this function may be called before configuration is read
 func IsAutoconfigEnabled() bool {
-	if autoconfStr, found := os.LookupEnv(autoconfEnvironmentVariable); found {
-		activateAutoconfFromEnv, err := strconv.ParseBool(autoconfStr)
-		if err != nil {
-			log.Errorf("Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated", autoconfStr, err)
-			return false
-		}
+	// Usage of pure environment variables should be deprecated
+	for _, envVar := range []string{autoconfEnvironmentVariable, autoconfEnvironmentVariableWithTypo} {
+		if autoconfStr, found := os.LookupEnv(envVar); found {
+			activateAutoconfFromEnv, err := strconv.ParseBool(autoconfStr)
+			if err != nil {
+				log.Errorf("Unable to parse Autoconf value: '%s', err: %v - autoconfig from environment will be deactivated", autoconfStr, err)
+				return false
+			}
 
-		return activateAutoconfFromEnv
+			log.Warnf("Usage of '%s' variable is deprecated - please use DD_AUTOCONFIG_FROM_ENVIRONMENT or 'autoconfig_from_environment' in config file", envVar)
+			return activateAutoconfFromEnv
+		}
 	}
 
-	return true
+	return Datadog.GetBool("autoconfig_from_environment")
 }
 
+// We guarantee that Datadog configuration is entirely loaded (env + YAML)
+// before this function is called
 func detectFeatures() {
+	featureLock.Lock()
+	defer featureLock.Unlock()
+
+	newFeatures := make(FeatureMap)
 	if IsAutoconfigEnabled() {
-		detectContainerFeatures()
-		log.Infof("Features detected from environment: %v", detectedFeatures)
-	}
-}
-
-func detectContainerFeatures() {
-	// Docker
-	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
-		detectedFeatures[Docker] = struct{}{}
-	} else {
-		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
-			if checkSocketExists(defaultDockerSocketPath) {
-				detectedFeatures[Docker] = struct{}{}
-
-				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
-				AddOverrideFunc(func(Config) {
-					os.Setenv("DOCKER_HOST", getDefaultDockerSocketType()+defaultDockerSocketPath)
-				})
-				break
-			}
+		detectContainerFeatures(newFeatures)
+		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
+		for _, ef := range excludedFeatures {
+			delete(newFeatures, Feature(ef))
 		}
+
+		log.Infof("Features detected from environment: %v", newFeatures)
 	}
-
-	// CRI Socket - Do not automatically default socket path if the Agent runs in Docker
-	// as we'll very likely discover the containerd instance wrapped by Docker.
-	criSocket := Datadog.GetString("cri_socket_path")
-	if criSocket == "" && !IsDockerRuntime() {
-		for _, defaultCriPath := range getDefaultCriPaths() {
-			if checkSocketExists(defaultCriPath) {
-				criSocket = defaultCriPath
-				AddOverride("cri_socket_path", defaultCriPath)
-				// Currently we do not support multiple CRI paths
-				break
-			}
-		}
-	}
-
-	if criSocket != "" {
-		detectedFeatures[Cri] = struct{}{}
-		if strings.Contains(criSocket, "containerd") {
-			detectedFeatures[Containerd] = struct{}{}
-		}
-	}
-
-	if IsKubernetes() {
-		detectedFeatures[Kubernetes] = struct{}{}
-		if Datadog.GetBool("orchestrator_explorer.enabled") {
-			detectedFeatures[KubeOrchestratorExplorer] = struct{}{}
-		}
-	}
-
-	if IsECSFargate() {
-		detectedFeatures[ECSFargate] = struct{}{}
-	}
-
-	if Datadog.GetBool("eks_fargate") {
-		detectedFeatures[EKSFargate] = struct{}{}
-		detectedFeatures[Kubernetes] = struct{}{}
-	}
-}
-
-func checkSocketExists(path string) bool {
-	f, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	// On Windows, we cannot easily verify that a path is a named pipe
-	if runtime.GOOS == "windows" {
-		return true
-	}
-
-	if f.Mode()&os.ModeSocket != 0 {
-		return true
-	}
-
-	return false
-}
-
-func getHostMountPrefixes() []string {
-	if IsContainerized() {
-		return []string{"", defaultHostMountPrefix}
-	}
-	return []string{""}
-}
-
-func getDefaultDockerSocketType() string {
-	if runtime.GOOS == "windows" {
-		return winNamedPipePrefix
-	}
-
-	return unixSocketPrefix
-}
-
-func getDefaultDockerPaths() []string {
-	if runtime.GOOS == "windows" {
-		return []string{defaultWindowsDockerSocketPath}
-	}
-
-	paths := []string{}
-	for _, prefix := range getHostMountPrefixes() {
-		paths = append(paths, path.Join(prefix, defaultLinuxDockerSocket))
-	}
-	return paths
-}
-
-func getDefaultCriPaths() []string {
-	paths := []string{}
-	for _, prefix := range getHostMountPrefixes() {
-		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))
-	}
-	return paths
+	detectedFeatures = newFeatures
 }

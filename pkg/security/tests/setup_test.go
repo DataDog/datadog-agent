@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -25,18 +26,21 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -215,6 +219,47 @@ func getInode(t *testing.T, path string) uint64 {
 	}
 
 	return stats.Ino
+}
+
+func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
+	t.Helper()
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong mode")
+	}
+	assert.Equal(t, strconv.FormatUint(uint64(actualMode), 8), strconv.FormatUint(uint64(expectedMode), 8), msgAndArgs...)
+}
+
+func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
+	t.Helper()
+	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
+}
+
+func assertNearTime(t *testing.T, event time.Time) {
+	t.Helper()
+	now := time.Now()
+	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
+		t.Errorf("expected time close to %s, got %s", now, event)
+	}
+}
+
+func assertTriggeredRule(t *testing.T, r *eval.Rule, id string) {
+	t.Helper()
+	assert.Equal(t, r.ID, id, "wrong triggered rule")
+}
+
+func assertReturnValue(t *testing.T, retval, expected int64) {
+	t.Helper()
+	assert.Equal(t, retval, expected, "wrong return value")
+}
+
+func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Equal(t, fieldValue, value, msgAndArgs...)
+	}
 }
 
 func setTestConfig(dir string, opts testOpts) error {
@@ -505,11 +550,17 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 
 type tracePipeLogger struct {
 	*TracePipe
-	stop chan struct{}
+	stop       chan struct{}
+	executable string
 }
 
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
-	if event.PID == strconv.Itoa(os.Getpid()) {
+	// for some reason, the event task is resolved to "<...>"
+	// so we check that event.PID is the ID of a task of the running process
+	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	_, err := os.Stat(taskPath)
+
+	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
 		log.Debug(event.Raw)
 	}
 }
@@ -547,9 +598,15 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		return nil, err
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
 	logger := &tracePipeLogger{
-		TracePipe: tracePipe,
-		stop:      make(chan struct{}),
+		TracePipe:  tracePipe,
+		stop:       make(chan struct{}),
+		executable: filepath.Base(executable),
 	}
 	logger.Start()
 
@@ -697,6 +754,8 @@ func applyUmask(fileMode int) int {
 }
 
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	t.Helper()
+
 	if testEnvironment != DockerEnvironment {
 		return
 	}

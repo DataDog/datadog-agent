@@ -18,7 +18,7 @@ agent_android_apk:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - inv -e deps-vendored --verbose
+    - inv -e deps-vendored
     - cd $SRC_PATH
     - python3 -m pip install -r requirements.txt
   script:

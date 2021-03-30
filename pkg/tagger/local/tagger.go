@@ -332,11 +332,19 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 
 	t.store.RLock()
 	defer t.store.RUnlock()
+
 	for entityID, et := range t.store.store {
-		entity := response.TaggerListEntity{}
-		tags, sources := et.get(cardinality)
-		entity.Tags = copyArray(tags)
-		entity.Sources = copyArray(sources)
+		entity := response.TaggerListEntity{
+			Tags: make(map[string][]string),
+		}
+
+		for source, sourceTags := range et.sourceTags {
+			tags := append([]string(nil), sourceTags.lowCardTags...)
+			tags = append(tags, sourceTags.orchestratorCardTags...)
+			tags = append(tags, sourceTags.highCardTags...)
+			entity.Tags[source] = tags
+		}
+
 		r.Entities[entityID] = entity
 	}
 

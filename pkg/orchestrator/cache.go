@@ -12,6 +12,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,6 +21,9 @@ const (
 	defaultPurge  = 30 * time.Second
 	// NoExpiration maps to go-cache corresponding value
 	NoExpiration = cache.NoExpiration
+
+	// ClusterAgeCacheKey is the key name for the orchestrator cluster age in the agent in-mem cache
+	ClusterAgeCacheKey = "orchestratorClusterAge"
 )
 
 var (
@@ -29,6 +33,7 @@ var (
 	nodeCacheHits       = expvar.Int{}
 	serviceCacheHits    = expvar.Int{}
 	podCacheHits        = expvar.Int{}
+	clusterCacheHits    = expvar.Int{}
 
 	sendExpVars    = expvar.NewMap("orchestrator-sends")
 	deploymentHits = expvar.Int{}
@@ -36,9 +41,14 @@ var (
 	nodeHits       = expvar.Int{}
 	serviceHits    = expvar.Int{}
 	podHits        = expvar.Int{}
+	clusterHits    = expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
+
+	// Telemetry
+	tlmCacheHits   = telemetry.NewCounter("orchestrator", "cache_hits", []string{"orchestrator", "resource"}, "Number of cache hits")
+	tlmCacheMisses = telemetry.NewCounter("orchestrator", "cache_misses", []string{"orchestrator", "resource"}, "Number of cache misses")
 )
 
 func init() {
@@ -47,12 +57,14 @@ func init() {
 	cacheExpVars.Set("ReplicaSets", &replicaSetCacheHits)
 	cacheExpVars.Set("Nodes", &nodeCacheHits)
 	cacheExpVars.Set("Services", &serviceCacheHits)
+	cacheExpVars.Set("Clusters", &clusterCacheHits)
 
 	sendExpVars.Set("Pods", &podHits)
 	sendExpVars.Set("Deployments", &deploymentHits)
 	sendExpVars.Set("ReplicaSets", &replicaSetHits)
 	sendExpVars.Set("Nodes", &nodeHits)
 	sendExpVars.Set("Services", &serviceHits)
+	sendExpVars.Set("Clusters", &clusterHits)
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
@@ -89,9 +101,13 @@ func incCacheHit(nodeType NodeType) {
 		deploymentCacheHits.Add(1)
 	case K8sPod:
 		podCacheHits.Add(1)
+	case K8sCluster:
+		clusterCacheHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+		return
 	}
+	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
 }
 
 func incCacheMiss(nodeType NodeType) {
@@ -106,7 +122,11 @@ func incCacheMiss(nodeType NodeType) {
 		deploymentHits.Add(1)
 	case K8sPod:
 		podHits.Add(1)
+	case K8sCluster:
+		clusterHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+		return
 	}
+	tlmCacheMisses.Inc(nodeType.TelemetryTags()...)
 }
