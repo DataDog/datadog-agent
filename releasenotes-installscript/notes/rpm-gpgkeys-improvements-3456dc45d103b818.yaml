@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    * Add a `gpgkey=` entry pointing to a keyfile that always contains key used to signed current RPM repodata.
+    * Add a `gpgkey=` entry ensuring that `dnf`/`yum`/`zypper` always have access to the key used to sign current repodata.
     * Change RPM key location from yum.datadoghq.com to keys.datadoghq.com.
