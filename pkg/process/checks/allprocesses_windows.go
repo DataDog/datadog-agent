@@ -128,7 +128,7 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 			cachedProcesses[pid] = cp
 		} else {
 			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
-				log.Debugf(" Could not reopen process handle for pid %v %v", pid, err)
+				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
 		}
@@ -299,7 +299,7 @@ type cachedProcess struct {
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
 	err = cp.openProcHandle(pe32.Th32ProcessID)
 	if err != nil {
-		return err;
+		return err
 	}
 	var usererr error
 	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
@@ -319,9 +319,9 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 }
 
 func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
-    // 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
+	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't 
+	//        defined in x/sys/windows
 	// 0x10   is PROCESS_VM_READ
-	// defined in x/sys/windows
 
 	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pid))
 	if err != nil {
