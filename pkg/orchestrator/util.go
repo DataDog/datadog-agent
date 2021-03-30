@@ -75,17 +75,7 @@ func (n NodeType) String() string {
 // Orchestrator returns the orchestrator name for a node type.
 func (n NodeType) Orchestrator() string {
 	switch n {
-	case K8sCluster:
-		fallthrough
-	case K8sDeployment:
-		fallthrough
-	case K8sNode:
-		fallthrough
-	case K8sPod:
-		fallthrough
-	case K8sReplicaSet:
-		fallthrough
-	case K8sService:
+	case K8sCluster, K8sDeployment, K8sNode, K8sPod, K8sReplicaSet, K8sService:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
@@ -98,7 +88,7 @@ func (n NodeType) TelemetryTags() []string {
 	tags, ok := telemetryTags[n]
 	if !ok {
 		log.Errorf("Unknown NodeType %v", n)
-		return nil
+		return []string{"unknown", "unknown"}
 	}
 	return tags
 }
