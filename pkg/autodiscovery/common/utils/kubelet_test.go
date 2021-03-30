@@ -42,3 +42,117 @@ func TestGetCustomCheckID(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAnnotationsMatching(t *testing.T) {
+	type args struct {
+		annotations    map[string]string
+		validIDs       map[string]bool
+		containerNames map[string]bool
+		adPrefix       string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "match",
+			args: args{
+				annotations: map[string]string{
+					"ad.datadoghq.com/nginx.check_names":  "[\"http_check\"]",
+					"ad.datadoghq.com/nginx.init_configs": "[{}]",
+					"ad.datadoghq.com/nginx.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				},
+				validIDs: map[string]bool{
+					"nginx": true,
+				},
+				containerNames: map[string]bool{
+					"nginx": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []string{},
+		},
+		{
+			name: "no match",
+			args: args{
+				annotations: map[string]string{
+					"ad.datadoghq.com/nginx.check_names":  "[\"http_check\"]",
+					"ad.datadoghq.com/nginx.init_configs": "[{}]",
+					"ad.datadoghq.com/nginx.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				},
+				validIDs: map[string]bool{
+					"not-nginx": true,
+				},
+				containerNames: map[string]bool{
+					"nginx": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []string{
+				"annotation ad.datadoghq.com/nginx.check_names is invalid: nginx doesn't match a container identifier",
+				"annotation ad.datadoghq.com/nginx.init_configs is invalid: nginx doesn't match a container identifier",
+				"annotation ad.datadoghq.com/nginx.instances is invalid: nginx doesn't match a container identifier",
+			},
+		},
+		{
+			name: "no errors for pod tags",
+			args: args{
+				annotations: map[string]string{
+					"ad.datadoghq.com/tags": `[{"service":"datadog"}]`,
+				},
+				validIDs: map[string]bool{
+					"another-container": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []string{},
+		},
+		{
+			name: "check.id match",
+			args: args{
+				annotations: map[string]string{
+					"ad.datadoghq.com/nginx.check.id":            "nginx-custom",
+					"ad.datadoghq.com/nginx-custom.check_names":  "[\"http_check\"]",
+					"ad.datadoghq.com/nginx-custom.init_configs": "[{}]",
+					"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				},
+				validIDs: map[string]bool{
+					"nginx-custom": true,
+				},
+				containerNames: map[string]bool{
+					"nginx": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []string{},
+		},
+		{
+			name: "check.id no match",
+			args: args{
+				annotations: map[string]string{
+					"ad.datadoghq.com/nginx.check.id":            "nginx-custom",
+					"ad.datadoghq.com/nginx-custom.check_names":  "[\"http_check\"]",
+					"ad.datadoghq.com/nginx-custom.init_configs": "[{}]",
+					"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				},
+				validIDs: map[string]bool{
+					"nginx-custom": true,
+				},
+				containerNames: map[string]bool{
+					"not-nginx": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []string{
+				"annotation ad.datadoghq.com/nginx.check.id is invalid: nginx doesn't match a container identifier",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ValidateAnnotationsMatching(tt.args.annotations, tt.args.validIDs, tt.args.containerNames, tt.args.adPrefix)
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}

@@ -29,12 +29,15 @@ const (
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
+	Errors  map[string][]string
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	return &KubeletConfigProvider{}, nil
+	return &KubeletConfigProvider{
+		Errors: make(map[string][]string),
+	}, nil
 }
 
 // String returns a string representation of the KubeletConfigProvider
@@ -42,7 +45,7 @@ func (k *KubeletConfigProvider) String() string {
 	return names.Kubernetes
 }
 
-// Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them
+// Collect retrieves templates from the kubelet's podlist, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
 func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 	var err error
@@ -58,7 +61,7 @@ func (k *KubeletConfigProvider) Collect() ([]integration.Config, error) {
 		return []integration.Config{}, err
 	}
 
-	return parseKubeletPodlist(pods)
+	return k.parseKubeletPodlist(pods)
 }
 
 // Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
@@ -66,18 +69,21 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }
 
-func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
+func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 	var configs []integration.Config
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
 		var adExtractFormat string
+		var adPrefix string
 		for name := range pod.Metadata.Annotations {
 			if strings.HasPrefix(name, newPodAnnotationPrefix) {
 				adExtractFormat = newPodAnnotationFormat
+				adPrefix = newPodAnnotationPrefix
 				break
 			}
 			if strings.HasPrefix(name, legacyPodAnnotationPrefix) {
 				adExtractFormat = legacyPodAnnotationFormat
+				adPrefix = legacyPodAnnotationPrefix
 				// Don't break so we try to look for the new prefix
 				// which will take precedence
 			}
@@ -90,17 +96,30 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
+		adErrors := []string{}
+		validIDs := map[string]bool{}
+		containerNames := map[string]bool{}
+
+		errorKeys := map[string]bool{}
+		for _, err := range k.Errors[pod.Metadata.Name] {
+			if _, ok := errorKeys[err]; !ok {
+				errorKeys[err] = true
+			}
+		}
+
 		for _, container := range pod.Status.GetAllContainers() {
 			adIdentifier := container.Name
+			containerNames[container.Name] = true
 			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, container.Name); customIDFound {
 				adIdentifier = customADIdentifier
 			}
+			validIDs[adIdentifier] = true
 
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, adIdentifier))
 
 			for _, err := range errors {
-				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
+				adErrors = append(adErrors, fmt.Sprintf("%v", err))
 			}
 
 			for idx := range c {
@@ -108,6 +127,14 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 			}
 
 			configs = append(configs, c...)
+		}
+		adErrors = append(adErrors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, validIDs, containerNames, adPrefix)...)
+		for _, err := range adErrors {
+			log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
+			if _, ok := errorKeys[err]; !ok {
+				k.Errors[pod.Metadata.Name] = append(k.Errors[pod.Metadata.Name], err)
+				errorKeys[err] = true
+			}
 		}
 	}
 	return configs, nil

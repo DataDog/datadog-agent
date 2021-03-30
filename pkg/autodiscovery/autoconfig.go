@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// +build kubelet
+
 package autodiscovery
 
 import (
@@ -645,4 +647,31 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
+}
+
+// GetAutodiscoveryErrors fetches configuration errors based on the configuration provider
+func GetAutodiscoveryErrors(cp config.ConfigurationProviders) map[string][]string {
+	factory, found := providers.ProviderCatalog[cp.Name]
+	if found {
+		configProvider, err := factory(cp)
+		if err != nil {
+			log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
+			return nil
+		}
+		_, err = configProvider.Collect()
+		if err != nil {
+			log.Errorf("Unexpected error returned when collecting configurations from provider %v: %v", configProvider.String(), err)
+			return nil
+		}
+
+		if configProvider.String() == "kubernetes" {
+			return configProvider.(*providers.KubeletConfigProvider).Errors
+		} else {
+			log.Errorf("Unknown configuration provider %v", configProvider.String())
+			return nil
+		}
+	} else {
+		log.Errorf("Configuration provider %v not found", cp.Name)
+	}
+	return nil
 }

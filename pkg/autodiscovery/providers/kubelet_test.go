@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -24,6 +25,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 		desc        string
 		pod         *kubelet.Pod
 		expectedCfg []integration.Config
+		expectedErr []string
 	}{
 		{
 			desc: "No annotations",
@@ -44,6 +46,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 			},
 			expectedCfg: nil,
+			expectedErr: nil,
 		},
 		{
 			desc: "New + old, new takes over",
@@ -82,6 +85,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "New annotation prefix, two templates",
@@ -135,6 +139,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "Legacy annotation prefix, two checks in one template",
@@ -177,6 +182,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "Custom check ID",
@@ -213,13 +219,58 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
+			expectedErr: nil,
+		},
+		{
+			desc: "Non-duplicate errors",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "nginx-1752f8c774-wtjql",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/nonmatching.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/nonmatching.init_configs": "[{}]",
+						"ad.datadoghq.com/nonmatching.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+				},
+			},
+			expectedCfg: nil,
+			expectedErr: []string{
+				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier",
+				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier",
+				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier",
+			},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
-			checks, err := parseKubeletPodlist([]*kubelet.Pod{tc.pod})
+			m, err := NewKubeletConfigProvider(config.ConfigurationProviders{Name: "kubernetes"})
+			assert.NoError(t, err)
+			checks, err := m.(*KubeletConfigProvider).parseKubeletPodlist([]*kubelet.Pod{tc.pod})
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expectedCfg), len(checks))
 			assert.EqualValues(t, tc.expectedCfg, checks)
+			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).Errors[tc.pod.Metadata.Name])
 
 		})
 	}
