@@ -24,6 +24,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 	"github.com/syndtr/gocapability/capability"
+	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -62,9 +63,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		if rule.ID != "test_rule" {
-			t.Errorf("expected rule 'test-rule' to be triggered, got %s", rule.ID)
-		}
+		assertTriggeredRule(t, rule, "test_rule")
 	}
 }
 
@@ -134,13 +133,8 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
-				t.Errorf("not able to find the proper process filename `%v` vs `%s`: %v", filename, executable, event)
-			}
-
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileFields.Inode {
-				t.Errorf("expected inode %d, got %d", event.ResolveProcessCacheEntry().FileFields.Inode, inode)
-			}
+			assertFieldEqual(t, event, "process.file.path", executable)
+			assert.Equal(t, event.ResolveProcessCacheEntry().FileFields.Inode, getInode(t, executable), "wrong inode")
 
 			testContainerPath(t, event, "process.file.container_path")
 		}
@@ -223,13 +217,8 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(args.(string), " ")
-			if len(argv) != 2 {
-				t.Errorf("incorrect number of args")
-			}
-
-			if !strings.HasSuffix(argv[1], "...") {
-				t.Error("arg not truncated")
-			}
+			assert.Equal(t, len(argv), 2, "incorrect number of args")
+			assert.Equal(t, strings.HasSuffix(argv[1], "..."), true, "args not truncated")
 		}
 
 		// number of args overflow
@@ -309,9 +298,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
-				t.Errorf("not able to find the proper process filename `%v` vs `%s`", filename, executable)
-			}
+			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
 				t.Errorf("not able to get a tty name: %s\n", name)
@@ -357,17 +344,9 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.ResolveProcessInode(&event.Exec.Process); filename != executable {
-				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
-			}
-
-			if rule.ID != "test_rule_ancestors" {
-				t.Error("Wrong rule triggered")
-			}
-
-			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != shell {
-				t.Errorf("ancestor `%s` expected, got %v, event:%v", shell, ancestor, event)
-			}
+			assert.Equal(t, event.ResolveProcessInode(&event.Exec.Process), executable, "wrong process")
+			assertTriggeredRule(t, rule, "test_rule_ancestors")
+			assert.Equal(t, event.ProcessContext.Ancestor.Comm, shell)
 		}
 	})
 
@@ -448,14 +427,8 @@ func TestProcessExec(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		if filename, _ := event.GetFieldValue("exec.file.path"); filename.(string) != executable {
-			t.Errorf("expected exec filename `%v`, got `%v`", executable, filename)
-		}
-
-		if filename, _ := event.GetFieldValue("process.file.path"); filename.(string) != executable {
-			t.Errorf("expected process filename `%v`, got `%v`", executable, filename)
-		}
-
+		assertFieldEqual(t, event, "exec.file.path", executable)
+		assertFieldEqual(t, event, "process.file.path", executable)
 		testContainerPath(t, event, "exec.file.container_path")
 	}
 }
@@ -503,22 +476,10 @@ func TestProcessMetadata(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "exec" {
-				t.Errorf("expected exec event, got %s", event.GetType())
-			}
-
-			if int(event.Exec.FileFields.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Exec.FileFields.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Exec.FileFields.MTime.After(now) || event.Exec.FileFields.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Exec.FileFields.MTime)
-			}
-
-			if event.Exec.FileFields.CTime.After(now) || event.Exec.FileFields.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Exec.FileFields.CTime)
-			}
+			assert.Equal(t, event.GetType(), "exec", "wrong event type")
+			assertRights(t, event.Exec.FileFields.Mode, uint16(expectedMode))
+			assertNearTime(t, event.Exec.FileFields.MTime)
+			assertNearTime(t, event.Exec.FileFields.CTime)
 		}
 	})
 
@@ -528,10 +489,10 @@ func TestProcessMetadata(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 2001, 2001, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1001, 1001, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 
 			if _, err := syscall.ForkExec(testFile, []string{}, nil); err != nil {
@@ -543,29 +504,14 @@ func TestProcessMetadata(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "exec" {
-				t.Errorf("expected exec event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "exec", "wrong event type")
 
-			if uid := event.ResolveCredentialsUID(&event.Exec.Credentials); uid != 1001 {
-				t.Errorf("expected uid 1001, got %d", uid)
-			}
-			if euid := event.ResolveCredentialsEUID(&event.Exec.Credentials); euid != 1001 {
-				t.Errorf("expected euid 1002, got %d", euid)
-			}
-			if fsuid := event.ResolveCredentialsFSUID(&event.ProcessContext.Credentials); fsuid != 1001 {
-				t.Errorf("expected fsuid 1002, got %d", fsuid)
-			}
-
-			if gid := event.ResolveCredentialsGID(&event.Exec.Credentials); gid != 2001 {
-				t.Errorf("expected gid 2001, got %d", gid)
-			}
-			if egid := event.ResolveCredentialsEGID(&event.Exec.Credentials); egid != 2001 {
-				t.Errorf("expected egid 2002, got %d", egid)
-			}
-			if fsgid := event.ResolveCredentialsFSGID(&event.Exec.Credentials); fsgid != 2001 {
-				t.Errorf("expected fsgid 2002, got %d", fsgid)
-			}
+			assert.Equal(t, event.ResolveCredentialsUID(&event.Exec.Credentials), 1001, "wrong uid")
+			assert.Equal(t, event.ResolveCredentialsEUID(&event.Exec.Credentials), 1001, "wrong euid")
+			assert.Equal(t, event.ResolveCredentialsFSUID(&event.Exec.Credentials), 1001, "wrong fsuid")
+			assert.Equal(t, event.ResolveCredentialsGID(&event.Exec.Credentials), 2001, "wrong gid")
+			assert.Equal(t, event.ResolveCredentialsEGID(&event.Exec.Credentials), 2001, "wrong egid")
+			assert.Equal(t, event.ResolveCredentialsFSGID(&event.Exec.Credentials), 2001, "wrong fsgid")
 		}
 	})
 }
@@ -634,6 +580,7 @@ func TestProcessLineage(t *testing.T) {
 				if err != nil {
 					continue
 				}
+
 				if int(event.ProcessContext.Pid) == execPid {
 					testProcessLineageExit(t, event, test)
 					return
@@ -653,9 +600,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		if cacheEntry.Ancestor == nil {
 			return errors.New("expected a parent, got nil")
 		} else {
-			if cacheEntry.ID != cacheEntry.Ancestor.ID {
-				t.Errorf("expected container ID %s, got %s", cacheEntry.Ancestor.ID, cacheEntry.ID)
-			}
+			assert.Equal(t, cacheEntry.ID, cacheEntry.Ancestor.ID)
 		}
 	}
 
@@ -677,18 +622,9 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 		} else {
 			// checking cookie and pathname str should be enough to make sure that the metadata were properly
 			// copied from kernel space (those 2 information are stored in 2 different maps)
-			if newEntry.Cookie != parentEntry.Cookie {
-				t.Errorf("expected cookie %d, %d", parentEntry.Cookie, newEntry.Cookie)
-			}
-
-			if newEntry.PPid != parentEntry.Pid {
-				t.Errorf("expected PPid %d, got %d", parentEntry.Pid, newEntry.PPid)
-			}
-
-			// we also need to check the container ID lineage
-			if newEntry.ID != parentEntry.ID {
-				t.Errorf("expected container ID %s, got %s", parentEntry.ID, newEntry.ID)
-			}
+			assert.Equal(t, newEntry.Cookie, parentEntry.Cookie, "wrong cookie")
+			assert.Equal(t, newEntry.PPid, parentEntry.Pid, "wrong ppid")
+			assert.Equal(t, newEntry.ID, parentEntry.ID, "wrong container id")
 
 			// We can't check that the new entry is in the list of the children of its parent because the exit event
 			// has probably already been processed (thus the parent list of children has already been updated and the
@@ -760,7 +696,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETUID, 1001, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -768,13 +704,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setuid" {
-				t.Errorf("expected test_setuid rule, got %s", rule.ID)
-			}
-
-			if event.SetUID.UID != 1001 {
-				t.Errorf("expected uid 1001, got %d", event.SetUID.UID)
-			}
+			assertTriggeredRule(t, rule, "test_setuid")
+			assert.Equal(t, event.SetUID.UID, uint32(1001), "wrong uid")
 		}
 	})
 
@@ -784,7 +715,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1002, 1003, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -792,16 +723,9 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setreuid" {
-				t.Errorf("expected test_setreuid rule, got %s", rule.ID)
-			}
-
-			if event.SetUID.UID != 1002 {
-				t.Errorf("expected uid 1002, got %d", event.SetUID.UID)
-			}
-			if event.SetUID.EUID != 1003 {
-				t.Errorf("expected euid 1003, got %d", event.SetUID.EUID)
-			}
+			assertTriggeredRule(t, rule, "test_setreuid")
+			assert.Equal(t, event.SetUID.UID, uint32(1002), "wrong uid")
+			assert.Equal(t, event.SetUID.EUID, uint32(1003), "wrong euid")
 		}
 	})
 
@@ -811,7 +735,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETRESUID, 1002, 1003, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -819,16 +743,9 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setreuid" {
-				t.Errorf("expected test_setreuid rule, got %s", rule.ID)
-			}
-
-			if event.SetUID.UID != 1002 {
-				t.Errorf("expected uid 1002, got %d", event.SetUID.UID)
-			}
-			if event.SetUID.EUID != 1003 {
-				t.Errorf("expected euid 1003, got %d", event.SetUID.EUID)
-			}
+			assertTriggeredRule(t, rule, "test_setreuid")
+			assert.Equal(t, event.SetUID.UID, uint32(1002), "wrong uid")
+			assert.Equal(t, event.SetUID.EUID, uint32(1003), "wrong euid")
 		}
 	})
 
@@ -838,7 +755,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETFSUID, 1004, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -846,13 +763,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setfsuid" {
-				t.Errorf("expected test_setfsuid rule, got %s", rule.ID)
-			}
-
-			if event.SetUID.FSUID != 1004 {
-				t.Errorf("expected fsuid 1004, got %d", event.SetUID.FSUID)
-			}
+			assertTriggeredRule(t, rule, "test_setfsuid")
+			assert.Equal(t, event.SetUID.FSUID, uint32(1004), "wrong fsuid")
 		}
 	})
 
@@ -862,7 +774,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETGID, 1005, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -870,13 +782,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setgid" {
-				t.Errorf("expected test_setgid rule, got %s", rule.ID)
-			}
-
-			if event.SetGID.GID != 1005 {
-				t.Errorf("expected gid 1005, got %d", event.SetGID.GID)
-			}
+			assertTriggeredRule(t, rule, "test_setgid")
+			assert.Equal(t, event.SetGID.GID, uint32(1005), "wrong gid")
 		}
 	})
 
@@ -886,7 +793,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1006, 1007, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -894,16 +801,9 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setregid" {
-				t.Errorf("expected test_setregid rule, got %s", rule.ID)
-			}
-
-			if event.SetGID.GID != 1006 {
-				t.Errorf("expected gid 1006, got %d", event.SetGID.GID)
-			}
-			if event.SetGID.EGID != 1007 {
-				t.Errorf("expected egid 1007, got %d", event.SetGID.EGID)
-			}
+			assertTriggeredRule(t, rule, "test_setregid")
+			assert.Equal(t, event.SetGID.GID, uint32(1006), "wrong gid")
+			assert.Equal(t, event.SetGID.EGID, uint32(1007), "wrong egid")
 		}
 	})
 
@@ -913,7 +813,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETRESGID, 1006, 1007, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -921,16 +821,9 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setregid" {
-				t.Errorf("expected test_setregid rule, got %s", rule.ID)
-			}
-
-			if event.SetGID.GID != 1006 {
-				t.Errorf("expected gid 1006, got %d", event.SetGID.GID)
-			}
-			if event.SetGID.EGID != 1007 {
-				t.Errorf("expected egid 1007, got %d", event.SetGID.EGID)
-			}
+			assertTriggeredRule(t, rule, "test_setregid")
+			assert.Equal(t, event.SetGID.GID, uint32(1006), "wrong gid")
+			assert.Equal(t, event.SetGID.EGID, uint32(1007), "wrong egid")
 		}
 	})
 
@@ -940,7 +833,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETFSGID, 1008, 0, 0); errno != 0 {
-				t.Fatal(errno)
+				t.Error(errno)
 			}
 		}()
 
@@ -948,13 +841,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_setfsgid" {
-				t.Errorf("expected test_setfsgid rule, got %s", rule.ID)
-			}
-
-			if event.SetGID.FSGID != 1008 {
-				t.Errorf("expected fsgid 1008, got %d", event.SetGID.FSGID)
-			}
+			assertTriggeredRule(t, rule, "test_setfsgid")
+			assert.Equal(t, event.SetGID.FSGID, uint32(1008), "wrong gid")
 		}
 	})
 
@@ -976,7 +864,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
 			threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 			if err := threadCapabilities.Apply(capability.CAPS); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		}()
 
@@ -984,9 +872,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_capset" {
-				t.Errorf("expected test_capset rule, got %s", rule.ID)
-			}
+			assertTriggeredRule(t, rule, "test_capset")
 
 			// transform the collected kernel capabilities into a usable capability set
 			newSet, err := capability.NewPid2(0)
