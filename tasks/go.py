@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 
 
+import copy
 import datetime
 import os
 import shutil
@@ -222,7 +223,8 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     pkgs = [sub + "/..." for sub in targets]
 
     # Copy the tag list since we are modifying it
-    tags = (build_tags or get_default_build_tags(build="test", arch=arch)).copy()
+    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
+
     # these two don't play well with static checking
     tags.remove("python")
     tags.remove("jmx")
