@@ -344,8 +344,8 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 
 		Pid:           e.ProcessContext.Pid,
-		PPid:          e.ProcessContext.PPid,
 		Tid:           e.ProcessContext.Tid,
+		PPid:          uint32(e.ResolveProcessPPID(&pce.Process)),
 		Path:          e.ResolveProcessInode(&pce.Process),
 		ContainerPath: e.ResolveProcessContainerPath(&pce.Process),
 		Comm:          e.ResolveProcessComm(&pce.Process),

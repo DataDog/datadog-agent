@@ -784,6 +784,7 @@ func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string
 		t.Errorf("expected value `%s` for `%s` not found in for `%+v`", expected, fieldPath, value)
 	}
 }
+
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	t.Helper()
 

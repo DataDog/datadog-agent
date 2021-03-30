@@ -60,6 +60,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.BasenameStr = pc.BasenameStr
 	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTimestamp = pc.ExecTimestamp
+	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
 	copyProcessContext(pc, childEntry)

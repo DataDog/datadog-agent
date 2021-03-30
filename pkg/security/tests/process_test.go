@@ -84,8 +84,12 @@ func TestProcessContext(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
 		},
 		{
-			ID:         "test_rule_args_envs",
-			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
+			ID: "test_rule_args_envs",
+			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"] &&` +
+				`process.ancestors[_].file.container_path != "abc" && ` +
+				`process.ancestors[_].container.id != "" && ` +
+				`exec.file.container_path != "abc" && ` +
+				`exec.container.id != ""`,
 		},
 		{
 			ID:         "test_rule_argv",
@@ -98,14 +102,6 @@ func TestProcessContext(t *testing.T) {
 		{
 			ID:         "test_rule_args_options",
 			Expression: `exec.args_options in ["block-size=123"]`,
-		},
-		{
-			ID: "test_rule_args_envs",
-			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"] &&` +
-				`process.ancestors[_].file.container_path != "abc" && ` +
-				`process.ancestors[_].container.id != "" && ` +
-				`exec.file.container_path != "abc" && ` +
-				`exec.container.id != ""`,
 		},
 		{
 			ID:         "test_rule_tty",
@@ -420,7 +416,7 @@ func TestProcessContext(t *testing.T) {
 		} else {
 			assert.Equal(t, event.ResolveProcessInode(&event.Exec.Process), executable, "wrong process")
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
-			assert.Equal(t, event.ProcessContext.Ancestor.Comm, shell)
+			assert.Equal(t, event.ProcessContext.Ancestor.Comm, "sh")
 		}
 	})
 
@@ -456,17 +452,10 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if filename := event.ResolveProcessInode(&event.Exec.Process); filename != executable {
-				t.Errorf("expected process filename `%s`, got `%s`: %v", executable, filename, event)
-			}
-
-			if rule.ID != "test_rule_pid1" {
-				t.Error("Wrong rule triggered")
-			}
-
-			if ancestor := event.ProcessContext.Ancestor; ancestor == nil || ancestor.Comm != "sh" {
-				t.Errorf("ancestor `sh` expected, got %v, event:%v", ancestor, event)
-			}
+			assert.Equal(t, event.ResolveProcessInode(&event.Exec.Process), executable, "wrong process")
+			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
+			assert.Assert(t, event.ProcessContext.Ancestor != nil)
+			assert.Assert(t, event.ProcessContext.Ancestor.Comm, "sh", "sh as ancestor expected")
 
 			testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 		}
@@ -987,4 +976,8 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 			c.Set(flag, capability.Cap(math.Log2(float64(v))))
 		}
 	}
+}
+
+func TestSchema(t *testing.T) {
+	validExecSchema(t, nil)
 }

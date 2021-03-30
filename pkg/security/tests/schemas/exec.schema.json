@@ -1,0 +1,16 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exec.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.json"
+        },
+        {
+            "$ref": "process_context.json"
+        },
+        {
+            "$ref": "container_context.json"
+        }
+    ]
+}
