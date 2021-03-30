@@ -42,8 +42,8 @@ type ECSCollector struct {
 }
 
 // Detect tries to connect to the ECS agent
-func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	if ecsutil.IsFargateInstance(context.TODO()) {
+func (c *ECSCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if ecsutil.IsFargateInstance(ctx) {
 		return NoCollection, fmt.Errorf("ECS collector is disabled on Fargate")
 	}
 
@@ -62,7 +62,7 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		return NoCollection, err
 	}
 
-	instance, err := c.metaV1.GetInstance(context.TODO())
+	instance, err := c.metaV1.GetInstance(ctx)
 	if err != nil {
 		log.Warnf("Cannot determine ECS cluster name: %s", err)
 	}
@@ -73,13 +73,13 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 }
 
 // Fetch fetches ECS tags
-func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *ECSCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	entityType, cID := containers.SplitEntityName(entity)
 	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 
-	tasks, err := c.metaV1.GetTasks(context.TODO())
+	tasks, err := c.metaV1.GetTasks(ctx)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
@@ -87,9 +87,9 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 	var updates []*TagInfo
 
 	if config.Datadog.GetBool("ecs_collect_resource_tags_ec2") && ecsutil.HasEC2ResourceTags() {
-		updates, err = c.parseTasks(tasks, cID, addTagsForContainer)
+		updates, err = c.parseTasks(ctx, tasks, cID, addTagsForContainer)
 	} else {
-		updates, err = c.parseTasks(tasks, cID)
+		updates, err = c.parseTasks(ctx, tasks, cID)
 	}
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
@@ -114,8 +114,8 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
 
-func addTagsForContainer(containerID string, tags *utils.TagList) {
-	task, err := fetchContainerTaskWithTagsV3(containerID)
+func addTagsForContainer(ctx context.Context, containerID string, tags *utils.TagList) {
+	task, err := fetchContainerTaskWithTagsV3(ctx, containerID)
 	if err != nil {
 		log.Warnf("Unable to get resource tags for container %s: %s", containerID, err)
 		return
@@ -124,12 +124,12 @@ func addTagsForContainer(containerID string, tags *utils.TagList) {
 	addResourceTags(tags, task.TaskTags)
 }
 
-func fetchContainerTaskWithTagsV3(containerID string) (*v3.Task, error) {
+func fetchContainerTaskWithTagsV3(ctx context.Context, containerID string) (*v3.Task, error) {
 	metaV3, err := ecsmeta.V3(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize client for metadata v3 API: %s", err)
 	}
-	task, err := metaV3.GetTaskWithTags(context.TODO())
+	task, err := metaV3.GetTaskWithTags(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task with tags from metadata v3 API: %s", err)
 	}

@@ -6,6 +6,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,7 +30,7 @@ type GardenCollector struct {
 }
 
 // Detect tries to connect to the Garden API and the cluster agent
-func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *GardenCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 
 	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error
@@ -62,7 +63,7 @@ func (c *GardenCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 }
 
 // Pull gets the list of containers
-func (c *GardenCollector) Pull() error {
+func (c *GardenCollector) Pull(ctx context.Context) error {
 	var tagsByInstanceGUID map[string][]string
 	var tagInfo []*TagInfo
 	tagsByInstanceGUID, err := c.extractTags(config.Datadog.GetString("bosh_id"))

@@ -5,6 +5,8 @@
 
 package collectors
 
+import "context"
+
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {
@@ -32,7 +34,7 @@ const (
 // Collector retrieve entity tags from a given source and feeds
 // updates via the TagInfo channel
 type Collector interface {
-	Detect(chan<- []*TagInfo) (CollectionMode, error)
+	Detect(context.Context, chan<- []*TagInfo) (CollectionMode, error)
 }
 
 // CollectorPriority helps resolving dupe tags from collectors
@@ -60,7 +62,7 @@ const (
 
 // Fetcher allows to fetch tags on-demand in case of cache miss
 type Fetcher interface {
-	Fetch(string) ([]string, []string, []string, error)
+	Fetch(context.Context, string) ([]string, []string, []string, error)
 }
 
 // Streamer feeds back TagInfo when detecting changes
@@ -73,5 +75,5 @@ type Streamer interface {
 // Puller has to be triggered regularly
 type Puller interface {
 	Fetcher
-	Pull() error
+	Pull(context.Context) error
 }

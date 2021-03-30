@@ -6,6 +6,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -23,11 +24,11 @@ type DummyCollector struct {
 	mock.Mock
 }
 
-func (c *DummyCollector) Detect(out chan<- []*collectors.TagInfo) (collectors.CollectionMode, error) {
+func (c *DummyCollector) Detect(_ context.Context, out chan<- []*collectors.TagInfo) (collectors.CollectionMode, error) {
 	args := c.Called(out)
 	return args.Get(0).(collectors.CollectionMode), args.Error(1)
 }
-func (c *DummyCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *DummyCollector) Fetch(_ context.Context, entity string) ([]string, []string, []string, error) {
 	args := c.Called(entity)
 	return args.Get(0).([]string), args.Get(1).([]string), args.Get(2).([]string), args.Error(3)
 }
@@ -42,7 +43,7 @@ func (c *DummyCollector) Stop() error {
 	return args.Error(0)
 }
 
-func (c *DummyCollector) Pull() error {
+func (c *DummyCollector) Pull(context.Context) error {
 	args := c.Called()
 	return args.Error(0)
 }
@@ -253,6 +254,8 @@ func TestEmptyEntity(t *testing.T) {
 }
 
 func TestRetryCollector(t *testing.T) {
+	ctx := context.Background()
+
 	c := &DummyCollector{}
 	retryError := &retry.Error{
 		LogicError:    fmt.Errorf("testing"),
@@ -275,7 +278,7 @@ func TestRetryCollector(t *testing.T) {
 	// Keep trying
 	for i := 0; i < 10; i++ {
 		c.On("Detect", mock.Anything).Return(collectors.NoCollection, retryError).Once()
-		tagger.startCollectors()
+		tagger.startCollectors(ctx)
 		assert.Len(t, tagger.candidates, 1)
 		assert.Len(t, tagger.fetchers, 0)
 	}
@@ -283,13 +286,13 @@ func TestRetryCollector(t *testing.T) {
 
 	// Okay, you win
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
-	tagger.startCollectors()
+	tagger.startCollectors(ctx)
 	assert.Len(t, tagger.candidates, 0)
 	assert.Len(t, tagger.fetchers, 1)
 	c.AssertNumberOfCalls(t, "Detect", 12)
 
 	// Don't try again
-	tagger.startCollectors()
+	tagger.startCollectors(ctx)
 	c.AssertNumberOfCalls(t, "Detect", 12)
 }
 

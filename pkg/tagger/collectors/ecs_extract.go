@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -16,7 +17,7 @@ import (
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 )
 
-func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, containerHandlers ...func(containerID string, tags *utils.TagList)) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList)) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks {
@@ -42,7 +43,7 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 
 				for _, fn := range containerHandlers {
 					if fn != nil {
-						fn(container.DockerID, tags)
+						fn(ctx, container.DockerID, tags)
 					}
 				}
 

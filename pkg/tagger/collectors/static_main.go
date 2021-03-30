@@ -25,7 +25,7 @@ type StaticCollector struct {
 }
 
 // Detect detects static tags
-func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *StaticCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.infoOut = out
 	// Extract DD_TAGS environment variable
 	c.ddTagsEnvVar = config.Datadog.GetStringSlice("tags")
@@ -34,7 +34,7 @@ func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 }
 
 // Fetch fetches static tags
-func (c *StaticCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *StaticCollector) Fetch(_ context.Context, entity string) ([]string, []string, []string, error) {
 	tagInfoList := c.getTagInfo(entity)
 
 	c.infoOut <- tagInfoList
