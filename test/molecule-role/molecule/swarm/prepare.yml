@@ -1,0 +1,102 @@
+---
+- name: Prepare Swarm Nodes before running cluster
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
+      become: true
+      changed_when: false
+    - name: Gather facts
+      setup:
+    - name: Add Docker GPG APT key
+      become: true
+      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
+    - name: Add Docker APT repository
+      become: true
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+    - name: Install APT packages
+      become: true
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce]
+        state: present
+        update_cache: yes
+      register: apt_res
+      retries: 5
+      delay: 5
+      until: apt_res is success
+    - name: Add user to docker group
+      become: true
+      user:
+        name: ubuntu
+        groups: docker
+        append: True
+    - name: Restart sshd to apply group change
+      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
+      async: 3
+      poll: 2
+
+- name: Register Swarm Master Node
+  hosts: swarm_master_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Check if Swarm has already been Initialized
+      shell: docker node ls
+      register: swarm_status
+      ignore_errors: true
+    - name: Initialize Docker Swarm
+      shell: "docker swarm init --advertise-addr={{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
+      when: swarm_status.rc != 0
+      run_once: true
+    - name: Get the worker join-token
+      shell: docker swarm join-token --quiet worker
+      register: worker_token
+
+- name: Join Worker node to Master
+  hosts: swarm_worker_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Add Worker to the Swarm
+      shell: "docker swarm join --token {{ hostvars['agent-swarm-master']['worker_token']['stdout'] }} {{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
+
+- name: Create global service on Master
+  hosts: swarm_master_vm
+  gather_facts: false
+  vars_files:
+    - common_vars.yml
+  tasks:
+    - name: Create a global nginx service
+      shell: "docker service create --name nginx --mode global nginx"
+    - name: Installing docker in Ansible
+      pip:
+        name: docker
+    - name: Docker login
+      docker_login:
+        registry: quay.io
+        username: "{{ quay_user }}"
+        password: "{{ quay_password }}"
+        reauthorize: yes
+    - name: Copy docker compose file
+      copy:
+        src: files/docker-compose.yml
+        dest: /home/ubuntu/
+        mode: preserve
+    - name: Create StacSktate Agent Service on Master
+      command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
+      args:
+        chdir: /home/ubuntu/
+      environment:
+        AGENT_VERSION: "{{ agent_current_branch }}"
+        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+      register: output
+    - debug: var=output
+    - name: Wait a bit for the agent to start
+      pause:
+        seconds: 200

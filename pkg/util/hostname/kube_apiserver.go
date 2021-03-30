@@ -12,8 +12,13 @@
 
 package hostname
 
-import "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+import (
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+)
 
 func init() {
-	RegisterHostnameProvider("kube_apiserver", apiserver.HostnameProvider)
+	if config.IsKubernetes() == true {
+		RegisterHostnameProvider("kube_apiserver", apiserver.HostnameProvider)
+	}
 }

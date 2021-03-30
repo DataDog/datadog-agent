@@ -20,11 +20,12 @@
         "go.testFlags": [
             "-v"
         ],
-        "gopls": {
-            "buildFlags": [
-                "-tags=kubeapiserver,cpython,kubelet,etcd,docker,zk"
-            ],
-        },
+        "go.useLanguageServer": true,
+        // "gopls": {
+        //     "buildFlags": [
+        //         "-tags=kubeapiserver,cpython,kubelet,etcd,docker,zk"
+        //     ],
+        // },
         "[go]": {
             "editor.formatOnSave": true,
             "editor.codeActionsOnSave": {
@@ -48,5 +49,18 @@
         "editor.formatOnSave": true,
         "go.coverOnSingleTest": true,
         "go.coverOnSingleTestFile": true,
+        "python.pythonPath": "/usr/bin/python",
+        "git.ignoreLimitWarning": true,
+        "files.exclude": {
+            "**/.git": true,
+            "**/.svn": true,
+            "**/.hg": true,
+            "**/CVS": true,
+            "**/.DS_Store": true,
+            "vendor": true,
+            "venv": true,
+            ".vendor-new": true,
+            ".metals": true
+        }
     }
 }

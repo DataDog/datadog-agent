@@ -23,7 +23,17 @@ def component_data(json_data, type_name, external_id_assert_fn, data_assert_fn):
             external_id_assert_fn(p["TopologyComponent"]["externalId"]):
             data = json.loads(p["TopologyComponent"]["data"])
             if data and data_assert_fn(data):
-                return data
+                return p["TopologyComponent"]["externalId"]
+    return None
+
+
+def relation_data(json_data, type_name, external_id_assert_fn):
+    for message in json_data["messages"]:
+        p = message["message"]["TopologyElement"]["payload"]
+        if "TopologyRelation" in p and \
+            p["TopologyRelation"]["typeName"] == type_name and \
+                external_id_assert_fn(p["TopologyRelation"]["externalId"]):
+            return json.loads(p["TopologyRelation"]["data"])
     return None
 
 

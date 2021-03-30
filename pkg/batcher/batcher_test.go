@@ -10,7 +10,7 @@ import (
 
 var (
 	testInstance  = topology.Instance{Type: "mytype", URL: "myurl"}
-	testInstance2  = topology.Instance{Type: "mytype2", URL: "myurl2"}
+	testInstance2 = topology.Instance{Type: "mytype2", URL: "myurl2"}
 	testHost      = "myhost"
 	testAgent     = "myagent"
 	testID        = check.ID("myid")

@@ -147,6 +147,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*containers.C
 			State:    c.State,
 			Excluded: excluded,
 			Health:   parseContainerHealth(c.Status),
+			Mounts:   c.Mounts,
 		}
 
 		ret = append(ret, container)
