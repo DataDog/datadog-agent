@@ -19,10 +19,10 @@ import (
 )
 
 // MaxSegmentLength defines the maximum length of each segment of a path
-const MaxSegmentLength = 127
+const MaxSegmentLength = 255
 
 // MaxPathDepth defines the maximum depth of a path
-const MaxPathDepth = 15
+const MaxPathDepth = 1740
 
 var (
 	errorConstants = map[string]int{

@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -54,7 +55,7 @@ type argsEnvsCacheEntry struct {
 
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
-	if probe.kernelVersion != 0 && probe.kernelVersion >= kernel5_3 {
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= kernel.Kernel5_3 {
 		return doForkStructInput
 	}
 	return doForkListInput
@@ -64,7 +65,7 @@ func getDoForkInput(probe *Probe) uint64 {
 // space
 func getCGroupWriteConstants() manager.ConstantEditor {
 	cgroupWriteConst := uint64(1)
-	kv, err := NewKernelVersion()
+	kv, err := kernel.NewKernelVersion()
 	if err == nil {
 		if kv.IsRH7Kernel() {
 			cgroupWriteConst = 2
@@ -81,20 +82,17 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 func TTYConstants(probe *Probe) []manager.ConstantEditor {
 	ttyOffset, nameOffset := uint64(400), uint64(368)
 
-	kv, err := NewKernelVersion()
-	if err == nil {
-		switch {
-		case kv.IsRH7Kernel():
-			ttyOffset, nameOffset = 416, 312
-		case kv.IsRH8Kernel():
-			ttyOffset, nameOffset = 392, 368
-		case kv.IsSLES12Kernel():
-			ttyOffset, nameOffset = 376, 368
-		case kv.IsSLES15Kernel():
-			ttyOffset, nameOffset = 408, 368
-		case probe.kernelVersion != 0 && probe.kernelVersion < kernel5_3:
-			ttyOffset, nameOffset = 368, 368
-		}
+	switch {
+	case probe.kernelVersion.IsRH7Kernel():
+		ttyOffset, nameOffset = 416, 312
+	case probe.kernelVersion.IsRH8Kernel():
+		ttyOffset, nameOffset = 392, 368
+	case probe.kernelVersion.IsSLES12Kernel():
+		ttyOffset, nameOffset = 376, 368
+	case probe.kernelVersion.IsSLES15Kernel():
+		ttyOffset, nameOffset = 408, 368
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
+		ttyOffset, nameOffset = 368, 368
 	}
 
 	return []manager.ConstantEditor{

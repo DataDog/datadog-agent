@@ -90,7 +90,7 @@ func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
 // resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
+	if pathStr == dentryPathKeyNotFound {
 		return pathStr, err
 	}
 

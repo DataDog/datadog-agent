@@ -68,8 +68,24 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
             break;
     }
 
-    int ret = resolve_dentry(syscall->setattr.dentry, syscall->setattr.file.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-    if (ret == DENTRY_DISCARDED) {
+    syscall->resolver.dentry = syscall->setattr.dentry;
+    syscall->resolver.key = syscall->setattr.file.path_key;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? event_type : 0;
+    syscall->resolver.callback = DR_SETATTR_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+SEC("kprobe/dr_setattr_callback")
+int __attribute__((always_inline)) dr_setattr_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
         return discard_syscall(syscall);
     }
 

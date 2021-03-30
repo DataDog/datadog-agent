@@ -102,9 +102,10 @@ rules:
 `
 
 var (
-	testEnvironment string
-	useReload       bool
-	logLevelStr     string
+	disableERPCDentryResolution bool
+	testEnvironment             string
+	useReload                   bool
+	logLevelStr                 string
 )
 
 const (
@@ -118,13 +119,14 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir              string
-	disableFilters       bool
-	disableApprovers     bool
-	disableDiscarders    bool
-	wantProbeEvents      bool
-	eventsCountThreshold int
-	reuseProbeHandler    bool
+	testDir                     string
+	disableFilters              bool
+	disableApprovers            bool
+	disableDiscarders           bool
+	wantProbeEvents             bool
+	eventsCountThreshold        int
+	reuseProbeHandler           bool
+	disableERPCDentryResolution bool
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
@@ -133,7 +135,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
-		to.reuseProbeHandler == opts.reuseProbeHandler
+		to.reuseProbeHandler == opts.reuseProbeHandler &&
+		to.disableERPCDentryResolution == opts.disableERPCDentryResolution
 }
 
 type testModule struct {
@@ -285,12 +288,20 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 		opts.eventsCountThreshold = 100000000
 	}
 
+	erpcEnabled := true
+	if opts.disableERPCDentryResolution {
+		erpcEnabled = false
+	} else {
+		erpcEnabled = !disableERPCDentryResolution
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":      dir,
-		"DisableApprovers":     opts.disableApprovers,
-		"DisableDiscarders":    opts.disableDiscarders,
-		"EventsCountThreshold": opts.eventsCountThreshold,
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"DisableDiscarders":           opts.disableDiscarders,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcEnabled,
 	}); err != nil {
 		return "", err
 	}
@@ -393,6 +404,12 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
+	}
+
+	if opts.disableERPCDentryResolution {
+		config.ERPCDentryResolutionEnabled = false
+	} else {
+		config.ERPCDentryResolutionEnabled = !disableERPCDentryResolution
 	}
 
 	mod, err := module.NewModule(config)
@@ -911,5 +928,6 @@ func init() {
 	os.Setenv("RUNTIME_SECURITY_TESTSUITE", "true")
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
+	flag.BoolVar(&disableERPCDentryResolution, "disable_erpc_resolution", false, "disables eRPC dentry resolution")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 }

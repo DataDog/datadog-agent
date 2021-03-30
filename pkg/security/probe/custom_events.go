@@ -297,8 +297,6 @@ func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case ErrTruncatedParents:
 		return model.CustomTruncatedParentsEventType
-	case ErrTruncatedSegment:
-		return model.CustomTruncatedSegmentEventType
 	default:
 		return model.UnknownEventType
 	}

@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"os"
 	"path"
 	"strconv"
@@ -349,14 +350,11 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 func getMountIDOffset(probe *Probe) uint64 {
 	offset := uint64(284)
 
-	kv, err := NewKernelVersion()
-	if err == nil {
-		switch {
-		case kv.IsSuseKernel():
-			offset = 292
-		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_13:
-			offset = 268
-		}
+	switch {
+	case probe.kernelVersion.IsSuseKernel():
+		offset = 292
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_13:
+		offset = 268
 	}
 
 	return offset
@@ -365,20 +363,17 @@ func getMountIDOffset(probe *Probe) uint64 {
 func getSizeOfStructInode(probe *Probe) uint64 {
 	sizeOf := uint64(600)
 
-	kv, err := NewKernelVersion()
-	if err == nil {
-		switch {
-		case kv.IsRH7Kernel():
-			sizeOf = 584
-		case kv.IsRH8Kernel():
-			sizeOf = 648
-		case kv.IsSLES12Kernel():
-			sizeOf = 560
-		case kv.IsSLES15Kernel():
-			sizeOf = 592
-		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16:
-			sizeOf = 608
-		}
+	switch {
+	case probe.kernelVersion.IsRH7Kernel():
+		sizeOf = 584
+	case probe.kernelVersion.IsRH8Kernel():
+		sizeOf = 648
+	case probe.kernelVersion.IsSLES12Kernel():
+		sizeOf = 560
+	case probe.kernelVersion.IsSLES15Kernel():
+		sizeOf = 592
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_16:
+		sizeOf = 608
 	}
 
 	return sizeOf
@@ -387,8 +382,7 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 func getSuperBlockMagicOffset(probe *Probe) uint64 {
 	sizeOf := uint64(96)
 
-	kv, err := NewKernelVersion()
-	if err == nil && kv.IsRH7Kernel() {
+	if probe.kernelVersion.IsRH7Kernel() {
 		sizeOf = 88
 	}
 

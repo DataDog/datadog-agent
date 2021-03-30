@@ -22,13 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func TestProbeMonitor(t *testing.T) {
-	var truncatedParents, truncatedSegment string
+func TestRulesetLoaded(t *testing.T) {
+	var truncatedParents string
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		truncatedParents += "a/"
-	}
-	for i := 0; i <= model.MaxSegmentLength+1; i++ {
-		truncatedSegment += "a"
 	}
 
 	rule := &rules.RuleDefinition{
@@ -38,16 +35,6 @@ func TestProbeMonitor(t *testing.T) {
 
 	probeMonitorOpts := testOpts{}
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	truncatedSegmentFile, _, err := test.Path(fmt.Sprintf("%s/test-open", truncatedSegment))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,26 +54,28 @@ func TestProbeMonitor(t *testing.T) {
 			assert.Equal(t, ruleEvent.RuleID, probe.RulesetLoadedRuleID, "wrong rule")
 		}
 	})
+}
 
-	t.Run("truncated_segment", func(t *testing.T) {
-		if os.MkdirAll(path.Dir(truncatedSegmentFile), 0755) != nil {
-			t.Fatal(err)
-		}
+func truncatedParents(t *testing.T, opts testOpts) {
+	var truncatedParents string
+	for i := 0; i <= model.MaxPathDepth; i++ {
+		truncatedParents += "a/"
+	}
 
-		f, err := os.OpenFile(truncatedSegmentFile, os.O_CREATE, 0755)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(truncatedSegmentFile)
-		defer f.Close()
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+	}
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedSegmentEventType.String())
-		if err != nil {
-			t.Error(err)
-		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
-		}
-	})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("truncated_parents", func(t *testing.T) {
 		if os.MkdirAll(path.Dir(truncatedParentsFile), 0755) != nil {
@@ -107,6 +96,14 @@ func TestProbeMonitor(t *testing.T) {
 			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
 		}
 	})
+}
+
+func TestTruncatedParentsMap(t *testing.T) {
+	truncatedParents(t, testOpts{disableERPCDentryResolution: true})
+}
+
+func TestTruncatedParentsERPC(t *testing.T) {
+	truncatedParents(t, testOpts{})
 }
 
 func TestNoisyProcess(t *testing.T) {

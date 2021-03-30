@@ -10,6 +10,8 @@ package probe
 import (
 	"C"
 	"fmt"
+	"golang.org/x/sys/unix"
+	"os"
 	"unsafe"
 
 	lib "github.com/DataDog/ebpf"
@@ -25,9 +27,14 @@ const (
 
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
-	probe     *Probe
-	pathnames *lib.Map
-	cache     map[uint32]*lru.Cache
+	probe           *Probe
+	pathnames       *lib.Map
+	cache           map[uint32]*lru.Cache
+	erpc            *ERPC
+	erpcSegment     []byte
+	erpcSegmentSize int
+	erpcRequest     ERPCRequest
+	erpcEnabled     bool
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -78,6 +85,7 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 type PathValue struct {
 	Parent PathKey
 	Name   [model.MaxSegmentLength + 1]byte
+	Len    uint16
 }
 
 // DelCacheEntry removes an entry from the cache
@@ -149,7 +157,8 @@ func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name s
 	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
 }
 
-func (dr *DentryResolver) getNameFromMap(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+// GetNameFromMap resolves the name of the provided inode
+func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
 
@@ -163,8 +172,11 @@ func (dr *DentryResolver) getNameFromMap(mountID uint32, inode uint64, pathID ui
 // GetName resolves a couple of mountID/inode to a path
 func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.getNameFromCache(mountID, inode)
+	if err != nil && dr.erpcEnabled {
+		name, err = dr.GetNameFromERPC(mountID, inode, pathID)
+	}
 	if err != nil {
-		name, _ = dr.getNameFromMap(mountID, inode, pathID)
+		name, _ = dr.GetNameFromMap(mountID, inode, pathID)
 	}
 	return name
 }
@@ -174,7 +186,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 	key := PathKey{MountID: mountID, Inode: inode}
 
 	// Fetch path recursively
-	for {
+	for i := 0; i <= model.MaxPathDepth; i++ {
 		path, err := dr.lookupInode(key.MountID, key.Inode)
 		if err != nil {
 			return "", err
@@ -200,7 +212,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 	return
 }
 
-// ResolveFromMap resolves from kernel map
+// ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
@@ -215,7 +227,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	toAdd := make(map[PathKey]PathValue)
 
 	// Fetch path recursively
-	for {
+	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
 		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filename = dentryPathKeyNotFound
@@ -233,9 +245,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			if len(segment) >= (model.MaxSegmentLength) {
-				resolutionErr = errTruncatedSegment
-			}
 			filename = "/" + segment + filename
 		}
 
@@ -268,10 +277,120 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	return filename, err
 }
 
+func (dr *DentryResolver) preventSegmentMajorPageFault() {
+	// if we don't access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.erpcSegment[0] = 0
+	dr.erpcSegment[os.Getpagesize()] = 0
+}
+
+// GetNameFromERPC resolves the name of the provided inode / mount id / path id
+func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+	// create eRPC request
+	dr.erpcRequest.OP = ResolveSegmentOp
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+
+	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.preventSegmentMajorPageFault()
+
+	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
+		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
+	}
+
+	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
+	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
+		return "", errors.Errorf("couldn't resolve segment (len: %d)", len(seg))
+	}
+	return seg, nil
+}
+
+// ResolveFromERPC resolves the path of the provided inode / mount id / path id
+func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+	var filename, segment string
+	var err, resolutionErr error
+	var key PathKey
+	var val PathValue
+
+	// create eRPC request
+	dr.erpcRequest.OP = ResolvePathOp
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+
+	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.preventSegmentMajorPageFault()
+
+	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
+		return "", err
+	}
+
+	var keys []PathKey
+	var segments []string
+
+	i := 0
+	for i < dr.erpcSegmentSize-17 {
+		// parse the path_key_t structure
+		key.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
+		key.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+		// skip pathID
+		i += 16
+
+		if dr.erpcSegment[i] == 0 {
+			resolutionErr = errTruncatedParents
+			break
+		}
+
+		if dr.erpcSegment[i] != '/' {
+			segment = C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[i])))
+			filename = "/" + segment + filename
+			i += len(segment) + 1
+		} else {
+			break
+		}
+
+		keys = append(keys, key)
+		segments = append(segments, segment)
+	}
+
+	if len(filename) == 0 {
+		filename = "/"
+	}
+
+	if resolutionErr == nil {
+		var seg string
+		for i, k := range keys {
+			if k.Inode>>32 == fakeInodeMSW {
+				continue
+			}
+
+			if len(keys) > i+1 {
+				val.Parent = keys[i+1]
+			} else {
+				val.Parent = PathKey{}
+			}
+			seg = segments[i]
+			copy(val.Name[:], seg[:])
+			val.Name[len(seg)] = 0
+
+			_ = dr.cacheInode(k.MountID, k.Inode, val)
+		}
+	}
+
+	if filename[0] == 0 {
+		return "", errors.Errorf("couldn't resolve path (len: %d)", len(filename))
+	}
+
+	return filename, resolutionErr
+}
+
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	path, err := dr.ResolveFromCache(mountID, inode)
-	if err != nil {
+	if err != nil && dr.erpcEnabled {
+		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
+	}
+	if err != nil && err != errTruncatedParents {
 		path, err = dr.ResolveFromMap(mountID, inode, pathID)
 	}
 	return path, err
@@ -320,15 +439,6 @@ func (dr *DentryResolver) Start() error {
 	return nil
 }
 
-// ErrTruncatedSegment is used to notify that a segment of the path was truncated because it was too long
-type ErrTruncatedSegment struct{}
-
-func (err ErrTruncatedSegment) Error() string {
-	return "truncated_segment"
-}
-
-var errTruncatedSegment ErrTruncatedSegment
-
 // ErrTruncatedParents is used to notify that some parents of the path are missing
 type ErrTruncatedParents struct{}
 
@@ -340,8 +450,27 @@ var errTruncatedParents ErrTruncatedParents
 
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
+	erpcClient, err := NewERPC()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize eRPC client")
+	}
+
+	segment, err := unix.Mmap(0, 0, 2*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to mmap memory segment")
+	}
+	segmentAddr := uint64(uintptr(unsafe.Pointer(&segment[0])))
+
+	req := ERPCRequest{}
+	model.ByteOrder.PutUint64(req.Data[16:24], segmentAddr)
+
 	return &DentryResolver{
-		probe: probe,
-		cache: make(map[uint32]*lru.Cache),
+		probe:           probe,
+		cache:           make(map[uint32]*lru.Cache),
+		erpc:            erpcClient,
+		erpcSegment:     segment,
+		erpcSegmentSize: len(segment),
+		erpcRequest:     req,
+		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
 	}, nil
 }

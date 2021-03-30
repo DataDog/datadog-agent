@@ -52,10 +52,7 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
-			if _, ok := err.(ErrTruncatedSegment); ok {
-				f.PathResolutionError = err
-				ev.SetPathResolutionError(err)
-			} else if _, ok := err.(ErrTruncatedParents); ok {
+			if _, ok := err.(ErrTruncatedParents); ok {
 				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			}
