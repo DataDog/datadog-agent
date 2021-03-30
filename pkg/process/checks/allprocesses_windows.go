@@ -319,7 +319,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 }
 
 func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't 
+	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
 	//        defined in x/sys/windows
 	// 0x10   is PROCESS_VM_READ
 
