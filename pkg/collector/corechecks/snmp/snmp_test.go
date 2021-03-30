@@ -219,6 +219,7 @@ tags:
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := append(copyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(copyStrings(snmpGlobalTags), "loader:core")
 	row1Tags := append(copyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
 	row2Tags := append(copyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
 	scalarTags := append(copyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -232,9 +233,9 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(202), "", row2Tags)
 
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTagsWithLoader)
 }
 
 func TestSupportedMetricTypes(t *testing.T) {

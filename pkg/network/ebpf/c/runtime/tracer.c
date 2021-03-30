@@ -481,40 +481,27 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_v4_destroy_sock")
-int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
+SEC("kprobe/inet_csk_listen_stop")
+int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
     struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
-    if (!skp) {
-        log_debug("ERR(tcp_v4_destroy_sock): socket is null \n");
-        return 0;
-    }
-
     __u16 lport = read_sport(skp);
     if (lport == 0) {
-        log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
+        log_debug("ERR(inet_csk_listen_stop): lport is 0 \n");
         return 0;
     }
 
     port_binding_t t = { .netns = 0, .port = 0 };
     t.netns = get_netns(&skp->sk_net);
     t.port = lport;
-    __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
-    if (val != NULL) {
-        bpf_map_delete_elem(&port_bindings, &t);
-    }
+    bpf_map_delete_elem(&port_bindings, &t);
 
-    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.netns, t.port);
+    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", t.netns, t.port);
     return 0;
 }
 
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
-    if (!skp) {
-        log_debug("ERR(udp_destroy_sock): socket is null \n");
-        return 0;
-    }
-
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);

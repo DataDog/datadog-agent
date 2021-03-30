@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestMount(t *testing.T) {
@@ -63,18 +64,10 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "mount" {
-				t.Errorf("expected mount event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "mount", "wrong event type")
+			assert.Equal(t, event.Mount.MountPointStr, "/"+dstMntBasename, "wrong mount point")
+			assert.Equal(t, event.Mount.GetFSType(), "ext4", "wrong event type")
 
-			if event.Mount.MountPointStr != "/"+dstMntBasename {
-				t.Errorf("expected %v for ParentPathStr, got %v", dstMntPath, event.Mount.MountPointStr)
-			}
-
-			// use accessor to parse properly the mount type
-			if fs := event.Mount.GetFSType(); fs != "ext4" {
-				t.Errorf("expected a bind mount, got %v", fs)
-			}
 			mntID = event.Mount.MountID
 		}
 	})
@@ -108,13 +101,8 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "utimes" {
-				t.Errorf("expected utimes event, got %s", event.GetType())
-			}
-
-			if event.Utimes.File.PathnameStr != utimFile {
-				t.Errorf("expected %v for PathnameStr, got %v", utimFile, event.Utimes.File.PathnameStr)
-			}
+			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
+			assert.Equal(t, event.Utimes.File.PathnameStr, utimFile, "wrong path")
 		}
 	})
 
@@ -128,13 +116,8 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "umount" {
-				t.Errorf("expected umount event, got %s", event.GetType())
-			}
-
-			if uMntID := event.Umount.MountID; uMntID != mntID {
-				t.Errorf("expected mount_id %v, got %v", mntID, uMntID)
-			}
+			assert.Equal(t, event.GetType(), "umount", "wrong event type")
+			assert.Equal(t, event.Umount.MountID, mntID, "wrong mount id")
 		}
 	})
 }
