@@ -3,6 +3,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -12,14 +13,14 @@ import (
 )
 
 // GetAgentUTSMode retrieves from Docker the UTS mode of the Agent container
-func GetAgentUTSMode() (containers.UTSMode, error) {
+func GetAgentUTSMode(ctx context.Context) (containers.UTSMode, error) {
 	cacheUTSModeKey := cache.BuildAgentKey("utsMode")
 	if cacheUTSMode, found := cache.Cache.Get(cacheUTSModeKey); found {
 		return cacheUTSMode.(containers.UTSMode), nil
 	}
 
 	log.Debugf("GetAgentUTSMode trying docker")
-	utsMode, err := docker.GetAgentContainerUTSMode()
+	utsMode, err := docker.GetAgentContainerUTSMode(ctx)
 	cache.Cache.Set(cacheUTSModeKey, utsMode, cache.NoExpiration)
 	if err != nil {
 		return utsMode, fmt.Errorf("could not detect agent UTS mode: %v", err)

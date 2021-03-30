@@ -9,6 +9,7 @@
 package listeners
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -21,6 +22,8 @@ import (
 )
 
 func TestProcessEndpoints(t *testing.T) {
+	ctx := context.Background()
+
 	kep := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -61,15 +64,15 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetEntity())
 	assert.Equal(t, integration.Before, eps[0].GetCreationTime())
 
-	adID, err := eps[0].GetADIdentifiers()
+	adID, err := eps[0].GetADIdentifiers(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
-	hosts, err := eps[0].GetHosts()
+	hosts, err := eps[0].GetHosts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.1"}, hosts)
 
-	ports, err := eps[0].GetPorts()
+	ports, err := eps[0].GetPorts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
@@ -80,15 +83,15 @@ func TestProcessEndpoints(t *testing.T) {
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetEntity())
 	assert.Equal(t, integration.Before, eps[1].GetCreationTime())
 
-	adID, err = eps[1].GetADIdentifiers()
+	adID, err = eps[1].GetADIdentifiers(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 
-	hosts, err = eps[1].GetHosts()
+	hosts, err = eps[1].GetHosts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.2"}, hosts)
 
-	ports, err = eps[1].GetPorts()
+	ports, err = eps[1].GetPorts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 

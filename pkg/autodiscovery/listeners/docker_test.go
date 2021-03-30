@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -34,20 +35,22 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetConfigIDFromPs(t *testing.T) {
+	ctx := context.Background()
+
 	co := types.Container{
 		ID:    "deadbeef",
 		Image: "test",
 	}
 	dl := DockerListener{}
 
-	ids := dl.getConfigIDFromPs(co)
+	ids := dl.getConfigIDFromPs(ctx, co)
 	assert.Equal(t, []string{"docker://deadbeef", "test"}, ids)
 
 	prefixCo := types.Container{
 		ID:    "deadbeef",
 		Image: "org/test",
 	}
-	ids = dl.getConfigIDFromPs(prefixCo)
+	ids = dl.getConfigIDFromPs(ctx, prefixCo)
 	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 
 	labeledCo := types.Container{
@@ -55,7 +58,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Image:  "test",
 		Labels: map[string]string{"com.datadoghq.ad.check.id": "w00tw00t"},
 	}
-	ids = dl.getConfigIDFromPs(labeledCo)
+	ids = dl.getConfigIDFromPs(ctx, labeledCo)
 	assert.Equal(t, []string{"w00tw00t"}, ids)
 
 	legacyCo := types.Container{
@@ -63,7 +66,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Image:  "test",
 		Labels: map[string]string{"com.datadoghq.sd.check.id": "w00tw00t"},
 	}
-	ids = dl.getConfigIDFromPs(legacyCo)
+	ids = dl.getConfigIDFromPs(ctx, legacyCo)
 	assert.Equal(t, []string{"w00tw00t"}, ids)
 
 	doubleCo := types.Container{
@@ -75,7 +78,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 			"com.datadoghq.sd.check.id": "old",
 		},
 	}
-	ids = dl.getConfigIDFromPs(doubleCo)
+	ids = dl.getConfigIDFromPs(ctx, doubleCo)
 	assert.Equal(t, []string{"new"}, ids)
 
 	templatedCo := types.Container{
@@ -83,7 +86,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Image:  "org/test",
 		Labels: map[string]string{"com.datadoghq.ad.instances": "[]]"},
 	}
-	ids = dl.getConfigIDFromPs(templatedCo)
+	ids = dl.getConfigIDFromPs(ctx, templatedCo)
 	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 }
 
@@ -168,6 +171,7 @@ func TestGetPortsFromPs(t *testing.T) {
 }
 
 func TestGetADIdentifiers(t *testing.T) {
+	ctx := context.Background()
 	s := DockerService{cID: "deadbeef"}
 
 	// Setting mocked data in cache
@@ -180,7 +184,7 @@ func TestGetADIdentifiers(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey("deadbeef", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
-	ids, err := s.GetADIdentifiers()
+	ids, err := s.GetADIdentifiers(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 
@@ -193,12 +197,13 @@ func TestGetADIdentifiers(t *testing.T) {
 	}
 	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
 
-	ids, err = s.GetADIdentifiers()
+	ids, err = s.GetADIdentifiers(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"w00tw00t"}, ids)
 }
 
 func TestGetHosts(t *testing.T) {
+	ctx := context.Background()
 	id := "fooooooooooo"
 	cBase := types.ContainerJSONBase{
 		ID:    id,
@@ -218,7 +223,7 @@ func TestGetHosts(t *testing.T) {
 		cID: id,
 	}
 
-	res, _ := svc.GetHosts()
+	res, _ := svc.GetHosts(ctx)
 	assert.Empty(t, res)
 
 	nets := make(map[string]*network.EndpointSettings)
@@ -256,7 +261,7 @@ func TestGetHosts(t *testing.T) {
 	svc = DockerService{
 		cID: id,
 	}
-	hosts, _ := svc.GetHosts()
+	hosts, _ := svc.GetHosts(ctx)
 
 	assert.Equal(t, "172.17.0.2", hosts["bridge"])
 	assert.Equal(t, "172.17.0.3", hosts["foo"])
@@ -264,6 +269,7 @@ func TestGetHosts(t *testing.T) {
 }
 
 func TestGetRancherIP(t *testing.T) {
+	ctx := context.Background()
 	id := "fooooooooooo"
 	cBase := types.ContainerJSONBase{
 		ID:    id,
@@ -294,12 +300,13 @@ func TestGetRancherIP(t *testing.T) {
 		cID: id,
 	}
 
-	hosts, _ := svc.GetHosts()
+	hosts, _ := svc.GetHosts(ctx)
 	assert.Equal(t, "10.42.90.224", hosts["rancher"])
 	assert.Equal(t, 1, len(hosts))
 }
 
 func TestFallbackToHostname(t *testing.T) {
+	ctx := context.Background()
 	id := "fooooooooooo"
 	cBase := types.ContainerJSONBase{
 		ID:    id,
@@ -329,12 +336,14 @@ func TestFallbackToHostname(t *testing.T) {
 		cID: id,
 	}
 
-	hosts, _ := svc.GetHosts()
+	hosts, _ := svc.GetHosts(ctx)
 	assert.Equal(t, "ip-172-29-161-245.ec2.internal", hosts["hostname"])
 	assert.Equal(t, 1, len(hosts))
 }
 
 func TestGetPorts(t *testing.T) {
+	ctx := context.Background()
+
 	id := "no_ports"
 	cBase := types.ContainerJSONBase{
 		ID:    id,
@@ -367,7 +376,7 @@ func TestGetPorts(t *testing.T) {
 	svc := DockerService{
 		cID: id,
 	}
-	svcPorts, _ := svc.GetPorts()
+	svcPorts, _ := svc.GetPorts(ctx)
 	assert.NotNil(t, svcPorts) // Return array must be non-nil to avoid calling GetPorts again
 	assert.Empty(t, svcPorts)
 
@@ -402,7 +411,7 @@ func TestGetPorts(t *testing.T) {
 		cID: id,
 	}
 
-	pts, _ := svc.GetPorts()
+	pts, _ := svc.GetPorts(ctx)
 	assert.Equal(t, 4, len(pts))
 	assert.Contains(t, pts, ContainerPort{42, ""})
 	assert.Contains(t, pts, ContainerPort{43, ""})
@@ -443,11 +452,13 @@ func TestGetPorts(t *testing.T) {
 		cID: id,
 	}
 
-	pts, _ = svc.GetPorts()
+	pts, _ = svc.GetPorts(ctx)
 	assert.Equal(t, []ContainerPort{{1234, ""}, {4321, ""}}, pts)
 }
 
 func TestGetPid(t *testing.T) {
+	ctx := context.Background()
+
 	s := DockerService{cID: "foo"}
 
 	// Setting mocked data in cache
@@ -461,7 +472,7 @@ func TestGetPid(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey("foo", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
-	pid, err := s.GetPid()
+	pid, err := s.GetPid(ctx)
 	assert.Equal(t, 1337, pid)
 	assert.Nil(t, err)
 }
@@ -512,6 +523,8 @@ func TestParseDockerPort(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
+
 	cID := "12345678901234567890123456789012"
 	cBase := types.ContainerJSONBase{
 		ID:    cID,
@@ -567,7 +580,7 @@ func TestGetHostname(t *testing.T) {
 				cID: cID,
 			}
 
-			name, err := svc.GetHostname()
+			name, err := svc.GetHostname(ctx)
 			assert.Equal(t, tc.expected, name)
 
 			if tc.expectedError == nil {
@@ -581,6 +594,8 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetCheckNames(t *testing.T) {
+	ctx := context.Background()
+
 	s := DockerService{cID: "deadbeef"}
 	labeledCo := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
@@ -591,6 +606,6 @@ func TestGetCheckNames(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey("deadbeef", false)
 	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
 
-	checkNames := s.GetCheckNames()
+	checkNames := s.GetCheckNames(ctx)
 	assert.Equal(t, []string{"redis"}, checkNames)
 }

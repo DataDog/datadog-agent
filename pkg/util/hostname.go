@@ -74,14 +74,14 @@ func setHostnameProvider(name string) {
 // There can be some cases where the agent is running in a non-root UTS namespace that are
 // not detected by this function (systemd-nspawn containers, manual `unshare -u`…)
 // In those uncertain cases, it returns `true`.
-func isOSHostnameUsable() (osHostnameUsable bool) {
+func isOSHostnameUsable(ctx context.Context) (osHostnameUsable bool) {
 	// If the agent is not containerized, just skip all this detection logic
 	if !config.IsContainerized() {
 		return true
 	}
 
 	// Check UTS namespace from docker
-	utsMode, err := GetAgentUTSMode()
+	utsMode, err := GetAgentUTSMode(ctx)
 	if err == nil && (utsMode != containers.HostUTSMode && utsMode != containers.UnknownUTSMode) {
 		log.Debug("Agent is running in a docker container without host UTS mode: OS-provided hostnames cannot be used for hostname resolution.")
 		return false
@@ -182,7 +182,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 
 	// FQDN
 	var fqdn string
-	canUseOSHostname := isOSHostnameUsable()
+	canUseOSHostname := isOSHostnameUsable(ctx)
 	if canUseOSHostname {
 		log.Debug("GetHostname trying FQDN/`hostname -f`...")
 		fqdn, err = getSystemFQDN()

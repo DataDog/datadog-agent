@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.Container
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
-	events, latest, err := du.LatestContainerEvents(d.lastEventTime)
+	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime)
 	if err != nil {
 		return events, err
 	}

@@ -9,6 +9,7 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -374,12 +375,12 @@ func (s *KubeEndpointService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
+func (s *KubeEndpointService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.entity}, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
+func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, error) {
 	if s.hosts == nil {
 		return map[string]string{}, nil
 	}
@@ -387,12 +388,12 @@ func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 }
 
 // GetPid is not supported
-func (s *KubeEndpointService) GetPid() (int, error) {
+func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
 	if s.ports == nil {
 		return []ContainerPort{}, nil
 	}
@@ -408,7 +409,7 @@ func (s *KubeEndpointService) GetTags() ([]string, string, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeEndpointService) GetHostname() (string, error) {
+func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -418,13 +419,13 @@ func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *KubeEndpointService) IsReady() bool {
+func (s *KubeEndpointService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) GetCheckNames() []string {
+func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

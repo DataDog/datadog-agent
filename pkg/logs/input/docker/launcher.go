@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -136,7 +137,7 @@ func (l *Launcher) run() {
 				log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", service.Identifier, err)
 				continue
 			}
-			dockerContainer, err := dockerutil.Inspect(service.Identifier, false)
+			dockerContainer, err := dockerutil.Inspect(context.TODO(), service.Identifier, false)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
@@ -207,7 +208,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 	}
 
-	shortName, err := container.getShortImageName()
+	shortName, err := container.getShortImageName(context.TODO())
 	containerID := container.service.Identifier
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
@@ -239,7 +240,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(containerID))
-	shortName, err := container.getShortImageName()
+	shortName, err := container.getShortImageName(context.TODO())
 
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)

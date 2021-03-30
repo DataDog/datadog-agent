@@ -6,6 +6,7 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -171,6 +172,7 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 
 // Common section for both scenarios
 func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
+	ctx := context.Background()
 	expectedADIDs := make(map[string][]string)
 	var includedIDs, excludedIDs []string
 	var excludedEntity string
@@ -204,10 +206,10 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		pid, err := service.GetPid()
 		assert.Nil(suite.T(), err)
 		assert.True(suite.T(), pid > 0)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), hosts, 1)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
 
@@ -222,7 +224,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
-		adIDs, err := service.GetADIdentifiers()
+		adIDs, err := service.GetADIdentifiers(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Equal(suite.T(), expectedTags, adIDs)
 	}

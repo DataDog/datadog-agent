@@ -330,29 +330,31 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 // - check names
 // - readiness
 func kubeletSvcEqual(first, second Service) bool {
-	hosts1, _ := first.GetHosts()
-	hosts2, _ := second.GetHosts()
+	ctx := context.TODO()
+
+	hosts1, _ := first.GetHosts(ctx)
+	hosts2, _ := second.GetHosts(ctx)
 	if !reflect.DeepEqual(hosts1, hosts2) {
 		return false
 	}
 
-	ports1, _ := first.GetPorts()
-	ports2, _ := second.GetPorts()
+	ports1, _ := first.GetPorts(ctx)
+	ports2, _ := second.GetPorts(ctx)
 	if !reflect.DeepEqual(ports1, ports2) {
 		return false
 	}
 
-	ad1, _ := first.GetADIdentifiers()
-	ad2, _ := second.GetADIdentifiers()
+	ad1, _ := first.GetADIdentifiers(ctx)
+	ad2, _ := second.GetADIdentifiers(ctx)
 	if !reflect.DeepEqual(ad1, ad2) {
 		return false
 	}
 
-	if !reflect.DeepEqual(first.GetCheckNames(), second.GetCheckNames()) {
+	if !reflect.DeepEqual(first.GetCheckNames(ctx), second.GetCheckNames(ctx)) {
 		return false
 	}
 
-	return first.IsReady() == second.IsReady()
+	return first.IsReady(ctx) == second.IsReady(ctx)
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an
@@ -421,22 +423,22 @@ func (s *KubeContainerService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeContainerService) GetADIdentifiers() ([]string, error) {
+func (s *KubeContainerService) GetADIdentifiers(context.Context) ([]string, error) {
 	return s.adIdentifiers, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeContainerService) GetHosts() (map[string]string, error) {
+func (s *KubeContainerService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeContainerService) GetPid() (int, error) {
+func (s *KubeContainerService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubeContainerService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeContainerService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -446,7 +448,7 @@ func (s *KubeContainerService) GetTags() ([]string, string, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeContainerService) GetHostname() (string, error) {
+func (s *KubeContainerService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -456,7 +458,7 @@ func (s *KubeContainerService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *KubeContainerService) IsReady() bool {
+func (s *KubeContainerService) IsReady(context.Context) bool {
 	return s.ready
 }
 
@@ -466,7 +468,7 @@ func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
 }
 
 // GetCheckNames returns names of checks defined in pod annotations
-func (s *KubeContainerService) GetCheckNames() []string {
+func (s *KubeContainerService) GetCheckNames(context.Context) []string {
 	return s.checkNames
 }
 
@@ -497,22 +499,22 @@ func (s *KubePodService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubePodService) GetADIdentifiers() ([]string, error) {
+func (s *KubePodService) GetADIdentifiers(context.Context) ([]string, error) {
 	return s.adIdentifiers, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubePodService) GetHosts() (map[string]string, error) {
+func (s *KubePodService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubePodService) GetPid() (int, error) {
+func (s *KubePodService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubePodService) GetPorts() ([]ContainerPort, error) {
+func (s *KubePodService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -522,7 +524,7 @@ func (s *KubePodService) GetTags() ([]string, string, error) {
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubePodService) GetHostname() (string, error) {
+func (s *KubePodService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -532,13 +534,13 @@ func (s *KubePodService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *KubePodService) IsReady() bool {
+func (s *KubePodService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubePodService doesn't implement this method
-func (s *KubePodService) GetCheckNames() []string {
+func (s *KubePodService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

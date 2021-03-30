@@ -116,7 +116,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
 				latestTimestamp = msg.Time
-				event, err := d.processContainerEvent(msg)
+				event, err := d.processContainerEvent(ctx, msg)
 				if err != nil {
 					log.Debugf("Skipping event: %s", err)
 					continue

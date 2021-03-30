@@ -103,6 +103,7 @@ func (d *DockerConfigProvider) listen() {
 	d.health = health.RegisterLiveness("ad-dockerprovider")
 	d.Unlock()
 
+	ctx, cancel := context.WithCancel(context.Background())
 CONNECT:
 	for {
 		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
@@ -113,14 +114,16 @@ CONNECT:
 
 		for {
 			select {
-			case <-d.health.C:
+			case healthDeadline := <-d.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case ev := <-eventChan:
 				// As our input is the docker `client.ContainerList`, which lists running containers,
 				// only these two event types will change what containers appear.
 				// Container labels cannot change once they are created, so we don't need to react on
 				// other lifecycle events.
 				if ev.Action == "start" {
-					container, err := d.dockerUtil.Inspect(ev.ContainerID, false)
+					container, err := d.dockerUtil.Inspect(ctx, ev.ContainerID, false)
 					if err != nil {
 						log.Warnf("Error inspecting container: %s", err)
 					} else {
@@ -159,6 +162,7 @@ CONNECT:
 	d.streaming = false
 	d.health.Deregister() //nolint:errcheck
 	d.Unlock()
+	cancel()
 }
 
 // IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.

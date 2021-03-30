@@ -11,6 +11,7 @@ package windows
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -67,7 +68,7 @@ func (mp *provider) Prefetch() error {
 	}
 
 	// We don't need exited/stopped containers
-	rawContainers, err := dockerUtil.RawContainerList(types.ContainerListOptions{})
+	rawContainers, err := dockerUtil.RawContainerList(context.TODO(), types.ContainerListOptions{})
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (mp *provider) Prefetch() error {
 	for _, container := range rawContainers {
 		containerBundle := containerBundle{}
 
-		cjson, err := dockerUtil.Inspect(container.ID, false)
+		cjson, err := dockerUtil.Inspect(context.TODO(), container.ID, false)
 		if err == nil {
 			mp.fillContainerDetails(cjson, &containerBundle)
 
@@ -94,7 +95,7 @@ func (mp *provider) Prefetch() error {
 			log.Debugf("Impossible to inspect container %s: %v", container.ID, err)
 		}
 
-		stats, err := dockerUtil.GetContainerStats(container.ID)
+		stats, err := dockerUtil.GetContainerStats(context.TODO(), container.ID)
 		if err == nil && stats != nil {
 			mp.fillContainerMetrics(stats, &containerBundle)
 			mp.fillContainerNetworkMetrics(stats, &containerBundle)

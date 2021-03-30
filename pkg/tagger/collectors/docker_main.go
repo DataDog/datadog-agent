@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -123,7 +124,7 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 }
 
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, []string, error) {
-	co, err := c.dockerUtil.Inspect(cID, false)
+	co, err := c.dockerUtil.Inspect(context.TODO(), cID, false)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			log.Debugf("Failed to inspect container %s - %s", cID, err)

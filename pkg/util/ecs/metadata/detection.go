@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -34,7 +35,7 @@ func detectAgentV1URL() (string, error) {
 
 	if config.IsContainerized() {
 		// List all interfaces for the ecs-agent container
-		agentURLS, err := getAgentV1ContainerURLs()
+		agentURLS, err := getAgentV1ContainerURLs(context.TODO())
 		if err != nil {
 			log.Debugf("Could not inspect ecs-agent container: %s", err)
 		} else {
@@ -64,14 +65,14 @@ func detectAgentV1URL() (string, error) {
 	return "", fmt.Errorf("could not detect ECS agent, tried URLs: %s", urls)
 }
 
-func getAgentV1ContainerURLs() ([]string, error) {
+func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return nil, err
 	}
-	ecsConfig, err := du.Inspect(config.Datadog.GetString("ecs_agent_container_name"), false)
+	ecsConfig, err := du.Inspect(ctx, config.Datadog.GetString("ecs_agent_container_name"), false)
 	if err != nil {
 		return nil, err
 	}
@@ -124,13 +125,13 @@ func getAgentV3URLFromEnv() (string, error) {
 	return agentURL, nil
 }
 
-func getAgentV3URLFromDocker(containerID string) (string, error) {
+func getAgentV3URLFromDocker(ctx context.Context, containerID string) (string, error) {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return "", err
 	}
 
-	container, err := du.Inspect(containerID, false)
+	container, err := du.Inspect(ctx, containerID, false)
 	if err != nil {
 		return "", err
 	}

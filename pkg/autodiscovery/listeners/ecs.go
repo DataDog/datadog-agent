@@ -240,18 +240,18 @@ func (s *ECSService) GetTaggerEntity() string {
 // If the special label was not set, the priority order is the following:
 //   1. Long image name
 //   2. Short image name
-func (s *ECSService) GetADIdentifiers() ([]string, error) {
+func (s *ECSService) GetADIdentifiers(context.Context) ([]string, error) {
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns the container's hosts
 // TODO: using localhost should usually be enough
-func (s *ECSService) GetHosts() (map[string]string, error) {
+func (s *ECSService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetPorts() ([]ContainerPort, error) {
+func (s *ECSService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -262,12 +262,12 @@ func (s *ECSService) GetTags() ([]string, string, error) {
 
 // GetPid inspect the container and return its pid
 // TODO: not supported as pid is not in the metadata api
-func (s *ECSService) GetPid() (int, error) {
+func (s *ECSService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetHostname() (string, error) {
+func (s *ECSService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -276,12 +276,12 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
-func (s *ECSService) IsReady() bool {
+func (s *ECSService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice check names defined in docker labels
-func (s *ECSService) GetCheckNames() []string {
+func (s *ECSService) GetCheckNames(context.Context) []string {
 	return s.checkNames
 }
 

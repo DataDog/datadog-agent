@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -122,7 +123,7 @@ func newAutodetectedClientV1() (*v1.Client, error) {
 // newClientV3ForContainer detects the metadata API v3 endpoint for the specified
 // container and creates a new client for it.
 func newClientV3ForContainer(id string) (*v3.Client, error) {
-	agentURL, err := getAgentV3URLFromDocker(id)
+	agentURL, err := getAgentV3URLFromDocker(context.TODO(), id)
 	if err != nil {
 		return nil, err
 	}
