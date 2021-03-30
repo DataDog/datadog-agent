@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -48,6 +49,9 @@ var statusCmd = &cobra.Command{
 			color.NoColor = true
 		}
 
+		// Prevent autoconfig to run when running status as it logs before logger is setup
+		// Cannot rely on config.Override as env detection is run before overrides are set
+		os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
 		err := common.SetupConfigWithoutSecrets(confFilePath, "")
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
