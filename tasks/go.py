@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 
 
+import copy
 import datetime
 import os
 import shutil
@@ -221,7 +222,7 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     # staticcheck checks recursively only if path is in "path/..." format
     pkgs = [sub + "/..." for sub in targets]
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
     tags.remove("python")
     tags.remove("jmx")
