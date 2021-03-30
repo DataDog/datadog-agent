@@ -221,12 +221,11 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     # staticcheck checks recursively only if path is in "path/..." format
     pkgs = [sub + "/..." for sub in targets]
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    # Copy the tag list since we are modifying it
+    tags = (build_tags or get_default_build_tags(build="test", arch=arch)).copy()
     # these two don't play well with static checking
-    if "python" in tags:
-        tags.remove("python")
-    if "jmx" in tags:
-        tags.remove("jmx")
+    tags.remove("python")
+    tags.remove("jmx")
 
     ctx.run("go run honnef.co/go/tools/cmd/staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here
