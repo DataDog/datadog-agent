@@ -18,7 +18,7 @@
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="suse"
-    - export KITCHEN_OSVERS="sles-12,sles15"
+    - export KITCHEN_OSVERS="sles-12,sles-15"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 

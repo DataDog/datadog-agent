@@ -495,6 +495,7 @@ func TestParsePods(t *testing.T) {
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
 					"kube_deployment:frontend",
+					"kube_replica_set:frontend-2891696001",
 					"kube_ownerref_kind:replicaset",
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
@@ -503,7 +504,6 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{
 					"kube_ownerref_name:frontend-2891696001",
-					"kube_replica_set:frontend-2891696001",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
@@ -532,6 +532,7 @@ func TestParsePods(t *testing.T) {
 				LowCardTags: []string{
 					"kube_container_name:dd-agent",
 					"kube_deployment:front-end",
+					"kube_replica_set:front-end-768dd754b7",
 					"kube_ownerref_kind:replicaset",
 					"image_tag:latest5",
 					"image_name:datadog/docker-dd-agent",
@@ -540,7 +541,6 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{
 					"kube_ownerref_name:front-end-768dd754b7",
-					"kube_replica_set:front-end-768dd754b7",
 				},
 				HighCardTags: []string{
 					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
@@ -987,6 +987,7 @@ func TestParsePods(t *testing.T) {
 					"kube_container_name:redis-master",
 					"kube_ownerref_kind:replicaset",
 					"kube_deployment:redis-master",
+					"kube_replica_set:redis-master-546dc4865f",
 					"image_name:gcr.io/google_containers/redis",
 					"image_tag:e2e",
 					"short_image:redis",
@@ -994,7 +995,6 @@ func TestParsePods(t *testing.T) {
 				},
 				OrchestratorCardTags: []string{
 					"kube_ownerref_name:redis-master-546dc4865f",
-					"kube_replica_set:redis-master-546dc4865f",
 					"pod_name:redis-master-bpnn6",
 				},
 				HighCardTags: []string{

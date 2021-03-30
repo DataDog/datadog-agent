@@ -88,7 +88,7 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 			if err != nil {
 				log.Errorf("Cache processing of %v configuration provider failed: %v", pd.provider, err)
 			}
-			if upToDate == true {
+			if upToDate {
 				log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
 				break
 			}
