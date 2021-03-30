@@ -107,7 +107,7 @@ func serverSetup(t *testing.T) func() {
 
 func monitorSetup(t *testing.T, handlerFn func([]httpTX)) (*Monitor, func()) {
 	mgr, perfHandler := eBPFSetup(t)
-	monitor, err := NewMonitor("/proc", mgr, perfHandler)
+	monitor, err := NewMonitor("/proc", 10000, mgr, perfHandler)
 	require.NoError(t, err)
 	monitor.handler = handlerFn
 

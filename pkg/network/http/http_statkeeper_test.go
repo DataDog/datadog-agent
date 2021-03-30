@@ -13,7 +13,7 @@ import (
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	sk := newHTTPStatkeeper()
+	sk := newHTTPStatkeeper(1000, newTelemetry())
 	txs := make([]httpTX, 100)
 
 	sourceIP := util.AddressFromString("1.1.1.1")
@@ -72,7 +72,7 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 }
 
 func BenchmarkProcessSameConn(b *testing.B) {
-	sk := newHTTPStatkeeper()
+	sk := newHTTPStatkeeper(1000, newTelemetry())
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),

@@ -945,10 +945,6 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"dns":       t.reverseDNS.GetStats(),
 	}
 
-	if t.httpMonitor != nil {
-		ret["http"] = t.httpMonitor.GetStats()
-	}
-
 	return ret, nil
 }
 
@@ -1032,7 +1028,7 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 		return nil
 	}
 
-	monitor, err := http.NewMonitor(c.ProcRoot, m, h)
+	monitor, err := http.NewMonitor(c.ProcRoot, c.MaxHTTPStatsBuffered, m, h)
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

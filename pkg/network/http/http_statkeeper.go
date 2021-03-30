@@ -7,7 +7,9 @@ import (
 )
 
 type httpStatKeeper struct {
-	stats map[Key]RequestStats
+	stats      map[Key]RequestStats
+	maxEntries int
+	telemetry  *telemetry
 
 	// http path buffer
 	buffer []byte
@@ -17,21 +19,31 @@ type httpStatKeeper struct {
 	interned map[string]string
 }
 
-func newHTTPStatkeeper() *httpStatKeeper {
+func newHTTPStatkeeper(maxEntries int, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats:    make(map[Key]RequestStats),
-		buffer:   make([]byte, HTTPBufferSize),
-		interned: make(map[string]string),
+		stats:      make(map[Key]RequestStats),
+		maxEntries: maxEntries,
+		buffer:     make([]byte, HTTPBufferSize),
+		interned:   make(map[string]string),
+		telemetry:  telemetry,
 	}
 }
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
+	var dropped int
 	for _, tx := range transactions {
 		key := h.newKey(tx)
-		stats := h.stats[key]
+		stats, ok := h.stats[key]
+		if !ok && len(h.stats) >= h.maxEntries {
+			dropped++
+			continue
+		}
+
 		stats.AddRequest(tx.StatusClass(), tx.RequestLatency())
 		h.stats[key] = stats
 	}
+
+	h.telemetry.dropped(dropped)
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {

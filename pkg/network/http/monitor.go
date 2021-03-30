@@ -39,7 +39,7 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
+func NewMonitor(procRoot string, maxEntries int, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
@@ -68,7 +68,8 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
 	}
 
-	statkeeper := newHTTPStatkeeper()
+	telemetry := newTelemetry()
+	statkeeper := newHTTPStatkeeper(maxEntries, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {
@@ -81,7 +82,7 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
-		telemetry:     newTelemetry(),
+		telemetry:     telemetry,
 		pollRequests:  make(chan chan map[Key]RequestStats),
 		closeFilterFn: closeFilterFn,
 		statkeeper:    statkeeper,
@@ -151,18 +152,13 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 		return nil
 	}
 
+	// This will log some HTTP stats until we figure out a better way to handle HTTP telemetry
+	defer m.telemetry.get()
+
 	reply := make(chan map[Key]RequestStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
 	return <-reply
-}
-
-func (m *Monitor) GetStats() map[string]interface{} {
-	currentTime, telemetryData := m.telemetry.get()
-	return map[string]interface{}{
-		"current_time": currentTime,
-		"telemetry":    telemetryData,
-	}
 }
 
 // Stop HTTP monitoring
