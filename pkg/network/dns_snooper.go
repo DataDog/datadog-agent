@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/gopacket"
 )
 
 const (
@@ -54,6 +55,9 @@ type PacketSource interface {
 	// Stats returns a map of counters, meant to be reported as telemetry
 	Stats() map[string]int64
 
+	// PacketType returns the type of packet this source reads
+	PacketType() gopacket.LayerType
+
 	// Close closes the packet source
 	Close()
 }
@@ -63,8 +67,8 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
-		statKeeper = newDNSStatkeeper(cfg.DNSTimeout)
-		log.Infof("DNS Stats Collection has been enabled.")
+		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, cfg.MaxDNSStats)
+		log.Infof("DNS Stats Collection has been enabled. Maximum number of stats objects: %d", cfg.MaxDNSStats)
 		if cfg.CollectDNSDomains {
 			log.Infof("DNS domain collection has been enabled")
 		}
@@ -73,7 +77,7 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 	}
 	snooper := &SocketFilterSnooper{
 		source:          source,
-		parser:          newDNSParser(cfg.CollectDNSStats, cfg.CollectDNSDomains),
+		parser:          newDNSParser(source.PacketType(), cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
@@ -124,6 +128,11 @@ func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
+	if s.statKeeper != nil {
+		numStats, droppedStats := s.statKeeper.GetNumStats()
+		stats["num_stats"] = int64(numStats)
+		stats["dropped_stats"] = int64(droppedStats)
+	}
 	return stats
 }
 

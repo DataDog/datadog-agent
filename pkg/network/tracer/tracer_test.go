@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,11 +27,13 @@ import (
 	"time"
 	"unsafe"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/ebpf"
@@ -130,8 +133,6 @@ func TestTracerExpvar(t *testing.T) {
 			"PTcpSendmsgMisses",
 			"PTcpSetStateHits",
 			"PTcpSetStateMisses",
-			"PTcpV4DestroySockHits",
-			"PTcpV4DestroySockMisses",
 			"PUdpDestroySockHits",
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
@@ -142,8 +143,12 @@ func TestTracerExpvar(t *testing.T) {
 			"PInetBindMisses",
 			"PInet6BindHits",
 			"PInet6BindMisses",
+			"PIp6MakeSkbHits",
+			"PIp6MakeSkbMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
+			"PInetCskListenStopHits",
+			"PInetCskListenStopMisses",
 			"RTcpCloseHits",
 			"RTcpCloseMisses",
 			"RUdpRecvmsgHits",
@@ -674,6 +679,10 @@ func TestTCPShortlived(t *testing.T) {
 
 func TestTCPOverIPv6(t *testing.T) {
 	t.SkipNow()
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	config := testConfig()
 	config.CollectIPv6Conns = true
 
@@ -1421,7 +1430,7 @@ func (s *TCPServer) Run(done chan struct{}) error {
 			if err != nil {
 				return
 			}
-			s.onMessage(conn)
+			go s.onMessage(conn)
 		}
 	}()
 
@@ -1746,7 +1755,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP("8.8.8.8"), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1765,6 +1774,10 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 }
 
 func TestConnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
 	cfg := testConfig()
 	cfg.CollectIPv6Conns = true
 	tr, err := NewTracer(cfg)
@@ -1778,6 +1791,39 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	defer conn.Close()
 	message := []byte("payload")
 	bytesSent, err := conn.Write(message)
+	require.NoError(t, err)
+
+	connections := getConnections(t, tr)
+	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+		return cs.DPort == uint16(remotePort)
+	})
+
+	require.Len(t, outgoing, 1)
+	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
+	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSentBytes))
+}
+
+func TestUnconnectedUDPSendIPv6(t *testing.T) {
+	if !kernel.IsIPv6Enabled() {
+		t.Skip("IPv6 not enabled on host")
+	}
+
+	cfg := testConfig()
+	cfg.CollectIPv6Conns = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	linkLocal, err := getIPv6LinkLocalAddress()
+	require.NoError(t, err)
+
+	remotePort := rand.Int()%5000 + 15000
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: remotePort}
+	conn, err := net.ListenUDP("udp6", linkLocal)
+	require.NoError(t, err)
+	defer conn.Close()
+	message := []byte("payload")
+	bytesSent, err := conn.WriteTo(message, remoteAddr)
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
@@ -1941,6 +1987,62 @@ func TestTCPDirection(t *testing.T) {
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
 }
 
+func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
+	wg := sync.WaitGroup{}
+
+	// setup server to listen on a port
+	server := NewTCPServer(func(c net.Conn) {
+		t.Logf("received connection from %s", c.RemoteAddr())
+		_, _ = bufio.NewReader(c).ReadBytes('\n')
+		c.Close()
+		wg.Done()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer close(doneChan)
+	t.Logf("server address: %s", server.address)
+
+	// create an initial client connection to the server
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// start tracer so it dumps port bindings
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// open and close another client connection to force port binding delete
+	wg.Add(1)
+	c2, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	_, err = c2.Write([]byte("conn2\n"))
+	require.NoError(t, err)
+	c2.Close()
+
+	wg.Wait()
+
+	wg.Add(1)
+	// write some data so tracer determines direction of this connection
+	_, err = c.Write([]byte("original\n"))
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	// the original connection should still be incoming for the server
+	conns := getConnections(t, tr)
+	origConn := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
+			fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
+	})
+	require.Len(t, origConn, 1)
+	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -2037,7 +2139,7 @@ func setupDNAT(t *testing.T) {
 		"ip link set dummy1 up",
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 	}
-	runCommands(t, cmds)
+	testutil.RunCommands(t, cmds, false)
 }
 
 func teardownDNAT(t *testing.T) {
@@ -2048,20 +2150,7 @@ func teardownDNAT(t *testing.T) {
 		// clear out the conntrack table
 		"conntrack -F",
 	}
-	runCommands(t, cmds)
-}
-
-func runCommands(t *testing.T, cmds []string) {
-	t.Helper()
-	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Errorf("%s returned %s: %s", c, err, out)
-			return
-		}
-	}
+	testutil.RunCommands(t, cmds, true)
 }
 
 func testConfig() *config.Config {
@@ -2071,6 +2160,103 @@ func testConfig() *config.Config {
 		cfg.AllowPrecompiledFallback = false
 	}
 	return cfg
+}
+
+func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
+	queryMsg := new(dns.Msg)
+	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+	queryMsg.RecursionDesired = true
+	dnsClient := new(dns.Client)
+	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+	require.NoError(t, err)
+	defer dnsConn.Close()
+	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	require.NoError(t, err)
+
+	return dnsClientAddr, dnsServerAddr
+}
+
+func TestGatewayLookupNotEnabled(t *testing.T) {
+	t.Run("gateway lookup not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+}
+
+func TestGatewayLookupEnabled(t *testing.T) {
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NotNil(t, tr)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)\s+src`)
+
+	cmd := exec.Command("ip", "route", "get", "8.8.8.8")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err)
+
+	matches := ipRouteGetOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	dev := string(matches[1])
+
+	ipRouteLinkOut := regexp.MustCompile(`(\d+):.+`)
+
+	out, err = exec.Command("ip", "link", "show", dev).CombinedOutput()
+	require.NoError(t, err, "ip link command output: %s", out)
+	matches = ipRouteLinkOut.FindSubmatch(out)
+	require.Len(t, matches, 2)
+	ifindex := string(matches[1])
+
+	ifs, err := net.Interfaces()
+	require.NoError(t, err)
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		for _, i := range ifs {
+			if hwAddr.String() == i.HardwareAddr.String() {
+				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
+			}
+		}
+
+		return network.Subnet{Alias: "subnet"}, nil
+	}
+
+	getConnections(t, tr)
+
+	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+		return ok
+	}, 2*time.Second, time.Second)
+
+	require.NotNil(t, conn.Via)
+	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%s", ifindex))
 }
 
 func TestConnectionAssured(t *testing.T) {

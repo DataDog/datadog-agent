@@ -59,13 +59,7 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
 
     struct chmod_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .mount_id = syscall->setattr.path_key.mount_id,
-            .inode = syscall->setattr.path_key.ino,
-            .overlay_numlower = get_overlay_numlower(syscall->setattr.dentry),
-            .path_id = syscall->setattr.path_key.path_id,
-            .metadata = syscall->setattr.metadata,
-        },
+        .file = syscall->setattr.file,
         .padding = 0,
         .mode = syscall->setattr.mode,
     };

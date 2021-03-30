@@ -87,17 +87,19 @@ func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
 // resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
 func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound || err != nil {
+	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, err := r.MountResolver.GetMountPath(e.MountID)
-	if err == nil {
-		if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-			pathStr = strings.Replace(pathStr, rootPath, "", 1)
-		}
-		pathStr = path.Join(mountPath, pathStr)
+	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
+	if mountErr != nil {
+		return pathStr, mountErr
 	}
+
+	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
+		pathStr = strings.Replace(pathStr, rootPath, "", 1)
+	}
+	pathStr = path.Join(mountPath, pathStr)
 
 	return pathStr, err
 }
@@ -172,16 +174,16 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
-// ResolveProcessUser resolves the user id of the process to a username
-func (r *Resolvers) ResolveProcessUser(p *model.ProcessContext) string {
+// ResolveProcessContextUser resolves the user id of the process to a username
+func (r *Resolvers) ResolveProcessContextUser(p *model.ProcessContext) string {
 	if len(p.User) == 0 {
 		p.User, _ = r.UserGroupResolver.ResolveUser(int(p.UID))
 	}
 	return p.User
 }
 
-// ResolveProcessGroup resolves the group id of the process to a group name
-func (r *Resolvers) ResolveProcessGroup(p *model.ProcessContext) string {
+// ResolveProcessContextGroup resolves the group id of the process to a group name
+func (r *Resolvers) ResolveProcessContextGroup(p *model.ProcessContext) string {
 	if len(p.Group) == 0 {
 		p.Group, _ = r.UserGroupResolver.ResolveGroup(int(p.GID))
 	}

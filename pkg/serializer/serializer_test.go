@@ -107,6 +107,15 @@ type testPayload struct{}
 
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
 func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
+func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	payloads := forwarder.Payloads{}
+	payload, err := compression.Compress(nil, protobufString)
+	if err != nil {
+		return nil, err
+	}
+	payloads = append(payloads, &payload)
+	return payloads, nil
+}
 func (p *testPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, nil
 }
@@ -132,6 +141,9 @@ func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Error
 func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.Marshaler, error) {
 	return []marshaler.Marshaler{}, fmt.Errorf("some error")
+}
+func (p *testErrorPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("some error")
 }
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
@@ -195,7 +207,7 @@ func TestSendV1Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := createTestEventsPayload(&testPayload{})
 	err := s.SendEvents(payload)
@@ -219,7 +231,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	defer config.Datadog.Set("enable_events_stream_payload_serialization", nil)
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", mock.Anything, jsonExtraHeadersWithCompression).Return(nil)
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayloadMutipleValues{count: 1}
 
@@ -252,7 +264,7 @@ func TestSendEvents(t *testing.T) {
 	mockConfig.Set("use_v2_api.events", true)
 	defer mockConfig.Set("use_v2_api.events", nil)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := createTestEventsPayload(&testPayload{})
 	err := s.SendEvents(payload)
@@ -270,7 +282,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	config.Datadog.Set("enable_service_checks_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
 	require.Nil(t, err)
@@ -289,7 +301,7 @@ func TestSendServiceChecks(t *testing.T) {
 	mockConfig.Set("use_v2_api.service_checks", true)
 	defer mockConfig.Set("use_v2_api.service_checks", nil)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendServiceChecks(payload)
@@ -307,7 +319,7 @@ func TestSendV1Series(t *testing.T) {
 	config.Datadog.Set("enable_stream_payload_serialization", false)
 	defer config.Datadog.Set("enable_stream_payload_serialization", nil)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendSeries(payload)
@@ -327,7 +339,7 @@ func TestSendSeries(t *testing.T) {
 	mockConfig.Set("use_v2_api.series", true)
 	defer mockConfig.Set("use_v2_api.series", nil)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendSeries(payload)
@@ -344,7 +356,7 @@ func TestSendSketch(t *testing.T) {
 	payloads, _ := mkPayloads(protobufString, true)
 	f.On("SubmitSketchSeries", payloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendSketch(payload)
@@ -360,7 +372,7 @@ func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
@@ -383,7 +395,7 @@ func TestSendJSONToV1Intake(t *testing.T) {
 	payloads, _ := mkPayloads(payload, false)
 	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
 
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	err := s.SendJSONToV1Intake("test")
 	require.Nil(t, err)
@@ -418,7 +430,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	}()
 
 	f := &forwarder.MockedForwarder{}
-	s := NewSerializer(f)
+	s := NewSerializer(f, nil)
 
 	payload := &testPayload{}
 	payloadEvents := createTestEventsPayload(payload)

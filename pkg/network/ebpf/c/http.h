@@ -62,12 +62,6 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
-    // Initialize batch if this is the first transaction to be enqueued
-    if (batch->idx != batch_state->idx) {
-        batch->idx = batch_state->idx;
-        batch->pos = 0;
-    }
-
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
     //
@@ -89,18 +83,23 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     // but also that we can't really increase the batch/page size at the moment because that blows up the eBPF *program* size
 #pragma unroll
     for (int i = 0; i < HTTP_BATCH_SIZE; i++) {
-        if (i == batch->pos) {
+        if (i == batch_state->pos) {
             __builtin_memcpy(&batch->txs[i], http, sizeof(http_transaction_t));
         }
     }
 
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch->idx, batch->pos);
-    batch->pos++;
+    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", cpu, batch_state->idx, batch_state->pos);
+    batch_state->pos++;
+
+    // Copy batch state information for user-space
+    batch->idx = batch_state->idx;
+    batch->pos = batch_state->pos;
 
     // If we have filled the batch we move to the next one
     // Notice that we don't flush it directly because we can't do so from socket filter programs.
-    if (batch->pos == HTTP_BATCH_SIZE) {
+    if (batch_state->pos == HTTP_BATCH_SIZE) {
         batch_state->idx++;
+        batch_state->pos = 0;
     }
 }
 

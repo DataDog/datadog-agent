@@ -16,21 +16,12 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 
-	"github.com/cobaugh/osrelease"
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-)
-
-var (
-	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
-	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
-	kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
-	kernel5_3  = kernel.VersionCode(5, 3, 0)  //nolint:deadcode,unused
 )
 
 var (
@@ -157,6 +148,19 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
+// GetFilesystem returns the name of the filesystem
+func (mr *MountResolver) GetFilesystem(mountID uint32) string {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	mount, exists := mr.mounts[mountID]
+	if !exists {
+		return ""
+	}
+
+	return mount.GetFSType()
+}
+
 // IsOverlayFS returns the type of a mountID
 func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 	mr.lock.RLock()
@@ -276,66 +280,49 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 }
 
 func getMountIDOffset(probe *Probe) uint64 {
-	var suseKernel bool
+	offset := uint64(284)
 
-	osrelease, err := osrelease.Read()
+	kv, err := NewKernelVersion()
 	if err == nil {
-		suseKernel = (osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")
-	}
-
-	var offset uint64
-	if suseKernel {
-		offset = 292
-	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_13 {
-		offset = 268
-	} else {
-		offset = 284
+		switch {
+		case kv.IsSuseKernel():
+			offset = 292
+		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_13:
+			offset = 268
+		}
 	}
 
 	return offset
 }
 
 func getSizeOfStructInode(probe *Probe) uint64 {
-	var rh7Kernel bool
-	var rh8Kernel bool
-	var suse12Kernel bool
+	sizeOf := uint64(600)
 
-	osrelease, err := osrelease.Read()
+	kv, err := NewKernelVersion()
 	if err == nil {
-		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && osrelease["VERSION_ID"] == "7"
-		rh8Kernel = osrelease["PLATFORM_ID"] == "platform:el8"
-		suse12Kernel = ((osrelease["ID"] == "sles") || (osrelease["ID"] == "opensuse-leap")) && strings.HasPrefix(osrelease["VERSION_ID"], "12")
-	}
-
-	var sizeOf uint64
-	if rh7Kernel {
-		sizeOf = 584
-	} else if rh8Kernel {
-		sizeOf = 648
-	} else if suse12Kernel {
-		sizeOf = 560
-	} else if probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16 {
-		sizeOf = 608
-	} else {
-		sizeOf = 600
+		switch {
+		case kv.IsRH7Kernel():
+			sizeOf = 584
+		case kv.IsRH8Kernel():
+			sizeOf = 648
+		case kv.IsSLES12Kernel():
+			sizeOf = 560
+		case kv.IsSLES15Kernel():
+			sizeOf = 592
+		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16:
+			sizeOf = 608
+		}
 	}
 
 	return sizeOf
 }
 
 func getSuperBlockMagicOffset(probe *Probe) uint64 {
-	var rh7Kernel bool
+	sizeOf := uint64(96)
 
-	osrelease, err := osrelease.Read()
-	if err == nil {
-		rh7Kernel = (osrelease["ID"] == "centos" || osrelease["ID"] == "rhel") && (osrelease["VERSION_ID"] == "7")
-	}
-
-	var sizeOf uint64
-	if rh7Kernel {
+	kv, err := NewKernelVersion()
+	if err == nil && kv.IsRH7Kernel() {
 		sizeOf = 88
-	} else {
-		sizeOf = 96
 	}
 
 	return sizeOf

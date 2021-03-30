@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
@@ -121,13 +123,13 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		}
 
 		extraHeaders := make(http.Header)
-		extraHeaders.Set(api.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(api.HostHeader, l.cfg.HostName)
-		extraHeaders.Set(api.ProcessVersionHeader, Version)
-		extraHeaders.Set(api.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
+		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(headers.ProcessVersionHeader, Version)
+		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 
 		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-			extraHeaders.Set(api.ClusterIDHeader, cid)
+			extraHeaders.Set(headers.ClusterIDHeader, cid)
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -218,12 +220,12 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptions(api.KeysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.APIEndpoints))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptions(api.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
+	podForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)

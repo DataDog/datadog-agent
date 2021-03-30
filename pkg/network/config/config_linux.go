@@ -28,7 +28,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 		enabled[probes.TCPClose] = struct{}{}
 		enabled[probes.TCPCloseReturn] = struct{}{}
 		enabled[probes.InetCskAcceptReturn] = struct{}{}
-		enabled[probes.TCPv4DestroySock] = struct{}{}
+		enabled[probes.InetCskListenStop] = struct{}{}
 		enabled[probes.TCPSetState] = struct{}{}
 
 		if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
@@ -51,7 +51,12 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 		enabled[probes.InetBindRet] = struct{}{}
 
 		if c.CollectIPv6Conns {
-			enabled[probes.IP6MakeSkb] = struct{}{}
+			if !runtimeTracer && kv < kernel.VersionCode(4, 7, 0) {
+				enabled[probes.IP6MakeSkbPre470] = struct{}{}
+			} else {
+				enabled[probes.IP6MakeSkb] = struct{}{}
+			}
+
 			enabled[probes.Inet6Bind] = struct{}{}
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}

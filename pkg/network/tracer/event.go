@@ -51,10 +51,26 @@ type batch C.batch_t
 
 /* port_binding_t
 __u32 pid;
-__u32 net_ns;
+__u32 netns;
 __u16 port;
 */
 type portBindingTuple C.port_binding_t
+
+/* ip_route_gateway_t
+__u64 gw_h;
+__u64 gw_l;
+__u16 family;
+__u32 ifindex;
+*/
+type ipRouteGateway C.ip_route_gateway_t
+
+/* ip_route_dest_t
+__u64 daddr_h;
+__u64 daddr_l;
+__u32 netns;
+__u16 family;
+*/
+type ipRouteDest C.ip_route_dest_t
 
 func (t *ConnTuple) copy() *ConnTuple {
 	return &ConnTuple{
@@ -121,13 +137,28 @@ func connTupleFromConn(conn net.Conn, pid uint32, netns uint32) (*ConnTuple, err
 	return ct, nil
 }
 
-func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
-	ct := &ConnTuple{
-		pid:   C.__u32(pid),
-		netns: C.__u32(netns),
-		sport: C.__u16(sport),
-		dport: C.__u16(dport),
+func toConnTupleFromConnectionStats(ct *ConnTuple, stats *network.ConnectionStats) error {
+	return toConnTuple(ct, int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func connTupleFromConnectionStats(stats *network.ConnectionStats) *ConnTuple {
+	return newConnTuple(int(stats.Pid), stats.NetNS, stats.Source, stats.Dest, stats.SPort, stats.DPort, stats.Type)
+}
+
+func newConnTuple(pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) *ConnTuple {
+	ct := &ConnTuple{}
+	if err := toConnTuple(ct, pid, netns, saddr, daddr, sport, dport, proto); err != nil {
+		return nil
 	}
+	return ct
+}
+
+func toConnTuple(ct *ConnTuple, pid int, netns uint32, saddr, daddr util.Address, sport, dport uint16, proto network.ConnectionType) error {
+	ct.pid = C.__u32(pid)
+	ct.netns = C.__u32(netns)
+	ct.sport = C.__u16(sport)
+	ct.dport = C.__u16(dport)
+	ct.metadata = 0
 	sbytes := saddr.Bytes()
 	dbytes := daddr.Bytes()
 	if len(sbytes) == 4 {
@@ -143,7 +174,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 		ct.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
 		ct.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
 	} else {
-		return nil
+		return fmt.Errorf("unknown address type")
 	}
 
 	switch proto {
@@ -152,8 +183,7 @@ func newConnTuple(pid int, netns uint64, saddr, daddr util.Address, sport, dport
 	case network.UDP:
 		ct.metadata |= C.CONN_TYPE_UDP
 	}
-
-	return ct
+	return nil
 }
 
 func (t *ConnTuple) isTCP() bool {
@@ -319,4 +349,39 @@ func connDirection(m uint8) network.ConnectionDirection {
 	default:
 		return network.OUTGOING
 	}
+}
+
+func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
+	d := &ipRouteDest{netns: C.__u32(netns), daddr_l: 0, daddr_h: 0}
+	sbytes := source.Bytes()
+	dbytes := dest.Bytes()
+	switch len(dbytes) {
+	case 4:
+		d.family = C.CONN_V4
+		d.saddr_l = C.__u64(nativeEndian.Uint32(sbytes))
+		d.daddr_l = C.__u64(nativeEndian.Uint32(dbytes))
+	case 16:
+		d.family = C.CONN_V6
+		d.saddr_h = C.__u64(nativeEndian.Uint64(sbytes[:8]))
+		d.saddr_l = C.__u64(nativeEndian.Uint64(sbytes[8:]))
+		d.daddr_h = C.__u64(nativeEndian.Uint64(dbytes[:8]))
+		d.daddr_l = C.__u64(nativeEndian.Uint64(dbytes[8:]))
+	}
+
+	return d
+}
+
+func (g *ipRouteGateway) gateway() util.Address {
+	switch g.family {
+	case C.CONN_V4:
+		return util.V4Address(uint32(g.gw_l))
+	case C.CONN_V6:
+		return util.V6Address(uint64(g.gw_l), uint64(g.gw_h))
+	}
+
+	return nil
+}
+
+func (g *ipRouteGateway) ifIndex() int {
+	return int(g.ifindex)
 }

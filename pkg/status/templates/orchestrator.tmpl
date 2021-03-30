@@ -31,8 +31,15 @@ Orchestrator Explorer
   ======================
   Orchestrator Endpoints
   ======================
-  {{- range $key, $value := .OrchestratorEndpoints}}
-  {{$key}} - API Key ending with: {{$value}}
+  {{- range $key, $values := .OrchestratorEndpoints}}
+  {{- if gt (len $values) 1}}
+  {{$key}} - API Keys ending with:
+  {{- range $values }}
+      - {{ . }}
+  {{- end}}
+  {{- else}}
+  {{$key}} - API Key ending with: {{index $values 0}}
+  {{- end}}
   {{- end}}
 
 {{- if .LeaderError }}
@@ -54,6 +61,8 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+    Cluster:
+      Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Clusters}} Miss: {{.CacheMiss.Clusters}})
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

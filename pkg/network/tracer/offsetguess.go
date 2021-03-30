@@ -13,9 +13,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -71,6 +74,12 @@ const (
 	guessDaddrFl4 = 9
 	guessSportFl4 = 10
 	guessDportFl4 = 11
+	// Following values are associated with an UDPv6 connection, used for guessing offsets
+	// in the flowi6 data structure
+	guessSaddrFl6 = 12
+	guessDaddrFl6 = 13
+	guessSportFl6 = 14
+	guessDportFl6 = 15
 )
 
 const (
@@ -98,6 +107,12 @@ var whatString = map[C.__u64]string{
 	guessDaddrFl4: "destination address flowi4",
 	guessSportFl4: "source port flowi4",
 	guessDportFl4: "destination port flowi4",
+
+	// Guess offsets in struct flowi6
+	guessSaddrFl6: "source address flowi6",
+	guessDaddrFl6: "destination address flowi6",
+	guessSportFl6: "source port flowi6",
+	guessDportFl6: "destination port flowi6",
 }
 
 const (
@@ -110,7 +125,8 @@ var tcpKprobeCalledString = map[C.__u64]string{
 	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
 }
 
-const listenIP = "127.0.0.2"
+const listenIPv4 = "127.0.0.2"
+const interfaceLocalMulticastIPv6 = "ff01::1"
 
 var zero uint64
 
@@ -130,6 +146,12 @@ type fieldValues struct {
 	daddrFl4 uint32
 	sportFl4 uint16
 	dportFl4 uint16
+
+	// Used for guessing offsets in struct flowi6
+	saddrFl6 [4]uint32
+	daddrFl6 [4]uint32
+	sportFl6 uint16
+	dportFl6 uint16
 }
 
 func extractIPsAndPorts(conn net.Conn) (
@@ -159,6 +181,21 @@ func extractIPsAndPorts(conn net.Conn) (
 	}
 
 	dport = uint16(dportn)
+	return
+}
+
+func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err error) {
+	udpAddr, err := net.ResolveUDPAddr(addr.Network(), addr.String())
+	if err != nil {
+		return
+	}
+
+	ip, err = uint32ArrayFromIPv6(udpAddr.IP)
+	if err != nil {
+		return
+	}
+	port = uint16(udpAddr.Port)
+
 	return
 }
 
@@ -213,7 +250,7 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 	return nil, errors.New("unstable TCP socket params")
 }
 
-func offsetGuessProbes(c *config.Config) map[probes.ProbeName]struct{} {
+func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]struct{}, error) {
 	p := map[probes.ProbeName]struct{}{
 		probes.TCPGetSockOpt: {},
 		probes.IPMakeSkb:     {},
@@ -222,8 +259,20 @@ func offsetGuessProbes(c *config.Config) map[probes.ProbeName]struct{} {
 	if c.CollectIPv6Conns {
 		p[probes.TCPv6Connect] = struct{}{}
 		p[probes.TCPv6ConnectReturn] = struct{}{}
+
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
+
+		if kv < kernel.VersionCode(4, 7, 0) {
+			p[probes.IP6MakeSkbPre470] = struct{}{}
+		} else {
+			p[probes.IP6MakeSkb] = struct{}{}
+		}
+
 	}
-	return p
+	return p, nil
 }
 
 func compareIPv6(a [4]C.__u32, b [4]uint32) bool {
@@ -243,33 +292,66 @@ func ownNetNS() (uint64, error) {
 	return s.Ino, nil
 }
 
-func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
-	buf := make([]byte, 16)
-	for i := 0; i < 16; i++ {
-		buf[i] = *(*byte)(unsafe.Pointer((uintptr(unsafe.Pointer(&ipv6Addr[0])) + uintptr(i))))
-	}
-	return net.IP(buf)
-}
-
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
 	return nativeEndian.Uint16(arr[:])
 }
 
-func generateRandomIPv6Address() (addr [4]uint32) {
+func generateRandomIPv6Address() net.IP {
 	// multicast (ff00::/8) or link-local (fe80::/10) addresses don't work for
 	// our purposes so let's choose a "random number" for the first 32 bits.
 	//
 	// chosen by fair dice roll.
 	// guaranteed to be random.
 	// https://xkcd.com/221/
-	addr[0] = 0x87586031
-	addr[1] = rand.Uint32()
-	addr[2] = rand.Uint32()
-	addr[3] = rand.Uint32()
+	base := []byte{0x87, 0x58, 0x60, 0x31}
+	addr := make([]byte, 16)
+	copy(addr, base)
+	rand.Read(addr[4:])
 
+	return net.IP(addr)
+}
+
+func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
+	buf := []byte(ip)
+	if len(buf) < 15 {
+		err = fmt.Errorf("invalid IPv6 address byte length %d", len(buf))
+		return
+	}
+
+	addr[0] = nativeEndian.Uint32(buf[0:4])
+	addr[1] = nativeEndian.Uint32(buf[4:8])
+	addr[2] = nativeEndian.Uint32(buf[8:12])
+	addr[3] = nativeEndian.Uint32(buf[12:16])
 	return
+}
+
+func getIPv6LinkLocalAddress() (*net.UDPAddr, error) {
+	ints, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range ints {
+		if i.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			if strings.HasPrefix(a.String(), "fe80::") {
+				// this address *may* have CIDR notation
+				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
+					return &net.UDPAddr{IP: ar, Zone: i.Name}, nil
+				}
+				return &net.UDPAddr{IP: net.ParseIP(a.String()), Zone: i.Name}, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no IPv6 link local address found")
 }
 
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
@@ -338,7 +420,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		status.offset_saddr_fl4++
 		if uint64(status.offset_saddr_fl4) == threshold {
 			// Let's skip all other flowi4 fields
-			logAndAdvance(status, notApplicable, guessNetns)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -349,7 +431,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		}
 		status.offset_daddr_fl4++
 		if uint64(status.offset_daddr_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessNetns)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
@@ -360,20 +442,66 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		}
 		status.offset_sport_fl4++
 		if uint64(status.offset_sport_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessNetns)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
 			break
 		}
 	case guessDportFl4:
 		if status.dport_fl4 == C.__u16(htons(expected.dportFl4)) {
-			logAndAdvance(status, status.offset_dport_fl4, guessNetns)
+			logAndAdvance(status, status.offset_dport_fl4, flowi6EntryState(status))
 			status.fl4_offsets = enabled
 			break
 		}
 		status.offset_dport_fl4++
 		if uint64(status.offset_dport_fl4) == threshold {
-			logAndAdvance(status, notApplicable, guessNetns)
+			logAndAdvance(status, notApplicable, flowi6EntryState(status))
 			status.fl4_offsets = disabled
+			break
+		}
+	case guessSaddrFl6:
+		if compareIPv6(status.saddr_fl6, expected.saddrFl6) {
+			logAndAdvance(status, status.offset_saddr_fl6, guessDaddrFl6)
+			break
+		}
+		status.offset_saddr_fl6++
+		if uint64(status.offset_saddr_fl6) == threshold {
+			// Let's skip all other flowi6 fields
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl6_offsets = disabled
+			break
+		}
+	case guessDaddrFl6:
+		if compareIPv6(status.daddr_fl6, expected.daddrFl6) {
+			logAndAdvance(status, status.offset_daddr_fl6, guessSportFl6)
+			break
+		}
+		status.offset_daddr_fl6++
+		if uint64(status.offset_daddr_fl6) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl6_offsets = disabled
+			break
+		}
+	case guessSportFl6:
+		if status.sport_fl6 == C.__u16(htons(expected.sportFl6)) {
+			logAndAdvance(status, status.offset_sport_fl6, guessDportFl6)
+			break
+		}
+		status.offset_sport_fl6++
+		if uint64(status.offset_sport_fl6) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl6_offsets = disabled
+			break
+		}
+	case guessDportFl6:
+		if status.dport_fl6 == C.__u16(htons(expected.dportFl6)) {
+			logAndAdvance(status, status.offset_dport_fl6, guessNetns)
+			status.fl6_offsets = enabled
+			break
+		}
+		status.offset_dport_fl6++
+		if uint64(status.offset_dport_fl6) == threshold {
+			logAndAdvance(status, notApplicable, guessNetns)
+			status.fl6_offsets = disabled
 			break
 		}
 	case guessNetns:
@@ -435,6 +563,13 @@ func setReadyState(mp *ebpf.Map, status *tracerStatus) error {
 	return nil
 }
 
+func flowi6EntryState(status *tracerStatus) C.__u64 {
+	if status.ipv6_enabled == disabled {
+		return C.__u64(guessNetns)
+	}
+	return C.__u64(guessSaddrFl6)
+}
+
 // guessOffsets expects manager.Manager to contain a map named tracer_status and helps initialize the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
 // returned as constants which are runtime-edited into the tracer eBPF code.
@@ -489,7 +624,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		return getConstantEditors(status), nil
 	}
 
-	eventGenerator, err := newEventGenerator()
+	eventGenerator, err := newEventGenerator(cfg.CollectIPv6Conns)
 	if err != nil {
 		return nil, err
 	}
@@ -557,6 +692,11 @@ func getConstantEditors(status *tracerStatus) []manager.ConstantEditor {
 		{Name: "offset_sport_fl4", Value: uint64(status.offset_sport_fl4)},
 		{Name: "offset_dport_fl4", Value: uint64(status.offset_dport_fl4)},
 		{Name: "fl4_offsets", Value: uint64(status.fl4_offsets)},
+		{Name: "offset_saddr_fl6", Value: uint64(status.offset_saddr_fl6)},
+		{Name: "offset_daddr_fl6", Value: uint64(status.offset_daddr_fl6)},
+		{Name: "offset_sport_fl6", Value: uint64(status.offset_sport_fl6)},
+		{Name: "offset_dport_fl6", Value: uint64(status.offset_dport_fl6)},
+		{Name: "fl6_offsets", Value: uint64(status.fl6_offsets)},
 	}
 }
 
@@ -564,17 +704,25 @@ type eventGenerator struct {
 	listener net.Listener
 	conn     net.Conn
 	udpConn  net.Conn
+	udp6Conn *net.UDPConn
+	udpDone  func()
 }
 
-func newEventGenerator() (*eventGenerator, error) {
+func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 	// port 0 means we let the kernel choose a free port
-	addr := fmt.Sprintf("%s:0", listenIP)
+	addr := fmt.Sprintf("%s:0", listenIPv4)
 	l, err := net.Listen("tcp4", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	go acceptHandler(l)
+
+	// Spin up UDP server
+	udpAddr, udpDone, err := newUDPServer(addr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Establish connection that will be used in the offset guessing
 	c, err := net.Dial(l.Addr().Network(), l.Addr().String())
@@ -583,23 +731,41 @@ func newEventGenerator() (*eventGenerator, error) {
 		return nil, err
 	}
 
-	udpConn, err := net.Dial("udp", "8.8.4.4:53")
+	udpConn, err := net.Dial("udp", udpAddr)
 	if err != nil {
 		return nil, err
 	}
-	return &eventGenerator{listener: l, conn: c, udpConn: udpConn}, nil
+
+	var udp6Conn *net.UDPConn
+	if ipv6 {
+		linkLocal, err := getIPv6LinkLocalAddress()
+		if err != nil {
+			return nil, err
+		}
+
+		udp6Conn, err = net.ListenUDP("udp6", linkLocal)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
 }
 
 // Generate an event for offset guessing
 func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) error {
 	// Are we guessing the IPv6 field?
 	if status.what == guessDaddrIPv6 {
-		expected.daddrIPv6 = generateRandomIPv6Address()
-
 		// For ipv6, we don't need the source port because we already guessed it doing ipv4 connections so
 		// we use a random destination address and try to connect to it.
-		expected.daddrIPv6 = generateRandomIPv6Address()
-		bindAddress := fmt.Sprintf("[%s]:9092", ipv6FromUint32Arr(expected.daddrIPv6))
+		var err error
+		addr := generateRandomIPv6Address()
+		expected.daddrIPv6, err = uint32ArrayFromIPv6(addr)
+		if err != nil {
+			return err
+		}
+
+		bindAddress := fmt.Sprintf("[%s]:9092", addr.String())
 
 		// Since we connect to a random IP, this will most likely fail. In the unlikely case where it connects
 		// successfully, we close the connection to avoid a leak.
@@ -613,6 +779,21 @@ func (e *eventGenerator) Generate(status *tracerStatus, expected *fieldValues) e
 		_, err := e.udpConn.Write(payload)
 
 		return err
+	} else if e.udp6Conn != nil && (status.what == guessSaddrFl6 || status.what == guessDaddrFl6 || status.what == guessSportFl6 || status.what == guessDportFl6) {
+		payload := []byte("test")
+		remoteAddr := &net.UDPAddr{IP: net.ParseIP(interfaceLocalMulticastIPv6), Port: 53}
+		_, err := e.udp6Conn.WriteTo(payload, remoteAddr)
+		if err != nil {
+			return err
+		}
+
+		expected.daddrFl6, err = uint32ArrayFromIPv6(remoteAddr.IP)
+		if err != nil {
+			return err
+		}
+		expected.dportFl6 = uint16(remoteAddr.Port)
+
+		return nil
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
@@ -629,6 +810,16 @@ func (e *eventGenerator) populateUDPExpectedValues(expected *fieldValues) error 
 	expected.sportFl4 = sport
 	expected.daddrFl4 = daddr
 	expected.dportFl4 = dport
+
+	if e.udp6Conn != nil {
+		saddr6, sport6, err := extractIPv6AddressAndPort(e.udp6Conn.LocalAddr())
+		if err != nil {
+			return err
+		}
+		expected.saddrFl6 = saddr6
+		expected.sportFl6 = sport6
+	}
+
 	return nil
 }
 
@@ -641,6 +832,14 @@ func (e *eventGenerator) Close() {
 
 	if e.udpConn != nil {
 		e.udpConn.Close()
+	}
+
+	if e.udp6Conn != nil {
+		e.udp6Conn.Close()
+	}
+
+	if e.udpDone != nil {
+		e.udpDone()
 	}
 }
 
@@ -692,4 +891,31 @@ func logAndAdvance(status *tracerStatus, offset C.__u64, next C.__u64) {
 		log.Debugf("Started offset guessing for %v", whatString[next])
 		status.what = next
 	}
+}
+
+func newUDPServer(addr string) (string, func(), error) {
+	ln, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		return "", nil, err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		b := make([]byte, 10)
+		for {
+			ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+			_, _, err := ln.ReadFrom(b)
+			if err != nil && !os.IsTimeout(err) {
+				return
+			}
+		}
+	}()
+
+	doneFn := func() {
+		ln.Close()
+		<-done
+	}
+	return ln.LocalAddr().String(), doneFn, nil
 }

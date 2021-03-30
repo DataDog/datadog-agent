@@ -105,6 +105,9 @@ var (
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
 	aggregatorHostnameUpdate                   = expvar.Int{}
+	aggregatorOrchestratorMetadata             = expvar.Int{}
+	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
+	aggregatorDogstatsdContexts                = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -112,6 +115,8 @@ var (
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
 	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
 		nil, "Count of hostname update")
+	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
+		nil, "Count the number of dogstatsd contexts in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -147,6 +152,9 @@ func init() {
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
+	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
+	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
+	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 }
 
 // InitAggregator returns the Singleton instance
@@ -193,6 +201,7 @@ type BufferedAggregator struct {
 
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
+	orchestratorMetadataIn chan senderOrchestratorMetadata
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -223,7 +232,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if config.Datadog.GetBool("iot_host") {
+	if agentName == flavor.IotAgent && !config.Datadog.GetBool("iot_host") {
+		agentName = flavor.DefaultAgent
+	} else if config.Datadog.GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
@@ -244,6 +255,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 
 		checkMetricIn:          make(chan senderMetricSample, bufferSize),
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
+
+		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -377,7 +390,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := util.NewTagsBuilderFromSlice(sc.Tags)
-	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID)
+	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
 	sc.Tags = tb.Get()
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
@@ -389,7 +402,7 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := util.NewTagsBuilderFromSlice(e.Tags)
-	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID)
+	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
@@ -736,7 +749,24 @@ func (agg *BufferedAggregator) run() {
 			agg.hostname = h
 			changeAllSendersDefaultHostname(h)
 			agg.hostnameUpdateDone <- struct{}{}
+		case orchestratorMetadata := <-agg.orchestratorMetadataIn:
+			aggregatorOrchestratorMetadata.Add(1)
+			// each resource has its own payload so we cannot aggregate
+			// use a routine to avoid blocking the aggregator
+			go func(orchestratorMetadata senderOrchestratorMetadata) {
+				err := agg.serializer.SendOrchestratorMetadata(
+					orchestratorMetadata.msgs,
+					agg.hostname,
+					orchestratorMetadata.clusterID,
+					orchestratorMetadata.payloadType,
+				)
+				if err != nil {
+					aggregatorOrchestratorMetadataErrors.Add(1)
+					log.Errorf("Error submitting orchestrator data: %s", err)
+				}
+			}(orchestratorMetadata)
 		}
+
 	}
 }
 

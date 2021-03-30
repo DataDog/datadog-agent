@@ -32,6 +32,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/security_bprm_committed_creds"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/exit_itimers"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/get_task_exe_file"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/vfs_open"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_dentry_open"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/commit_creds"}},
 		}},
@@ -277,6 +278,10 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "open_by_handle_at"}, EntryAndExit, true),
 		},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/io_openat2"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/io_openat2"}},
+		}},
 	},
 
 	// List of probes to activate to capture removexattr events

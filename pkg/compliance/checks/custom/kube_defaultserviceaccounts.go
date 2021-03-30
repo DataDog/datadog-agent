@@ -6,6 +6,7 @@
 package custom
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -30,7 +31,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	serviceAccounts, err := e.KubeClient().Resource(schema.GroupVersionResource{
 		Resource: "serviceaccounts",
 		Version:  "v1",
-	}).List(metav1.ListOptions{
+	}).List(context.TODO(), metav1.ListOptions{
 		FieldSelector: "metadata.name=default",
 	})
 	if err != nil {
@@ -65,7 +66,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 		Group:    "rbac.authorization.k8s.io",
 		Resource: "clusterrolebindings",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing clusterrolebindings - rule: %s - err: %v", ruleID, err)
 	}
@@ -83,7 +84,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 		Group:    "rbac.authorization.k8s.io",
 		Resource: "rolebindings",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing rolebindings - rule: %s - err: %v", ruleID, err)
 	}

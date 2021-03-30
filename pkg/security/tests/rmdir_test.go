@@ -8,12 +8,13 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestRmdir(t *testing.T) {
@@ -29,7 +30,7 @@ func TestRmdir(t *testing.T) {
 	defer test.Close()
 
 	mkdirMode := 0o707
-	expectedMode := applyUmask(mkdirMode)
+	expectedMode := uint16(applyUmask(mkdirMode))
 
 	t.Run("rmdir", func(t *testing.T) {
 		testFile, testFilePtr, err := test.Path("test-rmdir")
@@ -52,26 +53,12 @@ func TestRmdir(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "rmdir" {
-				t.Errorf("expected rmdir event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
+			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
+			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
-			if inode != event.Rmdir.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
-			}
-
-			if int(event.Rmdir.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Rmdir.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Rmdir.File.MTime.After(now) || event.Rmdir.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Rmdir.File.MTime)
-			}
-
-			if event.Rmdir.File.CTime.After(now) || event.Rmdir.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Rmdir.File.CTime)
-			}
+			assertNearTime(t, event.Rmdir.File.MTime)
+			assertNearTime(t, event.Rmdir.File.CTime)
 
 			testContainerPath(t, event, "rmdir.file.container_path")
 		}
@@ -98,28 +85,50 @@ func TestRmdir(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "rmdir" {
-				t.Errorf("expected rmdir event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
+			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
+			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
-			if inode != event.Rmdir.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
-			}
-
-			if int(event.Rmdir.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Rmdir.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Rmdir.File.MTime.After(now) || event.Rmdir.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Rmdir.File.MTime)
-			}
-
-			if event.Rmdir.File.CTime.After(now) || event.Rmdir.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Rmdir.File.CTime)
-			}
+			assertNearTime(t, event.Rmdir.File.MTime)
+			assertNearTime(t, event.Rmdir.File.CTime)
 
 			testContainerPath(t, event, "rmdir.file.container_path")
 		}
 	})
+}
+
+func TestRmdirInvalidate(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	for i := 0; i != 5; i++ {
+		testFile, _, err := test.Path(fmt.Sprintf("test-rmdir-%d", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Mkdir(testFile, 0777); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := syscall.Rmdir(testFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
+			assertFieldEqual(t, event, "rmdir.file.path", testFile)
+		}
+	}
 }

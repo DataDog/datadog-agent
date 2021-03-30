@@ -42,6 +42,10 @@ type Config struct {
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
 
+	// MaxDNSStats determines the number of separate DNS Stats objects DNSStatkeeper can have at any given time
+	// These stats objects get flushed on every client request (default 30s check interval)
+	MaxDNSStats int
+
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
@@ -87,7 +91,7 @@ type Config struct {
 	// ClientStateExpiry specifies the max time a client (e.g. process-agent)'s state will be stored in memory before being evicted.
 	ClientStateExpiry time.Duration
 
-	// EnableConntrack enables probing conntrack for network address translation via netlink
+	// EnableConntrack enables probing conntrack for network address translation
 	EnableConntrack bool
 
 	// IgnoreConntrackInitFailure will ignore any conntrack initialization failiures during system-probe load. If this is set to false, system-probe
@@ -122,6 +126,9 @@ type Config struct {
 
 	// DriverBufferSize (Windows only) determines the size (in bytes) of the buffer we pass to the driver when reading flows
 	DriverBufferSize int
+
+	// EnableGatewayLookup enables looking up gateway information for connection destinations
+	EnableGatewayLookup bool
 }
 
 // NewDefaultConfig enables traffic collection for all connection types
@@ -143,6 +150,7 @@ func NewDefaultConfig() *Config {
 		ConntrackRateLimit:           500,
 		EnableConntrackAllNamespaces: true,
 		EnableConntrack:              true,
+		EnableGatewayLookup:          false,
 		IgnoreConntrackInitFailure:   false,
 		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
 		MaxClosedConnectionsBuffered: 50000,
@@ -155,6 +163,7 @@ func NewDefaultConfig() *Config {
 		CollectDNSStats:      true,
 		CollectDNSDomains:    false,
 		DNSTimeout:           15 * time.Second,
+		MaxDNSStats:          10000,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,
 	}

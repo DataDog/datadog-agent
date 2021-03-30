@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 )
 
 func TestSetXAttr(t *testing.T) {
@@ -44,7 +45,7 @@ func TestSetXAttr(t *testing.T) {
 	xattrValuePtr := unsafe.Pointer(&[]byte{})
 
 	fileMode := 0o777
-	expectedMode := applyUmask(fileMode)
+	expectedMode := uint16(applyUmask(fileMode))
 
 	t.Run("setxattr", func(t *testing.T) {
 		testFile, testFilePtr, err := test.CreateWithOptions("test-setxattr", 98, 99, fileMode)
@@ -62,30 +63,14 @@ func TestSetXAttr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "setxattr" {
-				t.Errorf("expected setxattr event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
+			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
+			assert.Equal(t, event.SetXAttr.Namespace, "user")
+			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
 
-			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
-				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
-			}
-
-			if inode := getInode(t, testFile); inode != event.SetXAttr.File.Inode {
-				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
-			}
-
-			if int(event.SetXAttr.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
-			}
-
-			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
-			}
+			assertNearTime(t, event.SetXAttr.File.MTime)
+			assertNearTime(t, event.SetXAttr.File.CTime)
 
 			testContainerPath(t, event, "setxattr.file.container_path")
 		}
@@ -121,13 +106,16 @@ func TestSetXAttr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "setxattr" {
-				t.Errorf("expected setxattr event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
+			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
+			assert.Equal(t, event.SetXAttr.Namespace, "user")
+			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.SetXAttr.File.Mode, 0777)
 
-			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
-				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
-			}
+			assertNearTime(t, event.SetXAttr.File.MTime)
+			assertNearTime(t, event.SetXAttr.File.CTime)
+
+			testContainerPath(t, event, "setxattr.file.container_path")
 		}
 	})
 
@@ -153,30 +141,14 @@ func TestSetXAttr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "setxattr" {
-				t.Errorf("expected setxattr event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
+			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
+			assert.Equal(t, event.SetXAttr.Namespace, "user")
+			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
 
-			if event.SetXAttr.Name != "user.test_xattr" || event.SetXAttr.Namespace != "user" {
-				t.Errorf("expected setxattr name user.test_xattr, got %s", event.SetXAttr.Name)
-			}
-
-			if inode := getInode(t, testFile); inode != event.SetXAttr.File.Inode {
-				t.Logf("expected inode %d, got %d", event.SetXAttr.File.Inode, inode)
-			}
-
-			if int(event.SetXAttr.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.SetXAttr.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.SetXAttr.File.MTime.After(now) || event.SetXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.SetXAttr.File.MTime)
-			}
-
-			if event.SetXAttr.File.CTime.After(now) || event.SetXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.SetXAttr.File.CTime)
-			}
+			assertNearTime(t, event.SetXAttr.File.MTime)
+			assertNearTime(t, event.SetXAttr.File.CTime)
 
 			testContainerPath(t, event, "setxattr.file.container_path")
 		}
@@ -240,30 +212,14 @@ func TestRemoveXAttr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "removexattr" {
-				t.Errorf("expected removexattr event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
+			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
 
-			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
-				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
-			}
+			assert.Equal(t, event.RemoveXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.RemoveXAttr.File.Mode, uint16(expectedMode))
 
-			if inode := getInode(t, testFile); inode != event.RemoveXAttr.File.Inode {
-				t.Logf("expected inode %d, got %d", event.RemoveXAttr.File.Inode, inode)
-			}
-
-			if int(event.RemoveXAttr.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.RemoveXAttr.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
-			}
-
-			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
-			}
+			assertNearTime(t, event.RemoveXAttr.File.MTime)
+			assertNearTime(t, event.RemoveXAttr.File.CTime)
 
 			testContainerPath(t, event, "removexattr.file.container_path")
 		}
@@ -306,13 +262,16 @@ func TestRemoveXAttr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "removexattr" {
-				t.Errorf("expected removexattr event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
+			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
 
-			if event.RemoveXAttr.Name != "user.test_xattr" || event.RemoveXAttr.Namespace != "user" {
-				t.Errorf("expected removexattr name user.test_xattr, got %s", event.RemoveXAttr.Name)
-			}
+			assert.Equal(t, event.RemoveXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.RemoveXAttr.File.Mode, 0777)
+
+			assertNearTime(t, event.RemoveXAttr.File.MTime)
+			assertNearTime(t, event.RemoveXAttr.File.CTime)
+
+			testContainerPath(t, event, "removexattr.file.container_path")
 		}
 	})
 

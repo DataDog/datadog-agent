@@ -22,6 +22,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// but this do.
 	aggregatorInstance.serializer = serializer.NewSerializer(forwarder.NewDefaultForwarder(
 		forwarder.NewOptions(map[string][]string{"hello": {"world"}})),
+		nil,
 	)
 	checkSampler := newCheckSampler()
 

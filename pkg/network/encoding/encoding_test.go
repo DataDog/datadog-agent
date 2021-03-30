@@ -55,7 +55,11 @@ func TestSerialization(t *testing.T) {
 						DNSCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
-
+				Via: &network.Via{
+					Subnet: network.Subnet{
+						Alias: "subnet-foo",
+					},
+				},
 				HTTPStatsByPath: map[string]http.RequestStats{
 					"/testpath": httpReqStats,
 				},
@@ -98,7 +102,7 @@ func TestSerialization(t *testing.T) {
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
-
+				RouteIdx: 0,
 				HttpStatsByPath: map[string]*model.HTTPStats{
 					"/testpath": {
 						StatsByResponseStatus: []*model.HTTPStats_Data{
@@ -131,6 +135,14 @@ func TestSerialization(t *testing.T) {
 			"172.217.12.145": {Names: []string{"golang.org"}},
 		},
 		Domains: []string{"foo.com"},
+		Routes: []*model.Route{
+			{
+				Subnet: &model.Subnet{
+					Alias: "subnet-foo",
+				},
+			},
+		},
+		CompilationTelemetryByAsset: map[string]*model.RuntimeCompilationTelemetry{},
 	}
 
 	t.Run("requesting application/json serialization", func(t *testing.T) {
@@ -157,20 +169,6 @@ func TestSerialization(t *testing.T) {
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
-		result, err := unmarshaler.Unmarshal(blob)
-		require.NoError(t, err)
-		assert.Equal(out, result)
-	})
-
-	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
-		assert := assert.New(t)
-		marshaler := GetMarshaler("application/protobuf")
-		assert.Equal("application/protobuf", marshaler.ContentType())
-
-		blob, err := marshaler.Marshal(in)
-		require.NoError(t, err)
-
-		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 		assert.Equal(out, result)
@@ -214,6 +212,24 @@ func TestSerialization(t *testing.T) {
 		} {
 			assert.Contains(res.Conns[0], field)
 		}
+	})
+
+	// protobufs evaluate empty maps as nil
+	out.CompilationTelemetryByAsset = nil
+
+	t.Run("requesting application/protobuf serialization", func(t *testing.T) {
+		assert := assert.New(t)
+		marshaler := GetMarshaler("application/protobuf")
+		assert.Equal("application/protobuf", marshaler.ContentType())
+
+		blob, err := marshaler.Marshal(in)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		assert.Equal(out, result)
 	})
 }
 

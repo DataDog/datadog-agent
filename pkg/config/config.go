@@ -145,7 +145,6 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	InitConfig(Datadog)
-	detectFeatures()
 }
 
 // InitConfig initializes the config defaults on a config
@@ -307,6 +306,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the two following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
@@ -365,7 +366,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control how long we keep dogstatsd contexts in memory. This should
+	// not be set bellow 2 dogstatsd bucket size (ie 20s, since each bucket
+	// is 10s), otherwise we won't be able to sample unseen counter as
+	// contexts will be deleted (see 'dogstatsd_expiry_seconds').
+	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 300)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
@@ -410,6 +417,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
+	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
+	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -532,6 +541,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.ca_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.cert_file", "")
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.key_file", "")
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_include", []string{})
+	config.BindEnvAndSetDefault("cloud_foundry_bbs.env_exclude", []string{})
 
 	// Cloud Foundry CC
 	config.BindEnvAndSetDefault("cloud_foundry_cc.url", "https://cloud-controller-ng.service.cf.internal:9024")
@@ -590,8 +601,8 @@ func InitConfig(config Config) {
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 
-	// Duration in minutes during which the host tags will be submitted with log events.
-	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // in minutes
+	// Duration during which the host tags will be submitted with log events.
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // duration-formatted string (parsed by `time.ParseDuration`)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
@@ -784,6 +795,7 @@ func InitConfig(config Config) {
 	config.SetKnown("system_probe_config.closed_channel_size")
 	config.SetKnown("system_probe_config.dns_timeout_in_s")
 	config.SetKnown("system_probe_config.collect_dns_stats")
+	config.SetKnown("system_probe_config.max_dns_stats")
 	config.SetKnown("system_probe_config.collect_dns_domains")
 	config.SetKnown("system_probe_config.offset_guess_threshold")
 	config.SetKnown("system_probe_config.enable_tcp_queue_length")
@@ -802,6 +814,7 @@ func InitConfig(config Config) {
 	config.SetKnown("network_config.enabled")
 	config.SetKnown("network_config.enable_http_monitoring")
 	config.SetKnown("network_config.ignore_conntrack_init_failure")
+	config.SetKnown("network_config.enable_gateway_lookup")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -815,6 +828,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.remote_tagger", false)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -840,6 +854,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.pid_cache_size", 10000)
 	config.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
+	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1001,6 +1016,9 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
+	// Environment feature detection needs to run before applying override funcs
+	// as it may provide such overrides
+	detectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)

@@ -10,6 +10,7 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -119,6 +120,7 @@ type DesiredLRP struct {
 	ProcessGUID        string
 	SpaceGUID          string
 	SpaceName          string
+	TagsFromEnv        []string
 }
 
 // CFApp carries the necessary data about a CF App obtained from the CC API
@@ -151,7 +153,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 }
 
 // DesiredLRPFromBBSModel creates a new DesiredLRP from BBS's DesiredLRP model
-func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
+func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
 	envVA := map[string]string{}
@@ -181,6 +183,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		}
 	}
 
+	var tagsFromEnv []string
 	var err error
 	for _, envVars := range actionEnvs {
 		for _, ev := range envVars {
@@ -202,6 +205,10 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvVcapApplicationName, bbsLRP.ProcessGuid, err.Error())
 				}
+			}
+
+			if isAllowedTag(ev.Name, includeList, excludeList) {
+				tagsFromEnv = append(tagsFromEnv, fmt.Sprintf("%s:%s", ev.Name, ev.Value))
 			}
 		}
 		if len(envAD) > 0 {
@@ -238,6 +245,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 	} else {
 		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
 	}
+
 	d := DesiredLRP{
 		AppGUID:            appGUID,
 		AppName:            appName,
@@ -249,6 +257,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		ProcessGUID:        bbsLRP.ProcessGuid,
 		SpaceGUID:          extractVA[SpaceIDKey],
 		SpaceName:          extractVA[SpaceNameKey],
+		TagsFromEnv:        tagsFromEnv,
 	}
 	return d
 }
@@ -270,8 +279,37 @@ func (dlrp *DesiredLRP) GetTagsFromDLRP() []string {
 			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 		}
 	}
+	tags = append(tags, dlrp.TagsFromEnv...)
 	sort.Strings(tags)
 	return tags
+}
+
+func isAllowedTag(value string, includeList, excludeList []*regexp.Regexp) bool {
+	// Return false if a key is in excluded
+	// Return true if a key is included or there are no excludeList nor includeList patterns
+	// excludeList takes precedence, i.e. return false if a key matches both a includeList and excludeList pattern
+
+	// If there is no includeList nor excludeList, return false
+	if len(includeList) == 0 && len(excludeList) == 0 {
+		return false
+	}
+
+	// If there is no includeList, assume at first the value is allowed, then refine decision based on excludeList.
+	allowed := len(includeList) == 0
+
+	for _, re := range includeList {
+		if re.Match([]byte(value)) {
+			allowed = true
+			break
+		}
+	}
+	for _, re := range excludeList {
+		if re.Match([]byte(value)) {
+			allowed = false
+			break
+		}
+	}
+	return allowed
 }
 
 func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {

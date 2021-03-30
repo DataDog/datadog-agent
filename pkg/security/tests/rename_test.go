@@ -8,13 +8,15 @@
 package tests
 
 import (
+	"fmt"
 	"os"
+	"path"
 	"runtime"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestRename(t *testing.T) {
@@ -30,7 +32,7 @@ func TestRename(t *testing.T) {
 	defer test.Close()
 
 	fileMode := 0o447
-	expectedMode := applyUmask(fileMode)
+	expectedMode := uint16(applyUmask(fileMode))
 	testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-rename", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
@@ -54,41 +56,20 @@ func TestRename(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "rename" {
-				t.Errorf("expected rename event, got %s", event.GetType())
-			}
-
-			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
-				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "rename", "wrong event type")
+			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
-			}
+			assertRights(t, event.Rename.Old.Mode, expectedMode)
+			assertNearTime(t, event.Rename.Old.MTime)
+			assertNearTime(t, event.Rename.Old.CTime)
 
-			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
-			}
-
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
-			}
-
-			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
-			}
-
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
-			}
-
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
-			}
+			assertRights(t, event.Rename.New.Mode, expectedMode)
+			assertNearTime(t, event.Rename.New.MTime)
+			assertNearTime(t, event.Rename.New.CTime)
 		}
 	})
 
@@ -106,41 +87,20 @@ func TestRename(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "rename" {
-				t.Errorf("expected rename event, got %s", event.GetType())
-			}
-
-			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
-				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "rename", "wrong event type")
+			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
-			}
+			assertRights(t, event.Rename.Old.Mode, expectedMode)
+			assertNearTime(t, event.Rename.Old.MTime)
+			assertNearTime(t, event.Rename.Old.CTime)
 
-			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
-			}
-
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
-			}
-
-			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
-			}
-
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
-			}
-
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
-			}
+			assertRights(t, event.Rename.New.Mode, expectedMode)
+			assertNearTime(t, event.Rename.New.MTime)
+			assertNearTime(t, event.Rename.New.CTime)
 		}
 	})
 
@@ -168,41 +128,218 @@ func TestRename(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "rename" {
-				t.Errorf("expected rename event, got %s", event.GetType())
-			}
-
-			if inode := getInode(t, testNewFile); inode != event.Rename.New.Inode {
-				t.Logf("expected inode %d, got %d", event.Rename.New.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "rename", "wrong event type")
+			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			testContainerPath(t, event, "rename.file.container_path")
 			testContainerPath(t, event, "rename.file.destination.container_path")
 
-			if int(event.Rename.Old.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected old mode %d, got %d", expectedMode, event.Rename.Old.Mode)
-			}
+			assertRights(t, event.Rename.Old.Mode, expectedMode)
+			assertNearTime(t, event.Rename.Old.MTime)
+			assertNearTime(t, event.Rename.Old.CTime)
 
-			now := time.Now()
-			if event.Rename.Old.MTime.After(now) || event.Rename.Old.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old mtime close to %s, got %s", now, event.Rename.Old.MTime)
-			}
-
-			if event.Rename.Old.CTime.After(now) || event.Rename.Old.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected old ctime close to %s, got %s", now, event.Rename.Old.CTime)
-			}
-
-			if int(event.Rename.New.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected new mode %d, got %d", expectedMode, event.Rename.New.Mode)
-			}
-
-			if event.Rename.New.MTime.After(now) || event.Rename.New.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new mtime close to %s, got %s", now, event.Rename.New.MTime)
-			}
-
-			if event.Rename.New.CTime.After(now) || event.Rename.New.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected new ctime close to %s, got %s", now, event.Rename.New.CTime)
-			}
+			assertRights(t, event.Rename.New.Mode, expectedMode)
+			assertNearTime(t, event.Rename.New.MTime)
+			assertNearTime(t, event.Rename.New.CTime)
 		}
 	})
+}
+
+func TestRenameInvalidate(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `rename.file.path in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testOldFile, _, err := test.Path("test-rename")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := os.Create(testOldFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	testNewFile, _, err := test.Path("test2-rename")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i != 5; i++ {
+		if err := os.Rename(testOldFile, testNewFile); err != nil {
+			t.Fatal(err)
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "rename", "wrong event type")
+			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
+		}
+
+		// swap
+		old := testOldFile
+		testOldFile = testNewFile
+		testNewFile = old
+	}
+}
+
+func TestRenameReuseInode(t *testing.T) {
+	rules := []*rules.RuleDefinition{{
+		ID:         "test_rule",
+		Expression: `open.file.path == "{{.Root}}/test-rename-reuse-inode"`,
+	}, {
+		ID:         "test_rule2",
+		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
+	}}
+
+	testDrive, err := newTestDrive("xfs", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testOldFile, _, err := test.Path("test-rename-old")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := os.Create(testOldFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testOldFile)
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	testNewFile, _, err := test.Path("test-rename-new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testNewFile)
+
+	f, err = os.Create(testNewFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testNewFileInode := getInode(t, testNewFile)
+
+	event, _, err := test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		assert.Equal(t, event.GetType(), "open", "wrong event type")
+	}
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Rename(testOldFile, testNewFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// At this point, the inode of test-rename-new was freed. We then
+	// create a new file - with xfs, it will recycle the inode. This test
+	// checks that we properly invalidated the cache entry of this inode.
+
+	testReuseInodeFile, _, err := test.Path("test-rename-reuse-inode")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f, err = os.Create(testReuseInodeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testReuseInodeFile)
+
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	event, _, err = test.GetEvent()
+	if err != nil {
+		t.Error(err)
+	} else {
+		assert.Equal(t, event.GetType(), "open", "wrong event type")
+		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
+		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
+	}
+}
+
+func TestRenameFolder(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testOldFolder, _, err := test.Path(path.Dir("folder/folder-old/test-rename"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.MkdirAll(testOldFolder, os.ModePerm)
+
+	testNewFolder, _, err := test.Path(path.Dir("folder/folder-new/test-rename"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	filename := fmt.Sprintf("%s/test-rename", testOldFolder)
+	defer os.Remove(filename)
+
+	for i := 0; i != 5; i++ {
+		testFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testFile.Close()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assertFieldEqual(t, event, "open.file.path", filename)
+
+			// swap
+			if err := os.Rename(testOldFolder, testNewFolder); err != nil {
+				t.Fatal(err)
+			}
+
+			old := testOldFolder
+			testOldFolder = testNewFolder
+			testNewFolder = old
+
+			filename = fmt.Sprintf("%s/test-rename", testOldFolder)
+		}
+	}
 }

@@ -21,7 +21,7 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_SETXATTR,
         .policy = policy,
-        .setxattr = {
+        .xattr = {
             .name = xattr_name,
         }
     };
@@ -52,7 +52,7 @@ int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name
     struct syscall_cache_t syscall = {
         .type = SYSCALL_REMOVEXATTR,
         .policy = policy,
-        .setxattr = {
+        .xattr = {
             .name = xattr_name,
         }
     };
@@ -79,17 +79,17 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     if (!syscall)
         return 0;
 
-    if (syscall->setxattr.path_key.ino) {
+    if (syscall->xattr.file.path_key.ino) {
         return 0;
     }
 
     struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-    syscall->setxattr.dentry = dentry;
+    syscall->xattr.dentry = dentry;
 
-    set_path_key_inode(syscall->setxattr.dentry, &syscall->setxattr.path_key, 0);
+    set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
+    int ret = resolve_dentry(syscall->xattr.dentry, syscall->xattr.file.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
     if (ret == DENTRY_DISCARDED) {
         return 0;
     }
@@ -118,20 +118,15 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, 
 
     struct setxattr_event_t event = {
         .syscall.retval = retval,
-        .file = {
-            .inode = syscall->setxattr.path_key.ino,
-            .mount_id = syscall->setxattr.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->setxattr.dentry),
-            .path_id = syscall->setxattr.path_key.path_id,
-        },
+        .file = syscall->xattr.file,
     };
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->setxattr.name);
+    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->xattr.name);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
-    fill_file_metadata(syscall->setxattr.dentry, &event.file.metadata);
+    fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
 
     send_event(ctx, event_type, event);
 

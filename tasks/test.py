@@ -18,31 +18,11 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
 
-
-class GoModule:
-    """A Go module abstraction."""
-
-    def __init__(self, path, targets=None, condition=lambda: True):
-        if targets is None:
-            targets = ["."]
-
-        self.path = path
-        self.targets = targets
-        self.condition = condition
-
-    def full_path(self):
-        return os.path.abspath(self.path)
-
-
 PROFILE_COV = "profile.cov"
-
-DEFAULT_MODULES = [
-    GoModule(".", targets=["./pkg", "./cmd"]),
-]
-
 DEFAULT_GIT_BRANCH = 'master'
 
 
@@ -75,6 +55,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
+    save_result_json=None,
     go_mod="mod",
 ):
     """
@@ -97,12 +78,12 @@ def test(
         if isinstance(targets, str):
             modules = [GoModule(module, targets=targets.split(','))]
         else:
-            modules = [m for m in DEFAULT_MODULES if m.path == module]
+            modules = [m for m in DEFAULT_MODULES.values() if m.path == module]
     elif isinstance(targets, str):
         modules = [GoModule(".", targets=targets.split(','))]
     else:
         print("Using default modules and targets")
-        modules = DEFAULT_MODULES
+        modules = DEFAULT_MODULES.values()
 
     build_include = (
         get_default_build_tags(build="test-with-process-tags", arch=arch)
@@ -215,7 +196,14 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go run gotest.tools/gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    TMP_JSON = 'tmp.json'
+    if save_result_json and os.path.isfile(save_result_json):
+        # Remove existing file since we append to it.
+        # We don't need to do that for TMP_JSON since gotestsum overwrites the output.
+        print("Removing existing '{}' file".format(save_result_json))
+        os.remove(save_result_json)
+
+    cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -229,8 +217,10 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
+        "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
     }
 
+    failed_modules = []
     for module in modules:
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
@@ -238,11 +228,28 @@ def test(
             continue
 
         with ctx.cd(module.full_path()):
-            ctx.run(
-                cmd.format(pkg_folder=' '.join("{}/...".format(t) for t in module.targets), **args),
+            res = ctx.run(
+                cmd.format(
+                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    **args
+                ),
                 env=env,
                 out_stream=test_profiler,
+                warn=True,
             )
+
+        if res.exited is None or res.exited > 0:
+            failed_modules.append(module.full_path())
+
+        if save_result_json:
+            with open(save_result_json, 'ab') as json_file, open(
+                os.path.join(module.full_path(), TMP_JSON), 'rb'
+            ) as module_file:
+                json_file.write(module_file.read())
+
+    if failed_modules:
+        # Exit if any of the modules failed
+        raise Exit(code=1, message="Unit tests failed in the following modules: {}".format(', '.join(failed_modules)))
 
     if coverage:
         print("\n--- Test coverage:")

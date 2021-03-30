@@ -19,7 +19,19 @@ var openProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
+		Section: "kprobe/vfs_open",
+	},
+	{
+		UID:     SecurityAgentUID,
 		Section: "kprobe/do_dentry_open",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/io_openat2",
+	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kretprobe/io_openat2",
 	},
 }
 
