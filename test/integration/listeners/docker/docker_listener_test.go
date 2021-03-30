@@ -178,7 +178,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	var excludedEntity string
 
 	for _, container := range containerIDs {
-		inspect, err := suite.dockerutil.Inspect(container, false)
+		inspect, err := suite.dockerutil.Inspect(ctx, container, false)
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
@@ -203,7 +203,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	assert.Len(suite.T(), services, 2)
 
 	for _, service := range services {
-		pid, err := service.GetPid()
+		pid, err := service.GetPid(ctx)
 		assert.Nil(suite.T(), err)
 		assert.True(suite.T(), pid > 0)
 		hosts, err := service.GetHosts(ctx)
