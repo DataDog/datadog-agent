@@ -48,6 +48,6 @@ docker run --rm -v "$(Get-Location):c:\mnt" <image> powershell -C "c:\mnt\genera
 
 > SHA256 Sum of resulting zip: 7fd3a854f87f9cb8c3f5eb784dc3488b1b536014442e7b31ebd5dbf4e48c73bc
 
-And a file ` python-windows-3.8.1-amd64.zip` should appear in the current directory.
+And a file ` python-windows-3.8.1-x64.zip` should appear in the current directory.
 The SHA256 Sum can be copied into the omnibus definition.  The zip can be copied to the appropriate S3 bucket.
 

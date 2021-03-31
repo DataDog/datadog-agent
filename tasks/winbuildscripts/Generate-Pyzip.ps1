@@ -21,7 +21,7 @@ if($maj -eq "2") {
     Write-Host -ForegroundColor Red "Unknown major version $Maj.  I don't know how to do this"
     exit 1
 }
-$outzip = "python-windows-$Version-amd64.zip"
+$outzip = "python-windows-$Version-x64.zip"
 if($x86 -eq $true){
     if($maj -eq "2") {
         $url = "https://www.python.org/ftp/python/$Version/python-$Version.msi"
