@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -21,13 +20,8 @@ func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
 		out, err := c.CombinedOutput()
 		output = append(output, string(out))
 		if err != nil && !ignoreErrors {
-			errStr := fmt.Sprintf("%s returned %s: %s", c, err, out)
-			if ignoreErrors {
-				t.Log(errStr)
-			} else {
-				t.Fatal(errStr)
-				return nil
-			}
+			t.Fatalf("%s returned %s: %s", c, err, out)
+			return nil
 		}
 	}
 	return output
