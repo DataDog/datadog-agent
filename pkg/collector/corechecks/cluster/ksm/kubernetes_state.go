@@ -506,8 +506,7 @@ func isKnownMetric(name string) bool {
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It denies all *_created metrics except for kube_node_created and kube_pod_created.
-// buildDeniedMetricsSet allows us to get kube_node_created and kube_pod_created and deny
+// It allows us to get kube_node_created and kube_pod_created and deny
 // the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
 func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	deniedMetrics := defaultDeniedMetrics

@@ -151,7 +151,7 @@ func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmst
 }
 
 // submitAge generates a resource age or uptime metric based on a given timestamp
-// The metric value must corresponds to a timestamp
+// The metric value must correspond to a timestamp
 func submitAge(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
 	s.Gauge(name, float64(now().Unix())-metric.Val, hostname, tags)
 }
@@ -166,7 +166,7 @@ func podCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DD
 	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags)
 }
 
-// podStartTimeTransformer generates the pod age metric based on the start time timestamp
+// podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
 func podStartTimeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
 	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags)
 }
