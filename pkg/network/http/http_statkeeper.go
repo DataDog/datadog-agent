@@ -5,6 +5,7 @@ package http
 import (
 	"C"
 )
+import "sync/atomic"
 
 type httpStatKeeper struct {
 	stats      map[Key]RequestStats
@@ -43,7 +44,8 @@ func (h *httpStatKeeper) Process(transactions []httpTX) {
 		h.stats[key] = stats
 	}
 
-	h.telemetry.dropped(dropped)
+	atomic.AddInt64(&h.telemetry.dropped, int64(dropped))
+	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {

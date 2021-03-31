@@ -128,6 +128,10 @@ func (m *Monitor) Start() error {
 
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
+
+				delta := m.telemetry.reset()
+				delta.report()
+
 				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
@@ -151,9 +155,6 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	if m.stopped {
 		return nil
 	}
-
-	// This will log some HTTP stats until we figure out a better way to handle HTTP telemetry
-	defer m.telemetry.get()
 
 	reply := make(chan map[Key]RequestStats, 1)
 	defer close(reply)
