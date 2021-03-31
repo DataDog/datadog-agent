@@ -34,10 +34,14 @@ func (m *Model) NewEvent() eval.Event {
 }
 
 // ValidateField validates the value of a field
-func (m *Model) ValidateField(key string, field eval.FieldValue) error {
+func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	// check that all path are absolute
-	if strings.HasSuffix(key, "path") {
-		if value, ok := field.Value.(string); ok {
+	if strings.HasSuffix(field, "path") {
+		if fieldValue.Type == eval.RegexpValueType {
+			return fmt.Errorf("regexp not supported on path `%s`", field)
+		}
+
+		if value, ok := fieldValue.Value.(string); ok {
 			errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
 			errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
 			errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
@@ -67,10 +71,10 @@ func (m *Model) ValidateField(key string, field eval.FieldValue) error {
 		}
 	}
 
-	switch key {
+	switch field {
 
 	case "event.retval":
-		if value := field.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
+		if value := fieldValue.Value; value != -int(syscall.EPERM) && value != -int(syscall.EACCES) {
 			return errors.New("return value can only be tested against EPERM or EACCES")
 		}
 	}
