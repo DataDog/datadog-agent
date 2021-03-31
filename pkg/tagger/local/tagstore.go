@@ -202,14 +202,20 @@ func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
 	s.subscriber.Notify(events)
 }
 
-// prune will lock the store and delete tags for the entity previously
-// passed as delete. This is to be called regularly from the user class.
-func (s *tagStore) prune() error {
+// prune deletes tags for entities that are deleted or with empty entries.
+// This is to be called regularly from the user class.
+func (s *tagStore) prune() {
+	s.pruneDeletedEntities()
+	s.pruneEmptyEntries()
+}
+
+// pruneDeletedEntities will lock the store and delete tags for the entity previously passed as deleted.
+func (s *tagStore) pruneDeletedEntities() {
 	s.Lock()
 	defer s.Unlock()
 
 	if len(s.toDelete) == 0 {
-		return nil
+		return
 	}
 
 	events := []types.EntityEvent{}
@@ -229,6 +235,7 @@ func (s *tagStore) prune() error {
 		}
 
 		if len(storedTags.sourceTags) == 0 {
+			telemetry.PrunedEntities.Inc(string(telemetry.DeletedEntity))
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
@@ -244,7 +251,7 @@ func (s *tagStore) prune() error {
 		}
 	}
 
-	log.Debugf("pruned %d removed entities, %d remaining", len(s.toDelete), len(s.store))
+	log.Debugf("Pruned %d entities marked as deleted, %d remaining", len(s.toDelete), len(s.store))
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})
@@ -252,8 +259,30 @@ func (s *tagStore) prune() error {
 	if len(events) > 0 {
 		s.notifySubscribers(events)
 	}
+}
 
-	return nil
+// pruneEmptyEntries will lock the store and delete tags for entities with empty entries.
+func (s *tagStore) pruneEmptyEntries() {
+	s.Lock()
+	defer s.Unlock()
+
+	events := []types.EntityEvent{}
+
+	for entity, storedTags := range s.store {
+		if storedTags.isEmpty() {
+			log.Debugf("Pruned empty entry for entity %s", entity)
+			telemetry.PrunedEntities.Inc(string(telemetry.EmptyEntry))
+			delete(s.store, entity)
+			events = append(events, types.EntityEvent{
+				EventType: types.EventTypeDeleted,
+				Entity:    storedTags.toEntity(),
+			})
+		}
+	}
+
+	if len(events) > 0 {
+		s.notifySubscribers(events)
+	}
 }
 
 // lookup gets tags from the store and returns them concatenated in a string
@@ -371,6 +400,20 @@ func (e *entityTags) computeCache() {
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
 	e.cachedOrchestrator = e.cachedAll[:len(lowCardTags)+len(orchestratorCardTags)]
+}
+
+func (e *entityTags) isEmpty() bool {
+	for _, tags := range e.sourceTags {
+		if !tags.isEmpty() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (st *sourceTags) isEmpty() bool {
+	return len(st.lowCardTags) == 0 && len(st.orchestratorCardTags) == 0 && len(st.highCardTags) == 0 && len(st.standardTags) == 0
 }
 
 func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, cardinality collectors.TagCardinality) {
