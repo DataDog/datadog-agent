@@ -391,6 +391,8 @@ core,"github.com/hectane/go-acl/api",MIT
 core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/ianlancetaylor/demangle",NewBSD
+core,"github.com/iceber/iouring-go",MIT
+core,"github.com/iceber/iouring-go/syscall",MIT
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0

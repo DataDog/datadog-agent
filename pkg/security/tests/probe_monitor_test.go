@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -64,9 +65,7 @@ func TestProbeMonitor(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if ruleEvent.RuleID != probe.RulesetLoadedRuleID {
-				t.Errorf("expected %s rule, got %s", probe.RulesetLoadedRuleID, ruleEvent.RuleID)
-			}
+			assert.Equal(t, ruleEvent.RuleID, probe.RulesetLoadedRuleID, "wrong rule")
 		}
 	})
 
@@ -85,9 +84,7 @@ func TestProbeMonitor(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if ruleEvent.RuleID != probe.AbnormalPathRuleID {
-				t.Errorf("expected %s rule, got %s", probe.AbnormalPathRuleID, ruleEvent.RuleID)
-			}
+			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
 		}
 	})
 
@@ -106,9 +103,7 @@ func TestProbeMonitor(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if ruleEvent.RuleID != probe.AbnormalPathRuleID {
-				t.Errorf("expected %s rule, got %s", probe.AbnormalPathRuleID, ruleEvent.RuleID)
-			}
+			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
 		}
 	})
 }
@@ -149,9 +144,7 @@ func TestNoisyProcess(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if ruleEvent.RuleID != probe.NoisyProcessRuleID {
-				t.Errorf("expected %s rule, got %s", probe.NoisyProcessRuleID, ruleEvent.RuleID)
-			}
+			assert.Equal(t, ruleEvent.RuleID, probe.NoisyProcessRuleID, "wrong rule")
 		}
 
 		// make sure the discarder has expired before moving on to other tests
