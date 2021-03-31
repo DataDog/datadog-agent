@@ -32,7 +32,7 @@ type RouteIdx struct {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats map[string]*model.HTTPStats) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats model.HTTPAggregations) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -60,7 +60,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	c.HttpStatsByPath = httpStats
+	c.HttpAggregations, _ = proto.Marshal(&httpStats)
+
 	return c
 }
 
@@ -130,9 +131,9 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 }
 
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[string]*model.HTTPStats {
+func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model.HTTPAggregations {
 	var (
-		aggregated = make(map[http.Key]map[string]*model.HTTPStats, len(httpData))
+		aggregationsByKey = make(map[http.Key]model.HTTPAggregations, len(httpData))
 
 		// Pre-allocate some of the objects
 		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
@@ -144,10 +145,11 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[s
 		path := key.Path
 		key.Path = ""
 
-		statsByPath := aggregated[key]
+		httpAggregations := aggregationsByKey[key]
+		statsByPath := httpAggregations.ByPath
 		if statsByPath == nil {
 			statsByPath = make(map[string]*model.HTTPStats)
-			aggregated[key] = statsByPath
+			aggregationsByKey[key] = model.HTTPAggregations{ByPath: statsByPath}
 		}
 
 		ms := &model.HTTPStats{
@@ -171,7 +173,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]map[s
 		statsByPath[path] = ms
 	}
 
-	return aggregated
+	return aggregationsByKey
 }
 
 func returnToPool(c *model.Connections) {

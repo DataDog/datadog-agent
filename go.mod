@@ -19,6 +19,8 @@ replace (
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
+replace github.com/DataDog/agent-payload => /git/agent-payload
+
 // pinned to grpc v1.26.0
 replace (
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
