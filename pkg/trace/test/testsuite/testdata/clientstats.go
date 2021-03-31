@@ -48,6 +48,8 @@ var ClientStatsTests = []struct {
 			},
 		},
 		Out: pb.StatsPayload{
+			AgentHostname: "agent-hostname",
+			AgentEnv:      "agent-env",
 			Stats: []pb.ClientStatsPayload{{
 				Hostname: "testhost",
 				Env:      "testing",
@@ -135,6 +137,8 @@ var ClientStatsTests = []struct {
 			},
 		},
 		Out: pb.StatsPayload{
+			AgentHostname: "agent-hostname",
+			AgentEnv:      "agent-env",
 			Stats: []pb.ClientStatsPayload{{
 				Hostname: "testhost",
 				Env:      "testing",

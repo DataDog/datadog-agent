@@ -300,7 +300,12 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
 			a.Replacer.ReplaceStatsGroup(&b)
 		}
 	}
-	a.StatsWriter.SendPayload(pb.StatsPayload{Stats: []pb.ClientStatsPayload{in}})
+	out := pb.StatsPayload{
+		Stats:         []pb.ClientStatsPayload{in},
+		AgentEnv:      a.conf.DefaultEnv,
+		AgentHostname: a.conf.Hostname,
+	}
+	a.StatsWriter.SendPayload(out)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
