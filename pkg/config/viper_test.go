@@ -6,7 +6,9 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 
@@ -97,4 +99,60 @@ func TestGetConfigEnvVars(t *testing.T) {
 	// 2 arguments. Not the case at the moment, as demonstrated below.
 	config.BindEnv("config_option", "DD_CONFIG_OPTION")
 	assert.NotContains(t, config.GetEnvVars(), "DD_CONFIG_OPTION")
+}
+
+func TestGetFloat64SliceE(t *testing.T) {
+	config := safeConfig{
+		Viper: viper.New(),
+	}
+	config.SetEnvPrefix("DD")
+	config.BindEnv("float_list")
+	config.SetConfigType("yaml")
+	yamlExample := []byte(`---
+float_list:
+  - 1.1
+  - "2.2"
+  - 3.3
+`)
+	config.ReadConfig(bytes.NewBuffer(yamlExample))
+
+	list, err := config.GetFloat64SliceE("float_list")
+	assert.Nil(t, err)
+	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
+
+	yamlExample = []byte(`---
+float_list:
+  - a
+  - 2.2
+  - 3.3
+`)
+	config.ReadConfig(bytes.NewBuffer(yamlExample))
+
+	list, err = config.GetFloat64SliceE("float_list")
+	assert.NotNil(t, err)
+	assert.Equal(t, "value 'a' from 'float_list' is not a float64", err.Error())
+	assert.Nil(t, list)
+}
+
+func TestGetFloat64SliceEEnv(t *testing.T) {
+	config := safeConfig{
+		Viper: viper.New(),
+	}
+	config.SetEnvPrefix("DD")
+	config.BindEnv("float_list")
+	config.SetConfigType("yaml")
+
+	yamlExample := []byte(`
+float_list:
+- 25
+`)
+
+	config.ReadConfig(bytes.NewBuffer(yamlExample))
+
+	os.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
+	defer os.Unsetenv("DD_FLOAT_LIST")
+
+	list, err := config.GetFloat64SliceE("float_list")
+	assert.Nil(t, err)
+	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }

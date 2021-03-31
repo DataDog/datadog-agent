@@ -46,6 +46,10 @@ var (
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
 	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
+
+	tlmChannel            telemetry.Histogram
+	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
+	once                  sync.Once
 )
 
 func init() {
@@ -56,6 +60,29 @@ func init() {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
+}
+
+func initLatencyTelemetry() {
+	buckets := defaultChannelBuckets
+	option := "telemetry.dogstatsd.aggregator_channel_latency_buckets"
+
+	if !config.Datadog.IsSet(option) {
+		confBuckets, err := config.Datadog.GetFloat64SliceE(option)
+		if err != nil {
+			log.Errorf("%s, falling back to default values", err)
+		} else if len(confBuckets) == 0 {
+			log.Debugf("'%s' is empty, falling back to default values", option)
+		} else {
+			buckets = confBuckets
+		}
+	}
+
+	tlmChannel = telemetry.NewHistogram(
+		"dogstatsd",
+		"channel_latency",
+		[]string{"message_type"},
+		"Time in millisecond to push metrics to the aggregator input buffer",
+		buckets)
 }
 
 // Server represent a Dogstatsd server
@@ -133,6 +160,9 @@ type metricsCountBuckets struct {
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
 func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+	// This needs to be done after the configuration is loaded
+	once.Do(initLatencyTelemetry)
+
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")

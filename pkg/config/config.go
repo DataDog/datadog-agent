@@ -725,6 +725,14 @@ func InitConfig(config Config) {
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.SetKnown("telemetry.checks")
+	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
+	//
+	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for the DogStatsD server to push data to the aggregator
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.

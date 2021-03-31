@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,11 +22,6 @@ var (
 	udpPacketReadingErrors = expvar.Int{}
 	udpPackets             = expvar.Int{}
 	udpBytes               = expvar.Int{}
-
-	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
-		[]string{"state"}, "Dogstatsd UDP packets count")
-	tlmUDPPacketsBytes = telemetry.NewCounter("dogstatsd", "udp_packets_bytes",
-		nil, "Dogstatsd UDP packets bytes count")
 )
 
 func init() {
@@ -93,10 +88,13 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
+	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(l.buffer)
+		t1 = time.Now()
+		udpPackets.Add(1)
+
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -106,15 +104,18 @@ func (l *UDPListener) Listen() {
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
 			udpPacketReadingErrors.Add(1)
 			tlmUDPPackets.Inc("error")
-			continue
+		} else {
+			tlmUDPPackets.Inc("ok")
+
+			udpBytes.Add(int64(n))
+			tlmUDPPacketsBytes.Add(float64(n))
+
+			// packetAssembler merges multiple packets together and sends them when its buffer is full
+			l.packetAssembler.addMessage(l.buffer[:n])
 		}
-		tlmUDPPackets.Inc("ok")
 
-		udpBytes.Add(int64(n))
-		tlmUDPPacketsBytes.Add(float64(n))
-
-		// packetAssembler merges multiple packets together and sends them when its buffer is full
-		l.packetAssembler.addMessage(l.buffer[:n])
+		t2 = time.Now()
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
 	}
 }
 
