@@ -65,7 +65,6 @@ type Delta struct {
 }
 
 type telemetry struct {
-	unorderedConns     int64
 	closedConnDropped  int64
 	connDropped        int64
 	statsResets        int64
@@ -305,14 +304,8 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 
 	for _, client := range ns.clients {
 		// If we've seen this closed connection already, lets combine the two
+		// batch ids and processed state tracking prevent double-counting
 		if prev, ok := client.closedConnections[string(key)]; ok {
-			// We received either the connections either out of order, or it's the same one we've already seen.
-			// Lets skip it for now.
-			if prev.LastUpdateEpoch >= conn.LastUpdateEpoch {
-				ns.telemetry.unorderedConns++
-				continue
-			}
-
 			prev.MonotonicSentBytes += conn.MonotonicSentBytes
 			prev.MonotonicRecvBytes += conn.MonotonicRecvBytes
 			prev.MonotonicRetransmits += conn.MonotonicRetransmits
@@ -572,9 +565,8 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
+	if ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
 		s := "state telemetry: "
-		s += " [%d unordered conns]"
 		s += " [%d stats stats_resets]"
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
@@ -583,7 +575,6 @@ func (ns *networkState) RemoveConnections(keys []string) {
 		s += " [%d DNS pid collisions]"
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
-			ns.telemetry.unorderedConns,
 			ns.telemetry.statsResets,
 			ns.telemetry.connDropped,
 			ns.telemetry.closedConnDropped,
@@ -614,7 +605,6 @@ func (ns *networkState) GetStats() map[string]interface{} {
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
 			"stats_resets":         ns.telemetry.statsResets,
-			"unordered_conns":      ns.telemetry.unorderedConns,
 			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
 			"conn_dropped":         ns.telemetry.connDropped,
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,

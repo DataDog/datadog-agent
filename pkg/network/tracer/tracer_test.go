@@ -91,7 +91,6 @@ func TestTracerExpvar(t *testing.T) {
 		},
 		"state": {
 			"StatsResets",
-			"UnorderedConns",
 			"ClosedConnDropped",
 			"ConnDropped",
 			"TimeSyncCollisions",
