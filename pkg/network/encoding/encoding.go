@@ -56,6 +56,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	for i, conn := range conns.Conns {
 		httpKey := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
 		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpIndex[httpKey])
+		delete(httpIndex, httpKey)
 	}
 
 	domains := make([]string, len(domainSet))
