@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
@@ -24,10 +23,10 @@ func TestMount(t *testing.T) {
 	dstMntBasename := "test-dest-mount"
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`utimes.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
+		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
 	}
 
-	testDrive, err := newTestDrive("ext4", []string{})
+	testDrive, err := newTestDrive("xfs", []string{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,19 +65,19 @@ func TestMount(t *testing.T) {
 		} else {
 			assert.Equal(t, event.GetType(), "mount", "wrong event type")
 			assert.Equal(t, event.Mount.MountPointStr, "/"+dstMntBasename, "wrong mount point")
-			assert.Equal(t, event.Mount.GetFSType(), "ext4", "wrong event type")
+			assert.Equal(t, event.Mount.GetFSType(), "xfs", "wrong mount fs type")
 
 			mntID = event.Mount.MountID
 		}
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
-		utimFile, utimFilePtr, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
+		file, _, err := testDrive.Path(path.Join(dstMntBasename, "test-mount"))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		f, err := os.Create(utimFile)
+		f, err := os.Create(file)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,23 +85,18 @@ func TestMount(t *testing.T) {
 		if err := f.Close(); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(utimFile)
+		defer os.Remove(file)
 
-		utimbuf := &syscall.Utimbuf{
-			Actime:  123,
-			Modtime: 456,
-		}
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(utimFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(errno)
+		if err := os.Chmod(file, 0707); err != nil {
+			t.Fatal(err)
 		}
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
-			assert.Equal(t, event.Utimes.File.PathnameStr, utimFile, "wrong path")
+			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assert.Equal(t, event.Chmod.File.PathnameStr, file, "wrong path")
 		}
 	})
 
