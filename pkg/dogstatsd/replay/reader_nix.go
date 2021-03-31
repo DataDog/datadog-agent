@@ -9,7 +9,8 @@ package replay
 
 import (
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func getFileMap(path string) ([]byte, error) {
@@ -25,5 +26,9 @@ func getFileMap(path string) ([]byte, error) {
 	}
 	size := int(stat.Size())
 
-	return syscall.Mmap(int(f.Fd()), 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
+	return unix.Mmap(int(f.Fd()), 0, size, unix.PROT_READ, unix.MAP_SHARED)
+}
+
+func unmapFile(b []byte) error {
+	return unix.Munmap(b)
 }

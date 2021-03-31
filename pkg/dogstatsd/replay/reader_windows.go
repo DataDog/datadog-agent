@@ -8,15 +8,26 @@
 package replay
 
 import (
+	"errors"
 	"os"
 	"reflect"
-	"syscall"
+	"sync"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxMapSize = 0xFFFFFFFFFFFF // 256TB
 
 type memoryMap []byte
+
+// keep track of handles
+var (
+	handleLock sync.Mutex
+	handleMap  = map[uintptr]windows.Handle{}
+)
 
 func (m *memoryMap) header() *reflect.SliceHeader {
 	return (*reflect.SliceHeader)(unsafe.Pointer(m))
@@ -36,22 +47,20 @@ func getFileMap(path string) ([]byte, error) {
 	size := int(stat.Size())
 
 	// Open a file mapping handle.
-	sizelo := uint32(size >> 32)
-	sizehi := uint32(size) & 0xffffffff
-
-	h, errno := syscall.CreateFileMapping(syscall.Handle(int(f.Fd())), nil, syscall.PAGE_READONLY, sizelo, sizehi, nil)
+	h, errno := windows.CreateFileMapping(windows.Handle(int(f.Fd())), nil,
+		uint32(windows.PAGE_READONLY), 0, uint32(size), nil)
 	if h == 0 {
 		return nil, os.NewSyscallError("CreateFileMapping", errno)
 	}
 	// Create the memory map.
-	addr, errno := syscall.MapViewOfFile(h, syscall.FILE_MAP_READ, 0, 0, uintptr(size))
+	addr, errno := windows.MapViewOfFile(h, uint32(windows.FILE_MAP_READ), 0, 0, uintptr(size))
 	if addr == 0 {
 		return nil, os.NewSyscallError("MapViewOfFile", errno)
 	}
-	// Close mapping handle.
-	if err := syscall.CloseHandle(syscall.Handle(h)); err != nil {
-		return nil, os.NewSyscallError("CloseHandle", err)
-	}
+
+	handleLock.Lock()
+	handleMap[addr] = h
+	handleLock.Unlock()
 
 	// Convert to a byte array.
 	m := memoryMap{}
@@ -62,4 +71,40 @@ func getFileMap(path string) ([]byte, error) {
 
 	return m, nil
 
+}
+
+func flush(addr, len uintptr) error {
+	errno := windows.FlushViewOfFile(addr, len)
+	return os.NewSyscallError("FlushViewOfFile", errno)
+}
+
+func unmapFile(b []byte) error {
+	m := memoryMap(b)
+	dh := m.header()
+
+	addr := dh.Data
+	size := uintptr(dh.Len)
+
+	err := flush(addr, size)
+	if err != nil {
+		// continue and unmap the file even if there's an error
+		log.Warnf("There was a non-fatal issue flushing the file map: %v", err)
+	}
+
+	err = windows.UnmapViewOfFile(addr)
+	if err != nil {
+		return err
+	}
+
+	handleLock.Lock()
+	defer handleLock.Unlock()
+	handle, ok := handleMap[addr]
+	if !ok {
+		// should be impossible; we would've errored above
+		return errors.New("unknown base address")
+	}
+	delete(handleMap, addr)
+
+	e := windows.CloseHandle(windows.Handle(handle))
+	return os.NewSyscallError("CloseHandle", e)
 }

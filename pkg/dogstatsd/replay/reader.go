@@ -78,6 +78,11 @@ func (tc *TrafficCaptureReader) Read() {
 	}
 }
 
+// Close cleans up any resources used by the TrafficCaptureReader
+func (tc *TrafficCaptureReader) Close() error {
+	return unmapFile(tc.Contents)
+}
+
 // ReadNext reads the next packet found in the file and returns the protobuf representation and an error if any.
 func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 

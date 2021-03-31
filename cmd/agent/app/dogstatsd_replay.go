@@ -69,6 +69,7 @@ func dogstatsdReplay() error {
 	if e != nil {
 		return e
 	}
+	defer reader.Close()
 
 	addr, err := net.ResolveUnixAddr("unixgram", s)
 	if err != nil {
