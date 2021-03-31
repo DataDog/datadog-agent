@@ -232,13 +232,15 @@ func (ctr *realConntracker) register(c Con) int {
 	}
 
 	then := time.Now().UnixNano()
-	defer func() {
-		atomic.AddInt64(&ctr.stats.registers, 2)
-		atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
-	}()
 
 	ctr.Lock()
 	defer ctr.Unlock()
+
+	l := ctr.cache.Len()
+	defer func() {
+		atomic.AddInt64(&ctr.stats.registers, int64(ctr.cache.Len()-l))
+		atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
+	}()
 
 	ctr.cache.Add(c, true)
 
@@ -357,6 +359,10 @@ func (cc *conntrackCache) Add(c Con, orphan bool) {
 
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
+}
+
+func (cc *conntrackCache) Len() int {
+	return cc.cache.Len()
 }
 
 func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
