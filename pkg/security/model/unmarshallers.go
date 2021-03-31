@@ -150,7 +150,10 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
-	e.TTYName = string(bytes.Trim(ttyRaw[:], "\x00"))
+	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
+	if IsPrintable(ttyName) {
+		e.TTYName = ttyName
+	}
 	read += 64
 
 	var commRaw [16]byte

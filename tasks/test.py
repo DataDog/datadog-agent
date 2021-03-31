@@ -55,6 +55,7 @@ def test(
     arch="x64",
     cache=True,
     skip_linters=False,
+    save_result_json=None,
     go_mod="mod",
 ):
     """
@@ -195,7 +196,14 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'go run gotest.tools/gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    TMP_JSON = 'tmp.json'
+    if save_result_json and os.path.isfile(save_result_json):
+        # Remove existing file since we append to it.
+        # We don't need to do that for TMP_JSON since gotestsum overwrites the output.
+        print("Removing existing '{}' file".format(save_result_json))
+        os.remove(save_result_json)
+
+    cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
@@ -209,8 +217,10 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
+        "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
     }
 
+    failed_modules = []
     for module in modules:
         print("----- Module '{}'".format(module.full_path()))
         if not module.condition():
@@ -218,11 +228,28 @@ def test(
             continue
 
         with ctx.cd(module.full_path()):
-            ctx.run(
-                cmd.format(pkg_folder=' '.join("{}/...".format(t) for t in module.targets), **args),
+            res = ctx.run(
+                cmd.format(
+                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    **args
+                ),
                 env=env,
                 out_stream=test_profiler,
+                warn=True,
             )
+
+        if res.exited is None or res.exited > 0:
+            failed_modules.append(module.full_path())
+
+        if save_result_json:
+            with open(save_result_json, 'ab') as json_file, open(
+                os.path.join(module.full_path(), TMP_JSON), 'rb'
+            ) as module_file:
+                json_file.write(module_file.read())
+
+    if failed_modules:
+        # Exit if any of the modules failed
+        raise Exit(code=1, message="Unit tests failed in the following modules: {}".format(', '.join(failed_modules)))
 
     if coverage:
         print("\n--- Test coverage:")

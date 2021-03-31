@@ -5,7 +5,6 @@ package net
 import "fmt"
 
 const (
-	statusURL      = "http://localhost:3333/status"
 	connectionsURL = "http://localhost:3333/connections"
 	statsURL       = "http://localhost:3333/debug/stats"
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows

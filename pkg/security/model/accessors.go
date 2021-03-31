@@ -19,12 +19,6 @@ var (
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 
-	case "exec.args":
-		return &ExecArgsIterator{}, nil
-
-	case "exec.envs":
-		return &ExecEnvsIterator{}, nil
-
 	case "process.ancestors":
 		return &ProcessAncestorsIterator{}, nil
 
@@ -76,7 +70,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Capset.CapEffective)
-
 			},
 			Field: field,
 
@@ -88,7 +81,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Capset.CapPermitted)
-
 			},
 			Field: field,
 
@@ -100,7 +92,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -112,7 +103,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.Mode)
-
 			},
 			Field: field,
 
@@ -124,7 +114,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.Filesytem
-
 			},
 			Field: field,
 
@@ -136,7 +125,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -148,7 +136,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -160,7 +147,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Chmod.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -172,7 +158,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -184,7 +169,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -196,7 +180,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -208,7 +191,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -220,7 +202,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -232,7 +213,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -244,7 +224,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chmod.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -256,7 +235,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -268,7 +246,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -280,7 +257,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.GID)
-
 			},
 			Field: field,
 
@@ -292,7 +268,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.Group
-
 			},
 			Field: field,
 
@@ -304,7 +279,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.UID)
-
 			},
 			Field: field,
 
@@ -316,7 +290,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.User
-
 			},
 			Field: field,
 
@@ -328,7 +301,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.Filesytem
-
 			},
 			Field: field,
 
@@ -340,7 +312,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -352,7 +323,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -364,7 +334,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Chown.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -376,7 +345,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -388,7 +356,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -400,7 +367,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -412,7 +378,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -424,7 +389,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -436,7 +400,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -448,7 +411,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Chown.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -460,7 +422,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -472,7 +433,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ContainerContext.ID
-
 			},
 			Field: field,
 
@@ -483,24 +443,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				var result string
-
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-
-					elementPtr := (*string)(reg.Value)
-					element := *elementPtr
-
-					result = element
-
-				}
-
-				return result
-
+				return (*Event)(ctx.Object).Exec.Args
 			},
 			Field: field,
 
-			Weight: eval.IteratorWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.args_truncated":
@@ -508,7 +455,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Exec.ArgsTruncated
-
 			},
 			Field: field,
 
@@ -520,7 +466,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapEffective)
-
 			},
 			Field: field,
 
@@ -532,7 +477,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapPermitted)
-
 			},
 			Field: field,
 
@@ -544,7 +488,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Comm
-
 			},
 			Field: field,
 
@@ -556,7 +499,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Cookie)
-
 			},
 			Field: field,
 
@@ -568,7 +510,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.EGID)
-
 			},
 			Field: field,
 
@@ -580,7 +521,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.EGroup
-
 			},
 			Field: field,
 
@@ -588,27 +528,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 
 	case "exec.envs":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
 
-				var result string
+			EvalFnc: func(ctx *eval.Context) []string {
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
-
-					elementPtr := (*string)(reg.Value)
-					element := *elementPtr
-
-					result = element
-
-				}
-
-				return result
-
+				return (*Event)(ctx.Object).Exec.Envs
 			},
 			Field: field,
 
-			Weight: eval.IteratorWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.envs_truncated":
@@ -616,7 +544,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Exec.EnvsTruncated
-
 			},
 			Field: field,
 
@@ -628,7 +555,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.EUID)
-
 			},
 			Field: field,
 
@@ -640,7 +566,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.EUser
-
 			},
 			Field: field,
 
@@ -652,7 +577,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.ContainerPath
-
 			},
 			Field: field,
 
@@ -664,7 +588,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Filesystem
-
 			},
 			Field: field,
 
@@ -676,7 +599,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -688,7 +610,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.FileFields.Group
-
 			},
 			Field: field,
 
@@ -700,7 +621,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -712,7 +632,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -724,7 +643,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -736,7 +654,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.BasenameStr
-
 			},
 			Field: field,
 
@@ -748,7 +665,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
-
 			},
 			Field: field,
 
@@ -760,7 +676,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -772,7 +687,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.FileFields.User
-
 			},
 			Field: field,
 
@@ -784,7 +698,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSGID)
-
 			},
 			Field: field,
 
@@ -796,7 +709,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.FSGroup
-
 			},
 			Field: field,
 
@@ -808,7 +720,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSUID)
-
 			},
 			Field: field,
 
@@ -820,7 +731,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.FSUser
-
 			},
 			Field: field,
 
@@ -832,7 +742,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.GID)
-
 			},
 			Field: field,
 
@@ -844,7 +753,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
-
 			},
 			Field: field,
 
@@ -856,7 +764,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.PPid)
-
 			},
 			Field: field,
 
@@ -868,7 +775,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.TTYName
-
 			},
 			Field: field,
 
@@ -880,7 +786,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.UID)
-
 			},
 			Field: field,
 
@@ -892,7 +797,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.User
-
 			},
 			Field: field,
 
@@ -904,7 +808,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.ContainerPath
-
 			},
 			Field: field,
 
@@ -916,7 +819,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.ContainerPath
-
 			},
 			Field: field,
 
@@ -928,7 +830,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.Filesytem
-
 			},
 			Field: field,
 
@@ -940,7 +841,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -952,7 +852,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.FileFields.Group
-
 			},
 			Field: field,
 
@@ -964,7 +863,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Link.Target.InUpperLayer
-
 			},
 			Field: field,
 
@@ -976,7 +874,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -988,7 +885,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -1000,7 +896,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -1012,7 +907,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.BasenameStr
-
 			},
 			Field: field,
 
@@ -1024,7 +918,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
-
 			},
 			Field: field,
 
@@ -1036,7 +929,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -1048,7 +940,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Target.FileFields.User
-
 			},
 			Field: field,
 
@@ -1060,7 +951,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.Filesytem
-
 			},
 			Field: field,
 
@@ -1072,7 +962,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -1084,7 +973,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.FileFields.Group
-
 			},
 			Field: field,
 
@@ -1096,7 +984,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Link.Source.InUpperLayer
-
 			},
 			Field: field,
 
@@ -1108,7 +995,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -1120,7 +1006,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -1132,7 +1017,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -1144,7 +1028,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.BasenameStr
-
 			},
 			Field: field,
 
@@ -1156,7 +1039,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
-
 			},
 			Field: field,
 
@@ -1168,7 +1050,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -1180,7 +1061,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Link.Source.FileFields.User
-
 			},
 			Field: field,
 
@@ -1192,7 +1072,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -1204,7 +1083,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -1216,7 +1094,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.Mode)
-
 			},
 			Field: field,
 
@@ -1228,7 +1105,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.Filesytem
-
 			},
 			Field: field,
 
@@ -1240,7 +1116,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -1252,7 +1127,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -1264,7 +1138,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Mkdir.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -1276,7 +1149,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -1288,7 +1160,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -1300,7 +1171,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -1312,7 +1182,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -1324,7 +1193,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -1336,7 +1204,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -1348,7 +1215,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Mkdir.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -1360,7 +1226,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Mkdir.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -1372,7 +1237,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -1384,7 +1248,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.Mode)
-
 			},
 			Field: field,
 
@@ -1396,7 +1259,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.Filesytem
-
 			},
 			Field: field,
 
@@ -1408,7 +1270,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -1420,7 +1281,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -1432,7 +1292,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Open.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -1444,7 +1303,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -1456,7 +1314,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -1468,7 +1325,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -1480,7 +1336,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -1492,7 +1347,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -1504,7 +1358,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -1516,7 +1369,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Open.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -1528,7 +1380,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.Flags)
-
 			},
 			Field: field,
 
@@ -1540,7 +1391,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -1548,737 +1398,833 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 
 	case "process.ancestors.cap_effective":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.CapEffective)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.cap_permitted":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.CapPermitted)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.comm":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Comm
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Cookie)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.egid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.EGID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.egroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.EGroup
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.euid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.EUID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.euser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.EUser
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.ContainerPath
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Filesystem
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.GID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.FileFields.Group
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.Inode)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.Mode)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.MountID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.BasenameStr
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.PathnameStr
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.UID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.FileFields.User
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsgid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.FSGID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsgroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.FSGroup
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsuid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.FSUID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.fsuser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.FSUser
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.GID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.Group
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ContainerContext.ID
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.pid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Pid)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.ppid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.PPid)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Tid)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.tty_name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.TTYName
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
 
-				var result int
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.Credentials.UID)
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
 
 	case "process.ancestors.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
 
-				var result string
+				iterator := &ProcessAncestorsIterator{}
 
-				reg := ctx.Registers[regID]
-				if reg.Value != nil {
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
 
-					element := (*ProcessCacheEntry)(reg.Value)
+					element := (*ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.User
 
+					results = append(results, result)
+
+					value = iterator.Next()
 				}
 
-				return result
-
-			},
-			Field: field,
+				return results
+			}, Field: field,
 
 			Weight: eval.IteratorWeight,
 		}, nil
@@ -2288,7 +2234,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapEffective)
-
 			},
 			Field: field,
 
@@ -2300,7 +2245,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapPermitted)
-
 			},
 			Field: field,
 
@@ -2312,7 +2256,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Comm
-
 			},
 			Field: field,
 
@@ -2324,7 +2267,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Cookie)
-
 			},
 			Field: field,
 
@@ -2336,7 +2278,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGID)
-
 			},
 			Field: field,
 
@@ -2348,7 +2289,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
-
 			},
 			Field: field,
 
@@ -2360,7 +2300,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUID)
-
 			},
 			Field: field,
 
@@ -2372,7 +2311,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser
-
 			},
 			Field: field,
 
@@ -2384,7 +2322,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
-
 			},
 			Field: field,
 
@@ -2396,7 +2333,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Filesystem
-
 			},
 			Field: field,
 
@@ -2408,7 +2344,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -2420,7 +2355,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.Group
-
 			},
 			Field: field,
 
@@ -2432,7 +2366,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -2444,7 +2377,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -2456,7 +2388,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -2468,7 +2399,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.BasenameStr
-
 			},
 			Field: field,
 
@@ -2480,7 +2410,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
-
 			},
 			Field: field,
 
@@ -2492,7 +2421,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -2504,7 +2432,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.User
-
 			},
 			Field: field,
 
@@ -2516,7 +2443,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGID)
-
 			},
 			Field: field,
 
@@ -2528,7 +2454,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
-
 			},
 			Field: field,
 
@@ -2540,7 +2465,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUID)
-
 			},
 			Field: field,
 
@@ -2552,7 +2476,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser
-
 			},
 			Field: field,
 
@@ -2564,7 +2487,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.GID)
-
 			},
 			Field: field,
 
@@ -2576,7 +2498,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
-
 			},
 			Field: field,
 
@@ -2588,7 +2509,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Pid)
-
 			},
 			Field: field,
 
@@ -2600,7 +2520,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.PPid)
-
 			},
 			Field: field,
 
@@ -2612,7 +2531,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Tid)
-
 			},
 			Field: field,
 
@@ -2624,7 +2542,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.TTYName
-
 			},
 			Field: field,
 
@@ -2636,7 +2553,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.UID)
-
 			},
 			Field: field,
 
@@ -2648,7 +2564,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
-
 			},
 			Field: field,
 
@@ -2660,7 +2575,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -2672,7 +2586,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.Name
-
 			},
 			Field: field,
 
@@ -2684,7 +2597,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.Namespace
-
 			},
 			Field: field,
 
@@ -2696,7 +2608,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.Filesytem
-
 			},
 			Field: field,
 
@@ -2708,7 +2619,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -2720,7 +2630,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -2732,7 +2641,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -2744,7 +2652,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -2756,7 +2663,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -2768,7 +2674,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -2780,7 +2685,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -2792,7 +2696,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -2804,7 +2707,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -2816,7 +2718,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -2828,7 +2729,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).RemoveXAttr.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -2840,7 +2740,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.ContainerPath
-
 			},
 			Field: field,
 
@@ -2852,7 +2751,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.ContainerPath
-
 			},
 			Field: field,
 
@@ -2864,7 +2762,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.Filesytem
-
 			},
 			Field: field,
 
@@ -2876,7 +2773,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -2888,7 +2784,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.FileFields.Group
-
 			},
 			Field: field,
 
@@ -2900,7 +2795,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Rename.New.InUpperLayer
-
 			},
 			Field: field,
 
@@ -2912,7 +2806,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -2924,7 +2817,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -2936,7 +2828,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -2948,7 +2839,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.BasenameStr
-
 			},
 			Field: field,
 
@@ -2960,7 +2850,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
-
 			},
 			Field: field,
 
@@ -2972,7 +2861,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -2984,7 +2872,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.New.FileFields.User
-
 			},
 			Field: field,
 
@@ -2996,7 +2883,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.Filesytem
-
 			},
 			Field: field,
 
@@ -3008,7 +2894,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -3020,7 +2905,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.FileFields.Group
-
 			},
 			Field: field,
 
@@ -3032,7 +2916,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Rename.Old.InUpperLayer
-
 			},
 			Field: field,
 
@@ -3044,7 +2927,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -3056,7 +2938,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -3068,7 +2949,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -3080,7 +2960,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.BasenameStr
-
 			},
 			Field: field,
 
@@ -3092,7 +2971,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
-
 			},
 			Field: field,
 
@@ -3104,7 +2982,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -3116,7 +2993,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rename.Old.FileFields.User
-
 			},
 			Field: field,
 
@@ -3128,7 +3004,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -3140,7 +3015,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -3152,7 +3026,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.Filesytem
-
 			},
 			Field: field,
 
@@ -3164,7 +3037,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -3176,7 +3048,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -3188,7 +3059,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Rmdir.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -3200,7 +3070,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -3212,7 +3081,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -3224,7 +3092,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -3236,7 +3103,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -3248,7 +3114,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -3260,7 +3125,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -3272,7 +3136,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Rmdir.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -3284,7 +3147,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -3296,7 +3158,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetGID.EGID)
-
 			},
 			Field: field,
 
@@ -3308,7 +3169,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetGID.EGroup
-
 			},
 			Field: field,
 
@@ -3320,7 +3180,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetGID.FSGID)
-
 			},
 			Field: field,
 
@@ -3332,7 +3191,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetGID.FSGroup
-
 			},
 			Field: field,
 
@@ -3344,7 +3202,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetGID.GID)
-
 			},
 			Field: field,
 
@@ -3356,7 +3213,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetGID.Group
-
 			},
 			Field: field,
 
@@ -3368,7 +3224,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetUID.EUID)
-
 			},
 			Field: field,
 
@@ -3380,7 +3235,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetUID.EUser
-
 			},
 			Field: field,
 
@@ -3392,7 +3246,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetUID.FSUID)
-
 			},
 			Field: field,
 
@@ -3404,7 +3257,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetUID.FSUser
-
 			},
 			Field: field,
 
@@ -3416,7 +3268,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetUID.UID)
-
 			},
 			Field: field,
 
@@ -3428,7 +3279,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetUID.User
-
 			},
 			Field: field,
 
@@ -3440,7 +3290,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -3452,7 +3301,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.Name
-
 			},
 			Field: field,
 
@@ -3464,7 +3312,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.Namespace
-
 			},
 			Field: field,
 
@@ -3476,7 +3323,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.Filesytem
-
 			},
 			Field: field,
 
@@ -3488,7 +3334,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -3500,7 +3345,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -3512,7 +3356,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).SetXAttr.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -3524,7 +3367,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -3536,7 +3378,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -3548,7 +3389,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -3560,7 +3400,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -3572,7 +3411,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -3584,7 +3422,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -3596,7 +3433,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SetXAttr.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -3608,7 +3444,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).SetXAttr.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -3620,7 +3455,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -3632,7 +3466,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.Filesytem
-
 			},
 			Field: field,
 
@@ -3644,7 +3477,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -3656,7 +3488,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -3668,7 +3499,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Unlink.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -3680,7 +3510,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -3692,7 +3521,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -3704,7 +3532,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -3716,7 +3543,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -3728,7 +3554,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -3740,7 +3565,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -3752,7 +3576,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Unlink.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -3764,7 +3587,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -3776,7 +3598,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.ContainerPath
-
 			},
 			Field: field,
 
@@ -3788,7 +3609,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.Filesytem
-
 			},
 			Field: field,
 
@@ -3800,7 +3620,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.GID)
-
 			},
 			Field: field,
 
@@ -3812,7 +3631,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.FileFields.Group
-
 			},
 			Field: field,
 
@@ -3824,7 +3642,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 
 				return (*Event)(ctx.Object).Utimes.File.InUpperLayer
-
 			},
 			Field: field,
 
@@ -3836,7 +3653,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Inode)
-
 			},
 			Field: field,
 
@@ -3848,7 +3664,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
-
 			},
 			Field: field,
 
@@ -3860,7 +3675,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.MountID)
-
 			},
 			Field: field,
 
@@ -3872,7 +3686,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.BasenameStr
-
 			},
 			Field: field,
 
@@ -3884,7 +3697,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr
-
 			},
 			Field: field,
 
@@ -3896,7 +3708,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.UID)
-
 			},
 			Field: field,
 
@@ -3908,7 +3719,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Utimes.File.FileFields.User
-
 			},
 			Field: field,
 
@@ -3920,7 +3730,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.SyscallEvent.Retval)
-
 			},
 			Field: field,
 
@@ -4658,27 +4467,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.args":
 
-		var values []string
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &ExecArgsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			elementPtr := (*string)(ptr)
-			element := *elementPtr
-
-			result := element
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
+		return e.Exec.Args, nil
 
 	case "exec.args_truncated":
 
@@ -4710,27 +4499,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.envs":
 
-		var values []string
-
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
-
-		iterator := &ExecEnvsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			elementPtr := (*string)(ptr)
-			element := *elementPtr
-
-			result := element
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
+		return e.Exec.Envs, nil
 
 	case "exec.envs_truncated":
 
@@ -5048,8 +4817,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5071,8 +4839,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5094,8 +4861,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5117,8 +4883,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5140,8 +4905,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5163,8 +4927,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5186,8 +4949,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5209,8 +4971,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5232,8 +4993,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5255,8 +5015,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5278,8 +5037,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5301,8 +5059,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5324,8 +5081,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5347,8 +5103,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5370,8 +5125,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5393,8 +5147,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5416,8 +5169,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5439,8 +5191,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5462,8 +5213,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5485,8 +5235,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5508,8 +5257,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5531,8 +5279,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5554,8 +5301,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5577,8 +5323,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5600,8 +5345,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5623,8 +5367,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5646,8 +5389,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5669,8 +5411,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5692,8 +5433,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5715,8 +5455,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5738,8 +5477,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []int
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -5761,8 +5499,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		var values []string
 
-		ctx := &eval.Context{}
-		ctx.SetObject(unsafe.Pointer(e))
+		ctx := eval.NewContext(unsafe.Pointer(e))
 
 		iterator := &ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
@@ -8740,7 +8477,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Args"}
 		}
-		e.Exec.Args = append(e.Exec.Args, str)
+		e.Exec.Args = str
 
 		return nil
 
