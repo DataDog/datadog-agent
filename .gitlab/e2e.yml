@@ -54,10 +54,10 @@ pupernetes-dev:
 
 pupernetes-master:
   extends: .pupernetes_template
-  allow_failure: true # temporary while investigating
   rules:
     - <<: *if_master_branch
       when: manual # temporary while investigating
+      allow_failure: true
   needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
