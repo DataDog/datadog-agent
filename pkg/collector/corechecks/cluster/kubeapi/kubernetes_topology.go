@@ -307,12 +307,10 @@ func (t *TopologyCheck) RunClusterCollectors(clusterCollectors []collectors.Clus
 			runCollector(collector, errorChannel, waitGroup)
 		}
 	}()
-	go func() {
-		for _, correlator := range clusterCorrelators {
-			// add this collector to the wait group
-			runCorrelator(correlator, errorChannel, waitGroup)
-		}
-	}()
+	// Run all correlators in parallel to avoid blocking channels
+	for _, correlator := range clusterCorrelators {
+		go runCorrelator(correlator, errorChannel, waitGroup)
+	}
 }
 
 // runCollector
@@ -329,7 +327,7 @@ func runCollector(collector collectors.ClusterTopologyCollector, errorChannel ch
 
 // runCorrelator
 func runCorrelator(correlator collectors.ClusterTopologyCorrelator, errorChannel chan<- error, wg *sync.WaitGroup) {
-	log.Debugf("Starting cluster topology correlator: %s\n", correlator.GetName())
+	log.Infof("Starting cluster topology correlator: %s\n", correlator.GetName())
 	err := correlator.CorrelateFunction()
 	if err != nil {
 		errorChannel <- err
