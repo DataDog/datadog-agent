@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -2100,27 +2101,29 @@ func TestHTTPStats(t *testing.T) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var matchingConns []network.ConnectionStats
+	var httpReqStats http.RequestStats
 	require.Eventuallyf(t, func() bool {
-		conns := getConnections(t, tr)
-		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
-		})
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		return len(matchingConns) == 1
+		for key, stats := range payload.HTTP {
+			if key.Path == "/test" {
+				httpReqStats = stats
+				return true
+			}
+		}
+
+		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
-	conn := matchingConns[0]
-	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
-	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
-	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
-	// it sees both sides of the req/resp so will register two 200s
-	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
-	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
-	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
-	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
+	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
+	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
+	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
+	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

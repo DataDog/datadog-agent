@@ -105,6 +105,10 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DataDog/agent-payload v4.63.0+incompatible h1:UB2wPXfwn7qc59RopJ4ZbBjFM97pm6wNwbuSfi3tNbc=
 github.com/DataDog/agent-payload v4.63.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v4.63.1-0.20210329150802-e96c27c6f3cc+incompatible h1:EkyPpPbpqaIDLOCrc0d94zaji8nGmF181UWpUAKLi+s=
+github.com/DataDog/agent-payload v4.63.1-0.20210329150802-e96c27c6f3cc+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
+github.com/DataDog/agent-payload v4.63.1-0.20210331191159-fca851b5a4f8+incompatible h1:X39+EmZCL3VdM5PPz2bzHbRq4Gmn+G+5ZsLeECgJYAU=
+github.com/DataDog/agent-payload v4.63.1-0.20210331191159-fca851b5a4f8+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
