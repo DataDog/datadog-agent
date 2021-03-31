@@ -210,6 +210,7 @@ func (ctr *realConntracker) Close() {
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
+	l := ctr.cache.Len()
 	for e := range events {
 		conns := DecodeAndReleaseEvent(e)
 		for _, c := range conns {
@@ -220,6 +221,8 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 			ctr.cache.Add(c, false)
 		}
 	}
+
+	atomic.AddInt64(&ctr.stats.registers, int64(ctr.cache.Len()-l))
 }
 
 // register is registered to be called whenever a conntrack update/create is called.
@@ -237,12 +240,11 @@ func (ctr *realConntracker) register(c Con) int {
 	defer ctr.Unlock()
 
 	l := ctr.cache.Len()
-	defer func() {
-		atomic.AddInt64(&ctr.stats.registers, int64(ctr.cache.Len()-l))
-		atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
-	}()
 
 	ctr.cache.Add(c, true)
+
+	atomic.AddInt64(&ctr.stats.registers, int64(ctr.cache.Len()-l))
+	atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
 
 	return 0
 }
