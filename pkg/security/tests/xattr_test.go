@@ -82,19 +82,18 @@ func TestSetXAttr(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
+		testOldFile, _, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testOldFile)
 
-		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
+		if err := os.Symlink(testOldFile, testFile); err != nil {
+			t.Fatal(err)
 		}
 		defer os.Remove(testFile)
 
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 		// Linux and Android don't support xattrs on symlinks according
 		// to xattr(7), so just test that we get the proper error.
 		if errno != syscall.EACCES && errno != syscall.EPERM {
@@ -231,20 +230,19 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		testOldFile, testOldFilePtr, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
+		testOldFile, _, err := test.CreateWithOptions("test-setxattr-old", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testOldFile)
 
-		_, _, errno := syscall.Syscall(syscall.SYS_SYMLINK, uintptr(testOldFilePtr), uintptr(testFilePtr), 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
+		if err := os.Symlink(testOldFile, testFile); err != nil {
+			t.Fatal(err)
 		}
 		defer os.Remove(testFile)
 
 		// set xattr
-		_, _, errno = syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0, 0, 1, 0)
+		_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0, 0, 1, 0)
 		// Linux and Android don't support xattrs on symlinks according
 		// to xattr(7), so just test that we get the proper error.
 		if errno != syscall.EACCES && errno != syscall.EPERM {
