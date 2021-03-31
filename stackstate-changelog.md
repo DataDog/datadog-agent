@@ -2,7 +2,12 @@
 
 ## 2.11.0 (xxxx-xx-xx)
 
+**Features**
+- DynaTrace Integration
+  - Gather Dynatrace events to determine the health state of Dynatrace components in StackState [(STAC-10795)](https://stackstate.atlassian.net/browse/STAC-10795)
+
 **Improvements**
+
 - Integrations
   - Added support to override the check state location in the configuration of a check. [(STAC-12220)](https://stackstate.atlassian.net/browse/STAC-12220)
   - Added support to map user defined stackstate-environment tags or config to the environments object [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
