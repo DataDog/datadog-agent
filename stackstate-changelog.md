@@ -9,12 +9,8 @@
 **Improvements**
 
 - Integrations
-  - Added support to override the check state location in the configuration of a check. [(STAC-12220)](https://stackstate.atlassian.net/browse/STAC-12220)
-  - Added support to map user defined stackstate-environment tags or config to the environments object [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
-  - Added support to map user defined stackstate-layer tags or config to the layer object [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
-  - Added support to map user defined stackstate-domain tags or config to the domain object [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
-  - Added support to map user defined stackstate-identifiers tags or config to the identifiers array [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
-  - Remove `stackstate-identifier`, `stackstate-environment`, `stackstate-layer`, `stackstate-domain` and `stackstate-identifiers` from the tags object if it has been mapped to the data object. [(STAC-11132)](https://stackstate.atlassian.net/browse/STAC-11132)
+  - [StackState Agent Integrations 1.10.1](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1101--2020-03-11)
+  - [StackState Agent Integrations 1.10.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1100--2020-03-09)
   - Improved out-of-the-box support for Kubernetes 1.18+ by automatically falling back to using TLS without verifying CA when communicating with the secure Kubelet [(STAC-12205)](https://stackstate.atlassian.net/browse/STAC-12205)
 
 **Bugfix**
