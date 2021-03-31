@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -453,7 +454,14 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.EnvsArray = entry.Values
+		// keep only keys
+		pce.EnvsArray = make([]string, len(entry.Values))
+		for i, env := range entry.Values {
+			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
+				pce.EnvsArray[i] = els[0]
+			}
+		}
+
 		if pce.EnvsTruncated {
 			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
