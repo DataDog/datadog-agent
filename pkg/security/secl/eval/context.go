@@ -14,9 +14,20 @@ type Context struct {
 	Object unsafe.Pointer
 
 	Registers Registers
+
+	// cache available across all the evaluations
+	Cache map[string]unsafe.Pointer
 }
 
 // SetObject set the given object to the context
 func (c *Context) SetObject(obj unsafe.Pointer) {
 	c.Object = obj
+}
+
+// NewContext return a new Context
+func NewContext(obj unsafe.Pointer) *Context {
+	return &Context{
+		Object: obj,
+		Cache:  make(map[string]unsafe.Pointer),
+	}
 }

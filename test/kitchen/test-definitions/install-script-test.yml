@@ -9,6 +9,7 @@ suites:
     <% end %>
   <% end %>
   run_list:
+    - "recipe[dd-agent-disable-system-repos]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-install-script]"
   attributes:
