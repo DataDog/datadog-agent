@@ -68,14 +68,18 @@ func (vc *VolumeCorrelator) CorrelateFunction() error {
 				return err
 			}
 
-			volumeLookup[volume.Name] = volumeExternalID
+			if volumeExternalID != "" {
+				volumeLookup[volume.Name] = volumeExternalID
+			}
 		}
 
 		for _, container := range volumeCorrelation.Containers {
 			for _, mount := range container.VolumeMounts {
 				volumeExternalID, ok := volumeLookup[mount.Name]
 				if !ok {
-					return fmt.Errorf("Container '%s' of Pod '%s' mounts an unknown volume '%s'", container.Name, pod.ExternalID, mount.Name)
+					log.Errorf("Container '%s' of Pod '%s' mounts an unknown volume '%s'", container.Name, pod.ExternalID, mount.Name)
+
+					continue
 				}
 
 				containerExternalID := vc.buildContainerExternalID(pod.Namespace, pod.Name, container.Name)
@@ -113,7 +117,9 @@ func (vc *VolumeCorrelator) mapVolumeAndRelationToStackState(pod PodIdentifier, 
 		claimedPVExtID, ok := pvcMapping[volume.PersistentVolumeClaim.ClaimName]
 
 		if !ok {
-			return "", fmt.Errorf("Unknown PersistentVolumeClaim '%s' referenced from Pod '%s'", volume.PersistentVolumeClaim.ClaimName, pod.ExternalID)
+			log.Errorf("Unknown PersistentVolumeClaim '%s' referenced from Pod '%s'", volume.PersistentVolumeClaim.ClaimName, pod.ExternalID)
+
+			return "", nil
 		}
 
 		volumeExternalID = claimedPVExtID
