@@ -741,6 +741,11 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].key != 10`, Expected: false},
 		{Expr: `process.list[_].key != 9999`, Expected: true},
 
+		{Expr: `process.list[_].key >= 200`, Expected: true},
+		{Expr: `process.list[_].key > 100`, Expected: true},
+		{Expr: `process.list[_].key <= 200`, Expected: true},
+		{Expr: `process.list[_].key < 100`, Expected: true},
+
 		{Expr: `10 == process.list[_].key`, Expected: true},
 		{Expr: `9999 == process.list[_].key`, Expected: false},
 		{Expr: `10 != process.list[_].key`, Expected: false},

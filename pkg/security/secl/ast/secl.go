@@ -130,7 +130,7 @@ type Comparison struct {
 type ScalarComparison struct {
 	Pos lexer.Position
 
-	Op   *string     `parser:"@( \">\" | \">\" \"=\" | \"<\" | \"<\" \"=\" | \"!\" \"=\" | \"=\" \"=\" | \"=\" \"~\" | \"!\" \"~\" )"`
+	Op   *string     `parser:"@( \">\" \"=\" | \">\" | \"<\" \"=\" | \"<\" | \"!\" \"=\" | \"=\" \"=\" | \"=\" \"~\" | \"!\" \"~\" )"`
 	Next *Comparison `parser:"@@"`
 }
 
