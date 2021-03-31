@@ -10,7 +10,6 @@
 package probe
 
 import (
-	"strings"
 	"syscall"
 	"time"
 
@@ -187,11 +186,12 @@ type EventSerializer struct {
 }
 
 func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
-	if r.ResolveFilesystem(f) != "overlay" {
+	lowerLayer := f.GetInLowerLayer()
+	upperLayer := f.GetInUpperLayer()
+	if !lowerLayer && !upperLayer {
 		return nil
 	}
-	b := r.ResolveInUpperLayer(f)
-	return &b
+	return &upperLayer
 }
 
 func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
@@ -245,7 +245,7 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          r.ResolveFilesystem(&process.FileFields),
+		Filesystem:          r.MountResolver.GetFilesystem(process.FileFields.MountID),
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
@@ -316,35 +316,24 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 	}
 }
 
-func scrubArgsEnvs(process *model.Process, e *Event) ([]string, []string) {
-	args := process.Args
-	envs := process.Envs
+func scrubArgs(process *model.Process, e *Event) []string {
+	args := process.ArgsArray
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
 	if e.scrubber == nil {
 		args = []string{}
-		envs = []string{}
 	} else {
 		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
 			args = newArgs
 		}
-
-		// for envs, we just keep the keys
-		var newEnvs []string
-		for _, env := range envs {
-			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-				newEnvs = append(newEnvs, els[0])
-			}
-		}
-		envs = newEnvs
 	}
 
-	return args, envs
+	return args
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
-	args, envs := scrubArgsEnvs(&pce.Process, e)
+	args := scrubArgs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
@@ -364,7 +353,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		Executable:    newProcessFileSerializer(&pce.Process, e),
 		Args:          args,
 		ArgsTruncated: pce.Process.ArgsTruncated,
-		Envs:          envs,
+		Envs:          pce.EnvsArray,
 		EnvsTruncated: pce.Process.EnvsTruncated,
 	}
 
@@ -450,11 +439,10 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ctx := eval.Context{}
-	ctx.SetObject(e.GetPointer())
+	ctx := eval.NewContext(e.GetPointer())
 
 	it := &model.ProcessAncestorsIterator{}
-	ptr := it.Front(&ctx)
+	ptr := it.Front(ctx)
 
 	first := true
 	for ptr != nil {
@@ -529,10 +517,14 @@ func newEventSerializer(event *Event) *EventSerializer {
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
-			Destination: &FileSerializer{
-				Mode: &event.Open.Mode,
-			},
 		}
+
+		if event.Open.Flags&syscall.O_CREAT > 0 {
+			s.FileEventSerializer.Destination = &FileSerializer{
+				Mode: &event.Open.Mode,
+			}
+		}
+
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Open.Retval)
 	case model.FileMkdirEventType:

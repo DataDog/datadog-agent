@@ -137,14 +137,15 @@ func TestLeaderHandlingNewMetric(t *testing.T) {
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
 	// Check internal store content
-	compareDatadogMetricInternal(t, &model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      false,
 		Value:      0,
 		UpdateTime: testTime,
 		Error:      nil,
-	}, f.store.Get("default/dd-metric-0"))
+	}
+	ddm.SetQueries("metric query0")
+	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dd-metric-0"))
 
 	// Now that we validated that `UpdateTime` is after `testTime`, we read `UpdateTime` to allow comparison later
 	updateTimeKube := metav1.NewTime(f.store.Get("default/dd-metric-0").UpdateTime)
@@ -191,14 +192,15 @@ func TestLeaderUpdateFromStoreInitialUpdate(t *testing.T) {
 	metric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{})
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Value:      2332548489456.557505560,
 		UpdateTime: updateTime,
 		Error:      nil,
-	}, "utest")
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
 
 	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
 		Value: "2332548489456.5576",
@@ -273,14 +275,15 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 	updateTimeKube := metav1.NewTime(updateTime)
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	}, "utest")
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
 
 	outputMetric := newFakeDatadogMetric("default", "dd-metric-0", "", datadoghq.DatadogMetricStatus{
 		Value: "10",
@@ -356,14 +359,15 @@ func TestLeaderNoUpdate(t *testing.T) {
 
 	f.datadogMetricLister = append(f.datadogMetricLister, metric)
 	f.objects = append(f.objects, metric)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	}, "utest")
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
 
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 }
@@ -373,9 +377,8 @@ func TestCreateDatadogMetric(t *testing.T) {
 
 	updateTime := time.Now()
 	updateTimeKube := metav1.NewTime(updateTime)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:                 "default/dd-metric-0",
-		Query:              "metric query0",
 		Valid:              true,
 		Deleted:            false,
 		Autogen:            true,
@@ -383,37 +386,45 @@ func TestCreateDatadogMetric(t *testing.T) {
 		Value:              20.0,
 		UpdateTime:         updateTime,
 		Error:              nil,
-	}, "utest")
-	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
+
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
-		Query:      "metric query1",
 		Valid:      true,
 		Deleted:    false,
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	}, "utest")
-	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+	}
+	ddm.SetQueries("metric query1")
+	f.store.Set("default/dd-metric-1", ddm, "utest")
+
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
-		Query:      "metric query1",
 		Valid:      true,
 		Deleted:    false,
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	}, "utest")
-	f.store.Set("default/dd-metric-2", model.DatadogMetricInternal{
+	}
+	ddm.SetQueries("metric query1")
+	f.store.Set("default/dd-metric-1", ddm, "utest")
+
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-2",
-		Query:      "metric query2",
 		Valid:      true,
 		Deleted:    false,
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	}, "utest")
+	}
+	ddm.SetQueries("metric query2")
+	f.store.Set("default/dd-metric-2", ddm, "utest")
 
 	// Test successful creation
 	expectedDatadogMetric := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{
@@ -524,41 +535,46 @@ func TestLeaderDeleteExisting(t *testing.T) {
 
 	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)
 	f.objects = append(f.objects, metric0, metric1)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Deleted:    true,
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
 		Error:      nil,
-	}, "utest")
-	f.store.Set("default/dd-metric-1", model.DatadogMetricInternal{
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
+
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-1",
-		Query:      "metric query1",
 		Valid:      true,
 		Deleted:    true,
 		Autogen:    false,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
 		Error:      nil,
-	}, "utest")
+	}
+	ddm.SetQueries("metric query1")
+	f.store.Set("default/dd-metric-1", ddm, "utest")
 
 	f.expectDeleteDatadogMetricAction("default", "dd-metric-0")
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
 	// Check internal store content has not changed
-	assert.Equal(t, &model.DatadogMetricInternal{
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Deleted:    true,
 		Autogen:    true,
 		Value:      20.0,
 		UpdateTime: prevUpdateTime.UTC(),
 		Error:      nil,
-	}, f.store.Get("default/dd-metric-0"))
+	}
+	ddm.SetQueries("metric query0")
+	assert.Equal(t, &ddm, f.store.Get("default/dd-metric-0"))
 
 	// Test that we get an error trying to delete a not Autogen DatadogMetric
 	f.actions = nil
@@ -570,15 +586,16 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 	f := newFixture(t)
 
 	updateTime := time.Now()
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Deleted:    true,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      nil,
-	}, "utest")
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
 
 	f.runControllerSync(true, "default/dd-metric-0", nil)
 
@@ -656,38 +673,42 @@ func TestFollower(t *testing.T) {
 	f.datadogMetricLister = append(f.datadogMetricLister, metric0, metric1)
 	f.objects = append(f.objects, metric0, metric1)
 	// We have new updates locally (maybe leader changed or something. Followers should still overwrite local cache)
-	f.store.Set("default/dd-metric-0", model.DatadogMetricInternal{
+	ddm := model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Value:      20.0,
 		UpdateTime: updateTime,
 		Error:      fmt.Errorf("Error from backend while fetching metric"),
-	}, "utest")
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
 
 	f.runControllerSync(false, "default/dd-metric-0", nil)
 
 	// Check internal store content
 	assert.Equal(t, 1, f.store.Count())
-	assert.Equal(t, &model.DatadogMetricInternal{
+	ddm = model.DatadogMetricInternal{
 		ID:         "default/dd-metric-0",
-		Query:      "metric query0",
 		Valid:      true,
 		Value:      10.0,
 		UpdateTime: prevUpdateTime.UTC(),
 		Error:      nil,
-	}, f.store.Get("default/dd-metric-0"))
+	}
+	ddm.SetQueries("metric query0")
+	assert.Equal(t, &ddm, f.store.Get("default/dd-metric-0"))
 
 	f.runControllerSync(false, "default/autogen-1", nil)
 	assert.Equal(t, 2, f.store.Count())
-	assert.Equal(t, &model.DatadogMetricInternal{
+
+	ddm = model.DatadogMetricInternal{
 		ID:                 "default/autogen-1",
-		Query:              "metric query1",
 		Valid:              true,
 		Autogen:            true,
 		ExternalMetricName: "dd-metric-1",
 		Value:              10.0,
 		UpdateTime:         prevUpdateTime.UTC(),
 		Error:              nil,
-	}, f.store.Get("default/autogen-1"))
+	}
+	ddm.SetQueries("metric query1")
+	assert.Equal(t, &ddm, f.store.Get("default/autogen-1"))
 }

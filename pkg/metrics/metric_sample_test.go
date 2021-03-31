@@ -11,6 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -72,4 +75,17 @@ func Test_taggerCardinality(t *testing.T) {
 			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality))
 		})
 	}
+}
+
+func TestEnrichTagsOrchestrator(t *testing.T) {
+	oldTagger := tagger.GetDefaultTagger()
+	defer tagger.SetDefaultTagger(oldTagger)
+
+	fakeTagger := local.NewFakeTagger()
+	tagger.SetDefaultTagger(fakeTagger)
+	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+
+	tb := util.NewTagsBuilder()
+	EnrichTags(tb, "foo", "", "orchestrator")
+	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }
