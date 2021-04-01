@@ -62,11 +62,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    artefacts = [
-        "customaction.dll",
-        "customaction.pdb",
-        "customaction-tests.exe"
-    ]
+    artefacts = ["customaction.dll", "customaction.pdb", "customaction-tests.exe"]
     for artefact in artefacts:
         if arch is not None and arch == "x86":
             shutil.copy2("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
