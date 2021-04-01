@@ -63,5 +63,10 @@ end
 execute 'disable firewalld on redhat' do
   command "systemctl disable --now firewalld"
   user "root"
-  only_if node[:platform] == 'redhat'
+  case node[:platform]
+  when 'redhat'
+    action :run
+  else
+    action :nothing
+  end
 end
