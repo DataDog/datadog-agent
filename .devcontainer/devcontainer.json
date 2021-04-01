@@ -19,7 +19,7 @@
     },
     "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
     "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
-    "postCreateCommand": "pip2 install -r requirements.txt",
+    "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
     "settings": {
         "go.buildTags": "kubeapiserver,cpython,kubelet,etcd,docker,zk",
         "go.testFlags": [
