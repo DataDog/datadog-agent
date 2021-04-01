@@ -38,7 +38,7 @@ func mapAwsEbsPersistentVolume(pc *PersistentVolumeCollector, volume v1.Persiste
 		return nil, nil
 	}
 
-	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", volume.Spec.AWSElasticBlockStore.VolumeID, fmt.Sprint(volume.Spec.AWSElasticBlockStore.Partition))
+	extID := pc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", strings.TrimPrefix(volume.Spec.AWSElasticBlockStore.VolumeID, "aws://"), fmt.Sprint(volume.Spec.AWSElasticBlockStore.Partition))
 
 	tags := map[string]string{
 		"kind":      "aws-ebs",

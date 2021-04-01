@@ -44,7 +44,7 @@ func createAwsEbsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 		return "", nil
 	}
 
-	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", volume.AWSElasticBlockStore.VolumeID, fmt.Sprint(volume.AWSElasticBlockStore.Partition))
+	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", strings.TrimPrefix(volume.AWSElasticBlockStore.VolumeID, "aws://"), fmt.Sprint(volume.AWSElasticBlockStore.Partition))
 
 	tags := map[string]string{
 		"kind":      "aws-ebs",
@@ -283,7 +283,8 @@ func createHostPathVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 		return "", nil
 	}
 
-	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("hostpath", pod.NodeName, volume.HostPath.Path)
+	// The hostpath starts with a '/', strip that as it leads to a double '/' in the externalID
+	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("hostpath", pod.NodeName, strings.TrimPrefix(volume.HostPath.Path, "/"))
 
 	tags := map[string]string{
 		"kind":     "hostpath",

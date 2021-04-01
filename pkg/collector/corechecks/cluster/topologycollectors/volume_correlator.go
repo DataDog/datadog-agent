@@ -101,7 +101,7 @@ func (vc *VolumeCorrelator) buildPersistentVolumeClaimLookup() (map[string]strin
 	}
 
 	for _, persistentVolumeClaim := range pvcs {
-		pvcMapping[persistentVolumeClaim.Name] = persistentVolumeClaim.Spec.VolumeName
+		pvcMapping[persistentVolumeClaim.Name] = vc.buildPersistentVolumeExternalID(persistentVolumeClaim.Spec.VolumeName)
 	}
 
 	return pvcMapping, nil
