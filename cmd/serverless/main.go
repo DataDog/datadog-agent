@@ -221,10 +221,11 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// read configuration from the environment vars
 	// --------------------------------------------
 
-	// note that this call is counter-intuitive: it must return an error because
-	// no files should exist, and then, the configuration is read from env vars.
-	if _, confErr := config.Load(); confErr == nil {
-		log.Warn("A configuration file has been found, which should not happen in this mode.")
+	// we will look for the configuration file in the /var/task folder,
+	// where AWS Lambda should make it available.
+	config.Datadog.SetConfigFile("/var/task/datadog.yaml")
+	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
+		log.Info("A configuration file has been found and read.")
 	}
 
 	// extra tags to append to all logs / metrics
