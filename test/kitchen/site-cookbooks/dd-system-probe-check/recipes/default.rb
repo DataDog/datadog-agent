@@ -61,10 +61,7 @@ execute 'ensure conntrack is enabled' do
 end
 
 execute 'disable firewalld on redhat' do
-  case node[:platform]
-  when 'redhat'
-    command "systemctl disable --now firewalld"
-    user "root"
-    action :run
-  end
+  command "systemctl disable --now firewalld"
+  user "root"
+  only_if node[:platform] == 'redhat'
 end
