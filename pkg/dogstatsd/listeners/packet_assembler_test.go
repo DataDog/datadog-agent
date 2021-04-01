@@ -117,6 +117,16 @@ func TestPacketBufferEmpty(t *testing.T) {
 	assert.Equal(t, []byte("test2"), packets[0].Contents)
 }
 
+func TestPacketBufferHasCorrectSource(t *testing.T) {
+	pb, out := buildPacketAssembler()
+	message1 := []byte("test")
+
+	pb.addMessage(message1)
+
+	packets := <-out
+	assert.Equal(t, UDP, packets[0].Source)
+}
+
 func TestPacketBufferEmptySecond(t *testing.T) {
 	pb, out := buildPacketAssembler()
 	message1 := []byte("test1")
