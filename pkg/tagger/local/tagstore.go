@@ -262,6 +262,9 @@ func (s *tagStore) pruneDeletedEntities() {
 }
 
 // pruneEmptyEntries will lock the store and delete tags for entities with empty entries.
+// Empty entries are added by the `Tag()` method on partial cache miss when a source doesn't find the entity.
+// When the entity comes back empty to the store, we will avoid to fetch it again.
+// If some sources detect the deletion of the entity, this method will wipe the empty entries for the other sources.
 func (s *tagStore) pruneEmptyEntries() {
 	s.Lock()
 	defer s.Unlock()
