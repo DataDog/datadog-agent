@@ -8,7 +8,7 @@
         "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.74.86e7c5b",
-        "WINDOWS_DDNPM_SHASUM": "5aa9a100aeb6483e73c80747e58ccf99dab824566c5c639f8b1334a829662df6"
+        "WINDOWS_DDNPM_SHASUM": "61e13fccdca7bf6a356e7ef552a7845316b9905b5eee264811982e3034a3bb84"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -19,7 +19,7 @@
         "MACOS_BUILD_VERSION": "master",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.74.86e7c5b",
-        "WINDOWS_DDNPM_SHASUM": "5aa9a100aeb6483e73c80747e58ccf99dab824566c5c639f8b1334a829662df6",
+        "WINDOWS_DDNPM_SHASUM": "61e13fccdca7bf6a356e7ef552a7845316b9905b5eee264811982e3034a3bb84",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "6.27.0-rc.6": {
