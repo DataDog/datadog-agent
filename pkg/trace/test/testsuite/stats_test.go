@@ -23,7 +23,7 @@ func TestClientStats(t *testing.T) {
 
 	for _, tt := range testdata.ClientStatsTests {
 		t.Run("", func(t *testing.T) {
-			if err := r.RunAgent(nil); err != nil {
+			if err := r.RunAgent([]byte("hostname: agent-hostname\r\napm_config:\r\n  env: agent-env")); err != nil {
 				t.Fatal(err)
 			}
 			defer r.KillAgent()
