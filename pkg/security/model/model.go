@@ -102,7 +102,7 @@ type ChownEvent struct {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	ID   string   `field:"id,ResolveContainerID"`
-	Tags []string `field:"tags,ResolveContainerTags"`
+	Tags []string `field:"tags,ResolveContainerTags:9999"`
 }
 
 // Event represents an event sent from the kernel
