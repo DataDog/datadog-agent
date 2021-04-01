@@ -84,7 +84,10 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
-	datadogConfigPath        = "datadog.yaml"
+	// AWS Lambda is writing the Lambda function files in /var/task, we want the
+	// configuration file to be at the root of this directory.
+	datadogConfigPath = "/var/task/datadog.yaml"
+
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
 )
@@ -221,9 +224,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// read configuration from the environment vars
 	// --------------------------------------------
 
-	// we will look for the configuration file in the /var/task folder,
-	// where AWS Lambda should make it available.
-	config.Datadog.SetConfigFile("/var/task/datadog.yaml")
+	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
 		log.Info("A configuration file has been found and read.")
 	}
