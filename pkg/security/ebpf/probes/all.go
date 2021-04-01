@@ -94,6 +94,15 @@ func AllPerfMaps() []*manager.PerfMap {
 	}
 }
 
+// AllTailRoutes returns the list of all the tail call routes
+func AllTailRoutes() []manager.TailCallRoute {
+	var routes []manager.TailCallRoute
+
+	routes = append(routes, getExecTailCallRoutes()...)
+
+	return routes
+}
+
 // GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
 func GetPerfBufferStatisticsMaps() map[string]string {
 	return map[string]string{

@@ -50,6 +50,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 	}
 
+	if config.Datadog.IsSet(key(spNS, "max_dns_stats")) {
+		a.MaxDNSStats = config.Datadog.GetInt(key(spNS, "max_dns_stats"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "collect_dns_domains")) {
 		a.CollectDNSDomains = config.Datadog.GetBool(key(spNS, "collect_dns_domains"))
 	}
@@ -183,8 +187,8 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, OOMKillCheckName)
 	}
 
-	if config.Datadog.GetBool("runtime_security_config.enabled") {
-		log.Info("runtime_security_config.enabled=true, enabling system-probe")
+	if config.Datadog.GetBool("runtime_security_config.enabled") || config.Datadog.GetBool("runtime_security_config.fim_enabled") {
+		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		a.EnableSystemProbe = true
 	}
 
@@ -372,6 +376,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		if agentBin := config.Datadog.GetString(k); agentBin != "" {
 			a.DDAgentBin = agentBin
 		}
+	}
+
+	// Overrides the grpc connection timeout setting to the main agent.
+	if k := key(ns, "grpc_connection_timeout_secs"); config.Datadog.IsSet(k) {
+		a.grpcConnectionTimeout = config.Datadog.GetDuration(k) * time.Second
 	}
 
 	// Windows: Sets windows process table refresh rate (in number of check runs)

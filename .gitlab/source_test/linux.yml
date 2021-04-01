@@ -18,7 +18,12 @@
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
   script:
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS
+    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - test_output.json
 
 tests_deb-x64-py2:
   extends: .linux_tests

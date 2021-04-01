@@ -1,10 +1,22 @@
+import os
 import re
+from collections import defaultdict
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .deploy.gitlab import Gitlab
-from .deploy.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
+from .libs.common.gitlab import Gitlab
+from .libs.pipeline_notifications import (
+    base_message,
+    find_job_owners,
+    get_failed_jobs,
+    get_failed_tests,
+    send_slack_message,
+)
+from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
+from .libs.types import SlackMessage, TeamMessage
+
+# Tasks to trigger pipelines
 
 
 @task
@@ -126,3 +138,79 @@ def wait_for_pipeline_from_ref(gitlab, project_name, ref):
     else:
         print("No pipelines found for {ref}".format(ref=ref))
         raise Exit(code=1)
+
+
+# Tasks to trigger pipeline notifications
+
+GITHUB_SLACK_MAP = {
+    "@DataDog/agent-platform": "#agent-platform",
+    "@DataDog/container-integrations": "#container-integration",
+    "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
+    "@DataDog/networks": "#networks",
+    "@DataDog/agent-security": "#security-and-compliance-agent",
+    "@DataDog/agent-apm": "#apm-agent",
+    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
+    "@DataDog/processes": "#processes",
+    "@DataDog/agent-core": "#agent-core",
+    "@DataDog/container-app": "#container-app",
+    "@Datadog/metrics-aggregation": "#metrics-aggregation",
+    "@DataDog/agent-all": "#datadog-agent-pipelines",
+}
+
+UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
+Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
+"""
+
+
+@task
+def notify_failure(_, notification_type="merge", print_to_stdout=False):
+    """
+    Send failure notifications for the current pipeline. CI-only task.
+    Use the --print-to-stdout option to test this locally, without sending
+    real slack messages.
+    """
+    header = ""
+    if notification_type == "merge":
+        header = ":host-red: :merged: datadog-agent merge"
+    elif notification_type == "deploy":
+        header = ":host-red: :rocket: datadog-agent deploy"
+
+    project_name = "DataDog/datadog-agent"
+    all_teams = "@DataDog/agent-all"
+    failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
+    base = base_message(header)
+
+    # Generate messages for each team
+    messages_to_send = defaultdict(lambda: TeamMessage(base))
+    messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
+
+    failed_job_owners = find_job_owners(failed_jobs)
+    for owner, jobs in failed_job_owners.items():
+        if owner == "@DataDog/multiple":
+            for job in jobs:
+                for test in get_failed_tests(project_name, job):
+                    messages_to_send[all_teams].add_test_failure(test, job)
+                    for owner in test.owners:
+                        messages_to_send[owner].add_test_failure(test, job)
+        elif owner == "@DataDog/do-not-notify":
+            # Jobs owned by @DataDog/do-not-notify do not send team messages
+            pass
+        elif owner == all_teams:
+            # Jobs owned by @DataDog/agent-all will already be in the global
+            # message, do not overwrite the failed jobs list
+            pass
+        else:
+            pass
+            # TODO: enable also jobs
+            # messages_to_send[owner].failed_jobs = jobs
+
+    # Send messages
+    for owner, message in messages_to_send.items():
+        channel = GITHUB_SLACK_MAP.get(owner, "#datadog-agent-pipelines")
+        if owner not in GITHUB_SLACK_MAP.keys():
+            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
+        message.coda = "If there is something wrong with the notification please contact #agent-platform"
+        if print_to_stdout:
+            print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
+        else:
+            send_slack_message(channel, str(message))  # TODO: use channel variable

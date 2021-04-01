@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -86,7 +87,6 @@ func TestTracerExpvar(t *testing.T) {
 		},
 		"state": {
 			"StatsResets",
-			"UnorderedConns",
 			"ClosedConnDropped",
 			"ConnDropped",
 			"TimeSyncCollisions",
@@ -133,8 +133,6 @@ func TestTracerExpvar(t *testing.T) {
 			"PTcpSendmsgMisses",
 			"PTcpSetStateHits",
 			"PTcpSetStateMisses",
-			"PTcpV4DestroySockHits",
-			"PTcpV4DestroySockMisses",
 			"PUdpDestroySockHits",
 			"PUdpDestroySockMisses",
 			"PUdpRecvmsgHits",
@@ -149,6 +147,8 @@ func TestTracerExpvar(t *testing.T) {
 			"PIp6MakeSkbMisses",
 			"RInetCskAcceptHits",
 			"RInetCskAcceptMisses",
+			"PInetCskListenStopHits",
+			"PInetCskListenStopMisses",
 			"RTcpCloseHits",
 			"RTcpCloseMisses",
 			"RUdpRecvmsgHits",
@@ -1430,7 +1430,7 @@ func (s *TCPServer) Run(done chan struct{}) error {
 			if err != nil {
 				return
 			}
-			s.onMessage(conn)
+			go s.onMessage(conn)
 		}
 	}()
 
@@ -1755,7 +1755,7 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	defer tr.Stop()
 
 	remotePort := rand.Int()%5000 + 15000
-	remoteAddr := &net.UDPAddr{IP: net.ParseIP(googlePublicDNSIPv4), Port: remotePort}
+	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp", nil)
 	require.NoError(t, err)
@@ -1987,6 +1987,62 @@ func TestTCPDirection(t *testing.T) {
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
 }
 
+func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
+	wg := sync.WaitGroup{}
+
+	// setup server to listen on a port
+	server := NewTCPServer(func(c net.Conn) {
+		t.Logf("received connection from %s", c.RemoteAddr())
+		_, _ = bufio.NewReader(c).ReadBytes('\n')
+		c.Close()
+		wg.Done()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+	defer close(doneChan)
+	t.Logf("server address: %s", server.address)
+
+	// create an initial client connection to the server
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// start tracer so it dumps port bindings
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// open and close another client connection to force port binding delete
+	wg.Add(1)
+	c2, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+	_, err = c2.Write([]byte("conn2\n"))
+	require.NoError(t, err)
+	c2.Close()
+
+	wg.Wait()
+
+	wg.Add(1)
+	// write some data so tracer determines direction of this connection
+	_, err = c.Write([]byte("original\n"))
+	require.NoError(t, err)
+
+	wg.Wait()
+
+	// the original connection should still be incoming for the server
+	conns := getConnections(t, tr)
+	origConn := searchConnections(conns, func(cs network.ConnectionStats) bool {
+		return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == server.address &&
+			fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == c.LocalAddr().String()
+	})
+	require.Len(t, origConn, 1)
+	require.Equal(t, network.INCOMING, origConn[0].Direction, "original server<->client connection should have incoming direction")
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -2040,27 +2096,29 @@ func TestHTTPStats(t *testing.T) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var matchingConns []network.ConnectionStats
+	var httpReqStats http.RequestStats
 	require.Eventuallyf(t, func() bool {
-		conns := getConnections(t, tr)
-		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
-		})
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		return len(matchingConns) == 1
+		for key, stats := range payload.HTTP {
+			if key.Path == "/test" {
+				httpReqStats = stats
+				return true
+			}
+		}
+
+		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
-	conn := matchingConns[0]
-	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
-	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
-	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
-	// it sees both sides of the req/resp so will register two 200s
-	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
-	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
-	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
-	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
+	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
+	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
+	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
+	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

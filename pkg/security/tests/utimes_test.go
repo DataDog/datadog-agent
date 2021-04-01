@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestUtime(t *testing.T) {
@@ -29,9 +30,9 @@ func TestUtime(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("utime", func(t *testing.T) {
+	t.Run("utime", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		fileMode := 0o447
-		expectedMode := applyUmask(fileMode)
+		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -43,7 +44,7 @@ func TestUtime(t *testing.T) {
 			Modtime: 456,
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(errno)
 		}
 
@@ -51,42 +52,23 @@ func TestUtime(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "utimes" {
-				t.Errorf("expected utimes event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
+			assert.Equal(t, event.Utimes.Atime.Unix(), int64(123))
+			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(456))
+			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile), "wrong inode")
 
-			if atime := event.Utimes.Atime.Unix(); atime != 123 {
-				t.Errorf("expected access time of 123, got %d", atime)
-			}
+			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
-			if mtime := event.Utimes.Mtime.Unix(); mtime != 456 {
-				t.Errorf("expected modification time of 456, got %d", mtime)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
-			}
-
-			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
-			}
-
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
-			}
+			assertNearTime(t, event.Utimes.File.MTime)
+			assertNearTime(t, event.Utimes.File.CTime)
 
 			testContainerPath(t, event, "utimes.file.container_path")
 		}
-	})
+	}))
 
-	t.Run("utimes", func(t *testing.T) {
+	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
 		fileMode := 0o447
-		expectedMode := applyUmask(fileMode)
+		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -104,7 +86,7 @@ func TestUtime(t *testing.T) {
 			},
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
 			t.Fatal(errno)
 		}
 
@@ -112,42 +94,23 @@ func TestUtime(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "utimes" {
-				t.Errorf("expected utimes event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
+			assert.Equal(t, event.Utimes.Atime.Unix(), int64(111))
 
-			if atime := event.Utimes.Atime.Unix(); atime != 111 {
-				t.Errorf("expected access time of 111, got %d", atime)
-			}
+			assert.Equal(t, event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond), int64(222))
+			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
-			if atime := event.Utimes.Atime.UnixNano(); atime%int64(time.Second)/int64(time.Microsecond) != 222 {
-				t.Errorf("expected access microseconds of 222, got %d", atime%int64(time.Second)/int64(time.Microsecond))
-			}
-
-			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
-			}
-
-			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
-			}
-
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
-			}
+			assertNearTime(t, event.Utimes.File.MTime)
+			assertNearTime(t, event.Utimes.File.CTime)
 
 			testContainerPath(t, event, "utimes.file.container_path")
 		}
-	})
+	}))
 
 	t.Run("utimensat", func(t *testing.T) {
 		fileMode := 0o447
-		expectedMode := applyUmask(fileMode)
+		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
 		if err != nil {
 			t.Fatal(err)
@@ -176,34 +139,15 @@ func TestUtime(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "utimes" {
-				t.Errorf("expected utimes event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
+			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(555))
 
-			if mtime := event.Utimes.Mtime.Unix(); mtime != 555 {
-				t.Errorf("expected modification time of 555, got %d", mtime)
-			}
+			assert.Equal(t, event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond), int64(666))
+			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
-			if mtime := event.Utimes.Mtime.UnixNano(); mtime%int64(time.Second)/int64(time.Nanosecond) != 666 {
-				t.Errorf("expected modification microseconds of 666, got %d (%d)", mtime%int64(time.Second)/int64(time.Nanosecond), mtime)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Utimes.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Utimes.File.Inode, inode)
-			}
-
-			if int(event.Utimes.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Utimes.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Utimes.File.MTime.After(now) || event.Utimes.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Utimes.File.MTime)
-			}
-
-			if event.Utimes.File.CTime.After(now) || event.Utimes.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Utimes.File.CTime)
-			}
+			assertNearTime(t, event.Utimes.File.MTime)
+			assertNearTime(t, event.Utimes.File.CTime)
 
 			testContainerPath(t, event, "utimes.file.container_path")
 		}
