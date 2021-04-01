@@ -90,7 +90,6 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	pidfilePath   string
 	confPathArray []string
 	flagNoColor   bool
-	stopCh        chan struct{}
 
 	srv     *api.Server
 	stopper restart.Stopper
@@ -180,6 +179,7 @@ func start(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// RunAgent initialized resources and starts API server
 func RunAgent(ctx context.Context) (err error) {
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
@@ -324,6 +324,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
+// StopAgent stops the API server and clean up resources
 func StopAgent(cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking

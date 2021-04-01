@@ -18,9 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -41,14 +42,10 @@ var (
 
 	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
 		"no": false, "false": false, "0": false}
-	// MIKEZHU: Questionable
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
 )
 
 func init() {
-	// MIKEZHU: We need to make change to the MSI to install Security Agent.
+	// ISSUE: We need to make change to the MSI to install Security Agent.
 	pd, err := winutil.GetProgramDataDirForProduct("Datadog Security Agent")
 	if err == nil {
 		DefaultConfPath = pd
@@ -103,7 +100,6 @@ type myservice struct{}
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	log.Infof("Service control function")
 
@@ -119,6 +115,8 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		return
 	}
 	elog.Info(0x40000003, ServiceName)
+
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 loop:
 	for {
