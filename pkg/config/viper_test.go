@@ -48,7 +48,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	config.SetDefault("baz", "test")
 
 	var wg sync.WaitGroup
-	errs := make(chan error, 100)
+	errs := make(chan error, 1000)
 
 	wg.Add(2)
 	go func() {

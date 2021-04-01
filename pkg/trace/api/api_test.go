@@ -638,48 +638,29 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			if on {
 				req.Header.Set(headerComputedStats, "yes")
 			}
-			errs := make(chan error, 2)
 			var wg sync.WaitGroup
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					errs <- err
+					t.Error(err)
 					return
 				}
 				if resp.StatusCode != 200 {
-					errs <- fmt.Errorf("%d", resp.StatusCode)
+					t.Error(resp.StatusCode)
 					return
 				}
 			}()
-
-			var wg2 sync.WaitGroup
-			wg2.Add(1)
-			go func() {
-				defer wg2.Done()
-				timeout := time.After(time.Second)
-				for {
-					select {
-					case p := <-rcv.out:
-						assert.Equal(t, p.ClientComputedStats, on)
-						wg.Wait()
-						return
-					case <-timeout:
-						errs <- fmt.Errorf("no output")
-						return
-					}
-				}
-			}()
-
-			go func() {
-				wg2.Wait()
-				close(errs)
-			}()
-
-			for err := range errs {
-				if err != nil {
-					t.Fatal(err)
+			timeout := time.After(time.Second)
+			for {
+				select {
+				case p := <-rcv.out:
+					assert.Equal(t, p.ClientComputedStats, on)
+					wg.Wait()
+					return
+				case <-timeout:
+					t.Fatal("no output")
 				}
 			}
 		}
@@ -769,47 +750,29 @@ func TestClientComputedTopLevel(t *testing.T) {
 			if on {
 				req.Header.Set(headerComputedTopLevel, "yes")
 			}
-			errs := make(chan error, 2)
 			var wg sync.WaitGroup
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					errs <- err
+					t.Error(err)
 					return
 				}
 				if resp.StatusCode != 200 {
-					errs <- fmt.Errorf("%d", resp.StatusCode)
+					t.Error(resp.StatusCode)
 					return
 				}
 			}()
-			var wg2 sync.WaitGroup
-			wg2.Add(1)
-			go func() {
-				defer wg2.Done()
-				timeout := time.After(time.Second)
-				for {
-					select {
-					case p := <-rcv.out:
-						assert.Equal(t, p.ClientComputedTopLevel, on)
-						wg.Wait()
-						return
-					case <-timeout:
-						errs <- fmt.Errorf("no output")
-						return
-					}
-				}
-			}()
-
-			go func() {
-				wg2.Wait()
-				close(errs)
-			}()
-
-			for err := range errs {
-				if err != nil {
-					t.Fatal(err)
+			timeout := time.After(time.Second)
+			for {
+				select {
+				case p := <-rcv.out:
+					assert.Equal(t, p.ClientComputedTopLevel, on)
+					wg.Wait()
+					return
+				case <-timeout:
+					t.Fatal("no output")
 				}
 			}
 		}
