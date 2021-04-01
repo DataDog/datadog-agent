@@ -11,15 +11,15 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestChmod(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `chmod.file.path == "{{.Root}}/test-chmod" && chmod.file.destination.mode in [0707, 0447, 0757] && chmod.file.uid == 98 && chmod.file.gid == 99`,
+		Expression: `chmod.file.path == "{{.Root}}/test-chmod" && chmod.file.destination.mode in [0707, 0717, 0757] && chmod.file.uid == 98 && chmod.file.gid == 99`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
@@ -29,89 +29,37 @@ func TestChmod(t *testing.T) {
 	defer test.Close()
 
 	fileMode := 0o447
-	expectedMode := applyUmask(fileMode)
+	expectedMode := uint16(applyUmask(fileMode))
 	testFile, testFilePtr, err := test.CreateWithOptions("test-chmod", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(testFile)
 
-	t.Run("chmod", func(t *testing.T) {
-		if _, _, errno := syscall.Syscall(syscall.SYS_CHMOD, uintptr(testFilePtr), uintptr(0o707), 0); errno != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "chmod" {
-				t.Errorf("expected chmod event, got %s", event.GetType())
-			}
-
-			if mode := event.Chmod.Mode; mode != 0o707 {
-				t.Errorf("expected chmod mode 0o707, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chmod.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
-			}
-
-			if int(event.Chmod.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
-			}
-
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
-			}
-
-			testContainerPath(t, event, "chmod.file.container_path")
-		}
-	})
-
 	t.Run("fchmod", func(t *testing.T) {
 		f, err := os.Open(testFile)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o447), 0); errno != 0 {
-			t.Fatal(err)
+		if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o707), 0); errno != 0 {
+			t.Fatal(errno)
 		}
-		defer f.Close()
+		defer func() {
+			f.Close()
+			expectedMode = 0o707
+		}()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "chmod" {
-				t.Errorf("expected chmod event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assertRights(t, uint16(event.Chmod.Mode), 0o707)
+			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 
-			if mode := event.Chmod.Mode; mode != 0o447 {
-				t.Errorf("expected chmod mode 0o447, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chmod.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
-			}
-
-			if int(event.Chmod.File.Mode)&0o707 != 0o707 {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
-			}
-
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
-			}
+			assertNearTime(t, event.Chmod.File.MTime)
+			assertNearTime(t, event.Chmod.File.CTime)
 
 			testContainerPath(t, event, "chmod.file.container_path")
 		}
@@ -119,39 +67,45 @@ func TestChmod(t *testing.T) {
 
 	t.Run("fchmodat", func(t *testing.T) {
 		if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
-			t.Fatal(err)
+			t.Fatal(errno)
+		}
+		defer func() { expectedMode = 0o757 }()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assertRights(t, uint16(event.Chmod.Mode), 0o757)
+			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chmod.File.Mode, expectedMode)
+
+			assertNearTime(t, event.Chmod.File.MTime)
+			assertNearTime(t, event.Chmod.File.CTime)
+
+			testContainerPath(t, event, "chmod.file.container_path")
+		}
+	})
+
+	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
+			t.Fatal(errno)
 		}
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "chmod" {
-				t.Errorf("expected chmod event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
+			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 
-			if mode := event.Chmod.Mode; mode != 0o757 {
-				t.Errorf("expected chmod mode 0o757, got %#o", mode)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chmod.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chmod.File.Inode, inode)
-			}
-
-			if int(event.Chmod.File.Mode)&0o447 != 0o447 {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chmod.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Chmod.File.MTime.After(now) || event.Chmod.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chmod.File.MTime)
-			}
-
-			if event.Chmod.File.CTime.After(now) || event.Chmod.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chmod.File.CTime)
-			}
+			assertNearTime(t, event.Chmod.File.MTime)
+			assertNearTime(t, event.Chmod.File.CTime)
 
 			testContainerPath(t, event, "chmod.file.container_path")
 		}
-	})
+	}))
+
 }

@@ -42,9 +42,9 @@ static __always_inline void cleanup_conn(conn_tuple_t* tup) {
     bpf_map_delete_elem(&conn_stats, &(conn.tup));
 
     if (cst) {
-        cst->timestamp = bpf_ktime_get_ns();
         conn.conn_stats = *cst;
     }
+    conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
     batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

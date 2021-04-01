@@ -34,24 +34,25 @@ bool CustomActionData::init(const std::wstring &data)
         return false;
     }
 
-    auto start = data.begin();
-    auto end = data.end();
-    std::wregex re(L"((\\w+)=(.+)?;\\s*\r?\n)");
-    std::match_results<decltype(start)> results;
-    while (std::regex_search(start, end, results, re))
-    {
-        auto propertyValue = results[3].str();
-        propertyValue.erase(propertyValue.begin(), std::find_if(propertyValue.begin(), propertyValue.end(), [](int ch)
-        {
-            return !std::isspace(ch);
-        }));
-        if (propertyValue.length() > 0)
-        {
-            values[results[2]] = propertyValue;
-        }
-        start += results.position() + results.length();
-    }
+    std::wstringstream ss(data);
+    std::wstring token;
 
+    while (std::getline(ss, token))
+    {
+        // 'token' contains "<key>=<value>"
+        std::wstringstream instream(token);
+        std::wstring key, val;
+        if (std::getline(instream, key, L'='))
+        {
+            trim_string(key);
+            std::getline(instream, val);
+            trim_string(val);
+            if (!key.empty() && !val.empty())
+            {
+                this->values[key] = val;
+            }
+        }
+    }
     return parseUsernameData() && parseSysprobeData();
 }
 
@@ -252,9 +253,22 @@ void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &c
 
     if (computed_domain == L".")
     {
-        WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-        computed_domain = machine.GetMachineName();
-        domainUser = false;
+        if (GetTargetMachine().IsDomainController())
+        {
+            // User didn't specify a domain OR didn't specify a user, but we're on a domain controller
+            // let's use the joined domain.
+            computed_domain = machine.JoinedDomainName();
+            domainUser = true;
+            WcaLog(LOGMSG_STANDARD,
+                   "No domain name supplied for installation on a Domain Controller, using joined domain \"%S\"",
+                   computed_domain.c_str());
+        }
+        else
+        {
+            WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
+            computed_domain = machine.GetMachineName();
+            domainUser = false;
+        }
     }
     else
     {
@@ -265,8 +279,7 @@ void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &c
         }
         else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S %S", computed_domain.c_str(),
-                   machine.DnsDomainName().c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", computed_domain.c_str());
             domainUser = true;
         }
         else
