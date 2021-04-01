@@ -8,14 +8,10 @@
 package probe
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/cobaugh/osrelease"
-	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -33,28 +29,13 @@ type KernelVersion struct {
 
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*KernelVersion, error) {
-	osReleasePaths := []string{
-		osrelease.EtcOsRelease,
-		osrelease.UsrLibOsRelease,
+	osrelease, err := osrelease.Read()
+	if err != nil {
+		return nil, err
 	}
-
-	if config.IsContainerized() && util.PathExists("/host") {
-		osReleasePaths = append([]string{
-			filepath.Join("/host", osrelease.EtcOsRelease),
-			filepath.Join("/host", osrelease.UsrLibOsRelease),
-		}, osReleasePaths...)
-	}
-
-	for _, osReleasePath := range osReleasePaths {
-		osrelease, err := osrelease.ReadFile(osReleasePath)
-		if err == nil {
-			return &KernelVersion{
-				osrelease: osrelease,
-			}, nil
-		}
-	}
-
-	return nil, errors.New("failed to detect operating system version")
+	return &KernelVersion{
+		osrelease: osrelease,
+	}, nil
 }
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel

@@ -181,7 +181,6 @@
 	})
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
-#define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
 
 enum event_type
 {

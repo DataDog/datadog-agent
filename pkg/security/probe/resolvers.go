@@ -87,19 +87,17 @@ func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
 // resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
 func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
+	if pathStr == dentryPathKeyNotFound || err != nil {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
-	if mountErr != nil {
-		return pathStr, mountErr
+	_, mountPath, rootPath, err := r.MountResolver.GetMountPath(e.MountID)
+	if err == nil {
+		if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
+			pathStr = strings.Replace(pathStr, rootPath, "", 1)
+		}
+		pathStr = path.Join(mountPath, pathStr)
 	}
-
-	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-		pathStr = strings.Replace(pathStr, rootPath, "", 1)
-	}
-	pathStr = path.Join(mountPath, pathStr)
 
 	return pathStr, err
 }

@@ -528,9 +528,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		}, nil
 
 	case "exec.envs":
-		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Envs
 			},
@@ -8558,7 +8557,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Envs"}
 		}
-		e.Exec.Envs = append(e.Exec.Envs, str)
+		e.Exec.Envs = str
 
 		return nil
 

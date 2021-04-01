@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -44,14 +42,9 @@ func openTestFile(test *testModule, filename string, flags int) (int, string, er
 }
 
 func TestOpenBasenameApproverFilter(t *testing.T) {
-	// generate a basename up to the current limit of the agent
-	var basename string
-	for i := 0; i < model.MaxSegmentLength; i++ {
-		basename += "a"
-	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
+		Expression: `open.file.path == "{{.Root}}/test-oba-1"`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -60,7 +53,7 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	fd1, testFile1, err := openTestFile(test, basename, syscall.O_CREAT)
+	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
 	}

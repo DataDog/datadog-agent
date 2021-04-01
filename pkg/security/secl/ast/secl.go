@@ -17,7 +17,6 @@ import (
 var (
 	seclLexer = lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
@@ -45,7 +44,7 @@ func buildParser(obj interface{}) (*participle.Parser, error) {
 		participle.Lexer(seclLexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"),
-		participle.Map(unquotePattern, "Pattern", "Regexp"),
+		participle.Map(unquotePattern, "Pattern"),
 	)
 }
 
@@ -130,7 +129,7 @@ type Comparison struct {
 type ScalarComparison struct {
 	Pos lexer.Position
 
-	Op   *string     `parser:"@( \">\" \"=\" | \">\" | \"<\" \"=\" | \"<\" | \"!\" \"=\" | \"=\" \"=\" | \"=\" \"~\" | \"!\" \"~\" )"`
+	Op   *string     `parser:"@( \">\" | \">\" \"=\" | \"<\" | \"<\" \"=\" | \"!\" \"=\" | \"=\" \"=\" | \"=\" \"~\" | \"!\" \"~\" )"`
 	Next *Comparison `parser:"@@"`
 }
 
@@ -169,7 +168,6 @@ type Primary struct {
 	Number        *int        `parser:"| @Int"`
 	String        *string     `parser:"| @String"`
 	Pattern       *string     `parser:"| @Pattern"`
-	Regexp        *string     `parser:"| @Regexp"`
 	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
 }
 
@@ -179,7 +177,6 @@ type StringMember struct {
 
 	String  *string `parser:"@String"`
 	Pattern *string `parser:"| @Pattern"`
-	Regexp  *string `parser:"| @Regexp"`
 }
 
 // Array describes an array of values

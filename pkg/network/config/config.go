@@ -156,7 +156,7 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		MaxDNSStatsBufferred:         75000,
-		MaxHTTPStatsBuffered:         100000,
+		MaxHTTPStatsBuffered:         75000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations

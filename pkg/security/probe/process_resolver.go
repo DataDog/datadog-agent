@@ -15,7 +15,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -454,14 +453,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		// keep only keys
-		pce.EnvsArray = make([]string, len(entry.Values))
-		for i, env := range entry.Values {
-			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-				pce.EnvsArray[i] = els[0]
-			}
-		}
-
+		pce.EnvsArray = entry.Values
 		if pce.EnvsTruncated {
 			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
@@ -631,11 +623,6 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
 		log.Debug(err)
 		return nil, false
-	}
-
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		entry.Ancestor = parent
 	}
 
 	if entry = p.insertEntry(pid, entry); entry == nil {

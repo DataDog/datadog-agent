@@ -4,6 +4,8 @@ package http
 
 import (
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 /*
@@ -22,6 +24,11 @@ type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t
 
+const (
+	CONN_V4 uint = 0 << 0
+	CONN_V6 uint = 1 << 1
+)
+
 func toHTTPNotification(data []byte) httpNotification {
 	return *(*httpNotification)(unsafe.Pointer(&data[0]))
 }
@@ -36,8 +43,8 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path(buffer []byte) []byte {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
+func (tx *httpTX) Path() string {
+	b := C.GoBytes(unsafe.Pointer(&tx.request_fragment), C.int(C.HTTP_BUFFER_SIZE))
 
 	var i, j int
 	for i = 0; i < len(b) && b[i] != ' '; i++ {
@@ -49,11 +56,10 @@ func (tx *httpTX) Path(buffer []byte) []byte {
 	}
 
 	if i < j && j <= len(b) {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
+		return string(b[i:j])
 	}
 
-	return nil
+	return ""
 }
 
 // StatusClass returns an integer representing the status code class
@@ -82,6 +88,32 @@ func (tx *httpTX) Method() string {
 	default:
 		return ""
 	}
+}
+
+func (tx *httpTX) SourceIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.saddr_l), uint64(tx.tup.saddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.saddr_l))
+}
+
+func (tx *httpTX) DestIP() util.Address {
+	// Second bit of metadata indicates if the connection is V6 (1) or V4 (0)
+	metadata := uint(tx.tup.metadata)
+	if metadata&CONN_V6 == 1 {
+		return util.V6Address(uint64(tx.tup.daddr_l), uint64(tx.tup.daddr_h))
+	}
+	return util.V4Address(uint32(tx.tup.daddr_l))
+}
+
+func (tx *httpTX) SourcePort() uint16 {
+	return uint16(tx.tup.sport)
+}
+
+func (tx *httpTX) DestPort() uint16 {
+	return uint16(tx.tup.dport)
 }
 
 // RequestLatency returns the latency of the request in ms

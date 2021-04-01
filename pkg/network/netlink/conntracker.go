@@ -72,7 +72,6 @@ type realConntracker struct {
 		registersTotalTime   int64
 		unregisters          int64
 		unregistersTotalTime int64
-		evicts               int64
 	}
 }
 
@@ -161,28 +160,19 @@ func (ctr *realConntracker) GetStats() map[string]int64 {
 		"orphan_size": int64(orphanSize),
 	}
 
-	gets := atomic.LoadInt64(&ctr.stats.gets)
-	if gets != 0 {
-		getTimeTotal := atomic.LoadInt64(&ctr.stats.getTimeTotal)
-		m["gets_total"] = gets
-		m["nanoseconds_per_get"] = getTimeTotal / gets
+	if ctr.stats.gets != 0 {
+		m["gets_total"] = ctr.stats.gets
+		m["nanoseconds_per_get"] = ctr.stats.getTimeTotal / ctr.stats.gets
 	}
-
-	registers := atomic.LoadInt64(&ctr.stats.registers)
-	if registers != 0 {
-		registersTotalTime := atomic.LoadInt64(&ctr.stats.registersTotalTime)
-		m["registers_total"] = registers
-		m["nanoseconds_per_register"] = registersTotalTime / registers
+	if ctr.stats.registers != 0 {
+		m["registers_total"] = ctr.stats.registers
+		m["registers_dropped"] = ctr.stats.registersDropped
+		m["nanoseconds_per_register"] = ctr.stats.registersTotalTime / ctr.stats.registers
 	}
-	m["registers_dropped"] = atomic.LoadInt64(&ctr.stats.registersDropped)
-
-	unregisters := atomic.LoadInt64(&ctr.stats.unregisters)
-	if unregisters != 0 {
-		unregisterTotalTime := atomic.LoadInt64(&ctr.stats.unregistersTotalTime)
-		m["unregisters_total"] = unregisters
-		m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
+	if ctr.stats.unregisters != 0 {
+		m["unregisters_total"] = ctr.stats.unregisters
+		m["nanoseconds_per_unregister"] = ctr.stats.unregistersTotalTime / ctr.stats.unregisters
 	}
-	m["evicts_total"] = atomic.LoadInt64(&ctr.stats.evicts)
 
 	// Merge telemetry from the consumer
 	for k, v := range ctr.consumer.GetStats() {
@@ -227,9 +217,7 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 				continue
 			}
 
-			evicts := ctr.cache.Add(c, false)
-			atomic.AddInt64(&ctr.stats.registers, 1)
-			atomic.AddInt64(&ctr.stats.evicts, int64(evicts))
+			ctr.cache.Add(c, false)
 		}
 	}
 }
@@ -244,15 +232,15 @@ func (ctr *realConntracker) register(c Con) int {
 	}
 
 	then := time.Now().UnixNano()
+	defer func() {
+		atomic.AddInt64(&ctr.stats.registers, 2)
+		atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
+	}()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
-	evicts := ctr.cache.Add(c, true)
-
-	atomic.AddInt64(&ctr.stats.registers, 1)
-	atomic.AddInt64(&ctr.stats.evicts, int64(evicts))
-	atomic.AddInt64(&ctr.stats.registersTotalTime, time.Now().UnixNano()-then)
+	ctr.cache.Add(c, true)
 
 	return 0
 }
@@ -335,7 +323,7 @@ func (cc *conntrackCache) Remove(k connKey) bool {
 	return cc.cache.Remove(k)
 }
 
-func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
+func (cc *conntrackCache) Add(c Con, orphan bool) {
 	registerTuple := func(keyTuple, transTuple *ct.IPTuple) {
 		key, ok := formatKey(keyTuple)
 		if !ok {
@@ -362,20 +350,13 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 			})
 		}
 
-		if cc.cache.Add(key, t) {
-			evicts++
-		}
+		cc.cache.Add(key, t)
 	}
 
 	log.Tracef("%s", c)
 
 	registerTuple(c.Origin, c.Reply)
 	registerTuple(c.Reply, c.Origin)
-	return
-}
-
-func (cc *conntrackCache) Len() int {
-	return cc.cache.Len()
 }
 
 func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"gotest.tools/assert"
 )
 
 func TestMacros(t *testing.T) {
@@ -54,6 +53,8 @@ func TestMacros(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else {
-		assert.Equal(t, event.GetType(), "mkdir", "wrong event type")
+		if event.GetType() != "mkdir" {
+			t.Errorf("expected mkdir event, got %s", event.GetType())
+		}
 	}
 }

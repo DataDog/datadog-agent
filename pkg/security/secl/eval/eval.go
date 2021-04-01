@@ -27,10 +27,9 @@ type FieldValueType int
 
 // Field value types
 const (
-	ScalarValueType  FieldValueType = 1 << 0
-	PatternValueType FieldValueType = 1 << 1
-	RegexpValueType  FieldValueType = 1 << 2
-	BitmaskValueType FieldValueType = 1 << 3
+	ScalarValueType  FieldValueType = 1
+	PatternValueType FieldValueType = 2
+	BitmaskValueType FieldValueType = 4
 )
 
 // defines factor applied by specific operator
@@ -38,7 +37,7 @@ const (
 	FunctionWeight       = 5
 	InArrayWeight        = 10
 	HandlerWeight        = 50
-	RegexpWeight         = 100
+	PatternWeight        = 100
 	InPatternArrayWeight = 1000
 	IteratorWeight       = 2000
 )
@@ -109,10 +108,8 @@ type StringEvaluator struct {
 	Value   string
 	Weight  int
 
-	isRegexp  bool
+	isPattern bool
 	isPartial bool
-
-	valueType FieldValueType
 
 	// cache
 	regexp *regexp.Regexp
@@ -130,10 +127,8 @@ type StringArrayEvaluator struct {
 	Values  []string
 	Weight  int
 
-	isRegexp  bool
+	isPattern bool
 	isPartial bool
-
-	valueTypes []FieldValueType
 
 	// cache
 	regexps []*regexp.Regexp
@@ -193,6 +188,24 @@ func extractField(field string) (Field, Field, RegisterID, error) {
 	field, itField := re.ReplaceAllString(field, `$1$2`), re.ReplaceAllString(field, `$1`)
 
 	return field, itField, regID, nil
+}
+
+func patternToRegexp(pattern string) (*regexp.Regexp, error) {
+	// do not accept full wildcard value
+	if matched, err := regexp.Match(`[a-zA-Z0-9\.]+`, []byte(pattern)); err != nil || !matched {
+		return nil, &ErrInvalidPattern{Pattern: pattern}
+	}
+
+	// quote eveything except wilcard
+	re := regexp.MustCompile(`[\.*+?()|\[\]{}^$]`)
+	quoted := re.ReplaceAllStringFunc(pattern, func(s string) string {
+		if s != "*" {
+			return "\\" + s
+		}
+		return ".*"
+	})
+
+	return regexp.Compile("^" + quoted + "$")
 }
 
 type ident struct {
@@ -286,81 +299,6 @@ func identToEvaluator(obj *ident, opts *Opts, state *state) (interface{}, lexer.
 	state.UpdateFields(field)
 
 	return accessor, obj.Pos, nil
-}
-
-func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, lexer.Position, error) {
-	if len(array.Numbers) != 0 {
-		return &IntArrayEvaluator{
-			Values: array.Numbers,
-		}, array.Pos, nil
-	} else if len(array.StringMembers) != 0 {
-		var strs []string
-		var valueTypes []FieldValueType
-
-		isPlainStringArray := true
-		for _, member := range array.StringMembers {
-			if member.String != nil {
-				strs = append(strs, *member.String)
-				valueTypes = append(valueTypes, ScalarValueType)
-			} else if member.Pattern != nil {
-				strs = append(strs, *member.Pattern)
-				valueTypes = append(valueTypes, PatternValueType)
-				isPlainStringArray = false
-			} else {
-				strs = append(strs, *member.Regexp)
-				valueTypes = append(valueTypes, RegexpValueType)
-				isPlainStringArray = false
-			}
-		}
-
-		if isPlainStringArray {
-			return &StringArrayEvaluator{
-				Values:     strs,
-				valueTypes: valueTypes,
-			}, array.Pos, nil
-		}
-
-		var reg *regexp.Regexp
-		var regs []*regexp.Regexp
-		var err error
-
-		for _, member := range array.StringMembers {
-			if member.String != nil {
-				// escape wildcard
-				str := strings.ReplaceAll(*member.String, "*", "\\*")
-
-				if reg, err = patternToRegexp(str); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
-				}
-			} else if member.Pattern != nil {
-				if reg, err = patternToRegexp(*member.Pattern); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
-				}
-			} else {
-				if reg, err = regexp.Compile(*member.Regexp); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid regexp '%s': %s", *member.Regexp, err))
-				}
-			}
-			regs = append(regs, reg)
-		}
-		return &StringArrayEvaluator{
-			Values:     strs,
-			regexps:    regs,
-			isRegexp:   true,
-			valueTypes: valueTypes,
-		}, array.Pos, nil
-	} else if array.Ident != nil {
-		if state.macros != nil {
-			if macro, ok := state.macros[*array.Ident]; ok {
-				return macro.Value, array.Pos, nil
-			}
-		}
-
-		// could be an iterator
-		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
-	}
-
-	return nil, array.Pos, NewError(array.Pos, "unknow array element type")
 }
 
 func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, lexer.Position, error) {
@@ -601,13 +539,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "!~":
+					// consider the value as regexp
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := toPattern(nextString); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
 					}
+					nextString.isPattern = true
+					nextString.regexp = reg
 
 					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
@@ -621,13 +563,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "=~":
+					// consider the value as regexp
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := toPattern(nextString); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
 					}
+					nextString.isPattern = true
+					nextString.regexp = reg
 
 					boolEvaluator, err := StringEquals(unary, nextString, opts, state)
 					if err != nil {
@@ -656,13 +602,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return boolEvaluator, obj.Pos, nil
 				case "!~":
+					// consider the value as regexp
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := toPattern(nextString); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
 					}
+					nextString.isPattern = true
+					nextString.regexp = reg
 
 					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
@@ -670,13 +620,17 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					}
 					return Not(boolEvaluator, opts, state), obj.Pos, nil
 				case "=~":
+					// consider the value as regexp
 					if nextString.EvalFnc != nil {
 						return nil, obj.Pos, &ErrNonStaticPattern{Field: nextString.Field}
 					}
 
-					if err := toPattern(nextString); err != nil {
-						return nil, obj.Pos, NewError(obj.Pos, err.Error())
+					reg, err := patternToRegexp(nextString.Value)
+					if err != nil {
+						return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", nextString.Value, err))
 					}
+					nextString.isPattern = true
+					nextString.regexp = reg
 
 					boolEvaluator, err := ArrayStringContains(nextString, unary, opts, state)
 					if err != nil {
@@ -875,8 +829,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			}, obj.Pos, nil
 		case obj.String != nil:
 			return &StringEvaluator{
-				Value:     *obj.String,
-				valueType: ScalarValueType,
+				Value: *obj.String,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
 			reg, err := patternToRegexp(*obj.Pattern)
@@ -886,21 +839,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     *obj.Pattern,
-				isRegexp:  true,
+				isPattern: true,
 				regexp:    reg,
-				valueType: PatternValueType,
-			}, obj.Pos, nil
-		case obj.Regexp != nil:
-			reg, err := regexp.Compile(*obj.Regexp)
-			if err != nil {
-				return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid regexp '%s': %s", *obj.Regexp, err))
-			}
-
-			return &StringEvaluator{
-				Value:     *obj.Regexp,
-				isRegexp:  true,
-				regexp:    reg,
-				valueType: RegexpValueType,
 			}, obj.Pos, nil
 		case obj.SubExpression != nil:
 			return nodeToEvaluator(obj.SubExpression, opts, state)
@@ -908,7 +848,63 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("unknown primary '%s'", reflect.TypeOf(obj)))
 		}
 	case *ast.Array:
-		return arrayToEvaluator(obj, opts, state)
+		if len(obj.Numbers) != 0 {
+			return &IntArrayEvaluator{
+				Values: obj.Numbers,
+			}, obj.Pos, nil
+		} else if len(obj.StringMembers) != 0 {
+			var strs []string
+			var hasPatterns bool
+
+			for _, member := range obj.StringMembers {
+				if member.String != nil {
+					strs = append(strs, *member.String)
+				} else {
+					strs = append(strs, *member.Pattern)
+					hasPatterns = true
+				}
+			}
+
+			if hasPatterns {
+				var regs []*regexp.Regexp
+				var reg *regexp.Regexp
+				var err error
+
+				for _, member := range obj.StringMembers {
+					if member.String != nil {
+						// escape wildcard
+						str := strings.ReplaceAll(*member.String, "*", "\\*")
+
+						if reg, err = patternToRegexp(str); err != nil {
+							return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
+						}
+					} else {
+						if reg, err = patternToRegexp(*member.Pattern); err != nil {
+							return nil, obj.Pos, NewError(obj.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
+						}
+					}
+					regs = append(regs, reg)
+				}
+				return &StringArrayEvaluator{
+					Values:    strs,
+					regexps:   regs,
+					isPattern: true,
+				}, obj.Pos, nil
+			}
+
+			return &StringArrayEvaluator{
+				Values: strs,
+			}, obj.Pos, nil
+		} else if obj.Ident != nil {
+			if state.macros != nil {
+				if macro, ok := state.macros[*obj.Ident]; ok {
+					return macro.Value, obj.Pos, nil
+				}
+			}
+
+			// could be an iterator
+			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
+		}
 	}
 
 	return nil, lexer.Position{}, NewError(lexer.Position{}, fmt.Sprintf("unknown entity '%s'", reflect.TypeOf(obj)))

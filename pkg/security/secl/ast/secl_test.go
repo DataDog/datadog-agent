@@ -186,21 +186,3 @@ func TestArrayPattern(t *testing.T) {
 
 	print(t, rule)
 }
-
-func TestRegexp(t *testing.T) {
-	rule, err := ParseRule(`process.name == r"/usr/bin/ls"`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	print(t, rule)
-}
-
-func TestArrayRegexp(t *testing.T) {
-	rule, err := ParseRule(`process.name in [r"/usr/bin/ls", "/usr/sbin/ls"]`)
-	if err != nil {
-		t.Error(err)
-	}
-
-	print(t, rule)
-}

@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Group the output of `agent tagger-list` by entity and by source.

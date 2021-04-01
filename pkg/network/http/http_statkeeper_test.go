@@ -13,7 +13,7 @@ import (
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
-	sk := newHTTPStatkeeper(1000, newTelemetry())
+	sk := newHTTPStatkeeper()
 	txs := make([]httpTX, 100)
 
 	sourceIP := util.AddressFromString("1.1.1.1")
@@ -21,8 +21,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	destIP := util.AddressFromString("2.2.2.2")
 	destPort := 8080
 
-	const numPaths = 10
-	for i := 0; i < numPaths; i++ {
+	for i := 0; i < 10; i++ {
 		path := "/testpath" + strconv.Itoa(i)
 
 		for j := 0; j < 10; j++ {
@@ -35,21 +34,33 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	sk.Process(txs)
 
 	stats := sk.GetAndResetAllStats()
-	assert.Equal(t, 0, len(sk.stats))
-	assert.Equal(t, numPaths, len(stats))
-	for key, stats := range stats {
-		assert.Equal(t, "/testpath", key.Path[:9])
-		for i := 0; i < 5; i++ {
-			assert.Equal(t, 2, stats[i].Count)
-			assert.Equal(t, 2.0, stats[i].Latencies.GetCount())
+	assert.Equal(t, len(sk.stats), 0)
 
-			p50, err := stats[i].Latencies.GetValueAtQuantile(0.5)
-			assert.Nil(t, err)
+	assert.Equal(t, len(stats), 1)
+	for key, statsMap := range stats {
+		assert.Equal(t, key, Key{
+			SourceIP:   sourceIP,
+			SourcePort: uint16(sourcePort),
+			DestIP:     destIP,
+			DestPort:   uint16(destPort),
+		})
 
-			expectedLatency := float64(i)
-			acceptableError := expectedLatency * RelativeAccuracy
-			assert.True(t, p50 >= expectedLatency-acceptableError)
-			assert.True(t, p50 <= expectedLatency+acceptableError)
+		assert.Equal(t, len(statsMap), 10)
+		for path, stats := range statsMap {
+			assert.Equal(t, "/testpath", path[:9])
+
+			for i := 0; i < 5; i++ {
+				assert.Equal(t, 2, stats[i].count)
+				assert.Equal(t, 2.0, stats[i].latencies.GetCount())
+
+				p50, err := stats[i].latencies.GetValueAtQuantile(0.5)
+				assert.Nil(t, err)
+
+				expectedLatency := float64(i)
+				acceptableError := expectedLatency * RelativeAccuracy
+				assert.True(t, p50 >= expectedLatency-acceptableError)
+				assert.True(t, p50 <= expectedLatency+acceptableError)
+			}
 		}
 	}
 }
@@ -69,24 +80,4 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	tx.tup.metadata = 1
 
 	return tx
-}
-
-func BenchmarkProcessSameConn(b *testing.B) {
-	sk := newHTTPStatkeeper(1000, newTelemetry())
-	tx := generateIPv4HTTPTransaction(
-		util.AddressFromString("1.1.1.1"),
-		util.AddressFromString("2.2.2.2"),
-		1234,
-		8080,
-		"foobar",
-		404,
-		float64(30000),
-	)
-	transactions := []httpTX{tx}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sk.Process(transactions)
-	}
 }

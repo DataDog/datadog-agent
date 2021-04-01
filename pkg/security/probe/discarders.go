@@ -264,12 +264,10 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 					if regexDir.MatchString(dirname) {
 						return false, nil
 					}
-				} else if value.Type == eval.ScalarValueType {
+				} else {
 					if strings.HasPrefix(value.Value.(string), dirname) {
 						return false, nil
 					}
-				} else {
-					return false, nil
 				}
 			}
 

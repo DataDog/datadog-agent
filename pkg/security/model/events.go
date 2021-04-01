@@ -123,7 +123,7 @@ func (t EventType) String() string {
 	case CapsetEventType:
 		return "capset"
 	case ArgsEnvsEventType:
-		return "args_envs"
+		return "args_envs_dentry"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

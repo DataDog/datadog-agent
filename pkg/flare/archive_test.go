@@ -250,9 +250,8 @@ func TestCleanDirectoryName(t *testing.T) {
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
-		Tags: map[string][]string{
-			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
-		},
+		Sources: []string{"docker_source_name"},
+		Tags:    []string{"docker_image:custom-agent:latest", "image_name:custom-agent"},
 	}
 	resp := response.TaggerListResponse{
 		Entities: tagMap,

@@ -297,11 +297,6 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name =~ ~"/usr/bin/*"`, Expected: true},
 		{Expr: `process.name =~ "/usr/bin/c$t"`, Expected: true},
 		{Expr: `process.name =~ "/usr/bin/c$taaa"`, Expected: false},
-		{Expr: `process.name =~ r".*/bin/.*"`, Expected: true},
-		{Expr: `process.name =~ r".*/[usr]+/bin/.*"`, Expected: true},
-		{Expr: `process.name =~ r".*/[abc]+/bin/.*"`, Expected: false},
-		{Expr: `process.name == r".*/bin/.*"`, Expected: true},
-		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -741,11 +736,6 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[_].key != 10`, Expected: false},
 		{Expr: `process.list[_].key != 9999`, Expected: true},
 
-		{Expr: `process.list[_].key >= 200`, Expected: true},
-		{Expr: `process.list[_].key > 100`, Expected: true},
-		{Expr: `process.list[_].key <= 200`, Expected: true},
-		{Expr: `process.list[_].key < 100`, Expected: true},
-
 		{Expr: `10 == process.list[_].key`, Expected: true},
 		{Expr: `9999 == process.list[_].key`, Expected: false},
 		{Expr: `10 != process.list[_].key`, Expected: false},
@@ -781,9 +771,6 @@ func TestRegister(t *testing.T) {
 		{Expr: `~"ZZ*" in process.list[_].value`, Expected: false},
 		{Expr: `~"AA*" not in process.list[_].value`, Expected: false},
 		{Expr: `~"ZZ*" not in process.list[_].value`, Expected: true},
-
-		{Expr: `r"[A]{1,3}" in process.list[_].value`, Expected: true},
-		{Expr: `process.list[_].value in [r"[A]{1,3}", "nnnnn"]`, Expected: true},
 
 		{Expr: `process.list[_].value == ~"AA*"`, Expected: true},
 		{Expr: `process.list[_].value == ~"ZZ*"`, Expected: false},

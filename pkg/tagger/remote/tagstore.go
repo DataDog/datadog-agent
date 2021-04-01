@@ -63,11 +63,11 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 	return nil
 }
 
-func (s *tagStore) getEntity(entityID string) *types.Entity {
+func (s *tagStore) getEntity(entityID string) (*types.Entity, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	return s.store[entityID]
+	return s.store[entityID], nil
 }
 
 func (s *tagStore) listEntities() []*types.Entity {

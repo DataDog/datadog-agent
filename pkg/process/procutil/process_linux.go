@@ -36,12 +36,13 @@ var (
 )
 
 type statusInfo struct {
-	name        string
-	status      string
-	uids        []int32
-	gids        []int32
-	nspid       int32
-	numThreads  int32
+	name       string
+	status     string
+	uids       []int32
+	gids       []int32
+	nspid      int32
+	numThreads int32
+
 	memInfo     *MemoryInfoStat
 	ctxSwitches *NumCtxSwitchesStat
 }
@@ -50,34 +51,26 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
-	cpuStat    *CPUTimesStat
-}
 
-// Option is config options callback for system-probe
-type Option func(p *Probe)
-
-// WithReturnZeroPermStats configures whether StatsWithPermByPID() returns StatsWithPerm that
-// has zero values on all fields
-func WithReturnZeroPermStats(enabled bool) Option {
-	return func(p *Probe) {
-		p.returnZeroPermStats = enabled
-	}
+	cpuStat *CPUTimesStat
 }
 
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
 	procRootFile *os.File
-	uid          uint32 // UID
-	euid         uint32 // Effective UID
-	clockTicks   float64
-	bootTime     uint64
 
-	returnZeroPermStats bool
+	// uid and euid are cached to minimize system call when check file permission
+	uid  uint32 // UID
+	euid uint32 // Effective UID
+
+	clockTicks float64
+
+	bootTime uint64
 }
 
 // NewProcessProbe initializes a new Probe object
-func NewProcessProbe(options ...Option) *Probe {
+func NewProcessProbe() *Probe {
 	hostProc := util.HostProc()
 	bootTime, _ := bootTime(hostProc)
 
@@ -88,11 +81,6 @@ func NewProcessProbe(options ...Option) *Probe {
 		bootTime:    bootTime,
 		clockTicks:  getClockTicks(),
 	}
-
-	for _, o := range options {
-		o(p)
-	}
-
 	return p
 }
 
@@ -190,37 +178,6 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	return procsByPID, nil
 }
 
-// StatsWithPermByPID returns the stats that require elevated permission to collect for each process
-func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
-	pids, err := p.getActivePIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
-	for _, pid := range pids {
-		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
-			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
-			continue
-		}
-
-		fds := p.getFDCount(pathForPID)
-		io := p.parseIO(pathForPID)
-
-		// don't return entries with all zero values if returnZeroPermStats is disabled
-		if !p.returnZeroPermStats && fds == 0 && io.IsZeroValue() {
-			continue
-		}
-
-		statsByPID[pid] = &StatsWithPerm{
-			OpenFdCount: fds,
-			IOStat:      io,
-		}
-	}
-	return statsByPID, nil
-}
-
 func (p *Probe) getRootProcFile() (*os.File, error) {
 	if p.procRootFile != nil {
 		return p.procRootFile, nil
@@ -284,12 +241,7 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 	path := filepath.Join(pidPath, "io")
 	var err error
 
-	io := &IOCountersStat{
-		ReadBytes:  -1,
-		ReadCount:  -1,
-		WriteBytes: -1,
-		WriteCount: -1,
-	}
+	io := &IOCountersStat{}
 
 	if err = p.ensurePathReadable(path); err != nil {
 		return io
@@ -329,22 +281,22 @@ func (p *Probe) parseIOLine(line []byte, io *IOCountersStat) {
 func (p *Probe) parseIOKV(key, value string, io *IOCountersStat) {
 	switch key {
 	case "syscr":
-		v, err := strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			io.ReadCount = v
 		}
 	case "syscw":
-		v, err := strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			io.WriteCount = v
 		}
 	case "read_bytes":
-		v, err := strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			io.ReadBytes = v
 		}
 	case "write_bytes":
-		v, err := strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseUint(value, 10, 64)
 		if err == nil {
 			io.WriteBytes = v
 		}

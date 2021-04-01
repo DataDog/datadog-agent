@@ -156,25 +156,23 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	newRuleSetOpts := func() *rules.Opts {
-		return rules.NewOptsWithParams(
-			model.SECLConstants,
-			sprobe.SupportedDiscarders,
-			m.getEventTypeEnabled(),
-			sprobe.AllCustomRuleIDs(),
-			model.SECLLegacyAttributes,
-			agentLogger.DatadogAgentLogger{})
-	}
+	ruleSetOpts := rules.NewOptsWithParams(
+		model.SECLConstants,
+		sprobe.SupportedDiscarders,
+		m.getEventTypeEnabled(),
+		sprobe.AllCustomRuleIDs(),
+		model.SECLLegacyAttributes,
+		agentLogger.DatadogAgentLogger{})
 
-	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
+	ruleSet := m.probe.NewRuleSet(ruleSetOpts)
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
 	}
 
-	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	model := &sprobe.Model{}
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, ruleSetOpts)
 	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())

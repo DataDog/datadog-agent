@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
@@ -35,10 +34,6 @@ const (
 	defaultTimeout    = 5 * time.Minute
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
-)
-
-var (
-	errTaggerStreamNotStarted = errors.New("tagger stream not started")
 )
 
 // Tagger holds a connection to a remote tagger, processes incoming events from
@@ -100,10 +95,6 @@ func (t *Tagger) Init() error {
 
 	err = t.startTaggerStream(defaultTimeout)
 	if err != nil {
-		// tagger stopped before being connected
-		if err == errTaggerStreamNotStarted {
-			return nil
-		}
 		return err
 	}
 
@@ -138,7 +129,11 @@ func (t *Tagger) Stop() error {
 func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]string, error) {
 	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality))
 
-	entity := t.store.getEntity(entityID)
+	entity, err := t.store.getEntity(entityID)
+	if err != nil {
+		return nil, err
+	}
+
 	if entity != nil {
 		return entity.GetTags(cardinality), nil
 	}
@@ -157,9 +152,9 @@ func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinali
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	entity := t.store.getEntity(entityID)
-	if entity == nil {
-		return []string{}, nil
+	entity, err := t.store.getEntity(entityID)
+	if err != nil {
+		return nil, err
 	}
 
 	return entity.StandardTags, nil
@@ -174,9 +169,7 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 
 	for _, e := range entities {
 		resp.Entities[e.ID] = response.TaggerListEntity{
-			Tags: map[string][]string{
-				remoteSource: e.GetTags(collectors.HighCardinality),
-			},
+			Tags: e.GetTags(collectors.HighCardinality),
 		}
 	}
 
@@ -296,7 +289,7 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 	return backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
-			return errTaggerStreamNotStarted
+			return nil
 		default:
 		}
 

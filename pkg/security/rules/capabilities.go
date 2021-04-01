@@ -5,9 +5,7 @@
 
 package rules
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-)
+import "github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 
 // FieldCapabilities holds a list of field capabilities
 type FieldCapabilities []FieldCapability

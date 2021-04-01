@@ -189,21 +189,21 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								alias = aliasPrefix + "." + fieldAlias
 							}
 
-							var origType string
-							var isOrigTypePtr bool
-							var isArray bool
+							var OrigType string
+							var IsOrigTypePtr bool
+							var IsArray bool
 
 							if ft, ok := field.Type.(*ast.Ident); ok {
-								origType = ft.Name
+								OrigType = ft.Name
 							} else if ft, ok := field.Type.(*ast.StarExpr); ok {
 								if ident, ok := ft.X.(*ast.Ident); ok {
-									origType = ident.Name
-									isOrigTypePtr = true
+									OrigType = ident.Name
+									IsOrigTypePtr = true
 								}
 							} else if ft, ok := field.Type.(*ast.ArrayType); ok {
-								isArray = true
+								IsArray = true
 								if ident, ok := ft.Elt.(*ast.Ident); ok {
-									origType = ident.Name
+									OrigType = ident.Name
 								}
 							}
 
@@ -221,44 +221,38 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								ReturnType:    pkgType(it),
 								Public:        true,
 								Event:         event,
-								OrigType:      pkgType(origType),
-								IsOrigTypePtr: isOrigTypePtr,
-								IsArray:       isArray,
+								OrigType:      pkgType(OrigType),
+								IsOrigTypePtr: IsOrigTypePtr,
+								IsArray:       IsArray,
 							}
 
 							fieldIterator = module.Iterators[alias]
 						}
 
 						if handler, found := tag.Lookup("handler"); found {
+							els := strings.Split(handler, ",")
+							if len(els) != 2 {
+								panic("handler definition should be `FunctionName,ReturnType`")
+							}
+							fnc, kind := els[0], els[1]
+
 							if aliasPrefix != "" {
 								fieldAlias = aliasPrefix + "." + fieldAlias
 							}
 
-							var origType string
-							var isArray bool
-
-							if ft, ok := field.Type.(*ast.Ident); ok {
-								origType = ft.Name
-							} else if ft, ok := field.Type.(*ast.ArrayType); ok {
-								isArray = true
-								if ident, ok := ft.Elt.(*ast.Ident); ok {
-									origType = ident.Name
-								}
-							}
-
+							fieldType, ok := field.Type.(*ast.Ident)
 							if ok {
 								module.Fields[fieldAlias] = &structField{
 									Prefix:     prefix,
 									Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
-									BasicType:  origTypeToBasicType(origType),
+									BasicType:  origTypeToBasicType(fieldType.Name),
 									Struct:     typeSpec.Name.Name,
-									Handler:    handler,
-									ReturnType: origTypeToBasicType(origType),
+									Handler:    fnc,
+									ReturnType: kind,
 									Public:     true,
 									Event:      event,
-									OrigType:   origType,
+									OrigType:   fieldType.Name,
 									Iterator:   fieldIterator,
-									IsArray:    isArray,
 								}
 								module.EventTypes[event] = true
 							}
@@ -471,17 +465,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	{{$Mock := .Mock}}
 	{{range $Name, $Field := .Fields}}
 	{{$EvaluatorType := "eval.StringEvaluator"}}
-	{{if or $Field.Iterator $Field.IsArray}}
+	{{if $Field.Iterator}}
 		{{$EvaluatorType = "eval.StringArrayEvaluator"}}
 	{{end}}
 	{{if eq $Field.ReturnType "int"}}
 		{{$EvaluatorType = "eval.IntEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
+		{{if $Field.Iterator}}
 			{{$EvaluatorType = "eval.IntArrayEvaluator"}}
 		{{end}}
 	{{else if eq $Field.ReturnType "bool"}}
 		{{$EvaluatorType = "eval.BoolEvaluator"}}
-		{{if or $Field.Iterator $Field.IsArray}}
+		{{if $Field.Iterator}}
 			{{$EvaluatorType = "eval.BoolArrayEvaluator"}}
 		{{end}}
 	{{end}}
@@ -539,30 +533,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return results
 				},
 			{{- else}}
-				{{- $ArrayPrefix := ""}}
-				{{- if $Field.IsArray}}
-					{{$ArrayPrefix = "[]"}}
-				{{end}}
-				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$Field.ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{$Field.ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
-					{{- if and (ne $Field.Handler "") (not $Mock)}}
+					{{if and (ne $Field.Handler "") (not $Mock)}}
 						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(&(*Event)(ctx.Object)." $Field.Prefix ")"}}
 					{{end}}
 
 					{{- if eq $Field.ReturnType "int"}}
-						{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
-							result := make([]int, len({{$Return}}))
-							for i, v := range {{$Return}} {
-								result[i] = in(v)
-							}
-							return result
-						{{- else}}
-							{{- if ne $Field.OrigType "int"}}
-								return int({{$Return}})
-							{{- else}}
-								return {{$Return}}
-							{{end -}}
-						{{end -}}
+						return int({{$Return}})
 					{{- else}}
 						return {{$Return}}
 					{{end -}}
@@ -620,7 +598,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element." $Field.Struct ")"}}
 				{{end}}
 
-				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
+				{{if eq $Field.ReturnType "int"}}
 					result := int({{$Return}})
 				{{else}}
 					result := {{$Return}}
@@ -638,27 +616,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{$Return = print "e." $Field.Handler "(&e." $Field.Prefix ")"}}
 			{{end}}
 
-			{{- $ArrayPrefix := ""}}
-			{{- if $Field.IsArray}}
-				{{$ArrayPrefix = "[]"}}
-			{{end}}
-
 			{{if eq $Field.ReturnType "string"}}
 				return {{$Return}}, nil
 			{{else if eq $Field.ReturnType "int"}}
-				{{- if and ($Field.IsArray) (ne $Field.OrigType "int") }}
-					result := make([]int, len({{$Return}}))
-					for i, v := range {{$Return}} {
-						result[i] = in(v)
-					}
-					return result, nil
-				{{- else}}
-					{{- if ne $Field.OrigType "int"}}
-						return int({{$Return}}), nil
-					{{- else}}
-						return {{$Return}}, nil
-					{{end -}}
-				{{end -}}
+				return int({{$Return}}), nil
 			{{else if eq $Field.ReturnType "bool"}}
 				return {{$Return}}, nil
 			{{end}}

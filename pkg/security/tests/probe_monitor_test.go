@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/cihub/seelog"
-	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -42,12 +42,12 @@ func TestProbeMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
+	truncatedParentsFile, truncatedParentsFilePtr, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	truncatedSegmentFile, _, err := test.Path(fmt.Sprintf("%s/test-open", truncatedSegment))
+	truncatedSegmentFile, truncatedSegmentFilePtr, err := test.Path(fmt.Sprintf("%s/test-open", truncatedSegment))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,9 @@ func TestProbeMonitor(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.RulesetLoadedRuleID, "wrong rule")
+			if ruleEvent.RuleID != probe.RulesetLoadedRuleID {
+				t.Errorf("expected %s rule, got %s", probe.RulesetLoadedRuleID, ruleEvent.RuleID)
+			}
 		}
 	})
 
@@ -72,19 +74,20 @@ func TestProbeMonitor(t *testing.T) {
 		if os.MkdirAll(path.Dir(truncatedSegmentFile), 0755) != nil {
 			t.Fatal(err)
 		}
-
-		f, err := os.OpenFile(truncatedSegmentFile, os.O_CREATE, 0755)
-		if err != nil {
-			t.Fatal(err)
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(truncatedSegmentFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
 		defer os.Remove(truncatedSegmentFile)
-		defer f.Close()
+		defer syscall.Close(int(fd))
 
 		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedSegmentEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+			if ruleEvent.RuleID != probe.AbnormalPathRuleID {
+				t.Errorf("expected %s rule, got %s", probe.AbnormalPathRuleID, ruleEvent.RuleID)
+			}
 		}
 	})
 
@@ -92,19 +95,20 @@ func TestProbeMonitor(t *testing.T) {
 		if os.MkdirAll(path.Dir(truncatedParentsFile), 0755) != nil {
 			t.Fatal(err)
 		}
-
-		f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
-		if err != nil {
-			t.Fatal(err)
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(truncatedParentsFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			t.Fatal(error(errno))
 		}
 		defer os.Remove(truncatedParentsFile)
-		defer f.Close()
+		defer syscall.Close(int(fd))
 
 		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+			if ruleEvent.RuleID != probe.AbnormalPathRuleID {
+				t.Errorf("expected %s rule, got %s", probe.AbnormalPathRuleID, ruleEvent.RuleID)
+			}
 		}
 	})
 }
@@ -120,7 +124,7 @@ func TestNoisyProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	file, _, err := test.Path("test-open")
+	file, filePtr, err := test.Path("test-open")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,11 +137,11 @@ func TestNoisyProcess(t *testing.T) {
 	t.Run("noisy_process", func(t *testing.T) {
 		// generate load
 		for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
-			f, err := os.OpenFile(file, os.O_CREATE, 0755)
-			if err != nil {
-				t.Fatal(err)
+			fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(filePtr), syscall.O_CREAT, 0755)
+			if errno != 0 {
+				t.Fatal(error(errno))
 			}
-			_ = f.Close()
+			_ = syscall.Close(int(fd))
 			_ = os.Remove(file)
 		}
 
@@ -145,7 +149,9 @@ func TestNoisyProcess(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.NoisyProcessRuleID, "wrong rule")
+			if ruleEvent.RuleID != probe.NoisyProcessRuleID {
+				t.Errorf("expected %s rule, got %s", probe.NoisyProcessRuleID, ruleEvent.RuleID)
+			}
 		}
 
 		// make sure the discarder has expired before moving on to other tests

@@ -57,14 +57,14 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 	var arrayOp func(a string, b string) bool
 
-	if a.isRegexp {
+	if a.isPattern {
 		arrayOp = func(as string, bs string) bool {
 			if a.regexp.MatchString(bs) {
 				return true
 			}
 			return false
 		}
-	} else if b.isRegexp {
+	} else if b.isPattern {
 		arrayOp = func(as string, bs string) bool {
 			if b.regexp.MatchString(as) {
 				return true
@@ -105,7 +105,14 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.valueType, Regex: b.regexp}); err != nil {
+			kind := ScalarValueType
+			var regexp *regexp.Regexp
+			if b.isPattern {
+				kind = PatternValueType
+				regexp = b.regexp
+			}
+
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: kind, Regex: regexp}); err != nil {
 				return nil, err
 			}
 		}
@@ -124,7 +131,14 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regex: a.regexp}); err != nil {
+		kind := ScalarValueType
+		var regexp *regexp.Regexp
+		if a.isPattern {
+			kind = PatternValueType
+			regexp = a.regexp
+		}
+
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: kind, Regex: regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -220,7 +234,7 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 
 	var arrayOp func(a string, b []string) bool
 
-	if a.isRegexp {
+	if a.isPattern {
 		arrayOp = func(as string, bs []string) bool {
 			for _, v := range bs {
 				if a.regexp.MatchString(v) {
@@ -229,7 +243,7 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 			}
 			return false
 		}
-	} else if b.isRegexp {
+	} else if b.isPattern {
 		arrayOp = func(as string, bs []string) bool {
 			for _, re := range b.regexps {
 				if re.MatchString(as) {
@@ -277,13 +291,19 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
+			kind := ScalarValueType
+			if b.isPattern {
+				kind = PatternValueType
+			}
+
 			var regexp *regexp.Regexp
+
 			for i, value := range b.Values {
-				if b.isRegexp {
+				if b.isPattern {
 					regexp = b.regexps[i]
 				}
 
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: b.valueTypes[i], Regex: regexp}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
 					return nil, err
 				}
 			}
@@ -303,7 +323,14 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regex: a.regexp}); err != nil {
+		kind := ScalarValueType
+		var regexp *regexp.Regexp
+		if a.isPattern {
+			kind = PatternValueType
+			regexp = a.regexp
+		}
+
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: kind, Regex: regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -335,13 +362,13 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		isPartialLeaf = true
 	}
 
-	if a.isRegexp {
+	if a.isPattern {
 		return nil, errors.New("pattern not supported on left list")
 	}
 
 	var arrayOp func(a []string, b []string) bool
 
-	if b.isRegexp {
+	if b.isPattern {
 		arrayOp = func(as []string, bs []string) bool {
 			for _, va := range as {
 				for _, re := range b.regexps {
@@ -393,13 +420,19 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 		ea, eb := a.EvalFnc, b.Values
 
 		if a.Field != "" {
+			kind := ScalarValueType
+			if b.isPattern {
+				kind = PatternValueType
+			}
+
 			var regexp *regexp.Regexp
+
 			for i, value := range b.Values {
-				if b.isRegexp {
+				if b.isPattern {
 					regexp = b.regexps[i]
 				}
 
-				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: b.valueTypes[i], Regex: regexp}); err != nil {
+				if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
 					return nil, err
 				}
 			}
@@ -419,13 +452,19 @@ func ArrayStringMatches(a *StringArrayEvaluator, b *StringArrayEvaluator, opts *
 	ea, eb := a.Values, b.EvalFnc
 
 	if b.Field != "" {
+		kind := ScalarValueType
+		if a.isPattern {
+			kind = PatternValueType
+		}
+
 		var regexp *regexp.Regexp
+
 		for i, value := range a.Values {
-			if a.isRegexp {
+			if a.isPattern {
 				regexp = a.regexps[i]
 			}
 
-			if err := state.UpdateFieldValues(b.Field, FieldValue{Value: value, Type: a.valueTypes[i], Regex: regexp}); err != nil {
+			if err := state.UpdateFieldValues(b.Field, FieldValue{Value: value, Type: kind, Regex: regexp}); err != nil {
 				return nil, err
 			}
 		}

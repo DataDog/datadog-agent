@@ -278,12 +278,6 @@ func RunAgent(ctx context.Context) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	// Initialize the remote tagger
-	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		tagger.Init()
-	}
-
 	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
 		return err
 	}

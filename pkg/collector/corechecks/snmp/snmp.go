@@ -14,7 +14,6 @@ import (
 
 const (
 	snmpCheckName = "snmp"
-	snmpLoaderTag = "loader:core"
 )
 
 // Check aggregates metrics from one Check instance
@@ -27,7 +26,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	startTime := time.Now()
+	start := time.Now()
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -45,7 +44,12 @@ func (c *Check) Run() error {
 		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckOK, "", tags, "")
 	}
 
-	c.submitTelemetryMetrics(startTime, tags)
+	c.sender.gauge("snmp.devices_monitored", float64(1), "", tags)
+
+	// SNMP Performance metrics
+	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(start.UnixNano()).Seconds(), "", tags)
+	c.sender.gauge("datadog.snmp.check_duration", time.Since(start).Seconds(), "", tags)
+	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", tags)
 
 	// Commit
 	sender.Commit()
@@ -98,17 +102,6 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
 	}
 	return tags, nil
-}
-
-func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(copyStrings(tags), snmpLoaderTag)
-
-	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
-
-	// SNMP Performance metrics
-	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks

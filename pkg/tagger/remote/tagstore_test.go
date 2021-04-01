@@ -42,7 +42,10 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 	store := newTagStore()
 	store.processEvents(events, false)
 
-	entity := store.getEntity(entityID)
+	entity, err := store.getEntity(entityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
 
 	assert.Equal(t, []string{"foo", "bar"}, entity.LowCardinalityTags)
 	assert.Equal(t, []string{"baz"}, entity.OrchestratorCardinalityTags)
@@ -77,11 +80,17 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 	store := newTagStore()
 	store.processEvents(events, false)
 
-	entity := store.getEntity(entityID)
+	entity, err := store.getEntity(entityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
 
 	assert.Nil(t, entity)
 
-	entity = store.getEntity(anotherEntityID)
+	entity, err = store.getEntity(anotherEntityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
 
 	assert.NotNil(t, entity)
 }
@@ -109,11 +118,17 @@ func TestProcessEvent_Replace(t *testing.T) {
 		},
 	}, true)
 
-	entity := store.getEntity(entityID)
+	entity, err := store.getEntity(entityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
 
 	assert.Nil(t, entity)
 
-	entity = store.getEntity(anotherEntityID)
+	entity, err = store.getEntity(anotherEntityID)
+	if err != nil {
+		t.Fatalf("got unexpected error: %s", err)
+	}
 
 	assert.NotNil(t, entity)
 }
