@@ -176,6 +176,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
 	}
 
+	if config.Datadog.GetBool(key(spNS, "process_config.enabled")) {
+		a.EnableSystemProbe = true
+		a.EnabledChecks = append(a.EnabledChecks, ProcessModuleCheckName)
+	}
+
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
 		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		a.EnableSystemProbe = true

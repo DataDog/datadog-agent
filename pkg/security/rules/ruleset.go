@@ -305,7 +305,12 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
 	approvers := make(map[eval.EventType]Approvers)
 	for _, eventType := range rs.GetEventTypes() {
-		eventApprovers, err := rs.GetEventApprovers(eventType, fieldCaps[eventType])
+		caps, exists := fieldCaps[eventType]
+		if !exists {
+			continue
+		}
+
+		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
 		if err != nil {
 			continue
 		}
