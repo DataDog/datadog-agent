@@ -287,12 +287,14 @@ func (a *Agent) Process(p *api.Payload) {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-// ProcessStats processes incoming client stats in from the given language lang.
-func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang string) {
+// ProcessStats processes incoming client stats in from the given tracer.
+func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
+	in.TracerVersion = tracerVersion
+	in.Lang = lang
 	for _, group := range in.Stats {
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)

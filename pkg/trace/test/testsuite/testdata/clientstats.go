@@ -49,9 +49,11 @@ var ClientStatsTests = []struct {
 		},
 		Out: pb.StatsPayload{
 			Stats: []pb.ClientStatsPayload{{
-				Hostname: "testhost",
-				Env:      "testing",
-				Version:  "0.1-alpha",
+				Hostname:      "testhost",
+				Env:           "testing",
+				Version:       "0.1-alpha",
+				Lang:          "go",
+				TracerVersion: "0.2.0",
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -136,9 +138,11 @@ var ClientStatsTests = []struct {
 		},
 		Out: pb.StatsPayload{
 			Stats: []pb.ClientStatsPayload{{
-				Hostname: "testhost",
-				Env:      "testing",
-				Version:  "0.1-alpha",
+				Hostname:      "testhost",
+				Env:           "testing",
+				Version:       "0.1-alpha",
+				Lang:          "go",
+				TracerVersion: "0.2.0",
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
