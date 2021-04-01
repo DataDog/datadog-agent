@@ -17,6 +17,10 @@
         "GO111MODULE": "off",
         "GOMOD": "",
     },
+    "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin",
+        "VENV_BASE_PATH": "/home/vscode/.venv",
+    },
     "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
     "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
     "postCreateCommand": "./.devcontainer/postCreateCommand.sh",

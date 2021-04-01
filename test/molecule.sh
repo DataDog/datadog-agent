@@ -2,7 +2,7 @@
 
 set -e
 
-VENV_PATH=./p-env
+VENV_PATH=${VENV_BASE_PATH:-.}/p-env
 
 export STACKSTATE_BRANCH=${STACKSTATE_BRANCH:-master}
 
