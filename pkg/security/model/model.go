@@ -136,6 +136,7 @@ type Event struct {
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
+	MountReleased    MountReleasedEvent    `field:"-"`
 }
 
 // GetType returns the event type
@@ -317,6 +318,12 @@ type InvalidateDentryEvent struct {
 	DiscarderRevision uint32
 }
 
+// MountReleasedEvent defines a mount released event
+type MountReleasedEvent struct {
+	MountID           uint32
+	DiscarderRevision uint32
+}
+
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
@@ -478,8 +485,7 @@ type UnlinkEvent struct {
 // UmountEvent represents an umount event
 type UmountEvent struct {
 	SyscallEvent
-	MountID           uint32
-	DiscarderRevision uint32 `field:"-"`
+	MountID uint32
 }
 
 // UtimesEvent represents a utime event
