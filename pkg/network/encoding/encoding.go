@@ -5,6 +5,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -50,9 +51,12 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	domainSet := make(map[string]int)
 	routeIndex := make(map[string]RouteIdx)
+	httpIndex := FormatHTTPStats(conns.HTTP)
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, domainSet, routeIndex)
+		httpKey := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
+		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpIndex[httpKey])
+		delete(httpIndex, httpKey)
 	}
 
 	domains := make([]string, len(domainSet))

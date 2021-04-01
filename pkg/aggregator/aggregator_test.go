@@ -16,6 +16,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -213,14 +214,6 @@ func TestRecurentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	agentUp := metrics.ServiceChecks{{
-		CheckName: "datadog.agent.up",
-		Status:    metrics.ServiceCheckOK,
-		Ts:        start.Unix(),
-		Host:      agg.hostname,
-		Tags:      []string{},
-	}}
-
 	series := metrics.Series{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
@@ -251,20 +244,30 @@ func TestRecurentSeries(t *testing.T) {
 		SourceTypeName: "System",
 	}}
 
-	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// Assert that recurrentSeries are sent on each flushed
-	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
-
+	s.AssertExpectations(t)
 }
 
 func TestTags(t *testing.T) {

@@ -82,12 +82,12 @@ func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	return ev.resolvers.ResolveFilesystem(&f.FileFields)
+	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
 }
 
 // ResolveFileInUpperLayer resolves whether the file is in an upper layer
 func (ev *Event) ResolveFileInUpperLayer(f *model.FileEvent) bool {
-	return ev.resolvers.ResolveInUpperLayer(&f.FileFields)
+	return f.FileFields.GetInUpperLayer()
 }
 
 // GetXAttrName returns the string representation of the extended attribute name
@@ -246,7 +246,7 @@ func (ev *Event) ResolveProcessCookie(e *model.Process) int {
 func (ev *Event) ResolveProcessTTY(e *model.Process) string {
 	if e.TTYName == "" && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.TTYName = entry.TTYName
+			e.TTYName = ev.resolvers.ProcessResolver.SetTTY(entry)
 		}
 	}
 	return e.TTYName
@@ -256,7 +256,7 @@ func (ev *Event) ResolveProcessTTY(e *model.Process) string {
 func (ev *Event) ResolveProcessFilesystem(e *model.Process) string {
 	if e.Filesystem == "" && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.Filesystem = ev.resolvers.ResolveFilesystem(&entry.FileFields)
+			e.Filesystem = ev.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
 		}
 	}
 	return e.Filesystem
@@ -270,6 +270,22 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 		}
 	}
 	return e.Comm
+}
+
+// ResolveExecArgs resolves the args of the event
+func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
+	if ev.Exec.Args == "" && len(ev.ProcessContext.ArgsArray) > 0 {
+		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
+	}
+	return ev.Exec.Args
+}
+
+// ResolveExecEnvs resolves the envs of the event
+func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
+	if len(ev.Exec.Envs) == 0 && len(ev.ProcessContext.EnvsArray) > 0 {
+		ev.Exec.Envs = ev.ProcessContext.EnvsArray
+	}
+	return ev.Exec.Envs
 }
 
 // ResolveCredentialsUID resolves the user id of the process
@@ -504,9 +520,9 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 
 func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
 	ev.ProcessContext.Ancestor = entry.Ancestor
-	ev.ProcessContext.Args = entry.Args
+	ev.ProcessContext.ArgsArray = entry.ArgsArray
 	ev.ProcessContext.ArgsTruncated = entry.ArgsTruncated
-	ev.ProcessContext.Envs = entry.Envs
+	ev.ProcessContext.EnvsArray = entry.EnvsArray
 	ev.ProcessContext.EnvsTruncated = entry.EnvsTruncated
 }
 

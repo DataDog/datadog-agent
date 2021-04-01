@@ -62,8 +62,6 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 	var runCounter uint64
 
-	httpMux.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
-
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		id := getClientID(req)

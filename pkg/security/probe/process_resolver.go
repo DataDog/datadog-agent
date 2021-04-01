@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
@@ -49,6 +51,38 @@ func getDoForkInput(probe *Probe) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+// TTYConstants returns the tty constants
+func TTYConstants(probe *Probe) []manager.ConstantEditor {
+	ttyOffset, nameOffset := uint64(400), uint64(368)
+
+	kv, err := NewKernelVersion()
+	if err == nil {
+		switch {
+		case kv.IsRH7Kernel():
+			ttyOffset, nameOffset = 416, 312
+		case kv.IsRH8Kernel():
+			ttyOffset, nameOffset = 392, 368
+		case kv.IsSLES12Kernel():
+			ttyOffset, nameOffset = 376, 368
+		case kv.IsSLES15Kernel():
+			ttyOffset, nameOffset = 408, 368
+		case probe.kernelVersion != 0 && probe.kernelVersion < kernel5_3:
+			ttyOffset, nameOffset = 368, 368
+		}
+	}
+
+	return []manager.ConstantEditor{
+		{
+			Name:  "tty_offset",
+			Value: ttyOffset,
+		},
+		{
+			Name:  "tty_name_offset",
+			Value: nameOffset,
+		},
+	}
 }
 
 // InodeInfo holds information related to inode from kernel
@@ -233,16 +267,7 @@ func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*model.FileFields, er
 	return &info, nil
 }
 
-func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
-	if prev := p.entryCache[pid]; prev != nil {
-		// this shouldn't happen but it is better to exit the prev and let the new one replace it
-		prev.Exit(entry.ForkTime)
-	}
-
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		parent.Fork(entry)
-	}
+func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.entryCache[pid] = entry
 
 	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
@@ -258,23 +283,26 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 	return entry
 }
 
+func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	if prev := p.entryCache[pid]; prev != nil {
+		// this shouldn't happen but it is better to exit the prev and let the new one replace it
+		prev.Exit(entry.ForkTime)
+	}
+
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		parent.Fork(entry)
+	}
+
+	return p.insertEntry(pid, entry)
+}
+
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	if prev := p.entryCache[pid]; prev != nil {
 		prev.Exec(entry)
 	}
 
-	p.entryCache[pid] = entry
-
-	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
-
-	if p.opts.DebugCacheSize {
-		atomic.AddInt64(&p.cacheSize, 1)
-
-		runtime.SetFinalizer(entry, func(obj interface{}) {
-			atomic.AddInt64(&p.cacheSize, -1)
-		})
-	}
-	return entry
+	return p.insertEntry(pid, entry)
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -413,9 +441,9 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Args = entry.Values
+		pce.ArgsArray = entry.Values
 		if pce.ArgsTruncated {
-			pce.Args = append(pce.Args, "...")
+			pce.ArgsArray = append(pce.ArgsArray, "...")
 		}
 		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
 	}
@@ -426,12 +454,31 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		entry := e.(*argsEnvsCacheEntry)
 
-		pce.Envs = entry.Values
+		// keep only keys
+		pce.EnvsArray = make([]string, len(entry.Values))
+		for i, env := range entry.Values {
+			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
+				pce.EnvsArray[i] = els[0]
+			}
+		}
+
 		if pce.EnvsTruncated {
-			pce.Envs = append(pce.Envs, "...")
+			pce.EnvsArray = append(pce.EnvsArray, "...")
 		}
 		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
 	}
+}
+
+// SetTTY resolves TTY and cache the result
+func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+	if pce.TTYName == "" {
+		tty := utils.PidTTY(int32(pce.Pid))
+		if tty == "" {
+			tty = "null"
+		}
+		pce.TTYName = tty
+	}
+	return pce.TTYName
 }
 
 // Get returns the cache entry for a specified pid
@@ -586,7 +633,12 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	if entry = p.insertForkEntry(pid, entry); entry == nil {
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		entry.Ancestor = parent
+	}
+
+	if entry = p.insertEntry(pid, entry); entry == nil {
 		return nil, false
 	}
 
