@@ -4,8 +4,3 @@ package config
 func GetSocketPath() string {
 	return defaultSystemProbeAddress
 }
-
-// LoadSysProbeEnvVariables will set the environment variables specific to the system probe
-func LoadSysProbeEnvVariables() {
-	loadSysProbeEnvVariables()
-}

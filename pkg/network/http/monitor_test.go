@@ -171,7 +171,7 @@ func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
 		}
 	}
 
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	elf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(elf, mgrOptions)
