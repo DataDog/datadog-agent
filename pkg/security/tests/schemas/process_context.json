@@ -6,21 +6,21 @@
         "process": {
             "allOf": [
                 {
-                    "$ref": "process.json"
+                    "$ref": "file:///process.json"
                 },
                 {
                     "properties": {
                         "parent": {
-                            "$ref": "process.json"
+                            "$ref": "file:///process.json"
                         },
                         "ancestors": {
                             "type": "array",
                             "items": {
-                                "$ref": "process.json"
+                                "$ref": "file:///process.json"
                             }
                         },
                         "container": {
-                            "$ref": "container.json"
+                            "$ref": "file:///container.json"
                         }
                     },
                     "required": [

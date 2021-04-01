@@ -3,7 +3,6 @@
     "$id": "process.json",
     "type": "object",
     "properties": {
-
         "tid": {
             "type": "integer"
         },
@@ -20,7 +19,7 @@
             "type": "string"
         },
         "executable_container_path": {
-            "type": "string"
+            "$ref": "file:///container_path.json"
         },
         "executable_path": {
             "type": "string"
@@ -120,7 +119,7 @@
                     "type": "string"
                 },
                 "container_path": {
-                    "type": "string"
+                    "$ref": "file:///container_path.json"
                 },
                 "inode": {
                     "type": "integer"
@@ -161,7 +160,7 @@
             ]
         },
         "container": {
-            "$ref": "container.json"
+            "$ref": "file:///container.json"
         }
     },
     "oneOf": [
@@ -199,5 +198,9 @@
         "executable_mount_id",
         "credentials",
         "executable"
-    ]   
+    ],
+    "dependencies": {
+        "executable_container_path": ["container"],
+        "container": ["executable_container_path"]
+    }
 }

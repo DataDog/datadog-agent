@@ -452,6 +452,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err := p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
 			log.Debugf("failed to resolve exec path: %s", err)
 		}
+		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessContainerPath(event.processCacheEntry)
 
 		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))

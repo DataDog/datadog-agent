@@ -142,7 +142,8 @@ type ProcessCacheEntrySerializer struct {
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
-	ID string `json:"id,omitempty"`
+	ID   string   `json:"id,omitempty"`
+	Tags []string `json:"tags,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -245,7 +246,7 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          r.MountResolver.GetFilesystem(process.FileFields.MountID),
+		Filesystem:          process.Filesystem,
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
@@ -332,7 +333,7 @@ func scrubArgs(process *model.Process, e *Event) []string {
 	return args
 }
 
-func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
 	args := scrubArgs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
@@ -367,7 +368,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
+	if len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
 			ID: e.ResolveContainerID(&e.ContainerContext),
 		}
@@ -375,7 +376,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 	return pceSerializer
 }
 
-func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r *Resolvers, topLevel bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r *Resolvers) *ProcessCacheEntrySerializer {
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
 		MountID:             pce.FileFields.MountID,
@@ -404,7 +405,7 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(pce.ContainerID) != 0 {
+	if len(pce.ContainerID) != 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
 			ID: pce.ContainerID,
 		}
@@ -417,11 +418,11 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 
 	if e != nil {
 		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, true),
+			ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 		}
 	} else {
 		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializerWithResolvers(entry, r, true),
+			ProcessCacheEntrySerializer: newProcessCacheEntrySerializerWithResolvers(entry, r),
 		}
 	}
 
@@ -442,7 +443,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
 		// pass nil instead of e to prevent mixing values with the ancestors
-		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r, false)
+		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {

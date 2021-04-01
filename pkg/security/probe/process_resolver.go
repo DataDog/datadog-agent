@@ -224,6 +224,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
+		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileFields.MountID)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -367,10 +368,21 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 	var err error
 
 	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
+		if entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields); err == nil {
+			entry.BasenameStr = path.Base(entry.PathnameStr)
+		}
 	}
 
 	return entry.PathnameStr, err
+}
+
+// SetProcessFilesystem resolves process file system
+func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
+	if entry.FileFields.MountID != 0 {
+		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
+	}
+
+	return entry.Filesystem
 }
 
 // SetProcessContainerPath resolves container path

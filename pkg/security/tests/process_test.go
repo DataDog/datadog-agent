@@ -235,7 +235,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error("secret or env values exposed")
 			}
 
-			testStringFieldContains(t, event, "exec.file.container_path", "docker")
+			if !validateExecSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -979,5 +981,5 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 }
 
 func TestSchema(t *testing.T) {
-	validExecSchema(t, nil)
+	validateExecSchema(t, nil)
 }
