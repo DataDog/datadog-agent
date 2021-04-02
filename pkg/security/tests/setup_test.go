@@ -352,7 +352,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		testMod.cleanup()
 	}
 
-	agentConfig := sysconfig.New("")
+	agentConfig, err := sysconfig.New("")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
