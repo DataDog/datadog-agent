@@ -11,6 +11,7 @@ import (
 )
 
 func TestClientStats(t *testing.T) {
+	t.Skip()
 	var r test.Runner
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
