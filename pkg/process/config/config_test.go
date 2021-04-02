@@ -35,6 +35,8 @@ func restoreGlobalConfig() {
 func newConfig() {
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(config.Datadog)
+	// force timeout to 0s, otherwise each test waits 60s
+	config.Datadog.Set(key(ns, "grpc_connection_timeout_secs"), 0)
 }
 
 func TestBlacklist(t *testing.T) {
