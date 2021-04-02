@@ -70,6 +70,7 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/v0.5/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
+		Hidden:  true,
 	},
 	{
 		Pattern: "/profiling/v1/input",
