@@ -703,6 +703,22 @@ LIMIT 1
 ;`,
 			`SELECT set_config ( ? ( SELECT foo.bar FROM sometable WHERE sometable.uuid = ? ) :: text, ? ) SELECT othertable.id, othertable.title FROM othertable INNER JOIN sometable ON sometable.id = othertable.site_id WHERE sometable.uuid = ? LIMIT ?`,
 		},
+		{
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`,
+		},
+		{
+			`INSERT INTO table (field1, field2) VALUES (1, $$someone's string123$with other things$$)`,
+			`INSERT INTO table ( field1, field2 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($some tag$this text confuses$some other text$some ta not quite$some tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
 	}
 
 	for _, c := range cases {
@@ -1052,7 +1068,7 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			"USING $A FROM users",
-			`at position 7: prepared statements must start with digits, got "A" (65)`,
+			`at position 20: unexpected EOF in string`,
 		},
 
 		{
