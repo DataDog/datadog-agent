@@ -55,9 +55,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="CustomActionDataTest.h" />
     <ClInclude Include="ReplaceYamlProperties.h" />
   </ItemGroup>
@@ -148,10 +145,4 @@
       <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.1.8.1\build\native\Microsoft.googletest.v140.windesktop.msvcstl.static.rt-static.targets'))" />
-  </Target>
 </Project>
