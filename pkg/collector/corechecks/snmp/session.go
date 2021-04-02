@@ -2,8 +2,11 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	stdlog "log"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -12,6 +15,16 @@ const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 // Java SNMP uses 50, snmp-net uses 10
 // Same max repetition as gosnmp.defaultMaxRepetitions
 const bulkMaxRepetition = 50
+
+type TraceLevelLogWriter struct{}
+
+func (sw *TraceLevelLogWriter) Write(p []byte) (n int, err error) {
+	// TODO:
+	//   - Scrub sensitive information
+	//     - See strip_test.go
+	log.Tracef(string(p))
+	return len(p), nil
+}
 
 type sessionAPI interface {
 	Configure(config snmpConfig) error
@@ -24,7 +37,8 @@ type sessionAPI interface {
 }
 
 type snmpSession struct {
-	gosnmpInst gosnmp.GoSNMP
+	gosnmpInst    gosnmp.GoSNMP
+	loggerEnabled bool
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
@@ -80,15 +94,24 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	s.gosnmpInst.Timeout = time.Duration(config.timeout) * time.Second
 	s.gosnmpInst.Retries = config.retries
 
-	// Uncomment following line for debugging
-	// s.gosnmpInst.Logger = log.New(os.Stdout, "", 0)
+	lvl, err := log.GetLogLevel()
+	if err != nil {
+		log.Warnf("failed to get logger: %s", err)
+	}
+	if err == nil && lvl == seelog.TraceLvl {
+		w := TraceLevelLogWriter{}
+		s.gosnmpInst.Logger = stdlog.New(&w, "", stdlog.Lshortfile)
+		s.loggerEnabled = true
+	}
 	return nil
 }
 
 func (s *snmpSession) Connect() error {
-	// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
-	// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
-	s.gosnmpInst.Logger = nil
+	if !s.loggerEnabled {
+		// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
+		// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
+		s.gosnmpInst.Logger = nil
+	}
 	return s.gosnmpInst.Connect()
 }
 
