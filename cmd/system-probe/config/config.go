@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/viper"
@@ -66,7 +65,20 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
-	err := common.SetupConfigWithoutSecrets(configPath, "system-probe")
+	aconfig.Datadog.SetConfigName("system-probe")
+	// set the paths where a config file is expected
+	if len(configPath) != 0 {
+		// if the configuration file path was supplied on the command line,
+		// add that first so it's first in line
+		aconfig.Datadog.AddConfigPath(configPath)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(configPath, ".yaml") {
+			aconfig.Datadog.SetConfigFile(configPath)
+		}
+	}
+	aconfig.Datadog.AddConfigPath(defaultConfigDir)
+
+	_, err := aconfig.LoadWithoutSecret()
 	var e viper.ConfigFileNotFoundError
 	if err != nil {
 		if errors.As(err, &e) {
