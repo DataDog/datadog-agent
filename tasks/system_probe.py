@@ -30,7 +30,7 @@ DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
 KITCHEN_DIR = os.path.join("test", "kitchen")
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
 is_windows = sys.platform == "win32"
@@ -191,7 +191,7 @@ def test(
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
     cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs} {run}'
-    if not is_root():
+    if not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
     ctx.run(cmd.format(**args), env=env)
