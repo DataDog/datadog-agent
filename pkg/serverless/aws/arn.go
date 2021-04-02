@@ -171,7 +171,7 @@ func FetchFunctionARNFromEnv(accountID string) (string, error) {
 	qualifier := os.Getenv(qualifierEnvVar)
 
 	if len(accountID) == 0 || len(region) == 0 || len(functionName) == 0 {
-		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s")
+		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s", accountID, region, functionName)
 	}
 
 	if strings.HasPrefix(region, "us-gov") {
