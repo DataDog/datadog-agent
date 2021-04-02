@@ -5,9 +5,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -19,6 +21,15 @@ var elog debug.Log
 const (
 	ServiceName = "datadog-system-probe"
 )
+
+var defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
+	}
+}
 
 func main() {
 	flag.StringVar(&opts.configPath, "config", defaultSysProbeConfigPath, "Path to system-probe config formatted as YAML")
