@@ -221,8 +221,9 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		}
 	}
 
-	// read configuration from the environment vars
-	// --------------------------------------------
+	// read configuration from both the environment vars and the config file
+	// if one is provided
+	// --------------------------
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
