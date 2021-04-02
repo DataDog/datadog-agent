@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
