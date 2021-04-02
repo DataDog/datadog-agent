@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -37,7 +38,20 @@ func mockProfilesDefinitions() profileDefinitionMap {
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       deviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		MetricTags:   []metricTagConfig{{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		MetricTags: []metricTagConfig{
+			{
+				OID:     "1.3.6.1.2.1.1.5.0",
+				Name:    "sysName",
+				Match:   "(\\w)(\\w+)",
+				pattern: regexp.MustCompile("(\\w)(\\w+)"),
+				Tags: map[string]string{
+					"some_tag": "some_tag_value",
+					"prefix":   "\\1",
+					"suffix":   "\\2",
+				},
+			},
+			{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		},
 	}}
 }
 
@@ -67,6 +81,7 @@ func Test_loadProfiles(t *testing.T) {
 
 	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
 	invalidYamlProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "invalid_yaml_file.yaml"))
+	validationErrorProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "validation_error.yaml"))
 	type logCount struct {
 		log   string
 		count int
@@ -147,6 +162,19 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileDefMap: profileDefinitionMap{},
 			expectedLogs: []logCount{
 				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
+			},
+		},
+		{
+			name: "validation error profile",
+			inputProfileConfigMap: profileConfigMap{
+				"f5-big-ip": {
+					validationErrorProfile,
+				},
+			},
+			expectedProfileDefMap: profileDefinitionMap{},
+			expectedLogs: []logCount{
+				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
+				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
 		},
 	}

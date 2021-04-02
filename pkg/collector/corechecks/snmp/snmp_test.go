@@ -219,6 +219,7 @@ tags:
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := append(copyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(copyStrings(snmpGlobalTags), "loader:core")
 	row1Tags := append(copyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
 	row2Tags := append(copyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
 	scalarTags := append(copyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -232,9 +233,9 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(202), "", row2Tags)
 
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTagsWithLoader)
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
@@ -337,6 +338,11 @@ profiles:
 				Value: []byte("foo_sys_name"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
@@ -414,7 +420,7 @@ profiles:
 		},
 	}
 
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
@@ -555,13 +561,14 @@ profiles:
 	}
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
+		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
 	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
@@ -685,6 +692,11 @@ func TestCheck_Run(t *testing.T) {
 				Value: []byte("foo_sys_name"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
@@ -736,7 +748,7 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket: sysObjectIDPacketOkMock,
 			valuesPacket:      valuesPacketErrMock,
 			valuesError:       fmt.Errorf("no value"),
-			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -763,7 +775,7 @@ ip_address: 1.2.3.4
 			mocksender.SetSender(sender, check.ID())
 
 			session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

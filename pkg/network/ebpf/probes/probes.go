@@ -8,8 +8,8 @@ import "fmt"
 type ProbeName string
 
 const (
-	// TCPv4DestroySock traces the tcp_v4_destroy_sock system call (called for both ipv4 and ipv6)
-	TCPv4DestroySock ProbeName = "kprobe/tcp_v4_destroy_sock"
+	// InetCskListenStop traces the inet_csk_listen_stop system call (called for both ipv4 and ipv6)
+	InetCskListenStop ProbeName = "kprobe/inet_csk_listen_stop"
 
 	// TCPv6Connect traces the v6 connect() system call
 	TCPv6Connect ProbeName = "kprobe/tcp_v6_connect"

@@ -301,8 +301,27 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns Approvers for the given event type and the fields
-func (rs *RuleSet) GetApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+// GetApprovers returns all approvers
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
+	approvers := make(map[eval.EventType]Approvers)
+	for _, eventType := range rs.GetEventTypes() {
+		caps, exists := fieldCaps[eventType]
+		if !exists {
+			continue
+		}
+
+		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
+		if err != nil {
+			continue
+		}
+		approvers[eventType] = eventApprovers
+	}
+
+	return approvers, nil
+}
+
+// GetEventApprovers returns approvers for the given event type and the fields
+func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
@@ -337,8 +356,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
@@ -351,8 +369,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	eventType := event.GetType()
 

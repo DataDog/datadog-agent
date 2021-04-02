@@ -225,13 +225,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
 
-	if gwLookupEnabled(config) && runtimeTracer {
-		enabledProbes[probes.IPRouteOutputFlow] = struct{}{}
-		enabledProbes[probes.IPRouteOutputFlowReturn] = struct{}{}
-
-		mgrOptions.MapSpecEditors[string(probes.GatewayMap)] = manager.MapSpecEditor{Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}
-	}
-
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[probes.ProbeName(p.Section)]; !enabled {
@@ -297,7 +290,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		runtimeTracer:              runtimeTracer,
 		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
-		gwLookup:                   newGatewayLookup(config, runtimeTracer, m),
+		gwLookup:                   newGatewayLookup(config, m),
 	}
 
 	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
@@ -568,8 +561,6 @@ func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
 }
 
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
-	t.connVia(cs)
-
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -577,6 +568,7 @@ func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
 
 	atomic.AddInt64(&t.closedConns, 1)
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	t.connVia(cs)
 	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
 		t.conntracker.DeleteTranslation(*cs)
@@ -616,12 +608,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.flushIdle <- done
 	<-done
 
-	conns := t.state.Connections(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
-	names := t.reverseDNS.Resolve(conns)
+	delta := t.state.GetDelta(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	names := t.reverseDNS.Resolve(delta.Connections)
 	ctm := t.getConnTelemetry(len(latestConns))
 	rctm := t.getRuntimeCompilationTelemetry()
 
-	return &network.Connections{Conns: conns, DNS: names, ConnTelemetry: ctm, CompilationTelemetryByAsset: rctm}, nil
+	return &network.Connections{
+		Conns:                       delta.Connections,
+		DNS:                         names,
+		HTTP:                        delta.HTTP,
+		ConnTelemetry:               ctm,
+		CompilationTelemetryByAsset: rctm,
+	}, nil
 }
 
 func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
@@ -723,7 +721,6 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 			atomic.AddInt64(&t.closedConns, 1)
 		} else {
 			conn := connStats(key, stats, t.getTCPStats(tcpMp, key, seen))
-			t.connVia(&conn)
 			if t.shouldSkipConnection(&conn) {
 				atomic.AddInt64(&t.skippedConns, 1)
 			} else {
@@ -736,6 +733,15 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 
 	if err := entries.Err(); err != nil {
 		return nil, 0, fmt.Errorf("unable to iterate connection map: %s", err)
+	}
+
+	// do gateway resolution only on active connections outside
+	// the map iteration loop to not add to connections while
+	// iterating (leads to ever increasing connections in the map,
+	// since gateway resolution connects to the ec2 metadata
+	// endpoint)
+	for i := range active {
+		t.connVia(&active[i])
 	}
 
 	// Remove expired entries
@@ -939,10 +945,6 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"dns":       t.reverseDNS.GetStats(),
 	}
 
-	if t.httpMonitor != nil {
-		ret["http"] = t.httpMonitor.GetStats()
-	}
-
 	return ret, nil
 }
 
@@ -1026,7 +1028,7 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 		return nil
 	}
 
-	monitor, err := http.NewMonitor(c.ProcRoot, m, h)
+	monitor, err := http.NewMonitor(c.ProcRoot, c.MaxHTTPStatsBuffered, m, h)
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

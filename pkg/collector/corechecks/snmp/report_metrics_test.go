@@ -319,8 +319,8 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in `map[]`", 1},
-				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in `map[]`", 1},
+				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in results", 1},
+				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in results", 1},
 			},
 		},
 		{

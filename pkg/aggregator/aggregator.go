@@ -232,7 +232,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if config.Datadog.GetBool("iot_host") {
+	if agentName == flavor.IotAgent && !config.Datadog.GetBool("iot_host") {
+		agentName = flavor.DefaultAgent
+	} else if config.Datadog.GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
