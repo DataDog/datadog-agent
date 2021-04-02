@@ -201,7 +201,7 @@ func GetARNTags() []string {
 	}
 	region := parts[3]
 	accountID := parts[4]
-	functionName := parts[6]
+	functionName := strings.ToLower(parts[6])
 
 	tags := []string{
 		fmt.Sprintf("region:%s", region),
