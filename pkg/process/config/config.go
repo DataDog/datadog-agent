@@ -290,7 +290,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.New(netYamlPath)
+	syscfg, err := sysconfig.Merge(netYamlPath)
 	if err != nil {
 		return nil, err
 	}

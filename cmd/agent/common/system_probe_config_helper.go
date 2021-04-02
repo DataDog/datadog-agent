@@ -13,6 +13,6 @@ import (
 
 // SetupSystemProbeConfig reads the system-probe.yaml into the global config object
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
-	_, err := sysconfig.New(sysProbeConfFilePath)
+	_, err := sysconfig.Merge(sysProbeConfFilePath)
 	return err
 }

@@ -51,39 +51,39 @@ func setupSystemProbe(cfg Config) {
 
 	// network_tracer settings
 	cfg.BindEnvAndSetDefault(join(netNS, "enabled"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLED")
-	doubleBind(cfg, "disable_tcp", false, "DD_DISABLE_TCP_TRACING")
-	doubleBind(cfg, "disable_udp", false, "DD_DISABLE_UDP_TRACING")
-	doubleBind(cfg, "disable_ipv6", false, "DD_DISABLE_IPV6_TRACING")
-	doubleBind(cfg, "offset_guess_threshold", int64(defaultOffsetThreshold))
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_tcp"), false, "DD_DISABLE_TCP_TRACING")
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_udp"), false, "DD_DISABLE_UDP_TRACING")
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_ipv6"), false, "DD_DISABLE_IPV6_TRACING")
+	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
-	doubleBind(cfg, "max_tracked_connections", 65536)
-	doubleBind(cfg, "max_closed_connections_buffered", 50000)
-	doubleBind(cfg, "closed_channel_size", 500)
-	doubleBind(cfg, "max_connection_state_buffered", 75000)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_closed_connections_buffered"), 50000)
+	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
-	doubleBind(cfg, "disable_dns_inspection", false, "DD_DISABLE_DNS_INSPECTION")
-	doubleBind(cfg, "collect_dns_stats", true, "DD_COLLECT_DNS_STATS")
-	doubleBind(cfg, "collect_local_dns", false, "DD_COLLECT_LOCAL_DNS")
-	doubleBind(cfg, "collect_dns_domains", false, "DD_COLLECT_DNS_DOMAINS")
-	doubleBind(cfg, "max_dns_stats", 10000)
-	doubleBind(cfg, "dns_timeout_in_s", 15)
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_dns_inspection"), false, "DD_DISABLE_DNS_INSPECTION")
+	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
+	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
+	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), false, "DD_COLLECT_DNS_DOMAINS")
+	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 10000)
+	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
 
-	doubleBind(cfg, "enable_conntrack", true)
-	doubleBind(cfg, "conntrack_max_state_size", 65536*2)
-	doubleBind(cfg, "conntrack_rate_limit", 500)
-	doubleBind(cfg, "enable_conntrack_all_namespaces", true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
+	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack"), true)
+	cfg.BindEnvAndSetDefault(join(spNS, "conntrack_max_state_size"), 65536*2)
+	cfg.BindEnvAndSetDefault(join(spNS, "conntrack_rate_limit"), 500)
+	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack_all_namespaces"), true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 
-	doubleBind(cfg, "source_excludes", map[string][]string{})
-	doubleBind(cfg, "dest_excludes", map[string][]string{})
+	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
+	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
 
 	// network_config namespace only
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_http_monitoring"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 
 	// windows config
-	doubleBind(cfg, "windows.enable_monotonic_count", false)
-	doubleBind(cfg, "windows.driver_buffer_size", 1024)
+	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "windows.driver_buffer_size"), 1024)
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
@@ -96,12 +96,4 @@ func setupSystemProbe(cfg Config) {
 
 func join(pieces ...string) string {
 	return strings.Join(pieces, ".")
-}
-
-// doubleBind configures key in both the `network_config` and `system_probe_config` namespaces.
-// This should only be used for existing configuration options, as all new config options
-// should be in the `network_config` namespace only.
-func doubleBind(cfg Config, key string, val interface{}, env ...string) {
-	cfg.BindEnvAndSetDefault(join(netNS, key), val, env...)
-	cfg.RegisterAlias(join(spNS, key), join(netNS, key))
 }

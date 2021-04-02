@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	spNS  = "system_probe_config"
 	netNS = "network_config"
 
 	defaultUDPTimeoutSeconds       = 30
@@ -150,46 +151,46 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
-		CollectTCPConns:  !cfg.GetBool(join(netNS, "disable_tcp")),
+		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
 		TCPClosedTimeout: 1 * time.Second,
 
-		CollectUDPConns:  !cfg.GetBool(join(netNS, "disable_udp")),
+		CollectUDPConns:  !cfg.GetBool(join(spNS, "disable_udp")),
 		UDPConnTimeout:   defaultUDPTimeoutSeconds * time.Second,
 		UDPStreamTimeout: defaultUDPStreamTimeoutSeconds * time.Second,
 
-		CollectIPv6Conns:               !cfg.GetBool(join(netNS, "disable_ipv6")),
-		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(netNS, "offset_guess_threshold"))),
-		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(netNS, "source_excludes")),
-		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(netNS, "dest_excludes")),
+		CollectIPv6Conns:               !cfg.GetBool(join(spNS, "disable_ipv6")),
+		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
+		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
+		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
-		MaxTrackedConnections:        uint(cfg.GetInt(join(netNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered: cfg.GetInt(join(netNS, "max_closed_connections_buffered")),
-		ClosedChannelSize:            cfg.GetInt(join(netNS, "closed_channel_size")),
-		MaxConnectionsStateBuffered:  cfg.GetInt(join(netNS, "max_connection_state_buffered")),
+		MaxTrackedConnections:        uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered: cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
+		ClosedChannelSize:            cfg.GetInt(join(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
 
-		DNSInspection:       !cfg.GetBool(join(netNS, "disable_dns_inspection")),
-		CollectDNSStats:     cfg.GetBool(join(netNS, "collect_dns_stats")),
-		CollectLocalDNS:     cfg.GetBool(join(netNS, "collect_local_dns")),
-		CollectDNSDomains:   cfg.GetBool(join(netNS, "collect_dns_domains")),
-		MaxDNSStats:         cfg.GetInt(join(netNS, "max_dns_stats")),
+		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
+		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
+		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
+		CollectDNSDomains:   cfg.GetBool(join(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
-		DNSTimeout:          time.Duration(cfg.GetInt(join(netNS, "dns_timeout_in_s"))) * time.Second,
+		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
 		EnableHTTPMonitoring: cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		MaxHTTPStatsBuffered: 100000,
 
-		EnableConntrack:              cfg.GetBool(join(netNS, "enable_conntrack")),
-		ConntrackMaxStateSize:        cfg.GetInt(join(netNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:           cfg.GetInt(join(netNS, "conntrack_rate_limit")),
-		EnableConntrackAllNamespaces: cfg.GetBool(join(netNS, "enable_conntrack_all_namespaces")),
+		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
-		EnableMonotonicCount: cfg.GetBool(join(netNS, "windows.enable_monotonic_count")),
-		DriverBufferSize:     cfg.GetInt(join(netNS, "windows.driver_buffer_size")),
+		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
+		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 	}
 
 	if c.OffsetGuessThreshold > maxOffsetThreshold {

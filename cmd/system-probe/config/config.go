@@ -1,14 +1,17 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -61,9 +64,22 @@ type Config struct {
 	ProfilingEnvironment string
 }
 
-// New creates a config object for system-probe
+// New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
-	cfg := aconfig.Datadog
+	err := common.SetupConfigWithoutSecrets(configPath, "system-probe")
+	var e viper.ConfigFileNotFoundError
+	if err != nil {
+		if errors.As(err, &e) {
+			log.Infof("no config exists at %s, ignoring...", configPath)
+		} else {
+			return nil, err
+		}
+	}
+	return load(configPath)
+}
+
+// Merge will merge the system-probe configuration into the existing datadog configuration
+func Merge(configPath string) (*Config, error) {
 	if configPath != "" {
 		if !strings.HasSuffix(configPath, ".yaml") {
 			configPath = path.Join(configPath, defaultConfigFileName)
@@ -73,7 +89,7 @@ func New(configPath string) (*Config, error) {
 	}
 
 	if f, err := os.Open(configPath); err == nil {
-		err = cfg.MergeConfig(f)
+		err = aconfig.Datadog.MergeConfig(f)
 		_ = f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("error merging system-probe config file: %s", err)
@@ -82,9 +98,12 @@ func New(configPath string) (*Config, error) {
 		log.Infof("no config exists at %s, ignoring...", configPath)
 	}
 
-	if _, err := aconfig.LoadWithoutSecret(); err != nil {
-		return nil, err
-	}
+	return load(configPath)
+}
+
+func load(configPath string) (*Config, error) {
+	cfg := aconfig.Datadog
+
 	if err := aconfig.ResolveSecrets(cfg, filepath.Base(configPath)); err != nil {
 		return nil, err
 	}
@@ -143,7 +162,7 @@ func New(configPath string) (*Config, error) {
 		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		c.EnabledModules[SecurityRuntimeModule] = struct{}{}
 	}
-	if cfg.GetBool("process_config.enabled") {
+	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		log.Info("process_config.enabled detected, enabling system-probe")
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
