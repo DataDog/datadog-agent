@@ -33,13 +33,13 @@ var (
 	connectionConnectSuccess     = expvar.Int{}
 	transactionsConnectionEvents = expvar.Map{}
 
-	// TransactionsDropped expvar
+	// TransactionsDropped is the number of transaction dropped.
 	TransactionsDropped = expvar.Int{}
 
-	// TransactionsDroppedByEndpoint expvar
+	// TransactionsDroppedByEndpoint is the number of transaction dropped by endpoint.
 	TransactionsDroppedByEndpoint = expvar.Map{}
 
-	// TransactionsSuccessByEndpoint expvar
+	// TransactionsSuccessByEndpoint is the number of transaction succeeded by endpoint.
 	TransactionsSuccessByEndpoint = expvar.Map{}
 
 	transactionsSuccessBytesByEndpoint = expvar.Map{}
@@ -57,7 +57,7 @@ var (
 	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 
-	// TlmTxDropped telemetry
+	// TlmTxDropped is a telemetry counter that counts the number transaction dropped.
 	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
 	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
@@ -70,7 +70,7 @@ var (
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
-// Trace is the HTTP trace.
+// Trace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
 var Trace = &httptrace.ClientTrace{
 	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
 		if dnsInfo.Err != nil {
@@ -191,6 +191,11 @@ type HTTPTransaction struct {
 	CompletionHandler HTTPCompletionHandler
 
 	Priority Priority
+}
+
+// TransactionsSerializer serializes Transaction instances.
+type TransactionsSerializer interface {
+	Add(transaction *HTTPTransaction) error
 }
 
 // Transaction represents the task to process for a Worker.
@@ -368,11 +373,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	}
 	log.Tracef("Successfully posted payload to %q: %s", logURL, string(body))
 	return resp.StatusCode, body, nil
-}
-
-// TransactionsSerializer serializes Transaction instances.
-type TransactionsSerializer interface {
-	Add(transaction *HTTPTransaction) error
 }
 
 // SerializeTo serializes the transaction using TransactionsSerializer

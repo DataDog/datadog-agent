@@ -39,9 +39,9 @@ var (
 	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
 	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 
+	transactionsDroppedOnInput       = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
 	transactionsInputCountByEndpoint = expvar.Map{}
-	transactionsDroppedOnInput       = expvar.Int{}
 	transactionsRequeued             = expvar.Int{}
 	transactionsRequeuedByEndpoint   = expvar.Map{}
 	transactionsRetried              = expvar.Int{}
@@ -70,10 +70,24 @@ func init() {
 }
 
 func initEndpointExpvars() {
-	endpoints := []transaction.Endpoint{v1SeriesEndpoint, v1CheckRunsEndpoint, v1IntakeEndpoint, v1SketchSeriesEndpoint,
-		v1ValidateEndpoint, seriesEndpoint, eventsEndpoint, serviceChecksEndpoint, sketchSeriesEndpoint,
-		hostMetadataEndpoint, metadataEndpoint, processesEndpoint, rtProcessesEndpoint, containerEndpoint,
-		rtContainerEndpoint, connectionsEndpoint, orchestratorEndpoint,
+	endpoints := []transaction.Endpoint{
+		connectionsEndpoint,
+		containerEndpoint,
+		eventsEndpoint,
+		hostMetadataEndpoint,
+		metadataEndpoint,
+		orchestratorEndpoint,
+		processesEndpoint,
+		rtContainerEndpoint,
+		rtProcessesEndpoint,
+		seriesEndpoint,
+		serviceChecksEndpoint,
+		sketchSeriesEndpoint,
+		v1CheckRunsEndpoint,
+		v1IntakeEndpoint,
+		v1SeriesEndpoint,
+		v1SketchSeriesEndpoint,
+		v1ValidateEndpoint,
 	}
 
 	for _, endpoint := range endpoints {
