@@ -156,15 +156,37 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, agentLogger.DatadogAgentLogger{}))
+	newRuleSetOpts := func() *rules.Opts {
+		return rules.NewOptsWithParams(
+			model.SECLConstants,
+			sprobe.SupportedDiscarders,
+			m.getEventTypeEnabled(),
+			sprobe.AllCustomRuleIDs(),
+			model.SECLLegacyAttributes,
+			agentLogger.DatadogAgentLogger{})
+	}
+
+	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
 	}
 
+	model := &model.Model{}
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	if loadErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies: %+v", loadErr.Error())
+	}
+
+	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		return err
+	}
+
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet)
+	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
 		return err
 	}
@@ -194,6 +216,7 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	m.cancelFnc()
 
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
@@ -267,8 +290,7 @@ func (m *Module) metricsSender() {
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 			if m.config.RuntimeEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentRuntimeRunning, 1, tags, 1)
-			}
-			if m.config.FIMEnabled {
+			} else if m.config.FIMEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentFIMRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():

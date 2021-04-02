@@ -50,7 +50,7 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
-func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType) error {
+func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
 	if !rsa.config.EnableKernelFilters {
 		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8); err != nil {
 			return err
@@ -68,8 +68,7 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
-	approvers, err := rs.GetApprovers(eventType, capabilities.GetFieldCapabilities())
-	if err != nil {
+	if len(approvers) == 0 {
 		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
 			return err
 		}
@@ -92,7 +91,7 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
+func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
 	if rsa.probe != nil {
 		if err := rsa.probe.FlushDiscarders(); err != nil {
 			return nil, errors.Wrap(err, "failed to flush discarders")
@@ -105,7 +104,7 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet) (*Report, error) {
 	}
 
 	for _, eventType := range rs.GetEventTypes() {
-		if err := rsa.setupFilters(rs, eventType); err != nil {
+		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
 			return nil, err
 		}
 	}

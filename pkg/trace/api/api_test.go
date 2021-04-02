@@ -45,7 +45,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
@@ -546,22 +546,24 @@ func TestDecodeV05(t *testing.T) {
 }
 
 type mockStatsProcessor struct {
-	mu       sync.RWMutex
-	lastP    pb.ClientStatsPayload
-	lastLang string
+	mu                sync.RWMutex
+	lastP             pb.ClientStatsPayload
+	lastLang          string
+	lastTracerVersion string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
+	m.lastTracerVersion = tracerVersion
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang
+	return m.lastP, m.lastLang, m.lastTracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
@@ -606,6 +608,7 @@ func TestHandleStats(t *testing.T) {
 		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
+		req.Header.Set(headerTracerVersion, "0.1.0")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -614,7 +617,9 @@ func TestHandleStats(t *testing.T) {
 			slurp, _ := ioutil.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
-		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+
+		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
+		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
 	})

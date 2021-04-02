@@ -469,6 +469,11 @@ def omnibus_build(
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
+    if base_dir is not None and sys.platform == 'win32':
+        # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
+        # error 'no matched files for glob copy' at the end of the build.
+        base_dir = base_dir.replace(os.path.sep, '/')
+
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,

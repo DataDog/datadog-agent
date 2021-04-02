@@ -11,9 +11,10 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
 )
 
 func TestChown(t *testing.T) {
@@ -33,62 +34,14 @@ func TestChown(t *testing.T) {
 	}
 	defer test.Close()
 
+	prevUID := 98
+	prevGID := 99
 	fileMode := 0o447
-	expectedMode := applyUmask(fileMode)
-	testFile, testFilePtr, err := test.CreateWithOptions("test-chown", 98, 99, fileMode)
+	expectedMode := uint32(applyUmask(fileMode))
+	testFile, testFilePtr, err := test.CreateWithOptions("test-chown", prevUID, prevGID, fileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	t.Run("chown", func(t *testing.T) {
-		if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), 100, 200); errno != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
-			if event.GetType() != "chown" {
-				t.Errorf("expected chown event, got %s", event.GetType())
-			}
-
-			if user := event.Chown.UID; user != 100 {
-				t.Errorf("expected chown user 100, got %d", user)
-			}
-
-			if group := event.Chown.GID; group != 200 {
-				t.Errorf("expected chown group 200, got %d", group)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
-			}
-
-			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
-			}
-
-			if event.Chown.File.UID != 98 {
-				t.Errorf("expected initial UID %d, got %d", 98, event.Chown.File.UID)
-			}
-
-			if event.Chown.File.GID != 99 {
-				t.Errorf("expected initial GID %d, got %d", 99, event.Chown.File.GID)
-			}
-
-			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
-			}
-
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
-			}
-
-			testContainerPath(t, event, "chown.file.container_path")
-		}
-	})
 
 	t.Run("fchown", func(t *testing.T) {
 		f, err := os.Open(testFile)
@@ -96,101 +49,57 @@ func TestChown(t *testing.T) {
 			t.Fatal(err)
 		}
 		// fchown syscall
-		if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 101, 201); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 100, 200); errno != 0 {
 			t.Fatal(err)
 		}
-		defer f.Close()
+		defer func() {
+			f.Close()
+			prevUID = 100
+			prevGID = 200
+		}()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "chown" {
-				t.Errorf("expected chown event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "chown", "wrong event type")
+			assert.Equal(t, event.Chown.UID, uint32(100), "wrong user")
+			assert.Equal(t, event.Chown.GID, uint32(200), "wrong user")
+			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
+			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
+			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
 
-			if user := event.Chown.UID; user != 101 {
-				t.Errorf("expected chown user 101, got %d", user)
-			}
-
-			if group := event.Chown.GID; group != 201 {
-				t.Errorf("expected chown group 201, got %d", group)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
-			}
-
-			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
-			}
-
-			if event.Chown.File.UID != 100 {
-				t.Errorf("expected initial UID %d, got %d", 100, event.Chown.File.UID)
-			}
-
-			if event.Chown.File.GID != 200 {
-				t.Errorf("expected initial GID %d, got %d", 200, event.Chown.File.GID)
-			}
-
-			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
-			}
-
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
-			}
+			assertNearTime(t, event.Chown.File.MTime)
+			assertNearTime(t, event.Chown.File.CTime)
 
 			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
-		if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(102), uintptr(202), 0x100, 0); errno != 0 {
+		if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(101), uintptr(201), 0x100, 0); errno != 0 {
 			t.Fatal(err)
 		}
+		defer func() {
+			prevUID = 101
+			prevGID = 201
+		}()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "chown" {
-				t.Errorf("expected chown event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "chown", "wrong event type")
+			assert.Equal(t, event.Chown.UID, uint32(101), "wrong user")
+			assert.Equal(t, event.Chown.GID, uint32(201), "wrong user")
+			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
+			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
+			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
 
-			if user := event.Chown.UID; user != 102 {
-				t.Errorf("expected chown user 102, got %d", user)
-			}
-
-			if group := event.Chown.GID; group != 202 {
-				t.Errorf("expected chown group 202, got %d", group)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Chown.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
-			}
-
-			if int(event.Chown.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Chown.File.Mode)&expectedMode)
-			}
-
-			if event.Chown.File.UID != 101 {
-				t.Errorf("expected initial UID %d, got %d", 101, event.Chown.File.UID)
-			}
-
-			if event.Chown.File.GID != 201 {
-				t.Errorf("expected initial GID %d, got %d", 201, event.Chown.File.GID)
-			}
-
-			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
-			}
-
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
-			}
+			assertNearTime(t, event.Chown.File.MTime)
+			assertNearTime(t, event.Chown.File.CTime)
 
 			testContainerPath(t, event, "chown.file.container_path")
 		}
@@ -205,58 +114,62 @@ func TestChown(t *testing.T) {
 		if err := os.Symlink(testFile, testSymlink); err != nil {
 			t.Fatal(err)
 		}
-		defer os.Remove(testSymlink)
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_LCHOWN, uintptr(testSymlinkPtr), uintptr(103), uintptr(203)); errno != 0 {
-			t.Fatal(err)
+		if _, _, errno := syscall.Syscall(syscall.SYS_LCHOWN, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
+			if errno == unix.ENOSYS {
+				t.Skip("lchown is not supported")
+			}
+			t.Fatal(errno)
 		}
+
+		defer os.Remove(testSymlink)
 
 		event, rule, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "chown" {
-				t.Errorf("expected chown event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "chown", "wrong event type")
+			assertTriggeredRule(t, rule, "test_rule2")
+			assert.Equal(t, event.Chown.UID, uint32(102), "wrong user")
+			assert.Equal(t, event.Chown.GID, uint32(202), "wrong user")
+			assert.Equal(t, event.Chown.File.Inode, getInode(t, testSymlink), "wrong inode")
+			assertRights(t, event.Chown.File.Mode, 0o777, "wrong initial mode")
+			assert.Equal(t, event.Chown.File.UID, uint32(0), "wrong initial user")
+			assert.Equal(t, event.Chown.File.GID, uint32(0), "wrong initial group")
 
-			if rule.ID != "test_rule2" {
-				t.Errorf("expected triggered rule test_rule2, got %s", rule.ID)
-			}
-
-			if user := event.Chown.UID; user != 103 {
-				t.Errorf("expected chown user 103, got %d", user)
-			}
-
-			if group := event.Chown.GID; group != 203 {
-				t.Errorf("expected chown group 203, got %d", group)
-			}
-
-			if inode := getInode(t, testSymlink); inode != event.Chown.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Chown.File.Inode, inode)
-			}
-
-			if int(event.Chown.File.Mode)&0o777 != 0o777 {
-				t.Errorf("expected initial mode %d, got %d", 0o777, int(event.Chown.File.Mode))
-			}
-
-			if event.Chown.File.UID != 0 {
-				t.Errorf("expected initial UID %d, got %d", 0, event.Chown.File.UID)
-			}
-
-			if event.Chown.File.GID != 0 {
-				t.Errorf("expected initial GID %d, got %d", 0, event.Chown.File.GID)
-			}
-
-			now := time.Now()
-			if event.Chown.File.MTime.After(now) || event.Chown.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Chown.File.MTime)
-			}
-
-			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
-			}
+			assertNearTime(t, event.Chown.File.MTime)
+			assertNearTime(t, event.Chown.File.CTime)
 
 			testContainerPath(t, event, "chown.file.container_path")
 		}
 	})
+
+	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 103, 203); errno != 0 {
+			t.Fatal(err)
+		}
+
+		defer func() {
+			prevUID = 103
+			prevGID = 203
+		}()
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "chown", "wrong event type")
+			assert.Equal(t, event.Chown.UID, uint32(103), "wrong user")
+			assert.Equal(t, event.Chown.GID, uint32(203), "wrong user")
+			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
+			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
+			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+
+			assertNearTime(t, event.Chown.File.MTime)
+			assertNearTime(t, event.Chown.File.CTime)
+
+			testContainerPath(t, event, "chown.file.container_path")
+		}
+	}))
 }

@@ -50,6 +50,10 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.CollectDNSStats = config.Datadog.GetBool(key(spNS, "collect_dns_stats"))
 	}
 
+	if config.Datadog.IsSet(key(spNS, "max_dns_stats")) {
+		a.MaxDNSStats = config.Datadog.GetInt(key(spNS, "max_dns_stats"))
+	}
+
 	if config.Datadog.IsSet(key(spNS, "collect_dns_domains")) {
 		a.CollectDNSDomains = config.Datadog.GetBool(key(spNS, "collect_dns_domains"))
 	}
@@ -172,14 +176,19 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
 	}
 
+	if config.Datadog.GetBool(key(spNS, "process_config.enabled")) {
+		a.EnableSystemProbe = true
+		a.EnabledChecks = append(a.EnabledChecks, ProcessModuleCheckName)
+	}
+
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {
 		log.Info("system_probe_config.enable_oom_kill detected, will enable system-probe with OOM Kill check")
 		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, OOMKillCheckName)
 	}
 
-	if config.Datadog.GetBool("runtime_security_config.enabled") {
-		log.Info("runtime_security_config.enabled=true, enabling system-probe")
+	if config.Datadog.GetBool("runtime_security_config.enabled") || config.Datadog.GetBool("runtime_security_config.fim_enabled") {
+		log.Info("runtime_security_config.enabled or runtime_security_config.fim_enabled detected, enabling system-probe")
 		a.EnableSystemProbe = true
 	}
 

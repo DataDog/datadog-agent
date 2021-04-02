@@ -60,13 +60,19 @@ func TestSerialization(t *testing.T) {
 						Alias: "subnet-foo",
 					},
 				},
-				HTTPStatsByPath: map[string]http.RequestStats{
-					"/testpath": httpReqStats,
-				},
 			},
 		},
 		DNS: map[util.Address][]string{
 			util.AddressFromString("172.217.12.145"): {"golang.org"},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("10.1.1.1"),
+				util.AddressFromString("10.2.2.2"),
+				1000,
+				9000,
+				"/testpath",
+			): httpReqStats,
 		},
 	}
 
@@ -236,34 +242,45 @@ func TestSerialization(t *testing.T) {
 func TestFormatHTTPStatsByPath(t *testing.T) {
 	var httpReqStats http.RequestStats
 	httpReqStats.AddRequest(100, 12.5)
+	httpReqStats.AddRequest(100, 12.5)
+	httpReqStats.AddRequest(405, 3.5)
 	httpReqStats.AddRequest(405, 3.5)
 
 	// Verify the latency data is correct prior to serialization
-	latencies := httpReqStats.Latencies(model.HTTPResponseStatus_Info)
-	assert.Equal(t, 1.0, latencies.GetCount())
+	latencies := httpReqStats[model.HTTPResponseStatus_Info].Latencies
+	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 12.5)
 
-	latencies = httpReqStats.Latencies(model.HTTPResponseStatus_ClientErr)
-	assert.Equal(t, 1.0, latencies.GetCount())
+	latencies = httpReqStats[model.HTTPResponseStatus_ClientErr].Latencies
+	assert.Equal(t, 2.0, latencies.GetCount())
 	verifyQuantile(t, latencies, 0.5, 3.5)
 
-	statsByPath := map[string]http.RequestStats{
-		"/testpath": httpReqStats,
+	key := http.NewKey(
+		util.AddressFromString("10.1.1.1"),
+		util.AddressFromString("10.2.2.2"),
+		1000,
+		9000,
+		"/testpath",
+	)
+	statsByKey := map[http.Key]http.RequestStats{
+		key: httpReqStats,
 	}
-	formattedStats := formatHTTPStatsByPath(statsByPath)
+	formattedStats := FormatHTTPStats(statsByKey)
 
+	// Now path will be nested in the map
+	key.Path = ""
 	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := formattedStats["/testpath"].StatsByResponseStatus
+	statsByResponseStatus := formattedStats[key]["/testpath"].StatsByResponseStatus
 	assert.Len(t, statsByResponseStatus, 5)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
 	sketch := unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 1.0, sketch.GetCount())
+	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 12.5)
 
 	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_ClientErr].Latencies
 	sketch = unmarshalSketch(t, serializedLatencies)
-	assert.Equal(t, 1.0, sketch.GetCount())
+	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 3.5)
 
 	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies

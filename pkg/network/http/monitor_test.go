@@ -16,6 +16,7 @@ import (
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,7 +53,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)
-	monitor.Sync()
+	monitor.GetHTTPStats()
 
 	// Assert all requests made were correctly captured by the monitor
 	for _, req := range requests {
@@ -62,8 +63,9 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 func hasMatchingTX(t *testing.T, req *nethttp.Request, transactions []httpTX) {
 	expectedStatus := statusFromPath(req.URL.Path)
+	buffer := make([]byte, HTTPBufferSize)
 	for _, tx := range transactions {
-		if tx.Path() == req.URL.Path && int(tx.response_status_code) == expectedStatus && tx.Method() == req.Method {
+		if string(tx.Path(buffer)) == req.URL.Path && int(tx.response_status_code) == expectedStatus && tx.Method() == req.Method {
 			return
 		}
 	}
@@ -105,7 +107,7 @@ func serverSetup(t *testing.T) func() {
 
 func monitorSetup(t *testing.T, handlerFn func([]httpTX)) (*Monitor, func()) {
 	mgr, perfHandler := eBPFSetup(t)
-	monitor, err := NewMonitor("/proc", mgr, perfHandler)
+	monitor, err := NewMonitor("/proc", 10000, mgr, perfHandler)
 	require.NoError(t, err)
 	monitor.handler = handlerFn
 
@@ -169,7 +171,8 @@ func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
 		}
 	}
 
-	elf, err := netebpf.ReadBPFModule("build", true)
+	cfg := config.NewDefaultConfig()
+	elf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	err = mgr.InitWithOptions(elf, mgrOptions)
 	require.NoError(t, err)

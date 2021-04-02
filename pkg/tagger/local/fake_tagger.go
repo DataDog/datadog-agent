@@ -110,10 +110,17 @@ func (f *FakeTagger) List(cardinality collectors.TagCardinality) response.Tagger
 	defer f.store.RUnlock()
 
 	for entityID, et := range f.store.store {
-		entity := response.TaggerListEntity{}
-		tags, sources := et.get(cardinality)
-		entity.Tags = copyArray(tags)
-		entity.Sources = copyArray(sources)
+		entity := response.TaggerListEntity{
+			Tags: make(map[string][]string),
+		}
+
+		for source, sourceTags := range et.sourceTags {
+			tags := append([]string(nil), sourceTags.lowCardTags...)
+			tags = append(tags, sourceTags.orchestratorCardTags...)
+			tags = append(tags, sourceTags.highCardTags...)
+			entity.Tags[source] = tags
+		}
+
 		r.Entities[entityID] = entity
 	}
 

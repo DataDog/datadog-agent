@@ -272,6 +272,22 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 	return e.Comm
 }
 
+// ResolveExecArgs resolves the args of the event
+func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
+	if ev.Exec.Args == "" && len(ev.ProcessContext.ArgsArray) > 0 {
+		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
+	}
+	return ev.Exec.Args
+}
+
+// ResolveExecEnvs resolves the envs of the event
+func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
+	if len(ev.Exec.Envs) == 0 && len(ev.ProcessContext.EnvsArray) > 0 {
+		ev.Exec.Envs = ev.ProcessContext.EnvsArray
+	}
+	return ev.Exec.Envs
+}
+
 // ResolveCredentialsUID resolves the user id of the process
 func (ev *Event) ResolveCredentialsUID(e *model.Credentials) int {
 	if e.UID == 0 && ev != nil {
@@ -504,9 +520,9 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 
 func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
 	ev.ProcessContext.Ancestor = entry.Ancestor
-	ev.ProcessContext.Args = entry.Args
+	ev.ProcessContext.ArgsArray = entry.ArgsArray
 	ev.ProcessContext.ArgsTruncated = entry.ArgsTruncated
-	ev.ProcessContext.Envs = entry.Envs
+	ev.ProcessContext.EnvsArray = entry.EnvsArray
 	ev.ProcessContext.EnvsTruncated = entry.EnvsTruncated
 }
 

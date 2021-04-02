@@ -206,8 +206,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	var path PathValue
 	var filename, segment string
 	var err, resolutionErr error
-	var truncatedParentsErr ErrTruncatedParents
-	var truncatedSegmentErr ErrTruncatedSegment
 
 	keyBuffer, err := key.MarshalBinary()
 	if err != nil {
@@ -228,7 +226,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		toAdd[cacheKey] = path
 
 		if path.Name[0] == '\x00' {
-			resolutionErr = truncatedParentsErr
+			resolutionErr = errTruncatedParents
 			break
 		}
 
@@ -236,7 +234,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		if path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
 			if len(segment) >= (model.MaxSegmentLength) {
-				resolutionErr = truncatedSegmentErr
+				resolutionErr = errTruncatedSegment
 			}
 			filename = "/" + segment + filename
 		}
@@ -329,12 +327,16 @@ func (err ErrTruncatedSegment) Error() string {
 	return "truncated_segment"
 }
 
+var errTruncatedSegment ErrTruncatedSegment
+
 // ErrTruncatedParents is used to notify that some parents of the path are missing
 type ErrTruncatedParents struct{}
 
 func (err ErrTruncatedParents) Error() string {
 	return "truncated_parents"
 }
+
+var errTruncatedParents ErrTruncatedParents
 
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {

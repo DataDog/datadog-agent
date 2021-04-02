@@ -10,7 +10,6 @@
 package probe
 
 import (
-	"strings"
 	"syscall"
 	"time"
 
@@ -317,35 +316,24 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 	}
 }
 
-func scrubArgsEnvs(process *model.Process, e *Event) ([]string, []string) {
-	args := process.Args
-	envs := process.Envs
+func scrubArgs(process *model.Process, e *Event) []string {
+	args := process.ArgsArray
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
 	if e.scrubber == nil {
 		args = []string{}
-		envs = []string{}
 	} else {
 		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
 			args = newArgs
 		}
-
-		// for envs, we just keep the keys
-		var newEnvs []string
-		for _, env := range envs {
-			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-				newEnvs = append(newEnvs, els[0])
-			}
-		}
-		envs = newEnvs
 	}
 
-	return args, envs
+	return args
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
-	args, envs := scrubArgsEnvs(&pce.Process, e)
+	args := scrubArgs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
@@ -365,7 +353,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		Executable:    newProcessFileSerializer(&pce.Process, e),
 		Args:          args,
 		ArgsTruncated: pce.Process.ArgsTruncated,
-		Envs:          envs,
+		Envs:          pce.EnvsArray,
 		EnvsTruncated: pce.Process.EnvsTruncated,
 	}
 
@@ -451,11 +439,10 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
-	ctx := eval.Context{}
-	ctx.SetObject(e.GetPointer())
+	ctx := eval.NewContext(e.GetPointer())
 
 	it := &model.ProcessAncestorsIterator{}
-	ptr := it.Front(&ctx)
+	ptr := it.Front(ctx)
 
 	first := true
 	for ptr != nil {

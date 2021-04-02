@@ -141,6 +141,7 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
+    command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
