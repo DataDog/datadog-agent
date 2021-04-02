@@ -198,7 +198,7 @@ func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
 func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
-		Path:                e.ResolveFileInode(fe),
+		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
 		ContainerPath:       e.ResolveFileContainerPath(fe),
@@ -208,8 +208,8 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		Mode:                getUint32Pointer(&mode),
 		UID:                 fe.UID,
 		GID:                 fe.GID,
-		User:                e.ResolveUser(&fe.FileFields),
-		Group:               e.ResolveGroup(&fe.FileFields),
+		User:                e.ResolveFileFieldsUser(&fe.FileFields),
+		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
 		Mtime:               &fe.MTime,
 		Ctime:               &fe.CTime,
 		InUpperLayer:        getInUpperLayer(e.resolvers, &fe.FileFields),
@@ -219,7 +219,7 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer {
 	mode := uint32(process.FileFields.Mode)
 	return &FileSerializer{
-		Path:                e.ResolveProcessInode(process),
+		Path:                e.ResolveProcessPath(process),
 		PathResolutionError: process.GetPathResolutionError(),
 		Name:                e.ResolveProcessBasename(process),
 		ContainerPath:       e.ResolveProcessContainerPath(process),
@@ -230,8 +230,8 @@ func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer 
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
 		GID:                 process.FileFields.GID,
-		User:                e.ResolveUser(&process.FileFields),
-		Group:               e.ResolveGroup(&process.FileFields),
+		User:                e.ResolveFileFieldsUser(&process.FileFields),
+		Group:               e.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               &process.FileFields.MTime,
 		Ctime:               &process.FileFields.CTime,
 	}
@@ -251,8 +251,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
 		GID:                 process.FileFields.GID,
-		User:                r.ResolveUser(&process.FileFields),
-		Group:               r.ResolveGroup(&process.FileFields),
+		User:                r.ResolveFileFieldsUser(&process.FileFields),
+		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               &process.FileFields.MTime,
 		Ctime:               &process.FileFields.CTime,
 	}
@@ -347,7 +347,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Pid:           e.ProcessContext.Pid,
 		Tid:           e.ProcessContext.Tid,
 		PPid:          uint32(e.ResolveProcessPPID(&pce.Process)),
-		Path:          e.ResolveProcessInode(&pce.Process),
+		Path:          e.ResolveProcessPath(&pce.Process),
 		ContainerPath: e.ResolveProcessContainerPath(&pce.Process),
 		Comm:          e.ResolveProcessComm(&pce.Process),
 		TTY:           e.ResolveProcessTTY(&pce.Process),
@@ -553,8 +553,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
 			Destination: &FileSerializer{
-				XAttrName:      event.GetXAttrName(&event.RemoveXAttr),
-				XAttrNamespace: event.GetXAttrNamespace(&event.RemoveXAttr),
+				XAttrName:      event.ResolveXAttrName(&event.RemoveXAttr),
+				XAttrNamespace: event.ResolveXAttrNamespace(&event.RemoveXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
@@ -562,8 +562,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event),
 			Destination: &FileSerializer{
-				XAttrName:      event.GetXAttrName(&event.SetXAttr),
-				XAttrNamespace: event.GetXAttrNamespace(&event.SetXAttr),
+				XAttrName:      event.ResolveXAttrName(&event.SetXAttr),
+				XAttrNamespace: event.ResolveXAttrNamespace(&event.SetXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)

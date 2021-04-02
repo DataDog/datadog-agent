@@ -87,8 +87,8 @@ func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
 	return containerPath
 }
 
-// resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
+// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
 	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
 		return pathStr, err
@@ -107,22 +107,22 @@ func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
 	return pathStr, err
 }
 
-// ResolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
-	path, _ := r.resolveInode(&e.FileFields)
+// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
+	path, _ := r.resolveFileFieldsPath(&e.FileFields)
 	return path
 }
 
-// ResolveUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveUser(e *model.FileFields) string {
+// ResolveFileFieldsUser resolves the user id of the file to a username
+func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
 		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
-// ResolveGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveGroup(e *model.FileFields) string {
+// ResolveFileFieldsGroup resolves the group id of the file to a group name
+func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
 	}

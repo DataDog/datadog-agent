@@ -224,7 +224,7 @@ type Process struct {
 	// proc_cache_t
 	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"file.path,ResolveProcessInode"`
+	PathnameStr         string `field:"file.path,ResolveProcessPath"`
 	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
 	BasenameStr         string `field:"file.name,ResolveProcessBasename"`
 	Filesystem          string `field:"file.filesystem,ResolveProcessFilesystem"`
@@ -274,9 +274,9 @@ type ExecEvent struct {
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32    `field:"uid"`
-	User  string    `field:"user,ResolveUser"`
+	User  string    `field:"user,ResolveFileFieldsUser"`
 	GID   uint32    `field:"gid"`
-	Group string    `field:"group,ResolveGroup"`
+	Group string    `field:"group,ResolveFileFieldsGroup"`
 	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
@@ -300,7 +300,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFileInode"`
+	PathnameStr   string `field:"path,ResolveFilePath"`
 	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
 	BasenameStr   string `field:"name,ResolveFileBasename"`
 	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
@@ -468,8 +468,8 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,GetXAttrNamespace"`
-	Name      string    `field:"file.destination.name,GetXAttrName"`
+	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"`
+	Name      string    `field:"file.destination.name,ResolveXAttrName"`
 
 	NameRaw [200]byte
 }

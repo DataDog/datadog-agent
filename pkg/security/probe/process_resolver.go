@@ -368,7 +368,7 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 	var err error
 
 	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		if entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields); err == nil {
+		if entry.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileFields); err == nil {
 			entry.BasenameStr = path.Base(entry.PathnameStr)
 		}
 	}

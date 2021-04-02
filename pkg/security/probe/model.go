@@ -45,10 +45,10 @@ func (ev *Event) GetPathResolutionError() error {
 	return ev.pathResolutionError
 }
 
-// ResolveFileInode resolves the inode to a full path
-func (ev *Event) ResolveFileInode(f *model.FileEvent) string {
+// ResolveFilePath resolves the inode to a full path
+func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveInode(&f.FileFields)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			if _, ok := err.(ErrTruncatedSegment); ok {
 				f.PathResolutionError = err
@@ -93,18 +93,18 @@ func (ev *Event) ResolveFileInUpperLayer(f *model.FileEvent) bool {
 	return f.FileFields.GetInUpperLayer()
 }
 
-// GetXAttrName returns the string representation of the extended attribute name
-func (ev *Event) GetXAttrName(e *model.SetXAttrEvent) string {
+// ResolveXAttrName returns the string representation of the extended attribute name
+func (ev *Event) ResolveXAttrName(e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
 		e.Name = string(bytes.Trim(e.NameRaw[:], "\x00"))
 	}
 	return e.Name
 }
 
-// GetXAttrNamespace returns the string representation of the extended attribute namespace
-func (ev *Event) GetXAttrNamespace(e *model.SetXAttrEvent) string {
+// ResolveXAttrNamespace returns the string representation of the extended attribute namespace
+func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {
-		fragments := strings.Split(ev.GetXAttrName(e), ".")
+		fragments := strings.Split(ev.ResolveXAttrName(e), ".")
 		if len(fragments) > 0 {
 			e.Namespace = fragments[0]
 		}
@@ -112,18 +112,28 @@ func (ev *Event) GetXAttrNamespace(e *model.SetXAttrEvent) string {
 	return e.Namespace
 }
 
+// SetMountPoint set the mount point information
+func (ev *Event) SetMountPoint(e *model.MountEvent) {
+	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+}
+
 // ResolveMountPoint resolves the mountpoint to a full path
 func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
 	if len(e.MountPointStr) == 0 {
-		e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+		ev.SetMountPoint(e)
 	}
 	return e.MountPointStr
+}
+
+// SetMountRoot set the mount point information
+func (ev *Event) SetMountRoot(e *model.MountEvent) {
+	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
 func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
 	if len(e.RootStr) == 0 {
-		e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+		ev.SetMountRoot(e)
 	}
 	return e.RootStr
 }
@@ -138,7 +148,7 @@ func (ev *Event) ResolveProcessContainerID(e *model.Process) string {
 	return e.ContainerID
 }
 
-// ResolveProcessContainerID resolves the container ID of the event
+// ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
@@ -180,16 +190,16 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	return n, nil
 }
 
-// ResolveUser resolves the user id of the file to a username
-func (ev *Event) ResolveUser(e *model.FileFields) string {
+// ResolveFileFieldsUser resolves the user id of the file to a username
+func (ev *Event) ResolveFileFieldsUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
 		e.User, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
-// ResolveGroup resolves the group id of the file to a group name
-func (ev *Event) ResolveGroup(e *model.FileFields) string {
+// ResolveFileFieldsGroup resolves the group id of the file to a group name
+func (ev *Event) ResolveFileFieldsGroup(e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
@@ -227,8 +237,8 @@ func (ev *Event) ResolveProcessPPID(e *model.Process) int {
 	return int(e.PPid)
 }
 
-// ResolveProcessInode resolves the executable inode to a full path
-func (ev *Event) ResolveProcessInode(e *model.Process) string {
+// ResolveProcessPath resolves the executable inode to a full path
+func (ev *Event) ResolveProcessPath(e *model.Process) string {
 	if len(e.PathnameStr) == 0 && ev != nil {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.PathnameStr = entry.PathnameStr
@@ -251,7 +261,7 @@ func (ev *Event) ResolveProcessContainerPath(e *model.Process) string {
 func (ev *Event) ResolveProcessBasename(e *model.Process) string {
 	if len(e.BasenameStr) == 0 {
 		if e.PathnameStr == "" {
-			e.PathnameStr = ev.ResolveProcessInode(e)
+			e.PathnameStr = ev.ResolveProcessPath(e)
 		}
 
 		e.BasenameStr = path.Base(e.PathnameStr)
@@ -562,12 +572,12 @@ func NewProcessCacheEntry() *model.ProcessCacheEntry {
 }
 
 // ResolveProcessContextUser resolves the user id of the process to a username
-func (ev *Event) ResolveProcessContextUser(p *model.ProcessContext) string {
+func (ev *Event) ResolveProcessContextUser(ctx *eval.Context, p *model.ProcessContext) string {
 	return ev.resolvers.ResolveProcessContextUser(p)
 }
 
 // ResolveProcessContextGroup resolves the group id of the process to a group name
-func (ev *Event) ResolveProcessContextGroup(p *model.ProcessContext) string {
+func (ev *Event) ResolveProcessContextGroup(ctx *eval.Context, p *model.ProcessContext) string {
 	return ev.resolvers.ResolveProcessContextGroup(p)
 }
 

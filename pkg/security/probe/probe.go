@@ -354,9 +354,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// Resolve mount point
-		event.ResolveMountPoint(&event.Mount)
+		event.SetMountPoint(&event.Mount)
 		// Resolve root
-		event.ResolveMountRoot(&event.Mount)
+		event.SetMountRoot(&event.Mount)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(event.Mount)
 

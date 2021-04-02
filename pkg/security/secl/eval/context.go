@@ -17,6 +17,9 @@ type Context struct {
 
 	// cache available across all the evaluations
 	Cache map[string]unsafe.Pointer
+
+	// state can be used to store custom state
+	State int
 }
 
 // SetObject set the given object to the context

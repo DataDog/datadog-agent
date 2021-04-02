@@ -141,7 +141,11 @@ func TestProcessContext(t *testing.T) {
 		}
 		return executable
 	}
-	dockerWrapper := newDockerWrapper()
+	dockerWrapper, err := newDockerWrapper(testEnvironment != DockerEnvironment)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = dockerWrapper.Start()
 	if err != nil {
 		t.Fatal(err)
@@ -172,9 +176,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	dockerWrapper.Run(t, "args-envs", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if testEnvironment == DockerEnvironment {
-			t.Skip()
-		}
 		lsExecutable := which("ls")
 
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
@@ -279,17 +280,18 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}
 	})
+	dockerWrapper.Run(t, "args-overflow", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{"-al"}
+		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
-	t.Run("args-overflow", func(t *testing.T) {
 		// size overflow
 		var long string
 		for i := 0; i != 1024; i++ {
 			long += "a"
 		}
+		args = append(args, long)
 
-		lsExecutable := which("ls")
-		cmd := exec.Command(lsExecutable, "-al", long)
-		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
+		cmd := cmdFunc(lsExecutable, args, envs)
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
@@ -306,15 +308,13 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, strings.HasSuffix(argv[1], "..."), true, "args not truncated")
 		}
 
-		nArgs := 200
-
 		// number of args overflow
-		num := []string{"-al"}
+		nArgs, args := 200, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
-			num = append(num, "aaa")
+			args = append(args, "aaa")
 		}
-		cmd = exec.Command(executable, num...)
-		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
+
+		cmd = cmdFunc("/usr/bin/ls", args, envs)
 		_ = cmd.Run()
 
 		event, _, err = test.GetEvent()
@@ -416,7 +416,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, event.ResolveProcessInode(&event.Exec.Process), executable, "wrong process")
+			assert.Equal(t, event.ResolveProcessPath(&event.Exec.Process), executable, "wrong process")
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
 			assert.Equal(t, event.ProcessContext.Ancestor.Comm, "sh")
 		}
@@ -454,7 +454,7 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, event.ResolveProcessInode(&event.Exec.Process), executable, "wrong process")
+			assert.Equal(t, event.ResolveProcessPath(&event.Exec.Process), executable, "wrong process")
 			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
 			assert.Assert(t, event.ProcessContext.Ancestor != nil)
 			assert.Assert(t, event.ProcessContext.Ancestor.Comm, "sh", "sh as ancestor expected")
@@ -978,8 +978,4 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 			c.Set(flag, capability.Cap(math.Log2(float64(v))))
 		}
 	}
-}
-
-func TestSchema(t *testing.T) {
-	validateExecSchema(t, nil)
 }

@@ -11,13 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_version_numeric_only,
-    bundle_files,
-)
+from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))

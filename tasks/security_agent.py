@@ -11,6 +11,7 @@ from .go import generate
 from .utils import (
     REPO_PATH,
     bin_name,
+    bundle_files,
     generate_config,
     get_build_flags,
     get_git_branch_name,
@@ -19,7 +20,6 @@ from .utils import (
     get_gopath,
     get_version,
     get_version_numeric_only,
-    bundle_files,
 )
 
 BIN_DIR = os.path.join(".", "bin")
@@ -199,11 +199,15 @@ def build_functional_tests(
         build_tags += ',osusergo,netgo'
 
     bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
-    bundle_files(ctx,
+    bundle_files(
+        ctx,
         bindata_files,
         "pkg/security/tests/schemas",
         "pkg/security/tests/schemas/schemas.go",
-        "schemas", "functionaltests", False)
+        "schemas",
+        "functionaltests",
+        False,
+    )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'

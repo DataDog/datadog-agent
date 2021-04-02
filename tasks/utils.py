@@ -332,9 +332,12 @@ def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
     )
     ctx.run(
         assets_cmd.format(
-            dir_prefix=dir_prefix, go_dir=go_dir, bundle_tag=tag, pkg=pkg,
+            dir_prefix=dir_prefix,
+            go_dir=go_dir,
+            bundle_tag=tag,
+            pkg=pkg,
             split="-split" if split else "",
-            bindata_files="' '".join(bindata_files)
+            bindata_files="' '".join(bindata_files),
         )
     )
     ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
