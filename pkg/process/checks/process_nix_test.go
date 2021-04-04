@@ -208,7 +208,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
-			testName: "container process mixed 1",
+			testName: "container process mixed 2",
 			ctrProcs: []ctrProc{
 				{ctrId: "1", pCounts: 5},
 				{ctrId: "2", pCounts: 4},
