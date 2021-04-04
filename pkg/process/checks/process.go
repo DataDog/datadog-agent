@@ -230,9 +230,9 @@ func packProcCtrMessages(
 	space := capacity
 
 	for _, ctr := range containers {
-		procs, _ := procsByCtr[ctr.Id]
+		procs, ok := procsByCtr[ctr.Id]
 
-		if len(procs) > space && space != capacity {
+		if ok && len(procs) > space && space != capacity {
 			msgs = append(msgs, msgFn(ctrs, ctrProcs))
 			ctrs = nil
 			ctrProcs = nil
@@ -241,7 +241,7 @@ func packProcCtrMessages(
 
 		ctrs = append(ctrs, ctr)
 		ctrProcs = append(ctrProcs, procs...)
-		space += len(procs)
+		space -= len(procs)
 	}
 
 	if len(ctrs) > 0 {
