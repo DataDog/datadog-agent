@@ -13,15 +13,15 @@ const (
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "/opt/datadog-agent/etc"
 	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "/var/log/datadog/agent.log"
+	DefaultLogFile = "/opt/datadog-agent/logs/agent.log"
 	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
+	DefaultDCALogFile = "/opt/datadog-agent/logs/cluster-agent.log"
 	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
-	DefaultJmxLogFile = "/var/log/datadog/jmxfetch.log"
+	DefaultJmxLogFile = "/opt/datadog-agent/logs/jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
-	DefaultCheckFlareDirectory = "/var/log/datadog/checks/"
+	DefaultCheckFlareDirectory = "/opt/datadog-agent/logs/checks/"
 	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
-	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
+	DefaultJMXFlareDirectory = "/opt/datadog-agent/logs/jmxinfo/"
 )
 
 var (
