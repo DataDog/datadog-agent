@@ -191,10 +191,9 @@ def test(
     }
 
     _, _, env = get_build_flags(ctx)
+    env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.normpath(os.path.join(os.getcwd(), "pkg", "ebpf", "bytecode", "build"))
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
-    else:
-        env['DD_SYSTEM_PROBE_BPF_DIR'] = os.path.normpath(os.path.join(os.getcwd(), "pkg", "ebpf", "bytecode", "build"))
 
     cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs} {run}'
     if not is_root():
