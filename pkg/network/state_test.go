@@ -1100,7 +1100,6 @@ func TestUnorderedCloseEvent(t *testing.T) {
 
 	// Ensure we don't have underflows / unordered conns
 	assert.Zero(t, state.(*networkState).telemetry.statsResets)
-	assert.Zero(t, state.(*networkState).telemetry.unorderedConns)
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Connections, 0)
 }

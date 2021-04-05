@@ -5,9 +5,11 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
 )
 
@@ -23,12 +25,15 @@ type RTProcessCheck struct {
 	lastCtrRates map[string]util.ContainerRateMetrics
 	lastRun      time.Time
 
+	notInitializedLogLimit *util.LogLimit
+
 	probe *procutil.Probe
 }
 
 // Init initializes a new RTProcessCheck instance.
 func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	r.sysInfo = info
+	r.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 }
 
 // Name returns the name of the RTProcessCheck.
@@ -58,10 +63,29 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
+	var sysProbeUtil *net.RemoteSysProbeUtil
+	// if the Process module is disabled, we allow Probe to collect
+	// fields that require elevated permission to collect with best effort
+	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
+		procutil.WithPermission(true)(r.probe)
+	} else {
+		procutil.WithPermission(false)(r.probe)
+		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
+			sysProbeUtil = pu
+		} else if r.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection in rtprocess check: %v (will only log every 10 minutes)", err)
+		}
+	}
+
 	procs, err := getAllProcStats(r.probe, lastPIDs)
 	if err != nil {
 		return nil, err
 	}
+
+	if sysProbeUtil != nil {
+		mergeStatWithSysprobeStats(procs, sysProbeUtil)
+	}
+
 	ctrList, _ := util.GetContainers()
 
 	// End check early if this is our first run.
@@ -156,4 +180,22 @@ func calculateRate(cur, prev uint64, before time.Time) float32 {
 		return 0
 	}
 	return float32(cur-prev) / float32(diff)
+}
+
+// mergeStatWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
+func mergeStatWithSysprobeStats(stats map[int32]*procutil.Stats, pu *net.RemoteSysProbeUtil) {
+	pStats, err := pu.GetProcStats()
+	if err == nil {
+		for pid, stats := range stats {
+			if s, ok := pStats.StatsByPID[pid]; ok {
+				stats.OpenFdCount = s.OpenFDCount
+				stats.IOStat.ReadCount = s.ReadCount
+				stats.IOStat.WriteCount = s.WriteCount
+				stats.IOStat.ReadBytes = s.ReadBytes
+				stats.IOStat.WriteBytes = s.WriteBytes
+			}
+		}
+	} else {
+		log.Debugf("cannot do GetProcStats from system-probe for rtprocess check: %s", err)
+	}
 }
