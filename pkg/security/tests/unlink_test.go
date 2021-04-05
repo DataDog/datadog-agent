@@ -12,9 +12,9 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestUnlink(t *testing.T) {
@@ -30,7 +30,7 @@ func TestUnlink(t *testing.T) {
 	defer test.Close()
 
 	fileMode := 0o447
-	expectedMode := applyUmask(fileMode)
+	expectedMode := uint16(applyUmask(fileMode))
 	testFile, testFilePtr, err := test.CreateWithOptions("test-unlink", 98, 99, fileMode)
 	if err != nil {
 		t.Fatal(err)
@@ -39,8 +39,8 @@ func TestUnlink(t *testing.T) {
 
 	inode := getInode(t, testFile)
 
-	t.Run("unlink", func(t *testing.T) {
-		if _, _, err := syscall.Syscall(syscall.SYS_UNLINK, uintptr(testFilePtr), 0, 0); err != 0 {
+	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
+		if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 			t.Fatal(err)
 		}
 
@@ -48,30 +48,16 @@ func TestUnlink(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "unlink" {
-				t.Errorf("expected unlink event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
+			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
-			if inode != event.Unlink.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
-			}
-
-			if int(event.Unlink.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
-			}
-
-			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
-			}
+			assertNearTime(t, event.Unlink.File.MTime)
+			assertNearTime(t, event.Unlink.File.CTime)
 
 			testContainerPath(t, event, "unlink.file.container_path")
 		}
-	})
+	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
 	if err != nil {
@@ -90,26 +76,12 @@ func TestUnlink(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "unlink" {
-				t.Errorf("expected unlink event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
+			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
+			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
-			if inode != event.Unlink.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Unlink.File.Inode, inode)
-			}
-
-			if int(event.Unlink.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Unlink.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Unlink.File.MTime.After(now) || event.Unlink.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Unlink.File.MTime)
-			}
-
-			if event.Unlink.File.CTime.After(now) || event.Unlink.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Unlink.File.CTime)
-			}
+			assertNearTime(t, event.Unlink.File.MTime)
+			assertNearTime(t, event.Unlink.File.CTime)
 
 			testContainerPath(t, event, "unlink.file.container_path")
 		}
@@ -147,13 +119,8 @@ func TestUnlinkInvalidate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "unlink" {
-				t.Errorf("expected unlink event, got %s", event.GetType())
-			}
-
-			if value, _ := event.GetFieldValue("unlink.file.path"); value.(string) != testFile {
-				t.Errorf("expected filename not found")
-			}
+			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
+			assertFieldEqual(t, event, "unlink.file.path", testFile)
 		}
 	}
 }

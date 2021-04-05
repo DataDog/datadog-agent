@@ -135,16 +135,16 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
-	if k := "max_closed_connections_buffered"; config.Datadog.IsSet(k) {
-		if mcb := config.Datadog.GetInt(key(spNS, k)); mcb > 0 {
+	if k := key(spNS, "max_closed_connections_buffered"); config.Datadog.IsSet(k) {
+		if mcb := config.Datadog.GetInt(k); mcb > 0 {
 			a.MaxClosedConnectionsBuffered = mcb
 		}
 	}
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
-	if k := "max_connection_state_buffered"; config.Datadog.IsSet(k) {
-		if mcsb := config.Datadog.GetInt(key(spNS, k)); mcsb > 0 {
+	if k := key(spNS, "max_connection_state_buffered"); config.Datadog.IsSet(k) {
+		if mcsb := config.Datadog.GetInt(k); mcsb > 0 {
 			a.MaxConnectionsStateBuffered = mcsb
 		}
 	}
@@ -174,6 +174,11 @@ func (a *AgentConfig) loadSysProbeYamlConfig(path string) error {
 		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		a.EnableSystemProbe = true
 		a.EnabledChecks = append(a.EnabledChecks, TCPQueueLengthCheckName)
+	}
+
+	if config.Datadog.GetBool(key(spNS, "process_config.enabled")) {
+		a.EnableSystemProbe = true
+		a.EnabledChecks = append(a.EnabledChecks, ProcessModuleCheckName)
 	}
 
 	if config.Datadog.GetBool(key(spNS, "enable_oom_kill")) {

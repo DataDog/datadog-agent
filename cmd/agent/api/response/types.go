@@ -24,6 +24,5 @@ type TaggerListResponse struct {
 
 // TaggerListEntity holds the tagging info about an entity
 type TaggerListEntity struct {
-	Sources []string `json:"sources"`
-	Tags    []string `json:"tags"`
+	Tags map[string][]string `json:"tags"`
 }

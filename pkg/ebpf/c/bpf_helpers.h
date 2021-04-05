@@ -56,6 +56,7 @@ static unsigned long long (*bpf_get_prandom_u32)(void) = (void*)BPF_FUNC_get_pra
 static int (*bpf_skb_store_bytes)(void* ctx, int off, void* from, int len, int flags) = (void*)BPF_FUNC_skb_store_bytes;
 static int (*bpf_l3_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l3_csum_replace;
 static int (*bpf_l4_csum_replace)(void* ctx, int off, int from, int to, int flags) = (void*)BPF_FUNC_l4_csum_replace;
+static int (*bpf_tail_call)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tail_call;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
@@ -63,6 +64,13 @@ static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_str;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+static int (*bpf_probe_read_user_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user_str;
+static int (*bpf_probe_read_kernel_str)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel_str;
+static int (*bpf_probe_read_user)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
+static int (*bpf_probe_read_kernel)(void* dst, int size, void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_kernel;
 #endif
 
 #pragma clang diagnostic pop

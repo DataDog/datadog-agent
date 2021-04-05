@@ -481,40 +481,27 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/tcp_v4_destroy_sock")
-int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
+SEC("kprobe/inet_csk_listen_stop")
+int kprobe__inet_csk_listen_stop(struct pt_regs* ctx) {
     struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
-    if (!skp) {
-        log_debug("ERR(tcp_v4_destroy_sock): socket is null \n");
-        return 0;
-    }
-
     __u16 lport = read_sport(skp);
     if (lport == 0) {
-        log_debug("ERR(tcp_v4_destroy_sock): lport is 0 \n");
+        log_debug("ERR(inet_csk_listen_stop): lport is 0 \n");
         return 0;
     }
 
     port_binding_t t = { .netns = 0, .port = 0 };
     t.netns = get_netns(&skp->sk_net);
     t.port = lport;
-    __u8* val = bpf_map_lookup_elem(&port_bindings, &t);
-    if (val != NULL) {
-        bpf_map_delete_elem(&port_bindings, &t);
-    }
+    bpf_map_delete_elem(&port_bindings, &t);
 
-    log_debug("kprobe/tcp_v4_destroy_sock: net ns: %u, lport: %u\n", t.netns, t.port);
+    log_debug("kprobe/inet_csk_listen_stop: net ns: %u, lport: %u\n", t.netns, t.port);
     return 0;
 }
 
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs* ctx) {
     struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
-    if (!skp) {
-        log_debug("ERR(udp_destroy_sock): socket is null \n");
-        return 0;
-    }
-
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
@@ -704,67 +691,6 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     return 0;
 }
-
-SEC("kprobe/ip_route_output_flow")
-int kprobe__ip_route_output_flow(struct pt_regs* ctx) {
-    struct net *net = (struct net*) PT_REGS_PARM1(ctx);
-    struct flowi4* fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-
-    ip_route_flow_t flow = {};
-    flow.fl = fl4;
-    flow.netns = get_netns(&net);
-    bpf_map_update_elem(&ip_route_output_flows, &pid_tgid, &flow, BPF_ANY);
-    log_debug("kprobe/ip_route_output_flow: pid_tgid: %u\n", pid_tgid);
-
-    return 0;
-}
-
-SEC("kretprobe/ip_route_output_flow")
-int kretprobe__ip_route_output_flow(struct pt_regs* ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-
-    // Retrieve socket pointer from kprobe via pid/tgid
-    ip_route_flow_t *flow = (ip_route_flow_t*) bpf_map_lookup_elem(&ip_route_output_flows, &pid_tgid);
-    if (!flow) {
-        return 0;
-    }
-
-    // Make sure we clean up that pointer reference
-    bpf_map_delete_elem(&ip_route_output_flows, &pid_tgid);
-
-    struct rtable *rt = (struct rtable*)PT_REGS_RC(ctx);
-    if (IS_ERR_OR_NULL(rt)) {
-        log_debug("kretprobe/ip_route_output_flow: route is not available pid_tgid=%d\n", pid_tgid);
-        return 0;
-    }
-
-    ip_route_dest_t dest = {};
-    dest.saddr_h = 0;
-    dest.daddr_h = 0;
-    bpf_probe_read(&dest.saddr_l, sizeof(__be32), &flow->fl->saddr);
-    bpf_probe_read(&dest.daddr_l, sizeof(__be32), &flow->fl->daddr);
-    if (!dest.daddr_l) {
-        log_debug("ERR(kretprobe/ip_route_output_flow): dst address not set pid_tgid=%d", pid_tgid);
-        return 0;
-    }
-    dest.netns = flow->netns;
-    dest.family = CONN_V4;
-
-    ip_route_gateway_t gw = {};
-    gw.gw_h = 0;
-    gw.family = CONN_V4;
-    gw.gw_l = rt_nexthop_bpf(rt);
-    struct dst_entry dst = {};
-    bpf_probe_read(&dst, sizeof(struct dst_entry), &(rt->dst));
-    if (dst.dev) {
-        bpf_probe_read(&gw.ifindex, sizeof(__u32), &(dst.dev->ifindex));
-    }
-
-    bpf_map_update_elem(&ip_route_dest_gateways, &dest, &gw, BPF_ANY);
-    return 0;
-}
-
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

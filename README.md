@@ -76,6 +76,19 @@ To start working on the Agent, you can build the `master` branch:
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details. For instructions
 on setting up a windows dev environment, refer to [Windows Dev Env](devenv).
 
+## Testing
+
+Run tests using `invoke test`. During development, add the `--skip-linters` option to skip straight to the tests. 
+```
+invoke test --targets=./pkg/aggregator/... --skip-linters
+```
+
+When testing code that depends on [rtloader](/rtloader), build and install it first.
+```
+invoke rtloader.make && invoke rtloader.install
+invoke test --targets=./pkg/collector/python --skip-linters
+```
+
 ## Run
 
 You can run the agent with:

@@ -93,14 +93,14 @@ func GetProgramDataDirForProduct(product string) (path string, err error) {
 		keyname,
 		registry.ALL_ACCESS)
 	if err != nil {
-		// otherwise, unexpected error
-		log.Warnf("Windows installation key root not found, using default program data dir %s", keyname)
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
 		return getDefaultProgramDataDir()
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir", keyname)
+		log.Warnf("Windows installation key config not found, using default program data dir")
 		return getDefaultProgramDataDir()
 	}
 	path = val
