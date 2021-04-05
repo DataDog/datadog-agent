@@ -274,14 +274,14 @@ func TestContainerProcessChunking(t *testing.T) {
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)
 
-			// sort messages
+			// sort and verify messages
 			sortMsgs(messages)
 			verifyBatchedMsgs(t, cfg, tc.expectedBatches, messages)
 		})
 	}
 }
 
-//sortMsgs sorts the CollectorProc messages so they can be validated
+// sortMsgs sorts the CollectorProc messages so they can be validated
 func sortMsgs(m []model.MessageBody) {
 	// sort the processes and containers of each message
 	for i := range m {

@@ -25,6 +25,7 @@ var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
+// ctrProcMsgFactory builds a CollectorProc
 type ctrProcMsgFactory func([]*model.Container, []*model.Process) *model.CollectorProc
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
@@ -216,13 +217,14 @@ func createProcCtrMessages(
 	return messages, totalProcs, totalContainers
 }
 
+// packProcCtrMessages this uses the next-fit bin packing algorithm for packing the container processes into
+// CollectorProcs up to the provided capacity
 func packProcCtrMessages(
 	capacity int,
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
 	msgFn ctrProcMsgFactory,
 ) []*model.CollectorProc {
-
 	var msgs []*model.CollectorProc
 	var ctrs []*model.Container
 	var ctrProcs []*model.Process
