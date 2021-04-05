@@ -6,8 +6,8 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
-from .color import color_message
-from .github import Github, GithubException
+from .common.color import color_message
+from .common.github import Github, GithubException
 
 
 def trigger_macos_workflow(

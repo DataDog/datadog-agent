@@ -4,10 +4,12 @@ package network
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
 )
@@ -119,22 +121,44 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
-	// only get routes for the root net namespace
-	if netns != n.rootNs {
-		return Route{}, false
+	var iifName string
+	if n.rootNs != netns {
+		// if its a non-root ns, we're dealing with traffic from
+		// a container most likely, and so need to find out
+		// which interface is associated with the ns
+
+		// get input interface for src ip
+		routes, err := netlink.RouteGet(util.NetIPFromAddress(source))
+		if err != nil || len(routes) != 1 {
+			return Route{}, false
+		}
+
+		ifi, err := net.InterfaceByIndex(routes[0].LinkIndex)
+		if err != nil {
+			return Route{}, false
+		}
+
+		if ifi.Flags&net.FlagLoopback == 0 {
+			iifName = ifi.Name
+		}
 	}
 
 	routes, err := netlink.RouteGetWithOptions(
 		util.NetIPFromAddress(dest),
-		&netlink.RouteGetOptions{SrcAddr: util.NetIPFromAddress(source)})
+		&netlink.RouteGetOptions{
+			SrcAddr: util.NetIPFromAddress(source),
+			Iif:     iifName,
+		})
 
-	if err == nil && len(routes) == 1 {
-		r := routes[0]
-		return Route{
-			Gateway: util.AddressFromNetIP(r.Gw),
-			IfIndex: r.LinkIndex,
-		}, true
+	if err != nil || len(routes) != 1 {
+		log.Tracef("could not get route for src=%s dest=%s err=%s routes=%+v", source, dest, err, routes)
+		return Route{}, false
 	}
 
-	return Route{}, false
+	r := routes[0]
+	log.Tracef("route for src=%s dst=%s: scope=%s gw=%+v if=%d", source, dest, r.Scope, r.Gw, r.LinkIndex)
+	return Route{
+		Gateway: util.AddressFromNetIP(r.Gw),
+		IfIndex: r.LinkIndex,
+	}, true
 }

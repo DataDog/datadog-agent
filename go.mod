@@ -10,7 +10,7 @@ replace (
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/docker/distribution => github.com/docker/distribution v2.7.1-0.20190104202606-0ac367fd6bee+incompatible
 	github.com/florianl/go-conntrack => github.com/florianl/go-conntrack v0.2.0
-	github.com/iovisor/gobpf => github.com/DataDog/gobpf v0.0.0-20210226135525-f2a1beabb116
+	github.com/iovisor/gobpf => github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c
 	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.2
@@ -49,8 +49,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/sketches-go v1.0.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210209165213-28eb1cc35a8d
-	github.com/DataDog/zstd v0.0.0-20160706220725-2bf71ec48360
-	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
+	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.15
@@ -115,6 +114,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
+	github.com/iceber/iouring-go v0.0.0-20201110085921-73520a520aac
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.10.2
 	github.com/json-iterator/go v1.1.10
@@ -159,7 +159,7 @@ require (
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
-	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae
+	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/zorkian/go-datadog-api v2.28.0+incompatible // indirect
@@ -172,7 +172,7 @@ require (
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210303074136-134d130e1a04
+	golang.org/x/sys v0.0.0-20210308170721-88b6017d0656
 	golang.org/x/text v0.3.5
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.1.0
@@ -228,3 +228,5 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.18.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.0.0-20191016112829-06bb3c9d77c9
 )
+
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3

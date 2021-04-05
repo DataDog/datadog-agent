@@ -117,13 +117,12 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.4/traces",
 		"/v0.4/services",
 		"/v0.5/traces",
-		"/v0.5/stats",
 		"/profiling/v1/input"
 	],
 	"feature_flags": [
 		"feature_flag"
 	],
-	"client_drop_p0s": true,
+	"client_drop_p0s": false,
 	"config": {
 		"default_env": "prod",
 		"target_tps": 11,

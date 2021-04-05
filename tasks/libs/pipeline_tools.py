@@ -2,8 +2,8 @@ import functools
 import platform
 from time import sleep, time
 
-from .color import color_message
-from .gitlab import Gitlab
+from .common.color import color_message
+from .common.gitlab import Gitlab
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -117,16 +117,7 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-
-    jobs = []
-    page = 1
-
-    # Go through all pages
-    results = gitlab.jobs(proj, pipeline_id, page)
-    while len(results) != 0:
-        jobs.extend(results)
-        results = gitlab.jobs(proj, pipeline_id, page)
-        page += 1
+    jobs = gitlab.all_jobs(proj, pipeline_id)
 
     job_status = update_job_status(jobs, job_status)
 
