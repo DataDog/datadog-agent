@@ -11,18 +11,21 @@ static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
 static cb_submit_event_t cb_submit_event = NULL;
 static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
+static cb_submit_event_platform_event_t cb_submit_event_platform_event = NULL;
 
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
 static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args);
+static PyObject *submit_event_platform_event(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics." },
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks." },
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
+    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
     { NULL, NULL } // guards
 };
 
@@ -84,6 +87,12 @@ void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb)
 {
     cb_submit_histogram_bucket = cb;
 }
+
+void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
+{
+    cb_submit_event_platform_event = cb;
+}
+
 
 /*! \fn py_tag_to_c(PyObject *py_tags)
     \brief A function to convert a list of python strings (tags) into an
@@ -397,6 +406,32 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
 
     free_tags(tags);
 
+    PyGILState_Release(gstate);
+    Py_RETURN_NONE;
+
+error:
+    PyGILState_Release(gstate);
+    return NULL;
+}
+
+static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
+{
+    if (cb_submit_event_platform_event == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    PyObject *check = NULL;
+    char *check_id = NULL;
+    char *raw_event = NULL;
+    char *event_type = NULL;
+
+    if (!PyArg_ParseTuple(args, "Osss", &check, &check_id, &raw_event, &event_type)) {
+        goto error;
+    }
+
+    cb_submit_event_platform_event(check_id, raw_event, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
 

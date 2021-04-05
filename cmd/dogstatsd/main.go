@@ -209,7 +209,7 @@ func runAgent(ctx context.Context) (err error) {
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)
 
 	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
 	if err != nil {

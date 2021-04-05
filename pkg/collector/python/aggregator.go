@@ -131,3 +131,16 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 
 	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags)
 }
+
+// SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+//export SubmitEventPlatformEvent
+func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.char) {
+	_checkID := C.GoString(checkID)
+	sender, err := aggregator.GetSender(chk.ID(_checkID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting event platform event to the Sender: %v", err)
+		return
+	}
+	sender.EventPlatformEvent(C.GoString(rawEvent), C.GoString(eventType))
+	return
+}

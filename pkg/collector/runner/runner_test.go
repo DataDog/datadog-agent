@@ -58,8 +58,8 @@ func (c *TestCheck) ID() check.ID {
 	defer c.Unlock()
 	return check.ID(fmt.Sprintf("%s:%s", c.String(), c.id))
 }
-func (c *TestCheck) GetWarnings() []error                      { return nil }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) GetWarnings() []error                 { return nil }
+func (c *TestCheck) GetStats() (check.SenderStats, error) { return check.NewSenderStats(), nil }
 func (c *TestCheck) HasRun() bool {
 	c.Lock()
 	defer c.Unlock()

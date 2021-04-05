@@ -63,8 +63,8 @@ func (c *complianceCheck) GetWarnings() []error {
 	return nil
 }
 
-func (c *complianceCheck) GetMetricStats() (map[string]int64, error) {
-	return nil, nil
+func (c *complianceCheck) GetSenderStats() (check.SenderStats, error) {
+	return check.NewSenderStats(), nil
 }
 
 func (c *complianceCheck) Version() string {

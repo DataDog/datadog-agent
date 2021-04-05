@@ -90,6 +90,7 @@ public:
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
     void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);
+    void setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t);
 
     // datadog_agent API
     void setGetVersionCb(cb_get_version_t);

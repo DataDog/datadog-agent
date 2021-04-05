@@ -313,8 +313,8 @@ func (r *Runner) work() {
 			// If the scheduler isn't assigned (it should), just add stats
 			// otherwise only do so if the check is in the scheduler
 			if r.scheduler == nil || r.scheduler.IsCheckScheduled(check.ID()) {
-				mStats, _ := check.GetMetricStats()
-				addWorkStats(check, time.Since(t0), err, warnings, mStats)
+				sStats, _ := check.GetSenderStats()
+				addWorkStats(check, time.Since(t0), err, warnings, sStats)
 			}
 		}
 		r.m.Unlock()
@@ -366,7 +366,7 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	return
 }
 
-func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
+func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats check.SenderStats) {
 	var s *check.Stats
 	var found bool
 

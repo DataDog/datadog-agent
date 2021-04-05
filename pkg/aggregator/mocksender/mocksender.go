@@ -19,7 +19,7 @@ import (
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 	// The MockSender will be injected in the corecheck via the aggregator
-	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	SetSender(mockSender, id)
 
 	return mockSender
@@ -61,6 +61,7 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("string"),                     // message
 	).Return()
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
+	m.On("EventPlatformEvent", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return()
 	m.On("HistogramBucket",
 		mock.AnythingOfType("string"),   // metric name
 		mock.AnythingOfType("int64"),    // value
@@ -70,7 +71,7 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("string"),   // hostname
 		mock.AnythingOfType("[]string"), // tags
 	).Return()
-	m.On("GetMetricStats", mock.AnythingOfType("map[string]int64")).Return()
+	m.On("GetSenderStats", mock.AnythingOfType("check.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()

@@ -388,6 +388,11 @@
         {{- if .SketchesFlushErrors}}
           Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
         {{- end -}}
+        {{- if .EventPlatformEvents }}
+        {{- range $k, $v := .EventPlatformEvents }}
+          {{ $k }}: {{humanize $v}}
+        {{- end }}
+        {{- end }}
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end }}

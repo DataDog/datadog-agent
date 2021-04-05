@@ -44,8 +44,8 @@ func (c *StubCheck) ID() ID { return ID(c.String()) }
 // GetWarnings returns an empty slice
 func (c *StubCheck) GetWarnings() []error { return []error{} }
 
-// GetMetricStats returns an empty map
-func (c *StubCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+// GetSenderStats returns an empty map
+func (c *StubCheck) GetSenderStats() (SenderStats, error) { return NewSenderStats(), nil }
 
 // IsTelemetryEnabled returns false
 func (c *StubCheck) IsTelemetryEnabled() bool { return false }

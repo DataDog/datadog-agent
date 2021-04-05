@@ -296,13 +296,13 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	return nil
 }
 
-// GetMetricStats returns the stats from the last run of the check
-func (c *PythonCheck) GetMetricStats() (map[string]int64, error) {
+// GetSenderStats returns the stats from the last run of the check
+func (c *PythonCheck) GetSenderStats() (check.SenderStats, error) {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return check.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
-	return sender.GetMetricStats(), nil
+	return sender.GetSenderStats(), nil
 }
 
 // Interval returns the scheduling time for the check

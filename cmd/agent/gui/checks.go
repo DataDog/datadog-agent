@@ -105,8 +105,8 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 		t0 := time.Now()
 		err := ch.Run()
 		warnings := ch.GetWarnings()
-		mStats, _ := ch.GetMetricStats()
-		s.Add(time.Since(t0), err, warnings, mStats)
+		sStats, _ := ch.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
