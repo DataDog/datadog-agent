@@ -117,7 +117,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
     return 1;
 }
 
-static __always_inline int http_begin_response(http_transaction_t *http, char *buffer) {
+static __always_inline int http_begin_response(http_transaction_t *http, const char *buffer) {
     // We missed the corresponding request so nothing to do
     if (!(http->request_started)) {
         return 0;

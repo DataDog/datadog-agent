@@ -13,7 +13,7 @@
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
-    bpf_probe_read(&status, sizeof(status), &ct->status);
+    bpf_probe_read(&status, sizeof(status), (void *)&ct->status);
     return status;
 }
 
@@ -100,7 +100,6 @@ static __always_inline void increment_telemetry_count(enum conntrack_telemetry_c
     case registers_dropped:
         __sync_fetch_and_add(&val->registers_dropped, 1);
     }
-    return;
 }
 
 #endif

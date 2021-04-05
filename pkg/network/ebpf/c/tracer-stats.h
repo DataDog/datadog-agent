@@ -3,7 +3,7 @@
 
 #include "tracer.h"
 
-static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_gid, metadata_mask_t type);
+static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
 
 static __always_inline void update_conn_state(conn_tuple_t* t, conn_stats_ts_t *stats, size_t sent_bytes, size_t recv_bytes) {
     if (t->metadata&CONN_TYPE_TCP || stats->flags&CONN_ASSURED) {
@@ -38,7 +38,9 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     }
     val = bpf_map_lookup_elem(&conn_stats, t);
 
-    if (!val) return;
+    if (!val) {
+        return;
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
