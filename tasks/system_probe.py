@@ -29,7 +29,7 @@ LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
 DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
-KITCHEN_DIR = os.path.join("test", "kitchen")
+KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -494,7 +494,7 @@ def get_ebpf_build_flags():
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
-        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
+        '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
         '-Wno-compare-distinct-pointer-types',

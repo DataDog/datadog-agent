@@ -17,7 +17,8 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  product_version: 14.12.9
+  product_version: 15.16.4
+  chef_license: accept
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)

@@ -42,6 +42,7 @@
     KITCHEN_EC2_SUBNET: subnet-c18341ed
     KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
     KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
+    KITCHEN_EC2_SPOT_PRICE: on-demand
 
 kitchen_centos_sysprobe_x64:
   extends: .kitchen_test_system_probe_x64
@@ -85,16 +86,6 @@ kitchen_debian_sysprobe_arm64:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="debian"
     - export KITCHEN_OSVERS="debian-10"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_suse_sysprobe_arm64:
-  extends: .kitchen_test_system_probe_arm64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="suse"
-    - export KITCHEN_OSVERS="sles-15"
-    - export KITCHEN_EC2_SPOT_PRICE=nil
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
