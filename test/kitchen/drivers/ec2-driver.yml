@@ -1,7 +1,8 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  product_version: 13.9.4
+  product_version: 15.16.4
+  chef_license: accept
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
@@ -13,7 +14,7 @@ provisioner:
 driver:
   name: ec2
   aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_ID'] %>
-  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS'] || "sg-7fedd80a","sg-46506837"] %>
+  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false

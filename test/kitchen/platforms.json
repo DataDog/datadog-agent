@@ -32,8 +32,7 @@
         },
         "ec2": {
             "arm64": {
-                "debian-9": "ami-06c5943bf1c4c1b81",
-                "debian-10": "ami-08b2293fdd2deba2a"
+                "debian-10": "ami-0529ba3d56c0866bb"
             }
         }
     },
@@ -61,7 +60,6 @@
         },
         "ec2": {
             "arm64": {
-                "ubuntu-16-04": "ami-07bb67a394017b190",
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
                 "ubuntu-20-04": "ami-0b75998a97c952252"
             }
