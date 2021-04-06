@@ -85,6 +85,4 @@ type Config interface {
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 	// GetEnvVars returns a list of the non-sensitive env vars that the config supports
 	GetEnvVars() []string
-
-	RegisterAlias(alias string, key string)
 }

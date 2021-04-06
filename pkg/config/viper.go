@@ -361,12 +361,6 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...st
 	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
 }
 
-func (c *safeConfig) RegisterAlias(alias string, key string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.RegisterAlias(alias, key)
-}
-
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{
