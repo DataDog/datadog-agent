@@ -84,6 +84,7 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20170926063155-7524189396c6 // indirect
 	github.com/fatih/color v1.9.0
+	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/frapposelli/wwhrd v0.2.4
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
