@@ -24,6 +24,10 @@ var replacers = []Replacer{
 		Regex: regexp.MustCompile(`(\s*(authenticationParameters))\s*.+`),
 		Repl:  []byte(`$1 ********`),
 	},
+	{
+		Regex: regexp.MustCompile(`(\s*(?:Community):"?).+?("?[,} ])`),
+		Repl:  []byte(`${1}********${2}`),
+	},
 }
 
 type TraceLevelLogWriter struct{}

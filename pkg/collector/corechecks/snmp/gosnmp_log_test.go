@@ -55,6 +55,16 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			logLine:      []byte(`TEST: authenticationParameters abc`),
 			expectedLogs: "[TRACE] Write: TEST: authenticationParameters ********",
 		},
+		{
+			name:         "scrub community no quote",
+			logLine:      []byte(`TEST: ContextName:cisco-nexus Community:abcd PDUType:162`),
+			expectedLogs: "[TRACE] Write: TEST: ContextName:cisco-nexus Community:******** PDUType:162",
+		},
+		{
+			name:         "scrub community quote",
+			logLine:      []byte(`TEST: ContextName:"cisco-nexus", Community:"abcd", PDUType:0xa5`),
+			expectedLogs: "[TRACE] Write: TEST: ContextName:\"cisco-nexus\", Community:\"********\", PDUType:0xa5",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
