@@ -2,14 +2,38 @@ package snmp
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"regexp"
 )
+
+// Replacer structure to store regex matching logs parts to replace
+type Replacer struct {
+	Regex *regexp.Regexp
+	Repl  []byte
+}
+
+var replacers = []Replacer{
+	{
+		Regex: regexp.MustCompile(`(\s*SECURITY PARAMETERS\s*:).+`),
+		Repl:  []byte(`$1 ********`),
+	},
+	{
+		Regex: regexp.MustCompile(`(\s*(AuthenticationPassphrase|PrivacyPassphrase|SecretKey|PrivacyKey|authenticationParameters)\s*:).+`),
+		Repl:  []byte(`$1 ********`),
+	},
+	{
+		Regex: regexp.MustCompile(`(\s*(authenticationParameters))\s*.+`),
+		Repl:  []byte(`$1 ********`),
+	},
+}
 
 type TraceLevelLogWriter struct{}
 
-func (sw *TraceLevelLogWriter) Write(p []byte) (n int, err error) {
-	// TODO:
-	//   - Scrub sensitive information
-	//     - See strip_test.go
-	log.Tracef(string(p))
-	return len(p), nil
+func (sw *TraceLevelLogWriter) Write(logInput []byte) (n int, err error) {
+	for _, replacer := range replacers {
+		if replacer.Regex.Match(logInput) {
+			logInput = replacer.Regex.ReplaceAll(logInput, replacer.Repl)
+		}
+	}
+	log.Tracef(string(logInput))
+	return len(logInput), nil
 }
