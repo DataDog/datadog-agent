@@ -102,6 +102,9 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 			return err
 		}
 
+		if _, exists := mr.mounts[e.MountID]; exists {
+			continue
+		}
 		mr.insert(*e)
 
 		// init discarder revisions
