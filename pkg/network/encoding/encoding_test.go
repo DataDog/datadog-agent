@@ -76,6 +76,38 @@ func TestSerialization(t *testing.T) {
 		},
 	}
 
+	httpOut := &model.HTTPAggregations{
+		ByPath: map[string]*model.HTTPStats{
+			"/testpath": {
+				StatsByResponseStatus: []*model.HTTPStats_Data{
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+					{
+						Count:     0,
+						Latencies: nil,
+					},
+				},
+			},
+		},
+	}
+
+	httpOutBlob, err := proto.Marshal(httpOut)
+	require.NoError(t, err)
+
 	out := &model.Connections{
 		Conns: []*model.Connection{
 			{
@@ -108,33 +140,8 @@ func TestSerialization(t *testing.T) {
 						DnsCountByRcode:      map[uint32]uint32{0: 1},
 					},
 				},
-				RouteIdx: 0,
-				HttpStatsByPath: map[string]*model.HTTPStats{
-					"/testpath": {
-						StatsByResponseStatus: []*model.HTTPStats_Data{
-							{
-								Count:     0,
-								Latencies: nil,
-							},
-							{
-								Count:     0,
-								Latencies: nil,
-							},
-							{
-								Count:     0,
-								Latencies: nil,
-							},
-							{
-								Count:     0,
-								Latencies: nil,
-							},
-							{
-								Count:     0,
-								Latencies: nil,
-							},
-						},
-					},
-				},
+				RouteIdx:         0,
+				HttpAggregations: httpOutBlob,
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
@@ -270,7 +277,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	// Now path will be nested in the map
 	key.Path = ""
 	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := formattedStats[key]["/testpath"].StatsByResponseStatus
+	statsByResponseStatus := formattedStats[key].ByPath["/testpath"].StatsByResponseStatus
 	assert.Len(t, statsByResponseStatus, 5)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
