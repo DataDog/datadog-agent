@@ -33,7 +33,9 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     __builtin_memset(&empty, 0, sizeof(conn_stats_ts_t));
-    bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
+    if (bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST) == -E2BIG) {
+        increment_telemetry_count(conn_stats_max_entries_hit);
+    }
     val = bpf_map_lookup_elem(&conn_stats, t);
 
     if (!val) return;

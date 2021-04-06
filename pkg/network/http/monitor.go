@@ -28,7 +28,7 @@ type Monitor struct {
 	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
-	pollRequests chan chan struct{}
+	pollRequests chan chan map[Key]RequestStats
 	statkeeper   *httpStatKeeper
 
 	// termination
@@ -39,7 +39,7 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
+func NewMonitor(procRoot string, maxEntries int, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
@@ -68,7 +68,8 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
 	}
 
-	statkeeper := newHTTPStatkeeper()
+	telemetry := newTelemetry()
+	statkeeper := newHTTPStatkeeper(maxEntries, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {
@@ -81,8 +82,8 @@ func NewMonitor(procRoot string, mgr *manager.Manager, h *ddebpf.PerfHandler) (*
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
 		perfMap:       pm,
 		perfHandler:   h,
-		telemetry:     newTelemetry(),
-		pollRequests:  make(chan chan struct{}),
+		telemetry:     telemetry,
+		pollRequests:  make(chan chan map[Key]RequestStats),
 		closeFilterFn: closeFilterFn,
 		statkeeper:    statkeeper,
 	}, nil
@@ -127,7 +128,11 @@ func (m *Monitor) Start() error {
 
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
-				reply <- struct{}{}
+
+				delta := m.telemetry.reset()
+				delta.report()
+
+				reply <- m.statkeeper.GetAndResetAllStats()
 			case <-report.C:
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
@@ -138,41 +143,23 @@ func (m *Monitor) Start() error {
 	return nil
 }
 
-// Sync HTTP data between userspace and kernel space
-func (m *Monitor) Sync() {
+// GetHTTPStats returns a map of HTTP stats stored in the following format:
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 	if m == nil {
-		return
+		return nil
 	}
 
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
-		return
-	}
-
-	reply := make(chan struct{}, 1)
-	defer close(reply)
-	m.pollRequests <- reply
-	<-reply
-}
-
-// GetHTTPStats returns a map of HTTP stats stored in the following format:
-// [source, dest tuple] -> [request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]map[string]RequestStats {
-	if m == nil || m.statkeeper == nil {
 		return nil
 	}
 
-	m.Sync()
-	return m.statkeeper.GetAndResetAllStats()
-}
-
-func (m *Monitor) GetStats() map[string]interface{} {
-	currentTime, telemetryData := m.telemetry.get()
-	return map[string]interface{}{
-		"current_time": currentTime,
-		"telemetry":    telemetryData,
-	}
+	reply := make(chan map[Key]RequestStats, 1)
+	defer close(reply)
+	m.pollRequests <- reply
+	return <-reply
 }
 
 // Stop HTTP monitoring
@@ -192,9 +179,6 @@ func (m *Monitor) Stop() {
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
-	if m.statkeeper != nil {
-		m.statkeeper.Close()
-	}
 	m.stopped = true
 }
 

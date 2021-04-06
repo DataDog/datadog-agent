@@ -171,6 +171,7 @@ func (l *UDSListener) Listen() {
 		udsBytes.Add(int64(n))
 		tlmUDSPacketsBytes.Add(float64(n))
 		packet.Contents = packet.buffer[:n]
+		packet.Source = UDS
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
 		l.packetsBuffer.append(packet)

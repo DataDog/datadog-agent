@@ -318,15 +318,17 @@ spec:
         command: [bash]
         source: |
           set -euo pipefail
-          set -x
 
           nginxsvc=$(kubectl --namespace {{inputs.parameters.namespace}} get svc nginx -o jsonpath='{.spec.clusterIP}')
+
+          ( while true; do
+            curl $nginxsvc:8090/nginx_status >& /dev/null
+            sleep 0.01
+          done ) &
+
           until [[ "$(kubectl --namespace {{inputs.parameters.namespace}} get hpa nginxext -o jsonpath='{.status.currentReplicas}')" -gt 1 ]]; do
-            for i in {1..100}
-            do
-              curl $nginxsvc:8090/nginx_status >& /dev/null
-              sleep 0.03
-            done
+            kubectl --namespace {{inputs.parameters.namespace}} describe hpa nginxext
+            sleep 1
           done
 
     - name: test

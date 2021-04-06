@@ -274,12 +274,18 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 
 // ResolveExecArgs resolves the args of the event
 func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
-	return strings.Join(ev.ProcessContext.ArgsArray, " ")
+	if ev.Exec.Args == "" && len(ev.ProcessContext.ArgsArray) > 0 {
+		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
+	}
+	return ev.Exec.Args
 }
 
-// ResolveExecEnvs resolves the args of the event
-func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) string {
-	return strings.Join(ev.ProcessContext.EnvsArray, " ")
+// ResolveExecEnvs resolves the envs of the event
+func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
+	if len(ev.Exec.Envs) == 0 && len(ev.ProcessContext.EnvsArray) > 0 {
+		ev.Exec.Envs = ev.ProcessContext.EnvsArray
+	}
+	return ev.Exec.Envs
 }
 
 // ResolveCredentialsUID resolves the user id of the process
