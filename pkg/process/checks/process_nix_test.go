@@ -193,6 +193,22 @@ func TestContainerProcessChunking(t *testing.T) {
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
+			testName: "remaining container processes are batched",
+			ctrProcs: []ctrProc{
+				{ctrId: "1", pCounts: 10},
+				{ctrId: "2", pCounts: 2},
+				{ctrId: "3", pCounts: 3},
+			},
+			expectedBatches: []map[string]int{
+				{"1": 10},
+				{"2": 2, "3": 3},
+			},
+			expectedCtrCount:  3,
+			expectedProcCount: 15,
+			maxSize:           10,
+			containerHostType: model.ContainerHostType_notSpecified,
+		},
+		{
 			testName: "container process mixed 1",
 			ctrProcs: []ctrProc{
 				{ctrId: "", pCounts: 3},
@@ -232,7 +248,6 @@ func TestContainerProcessChunking(t *testing.T) {
 			testName: "container process mixed 3",
 			ctrProcs: []ctrProc{
 				{ctrId: "", pCounts: 3},
-				// container pid counts - [11, 4, 8, 1, 4, 2, 9]
 				{ctrId: "1", pCounts: 11},
 				{ctrId: "2", pCounts: 4},
 				{ctrId: "3", pCounts: 8},
@@ -281,7 +296,7 @@ func TestContainerProcessChunking(t *testing.T) {
 	}
 }
 
-// sortMsgs sorts the CollectorProc messages so they can be validated
+// sortMsgs sorts the CollectorProc messages so they can be validated deterministically
 func sortMsgs(m []model.MessageBody) {
 	// sort the processes and containers of each message
 	for i := range m {
