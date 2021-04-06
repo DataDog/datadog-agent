@@ -235,6 +235,7 @@ func packProcCtrMessages(
 		procs, ok := procsByCtr[ctr.Id]
 
 		if ok && len(procs) > space && space != capacity {
+			// there is not enough space to fit the procs, so create the message and reset
 			msgs = append(msgs, msgFn(ctrs, ctrProcs))
 			ctrs = nil
 			ctrProcs = nil
@@ -247,6 +248,7 @@ func packProcCtrMessages(
 	}
 
 	if len(ctrs) > 0 {
+		// create messages with any remaining containers and processes
 		msgs = append(msgs, msgFn(ctrs, ctrProcs))
 	}
 
