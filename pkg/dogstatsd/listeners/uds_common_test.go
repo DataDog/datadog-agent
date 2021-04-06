@@ -124,6 +124,7 @@ func TestUDSReceive(t *testing.T) {
 		assert.Equal(t, 1, len(packets))
 		assert.Equal(t, packet.Contents, contents)
 		assert.Equal(t, packet.Origin, "")
+		assert.Equal(t, packet.Source, UDS)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

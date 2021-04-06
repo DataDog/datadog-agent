@@ -14,7 +14,7 @@ const sampleBatchSize = 32
 func buildPacketAssembler() (*packetAssembler, chan Packets) {
 	out := make(chan Packets, 16)
 	psb := newPacketsBuffer(1, 1*time.Hour, out)
-	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(sampleBatchSize))
+	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(sampleBatchSize), UDP)
 	return pb, out
 }
 
@@ -115,6 +115,16 @@ func TestPacketBufferEmpty(t *testing.T) {
 	packets := <-out
 	assert.Len(t, packets, 1)
 	assert.Equal(t, []byte("test2"), packets[0].Contents)
+}
+
+func TestPacketBufferHasCorrectSource(t *testing.T) {
+	pb, out := buildPacketAssembler()
+	message1 := []byte("test")
+
+	pb.addMessage(message1)
+
+	packets := <-out
+	assert.Equal(t, UDP, packets[0].Source)
 }
 
 func TestPacketBufferEmptySecond(t *testing.T) {
