@@ -431,7 +431,7 @@
       <!-- go ahead and always stop the services; if they're not installed (new install) it won't have any impact -->
 
       <!-- always stop the services, regardless of what's going on -->
-      <Custom Action='StopDDServices' After='StopServices'> </Custom>
+      <Custom Action='StopDDServices' Before='StopServices'> </Custom>
 
       <!-- only run the FinalizeInstall action on INSTALL (for now) Note this
            is from the perspective of the installer being run; on upgrade the
@@ -439,10 +439,10 @@
            installer is called with _UPGRADE, and then the new installer
            is called with _INSTALL -->
       <Custom Action='SetFinalizeProperty' Before='FinalizeInstall'> <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
-      <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
+      <Custom Action='FinalizeInstall' Before='StartServices'>      <![CDATA[Installed="" OR REMOVE="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
+      <Custom Action='StartDDServices' After='StartServices'>  <![CDATA[REMOVE<>"ALL"]]></Custom>
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
@@ -650,7 +650,7 @@
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
 
-    <!-- Properties must each be on their own line and end with a semicolon ;
+    <!-- Properties must each be on their own line
       NOTE: This property will cause the build time warning
       "warning LGHT1076 : ICE03: String overflow (greater than length permitted in column);"
       This does not affect the final artefact, as it seems to affects only the base string, not the expanded one.
@@ -658,31 +658,32 @@
     -->
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
-            PROJECTLOCATION=[PROJECTLOCATION];
-            APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];
-            DDAGENTUSER_NAME=[DDAGENTUSER_NAME];
-            DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];
-            SYSPROBE_PRESENT=[SYSPROBE_PRESENT];
-            ADDLOCAL=[ADDLOCAL];
-            APIKEY=[APIKEY];
-            TAGS=[TAGS];
-            HOSTNAME=[HOSTNAME];
-            PROXY_HOST=[PROXY_HOST];
-            PROXY_PORT=[PROXY_PORT];
-            PROXY_USER=[PROXY_USER];
-            PROXY_PASSWORD=[PROXY_PASSWORD];
-            LOGS_ENABLED=[LOGS_ENABLED];
-            APM_ENABLED=[APM_ENABLED];
-            PROCESS_ENABLED=[PROCESS_ENABLED];
-            CMD_PORT=[CMD_PORT];
-            SITE=[SITE];
-            DD_URL=[DD_URL];
-            LOGS_DD_URL=[LOGS_DD_URL];
-            PROCESS_DD_URL=[PROCESS_DD_URL];
-            TRACE_DD_URL=[TRACE_DD_URL];
-            PYVER=[PYVER];
-            HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED];
-            NPM=[NPM];
+            PROJECTLOCATION=[PROJECTLOCATION]
+            APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]
+            DDAGENTUSER_NAME=[DDAGENTUSER_NAME]
+            DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]
+            SYSPROBE_PRESENT=[SYSPROBE_PRESENT]
+            ADDLOCAL=[ADDLOCAL]
+            APIKEY=[APIKEY]
+            TAGS=[TAGS]
+            HOSTNAME=[HOSTNAME]
+            PROXY_HOST=[PROXY_HOST]
+            PROXY_PORT=[PROXY_PORT]
+            PROXY_USER=[PROXY_USER]
+            PROXY_PASSWORD=[PROXY_PASSWORD]
+            LOGS_ENABLED=[LOGS_ENABLED]
+            APM_ENABLED=[APM_ENABLED]
+            PROCESS_ENABLED=[PROCESS_ENABLED]
+            CMD_PORT=[CMD_PORT]
+            SITE=[SITE]
+            DD_URL=[DD_URL]
+            LOGS_DD_URL=[LOGS_DD_URL]
+            PROCESS_DD_URL=[PROCESS_DD_URL]
+            TRACE_DD_URL=[TRACE_DD_URL]
+            PYVER=[PYVER]
+            HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED]
+            NPM=[NPM]
+            EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]
             ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>

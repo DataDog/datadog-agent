@@ -54,7 +54,7 @@ core,"github.com/DataDog/sketches-go/ddsketch/mapping",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/store",Apache-2.0
 core,"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1",Apache-2.0
-core,"github.com/DataDog/zstd",NewBSD
+core,"github.com/DataDog/zstd_0",NewBSD
 core,"github.com/Djarvur/go-err113",MIT
 core,"github.com/Masterminds/goutils",Apache-2.0
 core,"github.com/Masterminds/semver",MIT
@@ -391,6 +391,8 @@ core,"github.com/hectane/go-acl/api",MIT
 core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/ianlancetaylor/demangle",NewBSD
+core,"github.com/iceber/iouring-go",MIT
+core,"github.com/iceber/iouring-go/syscall",MIT
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0
@@ -445,7 +447,6 @@ core,"github.com/mattn/go-zglob/fastwalk",MIT
 core,"github.com/matttproud/golang_protobuf_extensions/pbutil",Apache-2.0
 core,"github.com/mdlayher/netlink",MIT
 core,"github.com/mdlayher/netlink/nlenc",MIT
-core,"github.com/mholt/archiver",MIT
 core,"github.com/mholt/archiver/v3",MIT
 core,"github.com/miekg/dns",NewBSD
 core,"github.com/mitchellh/copystructure",MIT
@@ -479,8 +480,6 @@ core,"github.com/openshift/api/quota/v1",Apache-2.0
 core,"github.com/patrickmn/go-cache",MIT
 core,"github.com/pelletier/go-toml",MIT
 core,"github.com/philhofer/fwd",MIT
-core,"github.com/pierrec/lz4",NewBSD
-core,"github.com/pierrec/lz4/internal/xxh32",NewBSD
 core,"github.com/pierrec/lz4/v4",NewBSD
 core,"github.com/pierrec/lz4/v4/internal/lz4block",NewBSD
 core,"github.com/pierrec/lz4/v4/internal/lz4errors",NewBSD
@@ -632,6 +631,7 @@ core,"golang.org/x/oauth2/internal",NewBSD
 core,"golang.org/x/sync/errgroup",NewBSD
 core,"golang.org/x/sync/singleflight",NewBSD
 core,"golang.org/x/sys/cpu",NewBSD
+core,"golang.org/x/sys/execabs",NewBSD
 core,"golang.org/x/sys/internal/unsafeheader",NewBSD
 core,"golang.org/x/sys/plan9",NewBSD
 core,"golang.org/x/sys/unix",NewBSD

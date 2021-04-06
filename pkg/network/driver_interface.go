@@ -536,17 +536,23 @@ func createDNSFilters() ([]C.struct__filterDefinition, error) {
 
 	for _, iface := range ifaces {
 		filters = append(filters, C.struct__filterDefinition{
-
 			filterVersion:    C.DD_NPMDRIVER_SIGNATURE,
 			size:             C.sizeof_struct__filterDefinition,
 			filterLayer:      C.FILTER_LAYER_TRANSPORT,
 			af:               windows.AF_INET,
 			remotePort:       53,
 			v4InterfaceIndex: (C.ulonglong)(iface.Index),
-			// direction
-			// port
-			// udp
-			// ipv4
+			direction:        C.DIRECTION_OUTBOUND,
+		})
+
+		filters = append(filters, C.struct__filterDefinition{
+			filterVersion:    C.DD_NPMDRIVER_SIGNATURE,
+			size:             C.sizeof_struct__filterDefinition,
+			filterLayer:      C.FILTER_LAYER_TRANSPORT,
+			af:               windows.AF_INET,
+			remotePort:       53,
+			v4InterfaceIndex: (C.ulonglong)(iface.Index),
+			direction:        C.DIRECTION_INBOUND,
 		})
 	}
 
@@ -587,9 +593,7 @@ func prepareCompletionBuffers(h windows.Handle, count int) (iocp windows.Handle,
 	buffers = make([]*readbuffer, count)
 	for i := 0; i < count; i++ {
 		buf := (*readbuffer)(C.malloc(C.size_t(unsafe.Sizeof(readbuffer{}))))
-		if err != nil {
-			return windows.Handle(0), nil, err
-		}
+		C.memset(unsafe.Pointer(buf), 0, C.size_t(unsafe.Sizeof(readbuffer{})))
 		buffers[i] = buf
 
 		err = windows.ReadFile(h, buf.data[:], nil, &(buf.ol))

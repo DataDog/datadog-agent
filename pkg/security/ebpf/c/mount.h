@@ -24,7 +24,6 @@ struct mount_event_t {
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
         .type = SYSCALL_MOUNT,
-        .mount.fstype = fstype,
     };
 
     cache_syscall(&syscall);
@@ -47,6 +46,10 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
     resolve_dentry(dentry, syscall->mount.root_key, 0);
 
+    struct super_block *sb = get_dentry_sb(dentry);
+    struct file_system_type *s_type = get_super_block_fs(sb);
+    bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
+
     return 0;
 }
 
@@ -65,6 +68,10 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
     resolve_dentry(dentry, syscall->mount.root_key, 0);
+
+    struct super_block *sb = get_dentry_sb(dentry);
+    struct file_system_type *s_type = get_super_block_fs(sb);
+    bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
 
     return 0;
 }

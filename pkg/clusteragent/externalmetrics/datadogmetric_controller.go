@@ -271,7 +271,7 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 			Name:      name,
 		},
 		Spec: datadoghq.DatadogMetricSpec{
-			Query: datadogMetricInternal.Query,
+			Query: datadogMetricInternal.RawQuery(),
 		},
 		Status: *datadogMetricInternal.BuildStatus(nil),
 	}

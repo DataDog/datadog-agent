@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -32,6 +34,7 @@ var factories = []api.Factory{
 	modules.TCPQueueLength,
 	modules.OOMKillProbe,
 	modules.SecurityRuntime,
+	modules.Process,
 }
 
 // Flag values
@@ -42,15 +45,6 @@ var opts struct {
 	version     bool
 	console     bool // windows only; execute on console rather than via SCM
 }
-
-// Version info sourced from build flags
-var (
-	GoVersion string
-	Version   string
-	GitCommit string
-	GitBranch string
-	BuildDate string
-)
 
 const loggerName = ddconfig.LoggerName("SYS-PROBE")
 
@@ -201,18 +195,19 @@ func gracefulExit() {
 
 // versionString returns the version information filled in at build time
 func versionString(sep string) string {
-	addString := func(buf *bytes.Buffer, s, arg string, sep string) {
-		if arg != "" {
-			fmt.Fprintf(buf, s, arg, sep)
+	addString := func(buf *bytes.Buffer, format string, args ...interface{}) {
+		if len(args) > 0 && args[0] != "" {
+			_, _ = fmt.Fprintf(buf, format, args...)
 		}
 	}
 
+	av, _ := version.Agent()
+
 	var buf bytes.Buffer
-	addString(&buf, "Version: %s%s", Version, sep)
-	addString(&buf, "Git hash: %s%s", GitCommit, sep)
-	addString(&buf, "Git branch: %s%s", GitBranch, sep)
-	addString(&buf, "Build date: %s%s", BuildDate, sep)
-	addString(&buf, "Go Version: %s%s", GoVersion, sep)
+	addString(&buf, "Version: %s %s%s", av.GetNumberAndPre(), av.Meta, sep)
+	addString(&buf, "Commit: %s%s", av.Commit, sep)
+	addString(&buf, "Serialization Version: %s%s", serializer.AgentPayloadVersion, sep)
+	addString(&buf, "Go Version: %s%s", runtime.Version(), sep)
 	return buf.String()
 }
 

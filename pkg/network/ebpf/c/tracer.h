@@ -119,6 +119,8 @@ typedef struct {
     // this is useful for detecting race conditions that result in a batch being overrriden
     // before it gets consumed from userspace
     __u64 idx;
+    // pos indicates the batch slot where the next http transaction should be written to
+    __u8 pos;
     // idx_to_notify is used to track which batch completions were notified to userspace
     // * if idx_to_notify == idx, the current index is still being appended to;
     // * if idx_to_notify < idx, the batch at idx_to_notify needs to be sent to userspace;
@@ -187,6 +189,7 @@ typedef struct {
     __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
+    __u64 conn_stats_max_entries_hit;
 } telemetry_t;
 
 #define PORT_LISTENING 1

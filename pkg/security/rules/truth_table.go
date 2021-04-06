@@ -191,8 +191,7 @@ func combineFilterValues(filterValues []FilterValues) []FilterValues {
 }
 
 func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	if len(rule.GetEvaluator().FieldValues) == 0 {
 		return nil, nil

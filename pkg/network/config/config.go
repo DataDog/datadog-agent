@@ -42,6 +42,10 @@ type Config struct {
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
 
+	// MaxDNSStats determines the number of separate DNS Stats objects DNSStatkeeper can have at any given time
+	// These stats objects get flushed on every client request (default 30s check interval)
+	MaxDNSStats int
+
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
@@ -152,13 +156,14 @@ func NewDefaultConfig() *Config {
 		MaxClosedConnectionsBuffered: 50000,
 		MaxConnectionsStateBuffered:  75000,
 		MaxDNSStatsBufferred:         75000,
-		MaxHTTPStatsBuffered:         75000,
+		MaxHTTPStatsBuffered:         100000,
 		ClientStateExpiry:            2 * time.Minute,
 		ClosedChannelSize:            500,
 		// DNS Stats related configurations
 		CollectDNSStats:      true,
 		CollectDNSDomains:    false,
 		DNSTimeout:           15 * time.Second,
+		MaxDNSStats:          10000,
 		OffsetGuessThreshold: 400,
 		EnableMonotonicCount: false,
 	}
