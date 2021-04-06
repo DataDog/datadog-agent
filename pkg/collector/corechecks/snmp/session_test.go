@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/require"
+	"io/ioutil"
+	stdlog "log"
 	"testing"
 	"time"
 
@@ -260,4 +263,24 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	assert.Contains(t, logs, "log line 1")
 	assert.Contains(t, logs, "log line 2")
 
+}
+
+func Test_snmpSession_Connect_Logger(t *testing.T) {
+	config := snmpConfig{
+		ipAddress:       "1.2.3.4",
+		communityString: "abc",
+	}
+	s := &snmpSession{}
+	err := s.Configure(config)
+	require.NoError(t, err)
+
+	s.loggerEnabled = false
+	s.gosnmpInst.Logger = stdlog.New(ioutil.Discard, "", 0)
+	s.Connect()
+	assert.Nil(t, s.gosnmpInst.Logger)
+
+	s.loggerEnabled = true
+	s.gosnmpInst.Logger = stdlog.New(ioutil.Discard, "", 0)
+	s.Connect()
+	assert.NotNil(t, s.gosnmpInst.Logger)
 }
