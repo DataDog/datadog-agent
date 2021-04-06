@@ -86,7 +86,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
 }
 
 // ChownEvent represents a chown event
@@ -271,7 +271,7 @@ type FileFields struct {
 	User  string    `field:"user,ResolveUser"`
 	GID   uint32    `field:"gid"`
 	Group string    `field:"group,ResolveGroup"`
-	Mode  uint16    `field:"mode"`
+	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
 
@@ -335,7 +335,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
 }
 
 // ArgsEnvsEvent defines a args/envs event
