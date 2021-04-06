@@ -300,6 +300,24 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 	// no need to dispatch events
 	switch eventType {
+	case model.MountReleasedEventType:
+		if _, err := event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		// Remove all dentry entries belonging to the mountID
+		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
+
+		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
+			p.inodeDiscarders.setRevision(event.MountReleased.MountID, event.MountReleased.DiscarderRevision)
+		}
+
+		// Delete new mount point from cache
+		if err := p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+			log.Warnf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+		}
+		return
 	case model.InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -344,17 +362,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-		// Remove all dentry entries belonging to the mountID
-		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
-
-		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
-			p.inodeDiscarders.setRevision(event.Umount.MountID, event.Umount.DiscarderRevision)
-		}
-
-		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Warnf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	case model.FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
