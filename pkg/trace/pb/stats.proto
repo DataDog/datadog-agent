@@ -19,6 +19,8 @@ message ClientStatsPayload {
 	string env = 2;
 	string version = 3;
 	repeated ClientStatsBucket stats = 4 [(gogoproto.nullable) = false];
+	string lang = 5;
+	string tracerVersion = 6;
 }
 
 // TODO(gbbr): doc

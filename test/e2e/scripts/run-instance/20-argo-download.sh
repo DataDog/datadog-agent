@@ -12,7 +12,7 @@ sha512sum -c argo.sha512sum && {
 }
 
 set -e
-curl -sLf https://github.com/argoproj/argo/releases/download/v2.12.4/argo-linux-amd64.gz -o argo.gz
+curl -sLf https://github.com/argoproj/argo/releases/download/v3.0.0/argo-linux-amd64.gz -o argo.gz
 gunzip argo.gz
 sha512sum -c argo.sha512sum
 chmod +x ./argo

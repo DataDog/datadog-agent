@@ -28,6 +28,10 @@ done
 
 EXIT_CODE=0
 for workflow in $(./argo list --status Failed -o name | grep -v 'No workflows found'); do
+    ./argo get "$workflow" -o json | jq -r '.status.nodes[] | select(.phase == "Failed") | .displayName + " " + .id' | while read -r displayName podName; do
+        printf '\033[1m===> Logs of %s\t%s <===\033[0m\n' "$displayName" "$podName"
+        ./argo logs "$workflow" "$podName"
+    done
     ./argo get ${no_utf8_opt:-} "$workflow"
     EXIT_CODE=2
 done
