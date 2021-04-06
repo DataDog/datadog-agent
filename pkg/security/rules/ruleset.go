@@ -80,7 +80,7 @@ type Opts struct {
 // NewOptsWithParams initializes a new Opts instance with Debug and Constants parameters
 func NewOptsWithParams(constants map[string]interface{}, supportedDiscarders map[eval.Field]bool, eventTypeEnabled map[eval.EventType]bool, reservedRuleIDs []RuleID, legacyAttributes map[eval.Field]eval.Field, logger ...Logger) *Opts {
 	if len(logger) == 0 {
-		logger = []Logger{DefaultLogger{}}
+		logger = []Logger{NullLogger{}}
 	}
 	return &Opts{
 		Opts: eval.Opts{
