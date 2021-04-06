@@ -55,8 +55,16 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	for i, conn := range conns.Conns {
 		httpKey := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
-		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpIndex[httpKey])
+		httpAggregations := httpIndex[httpKey]
+		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpAggregations)
 		delete(httpIndex, httpKey)
+		returnHTTPStats(httpAggregations)
+	}
+
+	// Delete orphan entries (those that can't be associated to a TCP connection)
+	// TODO: investigate the source of this (perf misses on the TCP codepath?)
+	for _, httpAggregations := range httpIndex {
+		returnHTTPStats(httpAggregations)
 	}
 
 	domains := make([]string, len(domainSet))

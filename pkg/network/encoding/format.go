@@ -130,17 +130,48 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 	return ret
 }
 
+var httpStatsPool = pool{
+	New: func() interface{} {
+		var stats [http.NumStatusClasses]model.HTTPStats_Data
+		pointers := make([]*model.HTTPStats_Data, http.NumStatusClasses)
+		for i := range pointers {
+			pointers[i] = &stats[i]
+		}
+
+		return &model.HTTPStats{
+			StatsByResponseStatus: pointers,
+		}
+	},
+}
+
+var httpMapPool = pool{
+	New: func() interface{} {
+		return make(map[string]*model.HTTPStats)
+	},
+}
+
+func returnHTTPStats(aggregations model.HTTPAggregations) {
+	if aggregations.ByPath == nil {
+		return
+	}
+
+	for _, httpStats := range aggregations.ByPath {
+		for _, bucket := range httpStats.StatsByResponseStatus {
+			bucket.Latencies = nil
+			bucket.Count = 0
+		}
+		httpStatsPool.Put(httpStats)
+	}
+
+	for path := range aggregations.ByPath {
+		delete(aggregations.ByPath, path)
+	}
+	httpMapPool.Put(aggregations.ByPath)
+}
+
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
 func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model.HTTPAggregations {
-	var (
-		aggregationsByKey = make(map[http.Key]model.HTTPAggregations, len(httpData))
-
-		// Pre-allocate some of the objects
-		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
-		poolIdx  = 0
-	)
-
+	aggregationsByKey := make(map[http.Key]model.HTTPAggregations, len(httpData))
 	for key, stats := range httpData {
 		path := key.Path
 		key.Path = ""
@@ -148,19 +179,14 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 		httpAggregations := aggregationsByKey[key]
 		statsByPath := httpAggregations.ByPath
 		if statsByPath == nil {
-			statsByPath = make(map[string]*model.HTTPStats)
+			statsByPath = httpMapPool.Get().(map[string]*model.HTTPStats)
 			aggregationsByKey[key] = model.HTTPAggregations{ByPath: statsByPath}
 		}
 
-		ms := &model.HTTPStats{
-			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
-		}
-
+		ms := httpStatsPool.Get().(*model.HTTPStats)
 		for i := 0; i < len(stats); i++ {
-			data := &dataPool[poolIdx+i]
-			ms.StatsByResponseStatus[i] = data
+			data := ms.StatsByResponseStatus[i]
 			data.Count = uint32(stats[i].Count)
-
 			if latencies := stats[i].Latencies; latencies != nil {
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
@@ -169,7 +195,6 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 			}
 		}
 
-		poolIdx += http.NumStatusClasses
 		statsByPath[path] = ms
 	}
 
