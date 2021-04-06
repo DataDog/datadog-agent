@@ -650,10 +650,12 @@ func TestClientComputedStatsHeader(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -760,10 +762,12 @@ func TestClientComputedTopLevel(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)

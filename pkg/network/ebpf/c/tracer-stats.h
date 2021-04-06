@@ -3,10 +3,10 @@
 
 #include "tracer.h"
 
-static int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_gid, metadata_mask_t type);
+static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
-static __always_inline void update_conn_state(conn_tuple_t* t, conn_stats_ts_t *stats, size_t sent_bytes, size_t recv_bytes) {
-    if (t->metadata&CONN_TYPE_TCP || stats->flags&CONN_ASSURED) {
+static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *stats, size_t sent_bytes, size_t recv_bytes) {
+    if (t->metadata & CONN_TYPE_TCP || stats->flags & CONN_ASSURED) {
         return;
     }
 
@@ -21,14 +21,13 @@ static __always_inline void update_conn_state(conn_tuple_t* t, conn_stats_ts_t *
     }
 
     // If a three-way "handshake" was established, we mark the connection as assured
-    if ((stats->flags&CONN_L_INIT && stats->recv_bytes > 0 && sent_bytes > 0)
-        || (stats->flags&CONN_R_INIT && stats->sent_bytes > 0 && recv_bytes > 0)) {
+    if ((stats->flags & CONN_L_INIT && stats->recv_bytes > 0 && sent_bytes > 0) || (stats->flags & CONN_R_INIT && stats->sent_bytes > 0 && recv_bytes > 0)) {
         stats->flags |= CONN_ASSURED;
     }
 }
 
-static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir) {
-    conn_stats_ts_t* val;
+static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir) {
+    conn_stats_ts_t *val;
 
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
@@ -38,7 +37,9 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     }
     val = bpf_map_lookup_elem(&conn_stats, t);
 
-    if (!val) return;
+    if (!val) {
+        return;
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);
@@ -53,7 +54,7 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;
     } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
-        u8* state = NULL;
+        u8 *state = NULL;
         port_binding_t pb = {};
         pb.port = t->sport;
         if (t->metadata & CONN_TYPE_TCP) {
@@ -66,7 +67,7 @@ static __always_inline void update_conn_stats(conn_tuple_t* t, size_t sent_bytes
     }
 }
 
-static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats) {
+static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;
     t->pid = 0;
@@ -75,7 +76,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
     tcp_stats_t empty = {};
     bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
 
-    tcp_stats_t* val = bpf_map_lookup_elem(&tcp_stats, t);
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     t->pid = pid;
     if (val == NULL) {
         return;
@@ -97,7 +98,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t* t, tcp_stats_t stats)
     }
 }
 
-static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir) {
+static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir) {
     u64 ts = bpf_ktime_get_ns();
 
     update_conn_stats(t, sent_bytes, recv_bytes, ts, dir);
@@ -105,7 +106,7 @@ static __always_inline int handle_message(conn_tuple_t* t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock* sk, int segs) {
+static __always_inline int handle_retransmit(struct sock *sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 

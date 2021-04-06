@@ -195,6 +195,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
+	r.MountResolver.Start(ctx)
 
 	return r.DentryResolver.Start()
 }
