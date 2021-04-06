@@ -16,16 +16,6 @@ const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 // Same max repetition as gosnmp.defaultMaxRepetitions
 const bulkMaxRepetition = 50
 
-type TraceLevelLogWriter struct{}
-
-func (sw *TraceLevelLogWriter) Write(p []byte) (n int, err error) {
-	// TODO:
-	//   - Scrub sensitive information
-	//     - See strip_test.go
-	log.Tracef(string(p))
-	return len(p), nil
-}
-
 type sessionAPI interface {
 	Configure(config snmpConfig) error
 	Connect() error
@@ -97,17 +87,18 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	lvl, err := log.GetLogLevel()
 	if err != nil {
 		log.Warnf("failed to get logger: %s", err)
-	}
-	if err == nil && lvl == seelog.TraceLvl {
-		w := TraceLevelLogWriter{}
-		s.gosnmpInst.Logger = stdlog.New(&w, "", stdlog.Lshortfile)
-		s.loggerEnabled = true
+	} else {
+		if lvl == seelog.TraceLvl {
+			traceLevelLogWriter := TraceLevelLogWriter{}
+			s.gosnmpInst.Logger = stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile)
+			s.loggerEnabled = true
+		}
 	}
 	return nil
 }
 
 func (s *snmpSession) Connect() error {
-	if !s.loggerEnabled {
+	if s.loggerEnabled == false {
 		// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
 		// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
 		s.gosnmpInst.Logger = nil
