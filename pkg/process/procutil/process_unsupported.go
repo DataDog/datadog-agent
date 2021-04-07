@@ -26,9 +26,9 @@ func WithPermission(enabled bool) Option {
 	}
 }
 
-// NewProcessProbe is currently not implemented in non-linux environments
+// NewProcessProbe returns a Probe object
 func NewProcessProbe(options ...Option) *Probe {
-	return nil
+	return &Probe{}
 }
 
 // Probe is an unimplemented struct for unsupported platforms
