@@ -30,6 +30,7 @@ ALL_TAGS = set(
         "process",
         "python",
         "secrets",
+        "serverless",
         "systemd",
         "zk",
         "zlib",
@@ -92,7 +93,7 @@ SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf",]))
 TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets",])
 
 # TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks",]))
+TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks","serverless"]))
 
 ### Tag exclusion lists
 
