@@ -51,6 +51,9 @@ const (
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 
+	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
+	DefaultBatchMaxConcurrentSend = 0
+
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 

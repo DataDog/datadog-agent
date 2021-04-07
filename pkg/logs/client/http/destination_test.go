@@ -39,7 +39,7 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, 0)
 	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,

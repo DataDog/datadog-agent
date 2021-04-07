@@ -38,7 +38,8 @@ func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 
 // Clear reinitializes the buffer.
 func (p *MessageBuffer) Clear() {
-	p.messageBuffer = p.messageBuffer[:0]
+	// create a new buffer to avoid race conditions
+	p.messageBuffer = make([]*message.Message, 0, cap(p.messageBuffer))
 	p.contentSize = 0
 }
 
