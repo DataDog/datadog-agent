@@ -159,10 +159,11 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 
 func TestExtraConfig(t *testing.T) {
 	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Timeout:   5,
-		Retries:   2,
+		Network:      "192.168.0.0/24",
+		Community:    "public",
+		Timeout:      5,
+		Retries:      2,
+		OidBatchSize: 10,
 	}
 
 	svc := SNMPService{
@@ -188,6 +189,10 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("retries"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "2", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("oid_batch_size"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "10", string(info))
 
 	info, err = svc.GetExtraConfig([]byte("tags"))
 	assert.Equal(t, nil, err)
