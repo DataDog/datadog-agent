@@ -193,19 +193,27 @@ func TestNormalizeComponent2Name(t *testing.T) {
 	ts := newTagStats()
 	assert := assert.New(t)
 
-	defer testutil.WithFeatures("component2name")()
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("component2name")()
 
-	t.Run("with", func(t *testing.T) {
-		s := newTestSpan()
-		assert.NotEqual(s.Name, "component")
-		s.Meta["component"] = "component"
-		assert.NoError(normalize(ts, s))
-		assert.Equal(s.Name, "component")
+		t.Run("with", func(t *testing.T) {
+			s := newTestSpan()
+			s.Meta["component"] = "component"
+			assert.NoError(normalize(ts, s))
+			assert.Equal(s.Name, "component")
+		})
+
+		t.Run("without", func(t *testing.T) {
+			s := newTestSpan()
+			assert.Empty(s.Meta["component"])
+			assert.NoError(normalize(ts, s))
+			assert.Equal(s.Name, "django.controller")
+		})
 	})
 
-	t.Run("without", func(t *testing.T) {
+	t.Run("off", func(t *testing.T) {
 		s := newTestSpan()
-		assert.Empty(s.Meta["component"])
+		s.Meta["component"] = "component"
 		assert.NoError(normalize(ts, s))
 		assert.Equal(s.Name, "django.controller")
 	})
