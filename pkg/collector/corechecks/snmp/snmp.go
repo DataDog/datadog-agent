@@ -93,7 +93,7 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetch values: %s", err)
 		}
-		log.Debugf("fetched valuesStore: %#v", valuesStore)
+		log.Debugf("fetched valuesStore: %v", valuesStore)
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
 	}

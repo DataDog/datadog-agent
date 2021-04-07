@@ -70,7 +70,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	if _, ok := c.profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
-	log.Debugf("Refreshing with profile `%s` with content: %#v", profile, c.profiles[profile])
+	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
 
