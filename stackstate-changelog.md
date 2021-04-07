@@ -6,6 +6,10 @@
 - DynaTrace Integration
   - Gather Dynatrace events to determine the health state of Dynatrace components in StackState [(STAC-10795)](https://stackstate.atlassian.net/browse/STAC-10795)
 
+- Docker Swarm Integration [(STAC-12057)](https://stackstate.atlassian.net/browse/STAC-12057)
+  - Produce topology for docker swarm services and their tasks.
+  - Send metric for Desired and Active replicas of a swarm service.
+
 **Improvements**
 
 - Integrations
@@ -16,6 +20,7 @@
 **Bugfix**
 
   - Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
+  - Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
 
 ## 2.10.0 (2021-02-25)
 
