@@ -70,12 +70,13 @@ execute 'ensure conntrack is enabled' do
   action :run
 end
 
-systemd_unit 'firewalld.service' do
+execute 'disable firewalld on redhat' do
+  command "systemctl disable --now firewalld"
   user "root"
   ignore_failure true
   case node[:platform]
   when 'redhat'
-    action :disable
+    action :run
   else
     action :nothing
   end
