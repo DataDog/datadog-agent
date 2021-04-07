@@ -41,7 +41,6 @@
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache=/gomodcache --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -137,8 +136,6 @@ agent_rpm-arm64-a7:
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache=/gomodcache
-    - ls $OMNIBUS_BASE_DIR/pkg/
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -195,7 +192,6 @@ dogstatsd_rpm-x64:
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache=/gomodcache
     - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' -print0 | sort -z | xargs -0 -I '{}' rpm -i '{}'
-    - mkdir -p $OMNIBUS_PACKAGE_DIR && cp $OMNIBUS_BASE_DIR/pkg/*.{rpm,metadata.json} $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
