@@ -6,10 +6,15 @@
 package config
 
 import (
+	"errors"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,17 +29,18 @@ func cleanConfig() func() {
 }
 
 func TestConfigHostname(t *testing.T) {
-	t.Run("nothing", func(t *testing.T) {
+	t.Run("fail", func(t *testing.T) {
 		defer cleanConfig()()
+		config.Datadog.Set("apm_config.dd_agent_bin", "/not/exist")
 		assert := assert.New(t)
 		fallbackHostnameFunc = func() (string, error) {
-			return "", nil
+			return "", errors.New("could not get hostname")
 		}
 		defer func() {
 			fallbackHostnameFunc = os.Hostname
 		}()
 		_, err := Load("./testdata/site_override.yaml")
-		assert.Equal(ErrMissingHostname, err)
+		assert.Contains(err.Error(), "nor from OS")
 	})
 
 	t.Run("fallback", func(t *testing.T) {
@@ -80,6 +86,73 @@ func TestConfigHostname(t *testing.T) {
 		cfg, err := Load("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("envoverride", cfg.Hostname)
+	})
+
+	t.Run("external", func(t *testing.T) {
+		body, err := ioutil.ReadFile("../test/fixtures/stringcode.go.tmpl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// makeProgram creates a new binary file which returns the given response and exits to the OS
+		// given the specified code, returning the path of the program.
+		makeProgram := func(response string, code int) string {
+			f, err := ioutil.TempFile("", "trace-test-hostname.*.go")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tmpl, err := template.New("program").Parse(string(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tmpl.Execute(f, struct {
+				Response string
+				ExitCode int
+			}{response, code}); err != nil {
+				t.Fatal(err)
+			}
+			stat, err := f.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			srcpath := filepath.Join(os.TempDir(), stat.Name())
+			binpath := strings.TrimSuffix(srcpath, ".go")
+			if err := exec.Command("go", "build", "-o", binpath, srcpath).Run(); err != nil {
+				t.Fatal(err)
+			}
+			os.Remove(srcpath)
+			return binpath
+		}
+
+		defer func(old func() (string, error)) { fallbackHostnameFunc = old }(fallbackHostnameFunc)
+		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
+
+		t.Run("good", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("host.name", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostname())
+			assert.Equal(t, cfg.Hostname, "host.name")
+		})
+
+		t.Run("empty", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostname())
+			assert.Empty(t, cfg.Hostname)
+		})
+
+		t.Run("fallback1", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 1)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostname())
+			assert.Equal(t, cfg.Hostname, "fallback.host")
+		})
+
+		t.Run("fallback2", func(t *testing.T) {
+			cfg := AgentConfig{DDAgentBin: makeProgram("some text", 1)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostname())
+			assert.Equal(t, cfg.Hostname, "fallback.host")
+		})
 	})
 }
 
