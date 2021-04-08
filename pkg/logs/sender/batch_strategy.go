@@ -32,7 +32,9 @@ type batchStrategy struct {
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
 }
 
-// NewBatchStrategy returns a new batch concurrent strategy that will send at most `maxConcurrent` batches in parallel.
+// NewBatchStrategy returns a new batch concurrent strategy
+// If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
+// and the pipeline will block while sending each payload.
 func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int) Strategy {
 	return newBatchStrategyWithSize(serializer, batchWait, maxConcurrent, maxBatchSize, maxContentSize)
 }
@@ -129,6 +131,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	}
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
+	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(s.climit) == 0 {
 		s.sendMessages(messages, outputChan, send)
 		return

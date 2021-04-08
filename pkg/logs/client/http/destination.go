@@ -46,6 +46,8 @@ type Destination struct {
 }
 
 // NewDestination returns a new Destination.
+// If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
+// there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int) *Destination {
 	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends)
@@ -134,6 +136,7 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
+				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 				if cap(d.climit) == 0 {
 					d.Send(payload) //nolint:errcheck
 					break
