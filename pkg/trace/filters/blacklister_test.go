@@ -6,9 +6,9 @@
 package filters
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/stretchr/testify/assert"

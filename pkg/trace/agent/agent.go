@@ -297,7 +297,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	in.Lang = lang
 	for _, group := range in.Stats {
 		var blocked bool
-		i := 0
+		n := 0
+		// The not blocked elements are copied from the group.Stats array directly to
+		// the group.Stats array to avoid allocating a new array.
+		// n keeps track of the end of `destination` array while `b` is the `source` element.
+		// Elements are copied only if the position changes, so if at least 1 element has been blocked.
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)
 			if !a.Blacklister.AllowsStat(&b) {
@@ -307,11 +311,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 			a.obfuscator.ObfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
 			if blocked {
-				group.Stats[i] = b
+				group.Stats[n] = b
 			}
-			i++
+			n++
 		}
-		group.Stats = group.Stats[:i]
+		group.Stats = group.Stats[:n]
 	}
 	out := pb.StatsPayload{
 		ClientComputed: true,
