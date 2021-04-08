@@ -16,7 +16,7 @@ var bufferSize = 2
 
 // Handle holds the token and the channel for components to use
 type Handle struct {
-	C <-chan struct{}
+	C <-chan time.Time
 }
 
 // Deregister allows a component to easily deregister itself
@@ -26,7 +26,7 @@ func (h *Handle) Deregister() error {
 
 type component struct {
 	name       string
-	healthChan chan struct{}
+	healthChan chan time.Time
 	healthy    bool
 }
 
@@ -54,7 +54,7 @@ func (c *catalog) register(name string) *Handle {
 
 	component := &component{
 		name:       name,
-		healthChan: make(chan struct{}, bufferSize),
+		healthChan: make(chan time.Time, bufferSize),
 		healthy:    false,
 	}
 	h := &Handle{
@@ -63,7 +63,7 @@ func (c *catalog) register(name string) *Handle {
 
 	// Start with a full channel to component is unhealthy until its first read
 	for i := 0; i < bufferSize; i++ {
-		component.healthChan <- struct{}{}
+		component.healthChan <- time.Now().Add(pingFrequency)
 	}
 
 	c.components[h] = component
@@ -77,8 +77,8 @@ func (c *catalog) run() {
 	pingTicker := time.NewTicker(pingFrequency)
 
 	for {
-		<-pingTicker.C
-		empty := c.pingComponents()
+		t := <-pingTicker.C
+		empty := c.pingComponents(t.Add(mulDuration(pingFrequency, bufferSize)))
 		if empty {
 			break
 		}
@@ -86,14 +86,18 @@ func (c *catalog) run() {
 	pingTicker.Stop()
 }
 
+func mulDuration(d time.Duration, x int) time.Duration {
+	return time.Duration(int64(d) * int64(x))
+}
+
 // pingComponents is the actual pinging logic, separated for unit tests.
 // Returns true if the component list is empty, to make the pooling logic stop.
-func (c *catalog) pingComponents() bool {
+func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	c.Lock()
 	defer c.Unlock()
 	for _, component := range c.components {
 		select {
-		case component.healthChan <- struct{}{}:
+		case component.healthChan <- healthDeadline:
 			component.healthy = true
 		default:
 			component.healthy = false
