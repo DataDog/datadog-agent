@@ -28,7 +28,7 @@ func (f *Blacklister) Allows(span *pb.Span) bool {
 	return true
 }
 
-// AllowStat returns true if the Blacklister permits this stat
+// AllowsStat returns true if the Blacklister permits this stat
 func (f *Blacklister) AllowsStat(stat *pb.ClientGroupedStats) bool {
 	for _, entry := range f.list {
 		if entry.MatchString(stat.Resource) {
