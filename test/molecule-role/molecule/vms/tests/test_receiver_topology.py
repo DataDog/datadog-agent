@@ -158,7 +158,6 @@ def test_topology_filtering(host, common_vars):
         )
 
         assert stress_process["command"]["exe"] == "/usr/bin/stress"
-        assert "usage:top-mem" in stress_process["tags"] or "usage:top-cpu" in stress_process["tags"]
 
         # assert that we don't get the short-lived python processes
         short_lived_process_match = re.compile("python -c import time; time.sleep(.*);")
