@@ -423,7 +423,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			assert.Equal("hostname", stats.AgentHostname)
 			assert.Equal("env", stats.AgentEnv)
 			assert.Equal("0.99.0", stats.AgentVersion)
-			assert.Equal(false, stats.TracerAggregated)
+			assert.Equal(false, stats.ClientComputed)
 
 			// Flushing again at the same time should return nothing
 			stats = c.flushNow(flushTime)

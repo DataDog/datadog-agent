@@ -933,10 +933,10 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "AgentVersion")
 				return
 			}
-		case "TracerAggregated":
-			z.TracerAggregated, err = dc.ReadBool()
+		case "ClientComputed":
+			z.ClientComputed, err = dc.ReadBool()
 			if err != nil {
-				err = msgp.WrapError(err, "TracerAggregated")
+				err = msgp.WrapError(err, "ClientComputed")
 				return
 			}
 		default:
@@ -1000,14 +1000,14 @@ func (z *StatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "AgentVersion")
 		return
 	}
-	// write "TracerAggregated"
-	err = en.Append(0xb0, 0x54, 0x72, 0x61, 0x63, 0x65, 0x72, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64)
+	// write "ClientComputed"
+	err = en.Append(0xae, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64)
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.TracerAggregated)
+	err = en.WriteBool(z.ClientComputed)
 	if err != nil {
-		err = msgp.WrapError(err, "TracerAggregated")
+		err = msgp.WrapError(err, "ClientComputed")
 		return
 	}
 	return
@@ -1036,9 +1036,9 @@ func (z *StatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "AgentVersion"
 	o = append(o, 0xac, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.AgentVersion)
-	// string "TracerAggregated"
-	o = append(o, 0xb0, 0x54, 0x72, 0x61, 0x63, 0x65, 0x72, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64)
-	o = msgp.AppendBool(o, z.TracerAggregated)
+	// string "ClientComputed"
+	o = append(o, 0xae, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.ClientComputed)
 	return
 }
 
@@ -1097,10 +1097,10 @@ func (z *StatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AgentVersion")
 				return
 			}
-		case "TracerAggregated":
-			z.TracerAggregated, bts, err = msgp.ReadBoolBytes(bts)
+		case "ClientComputed":
+			z.ClientComputed, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "TracerAggregated")
+				err = msgp.WrapError(err, "ClientComputed")
 				return
 			}
 		default:
@@ -1121,6 +1121,6 @@ func (z *StatsPayload) Msgsize() (s int) {
 	for za0001 := range z.Stats {
 		s += z.Stats[za0001].Msgsize()
 	}
-	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 17 + msgp.BoolSize
+	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 15 + msgp.BoolSize
 	return
 }
