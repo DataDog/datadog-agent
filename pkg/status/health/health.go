@@ -14,9 +14,14 @@ import (
 var pingFrequency = 15 * time.Second
 var bufferSize = 2
 
+// Token contains all the information sent through the health channel
+type Token struct {
+	Deadline time.Time
+}
+
 // Handle holds the token and the channel for components to use
 type Handle struct {
-	C <-chan time.Time
+	C <-chan Token
 }
 
 // Deregister allows a component to easily deregister itself
@@ -26,7 +31,7 @@ func (h *Handle) Deregister() error {
 
 type component struct {
 	name       string
-	healthChan chan time.Time
+	healthChan chan Token
 	healthy    bool
 }
 
@@ -54,7 +59,7 @@ func (c *catalog) register(name string) *Handle {
 
 	component := &component{
 		name:       name,
-		healthChan: make(chan time.Time, bufferSize),
+		healthChan: make(chan Token, bufferSize),
 		healthy:    false,
 	}
 	h := &Handle{
@@ -63,7 +68,7 @@ func (c *catalog) register(name string) *Handle {
 
 	// Start with a full channel to component is unhealthy until its first read
 	for i := 0; i < bufferSize; i++ {
-		component.healthChan <- time.Now().Add(pingFrequency)
+		component.healthChan <- Token{Deadline: time.Now().Add(mulDuration(pingFrequency, bufferSize))}
 	}
 
 	c.components[h] = component
@@ -97,7 +102,7 @@ func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	defer c.Unlock()
 	for _, component := range c.components {
 		select {
-		case component.healthChan <- healthDeadline:
+		case component.healthChan <- Token{Deadline: healthDeadline}:
 			component.healthy = true
 		default:
 			component.healthy = false
