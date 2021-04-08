@@ -69,8 +69,9 @@ def genconfig(
         if not ar:
             raise Exit(
                 message="Unknown architecture {arch}. "
-                        "Known architectures for platform {plat} provider {prov} are {avail}\n"
-                        .format(arch=arch, prov=provider, plat=platform, avail=list(prov.keys())),
+                "Known architectures for platform {plat} provider {prov} are {avail}\n".format(
+                    arch=arch, prov=provider, plat=platform, avail=list(prov.keys())
+                ),
                 code=4,
             )
 
