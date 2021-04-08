@@ -30,10 +30,10 @@ func TestBBSCachePolling(t *testing.T) {
 	assert.NotZero(t, bc.GetPollSuccesses())
 }
 
-func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
-	dlrp, _ := bc.GetDesiredLRPFor("0123456789012345678901234567890123456789")
-	assert.EqualValues(t, ExpectedD1, dlrp)
-}
+//func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
+//	dlrp, _ := bc.GetDesiredLRPFor("0123456789012345678901234567890123456789")
+//	assert.EqualValues(t, ExpectedD1, dlrp)
+//}
 
 func TestBBSCache_GetActualLRPsForCell(t *testing.T) {
 	alrp, _ := bc.GetActualLRPsForCell("cell123")
