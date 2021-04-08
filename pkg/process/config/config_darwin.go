@@ -1,6 +1,3 @@
-// +build !windows
-// +build !darwin
-
 package config
 
 import (
@@ -9,10 +6,10 @@ import (
 )
 
 const (
-	defaultLogFilePath = "/var/log/datadog/process-agent.log"
+	defaultLogFilePath = "/opt/datadog-agent/logs/process-agent.log"
 
 	// defaultSystemProbeLogFilePath is the default logging file for the system probe
-	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
 
 	// Agent 6
 	defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
