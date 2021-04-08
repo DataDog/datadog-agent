@@ -19,6 +19,7 @@ var defaultTimeout = 2
 type snmpInitConfig struct {
 	Profiles      profileConfigMap `yaml:"profiles"`
 	GlobalMetrics []metricsConfig  `yaml:"global_metrics"`
+	OidBatchSize  Number           `yaml:"oid_batch_size"`
 }
 
 type snmpInstanceConfig struct {
@@ -28,6 +29,7 @@ type snmpInstanceConfig struct {
 	SnmpVersion      string            `yaml:"snmp_version"`
 	Timeout          Number            `yaml:"timeout"`
 	Retries          Number            `yaml:"retries"`
+	OidBatchSize     Number            `yaml:"oid_batch_size"`
 	User             string            `yaml:"user"`
 	AuthProtocol     string            `yaml:"authProtocol"`
 	AuthKey          string            `yaml:"authKey"`
@@ -177,8 +179,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.metrics = instance.Metrics
 
-	// Let's use a default batch for now and expose it as configuration if needed.
-	c.oidBatchSize = defaultOidBatchSize
+	if instance.OidBatchSize != 0 {
+		c.oidBatchSize = int(instance.OidBatchSize)
+	} else if initConfig.OidBatchSize != 0 {
+		c.oidBatchSize = int(initConfig.OidBatchSize)
+	} else {
+		c.oidBatchSize = defaultOidBatchSize
+	}
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {

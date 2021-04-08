@@ -5,33 +5,33 @@
 
 package rules
 
-import log "github.com/cihub/seelog"
-
 // Logger interface used to remove the dependency of this package to the logger of the agent
 type Logger interface {
+	// Infof is used to print a info level log
+	Infof(format string, params ...interface{})
 	// Tracef is used to print a trace level log
 	Tracef(format string, params ...interface{})
 	// Debugf is used to print a trace level log
 	Debugf(format string, params ...interface{})
 	// Errorf is used to print an error
-	Errorf(format string, params ...interface{}) error
+	Errorf(format string, params ...interface{})
 }
 
-// DefaultLogger is a wrapper for the agent logger that we use to prevent a dependency on packages that we cannot
-// import outside of the agent repository
-type DefaultLogger struct{}
+// NullLogger is a default implementation of the Logger interface
+type NullLogger struct{}
 
 // Tracef is used to print a trace level log
-func (l DefaultLogger) Tracef(format string, params ...interface{}) {
-	log.Tracef(format, params...)
+func (l NullLogger) Tracef(format string, params ...interface{}) {
 }
 
 // Debugf is used to print a trace level log
-func (l DefaultLogger) Debugf(format string, params ...interface{}) {
-	log.Debugf(format, params...)
+func (l NullLogger) Debugf(format string, params ...interface{}) {
 }
 
 // Errorf is used to print an error
-func (l DefaultLogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params...)
+func (l NullLogger) Errorf(format string, params ...interface{}) {
+}
+
+// Infof is used to print an info
+func (l NullLogger) Infof(format string, params ...interface{}) {
 }

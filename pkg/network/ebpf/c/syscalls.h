@@ -16,7 +16,7 @@ struct syscalls_enter_bind_args {
     __u32 pad;
 
     __u64 fd;
-    struct sockaddr* umyaddr;
+    struct sockaddr *umyaddr;
     __u64 addrlen;
 };
 

@@ -231,6 +231,9 @@ int __attribute__((always_inline)) do_sys_open_ret(struct pt_regs *ctx) {
 
     send_event(ctx, EVENT_OPEN, event);
 
+    // increase mount ref
+    inc_mount_ref(syscall->open.file.path_key.mount_id);
+
     return 0;
 }
 
@@ -273,6 +276,17 @@ int kretprobe__io_openat2(struct pt_regs *ctx) {
         return 0;
 
     return do_sys_open_ret(ctx);
+}
+
+SEC("kprobe/filp_close")
+int kprobe__filp_close(struct pt_regs *ctx) {
+    struct file *file = (struct file *) PT_REGS_PARM1(ctx);
+    u32 mount_id = get_file_mount_id(file);
+    if (mount_id) {
+        dec_mount_ref(ctx, mount_id);
+    }
+
+    return 0;
 }
 
 #endif

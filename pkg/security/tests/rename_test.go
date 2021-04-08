@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"runtime"
 	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 )
 
@@ -46,8 +46,8 @@ func TestRename(t *testing.T) {
 	defer os.Remove(testNewFile)
 	defer os.Remove(testOldFile)
 
-	t.Run("rename", func(t *testing.T) {
-		_, _, errno := syscall.Syscall(syscall.SYS_RENAME, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
+	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
+		_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 		if errno != 0 {
 			t.Fatal(err)
 		}
@@ -71,11 +71,11 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.MTime)
 			assertNearTime(t, event.Rename.New.CTime)
 		}
-	})
 
-	if err := os.Rename(testNewFile, testOldFile); err != nil {
-		t.Fatal(err)
-	}
+		if err := os.Rename(testNewFile, testOldFile); err != nil {
+			t.Fatal(err)
+		}
+	}))
 
 	t.Run("renameat", func(t *testing.T) {
 		_, _, errno := syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
@@ -109,16 +109,10 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("renameat2", func(t *testing.T) {
-		var renameat2syscall uintptr
-		if runtime.GOARCH == "386" {
-			renameat2syscall = 353
-		} else {
-			renameat2syscall = 316
-		}
-		_, _, errno := syscall.Syscall6(renameat2syscall, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
+		_, _, errno := syscall.Syscall6(unix.SYS_RENAMEAT2, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 		if errno != 0 {
 			if errno == syscall.ENOSYS {
-				t.Skip()
+				t.Skip("renameat2 not supported")
 				return
 			}
 			t.Fatal(err)
