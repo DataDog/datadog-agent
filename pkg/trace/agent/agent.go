@@ -296,11 +296,22 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	in.TracerVersion = tracerVersion
 	in.Lang = lang
 	for _, group := range in.Stats {
+		var blocked bool
+		i := 0
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)
+			if !a.Blacklister.AllowsStat(&b) {
+				blocked = true
+				continue
+			}
 			a.obfuscator.ObfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
+			if blocked {
+				group.Stats[i] = b
+			}
+			i++
 		}
+		group.Stats = group.Stats[:i]
 	}
 	out := pb.StatsPayload{
 		ClientComputed: true,
