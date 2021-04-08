@@ -52,9 +52,8 @@ func NewDestination(endpoint config.Endpoint, contentType string, destinationsCo
 }
 
 func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int) *Destination {
-	var climit chan struct{}
-	if maxConcurrentBackgroundSends > 0 {
-		climit = make(chan struct{}, maxConcurrentBackgroundSends)
+	if maxConcurrentBackgroundSends < 0 {
+		maxConcurrentBackgroundSends = 0
 	}
 	return &Destination{
 		url:                 buildURL(endpoint),
@@ -62,7 +61,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		contentEncoding:     buildContentEncoding(endpoint),
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
-		climit:              climit,
+		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 	}
 }
 
@@ -135,7 +134,7 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
-				if d.climit == nil {
+				if cap(d.climit) == 0 {
 					d.Send(payload) //nolint:errcheck
 					break
 				}

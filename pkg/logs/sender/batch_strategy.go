@@ -38,15 +38,14 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 }
 
 func newBatchStrategyWithSize(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int) *batchStrategy {
-	var climit chan struct{}
-	if maxConcurrent > 0 {
-		climit = make(chan struct{}, maxConcurrent)
+	if maxConcurrent < 0 {
+		maxConcurrent = 0
 	}
 	return &batchStrategy{
 		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:       serializer,
 		batchWait:        batchWait,
-		climit:           climit,
+		climit:           make(chan struct{}, maxConcurrent),
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
 	}
@@ -130,7 +129,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	}
 	messages := s.buffer.GetMessages()
 	s.buffer.Clear()
-	if s.climit == nil {
+	if cap(s.climit) == 0 {
 		s.sendMessages(messages, outputChan, send)
 		return
 	}
