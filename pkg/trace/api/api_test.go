@@ -567,7 +567,6 @@ func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
-	t.Skip("temporarily disabled")
 	bucket := func(start, duration uint64) pb.ClientStatsBucket {
 		return pb.ClientStatsBucket{
 			Start:    start,

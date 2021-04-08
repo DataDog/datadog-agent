@@ -11,7 +11,6 @@ import (
 )
 
 func TestClientStats(t *testing.T) {
-	t.Skip("temporarily disabled")
 	var r test.Runner
 	if err := r.Start(); err != nil {
 		t.Fatal(err)
