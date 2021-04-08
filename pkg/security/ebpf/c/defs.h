@@ -390,7 +390,7 @@ struct mount_released_event_t {
 
 struct mount_ref_t {
     u32 umounted;
-    u32 counter;
+    s32 counter;
 };
 
 struct bpf_map_def SEC("maps/mount_ref") mount_ref = {
@@ -407,9 +407,9 @@ static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
     struct mount_ref_t zero = {};
 
     bpf_map_update_elem(&mount_ref, &key, &zero, BPF_NOEXIST);
-    struct mount_ref_t *mount_ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (mount_ref) {
-        __sync_fetch_and_add(&mount_ref->counter, 1);
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        __sync_fetch_and_add(&ref->counter, 1);
     }
 }
 
@@ -421,6 +421,7 @@ static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u3
         if (ref->counter > 0 || !ref->umounted) {
             return;
         }
+        bpf_map_delete_elem(&mount_ref, &key);
     } else {
         return;
     }
