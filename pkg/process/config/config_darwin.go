@@ -8,9 +8,6 @@ import (
 const (
 	defaultLogFilePath = "/opt/datadog-agent/logs/process-agent.log"
 
-	// defaultSystemProbeLogFilePath is the default logging file for the system probe
-	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
-
 	// Agent 6
 	defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 
