@@ -91,7 +91,7 @@ func ReadProcessMemory(h windows.Handle, from, to uintptr, count uint32) (bytesR
 
 	if r == 0 {
 		if e == windows.ERROR_ACCESS_DENIED {
-			log.Debugf("Access denied error getting process memory ")
+			log.Debugf("Access denied error getting process memory")
 		} else {
 			log.Warnf("Unexpected error getting process memory for handle (h) %v (err) %v", h, e)
 		}
