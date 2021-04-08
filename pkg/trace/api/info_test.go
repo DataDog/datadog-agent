@@ -4,12 +4,12 @@ import (
 	"log"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
@@ -93,13 +93,7 @@ func TestInfoHandler(t *testing.T) {
 	defer func(old string) { info.Version = old }(info.Version)
 	defer func(old string) { info.GitCommit = old }(info.GitCommit)
 	defer func(old string) { info.BuildDate = old }(info.BuildDate)
-	ff, ok := os.LookupEnv("DD_APM_FEATURES")
-	if !ok {
-		defer os.Unsetenv("DD_APM_FEATURES")
-	} else {
-		defer func(old string) { os.Setenv("DD_APM_FEATURES", old) }(ff)
-	}
-	os.Setenv("DD_APM_FEATURES", "feature_flag")
+	defer testutil.WithFeatures("feature_flag")()
 	info.Version = "0.99.0"
 	info.GitCommit = "fab047e10"
 	info.BuildDate = "2020-12-04 15:57:06.74187 +0200 EET m=+0.029001792"
