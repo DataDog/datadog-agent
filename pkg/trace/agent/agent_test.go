@@ -1096,7 +1096,7 @@ func TestProcessStats(t *testing.T) {
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}
 	for _, testCase := range testCases {
-		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		out := a.convertPayload(testCase.in, testCase.lang, testCase.tracerVersion)
 		assert.Equal(t, testCase.out, out)
 	}
 }

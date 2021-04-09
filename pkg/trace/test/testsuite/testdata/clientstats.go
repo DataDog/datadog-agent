@@ -50,6 +50,7 @@ var ClientStatsTests = []struct {
 		Out: pb.StatsPayload{
 			AgentHostname: "agent-hostname",
 			AgentEnv:      "agent-env",
+			ClientComputed: true,
 			Stats: []pb.ClientStatsPayload{{
 				Hostname:      "testhost",
 				Env:           "testing",
@@ -62,9 +63,9 @@ var ClientStatsTests = []struct {
 						Duration: 2,
 						Stats: []pb.ClientGroupedStats{
 							{
-								Service:        "",
-								Name:           "___noname00___",
-								Resource:       "",
+								Service:        "unnamed-go-service",
+								Name:           "noname00",
+								Resource:       "noname00",
 								HTTPStatusCode: 200,
 								Type:           "web",
 								Synthetics:     true,
@@ -141,6 +142,7 @@ var ClientStatsTests = []struct {
 		Out: pb.StatsPayload{
 			AgentHostname: "agent-hostname",
 			AgentEnv:      "agent-env",
+			ClientComputed: true,
 			Stats: []pb.ClientStatsPayload{{
 				Hostname:      "testhost",
 				Env:           "testing",
@@ -168,7 +170,7 @@ var ClientStatsTests = []struct {
 							{
 								Service:      "users-db",
 								Name:         "sql.query",
-								Resource:     "SELECT * FROM users WHERE id=4 AND name='John'",
+								Resource:     "SELECT * FROM users WHERE id = ? AND name = ?",
 								Type:         "sql",
 								DBType:       "mysql",
 								Hits:         5,
@@ -186,7 +188,7 @@ var ClientStatsTests = []struct {
 							{
 								Service:      "profiles-db",
 								Name:         "sql.query",
-								Resource:     "SELECT * FROM profiles WHERE name='Mary'",
+								Resource:     "SELECT * FROM profiles WHERE name = ?",
 								Type:         "sql",
 								DBType:       "oracle",
 								Hits:         11,
