@@ -20,7 +20,6 @@
 # Kitchen: OSes
 # -------------
 
-
 .kitchen_os_centos:
   variables:
     KITCHEN_PLATFORM: "centos"
