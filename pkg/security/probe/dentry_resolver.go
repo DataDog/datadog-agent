@@ -441,6 +441,11 @@ func (dr *DentryResolver) Start() error {
 	return nil
 }
 
+// Close cleans up the eRPC segment
+func (dr *DentryResolver) Close() error {
+	return errors.Wrap(unix.Munmap(dr.erpcSegment), "couldn't cleanup eRPC memory segment")
+}
+
 // ErrTruncatedParents is used to notify that some parents of the path are missing
 type ErrTruncatedParents struct{}
 

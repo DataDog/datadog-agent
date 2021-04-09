@@ -750,7 +750,10 @@ func (p *Probe) Snapshot() error {
 func (p *Probe) Close() error {
 	p.cancelFnc()
 
-	return p.manager.Stop(manager.CleanAll)
+	if err := p.manager.Stop(manager.CleanAll); err != nil {
+		return err
+	}
+	return p.resolvers.Close()
 }
 
 // GetDebugStats returns the debug stats

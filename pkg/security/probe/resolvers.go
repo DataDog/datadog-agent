@@ -255,3 +255,9 @@ func (r *Resolvers) snapshot() error {
 
 	return nil
 }
+
+// Close cleans up any underlying resolver that requires a cleanup
+func (r *Resolvers) Close() error {
+	// clean up the dentry resolver eRPC segment
+	return r.DentryResolver.Close()
+}
