@@ -1053,8 +1053,9 @@ func TestConvertStats(t *testing.T) {
 			lang:          "java",
 			tracerVersion: "v1",
 			out: pb.StatsPayload{
-				AgentEnv:      "agent_env",
-				AgentHostname: "agent_hostname",
+				AgentEnv:       "agent_env",
+				AgentHostname:  "agent_hostname",
+				ClientComputed: true,
 				Stats: []pb.ClientStatsPayload{
 					{
 						Hostname:      "tracer_hots",
