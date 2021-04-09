@@ -70,7 +70,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	if _, ok := c.profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
-	log.Debugf("Refreshing with profile `%s` with content: %#v", profile, c.profiles[profile])
+	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
 
@@ -105,8 +105,8 @@ func (c *snmpConfig) getStaticTags() []string {
 // toString used for logging snmpConfig without sensitive information
 func (c *snmpConfig) toString() string {
 	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
-		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, metrics=`%#v`, "+
-		"metricTags=`%#v`, oidBatchSize=`%d`, profiles=`%#v`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
+		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, "+
+		"oidBatchSize=`%d`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
 		c.ipAddress,
 		c.port,
 		c.snmpVersion,
@@ -117,10 +117,7 @@ func (c *snmpConfig) toString() string {
 		c.privProtocol,
 		c.contextName,
 		c.oidConfig,
-		c.metrics,
-		c.metricTags,
 		c.oidBatchSize,
-		c.profiles,
 		c.profileTags,
 		c.uptimeMetricAdded,
 	)
