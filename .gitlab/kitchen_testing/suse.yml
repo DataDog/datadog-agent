@@ -61,7 +61,7 @@ kitchen_suse_install_script_agent-a7:
       when: on_success
     - when: on_success
       variables:
-        KITCHEN_OSVERS: "suse-15"
+        KITCHEN_OSVERS: "sles-15"
   extends:
     - .kitchen_scenario_suse_a7
     - .kitchen_test_install_script_agent
