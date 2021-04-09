@@ -35,8 +35,6 @@ kitchen_cleanup_s3-a7:
   rules:
     - <<: *if_not_version_7
       when: never
-    - <<: *if_not_kitchen_deploy
-      when: never
     - when: on_success
   dependencies: ["agent_deb-x64-a7"]
   variables:
@@ -50,5 +48,7 @@ kitchen_cleanup_azure-a6:
 
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
+  rules:
+    - when: always
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

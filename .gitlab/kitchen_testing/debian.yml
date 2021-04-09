@@ -11,14 +11,21 @@
 .if_deploy_7: &if_deploy_7
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
 
+.if_kitchen_deploy: &if_kitchen_deploy
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
 # Kitchen: OSes
 # -------------
 
 .kitchen_os_debian:
+  variables:
+    KITCHEN_PLATFORM: "debian"
+    KITCHEN_OSVERS: "debian-8,debian-9,debian-10"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="debian"
-    - export KITCHEN_OSVERS="debian-8,debian-9,debian-10"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -46,6 +53,15 @@ kitchen_debian_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_debian_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_kitchen_deploy
+      when: on_success
+    - when: on_success
+      variables:
+        KITCHEN_OSVERS: "debian-10"
   extends:
     - .kitchen_scenario_debian_a7
     - .kitchen_test_install_script_agent
