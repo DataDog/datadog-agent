@@ -37,6 +37,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -884,13 +885,16 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
-// contain a rule on "open.filename"
-func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.Event, error) {
+// contain a rule on "open.file.path"
+func waitForProbeEvent(test *testModule, key string, value interface{}, eventType model.EventType) (*probe.Event, error) {
 	timeout := time.After(3 * time.Second)
 
 	for {
 		select {
 		case e := <-test.probeHandler.GetActiveEventsChan():
+			if e.GetEventType() != eventType {
+				continue
+			}
 			if v, _ := e.GetFieldValue(key); v == value {
 				test.flushChannels(time.Second)
 				return e, nil
@@ -906,7 +910,7 @@ func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, erro
 }
 
 func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	return waitForProbeEvent(test, "open.file.path", filename)
+	return waitForProbeEvent(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
 func TestEnv(t *testing.T) {

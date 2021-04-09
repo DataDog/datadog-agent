@@ -290,6 +290,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
@@ -317,6 +318,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
@@ -459,10 +461,6 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to mmap memory segment")
 	}
-	segmentAddr := uint64(uintptr(unsafe.Pointer(&segment[0])))
-
-	req := ERPCRequest{}
-	model.ByteOrder.PutUint64(req.Data[16:24], segmentAddr)
 
 	return &DentryResolver{
 		probe:           probe,
@@ -470,7 +468,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpc:            erpcClient,
 		erpcSegment:     segment,
 		erpcSegmentSize: len(segment),
-		erpcRequest:     req,
+		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
 	}, nil
 }
