@@ -94,9 +94,7 @@
             },
             "required": [
                 "uid",
-                "user",
                 "gid",
-                "group",
                 "euid",
                 "euser",
                 "egid",
@@ -133,11 +131,11 @@
                 "filesystem": {
                     "type": "string"
                 },
-                "user": {
-                    "type": "string"
+                "uid": {
+                    "type": "integer"
                 },
-                "group": {
-                    "type": "string"
+                "gid": {
+                    "type": "integer"
                 },
                 "modification_time": {
                     "type": "string"
@@ -153,8 +151,8 @@
                 "mode",
                 "mount_id",
                 "filesystem",
-                "user",
-                "group",
+                "uid",
+                "gid",
                 "modification_time",
                 "change_time"
             ]
@@ -190,8 +188,6 @@
         "tid",
         "uid",
         "gid",
-        "user",
-        "group",
         "executable_path",
         "comm",
         "executable_inode",

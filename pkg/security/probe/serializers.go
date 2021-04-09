@@ -35,8 +35,8 @@ type FileSerializer struct {
 	InUpperLayer        *bool      `json:"in_upper_layer,omitempty"`
 	MountID             *uint32    `json:"mount_id,omitempty"`
 	Filesystem          string     `json:"filesystem,omitempty"`
-	UID                 uint32     `json:"uid,omitempty"`
-	GID                 uint32     `json:"gid,omitempty"`
+	UID                 uint32     `json:"uid"`
+	GID                 uint32     `json:"gid"`
 	User                string     `json:"user,omitempty"`
 	Group               string     `json:"group,omitempty"`
 	XAttrName           string     `json:"attribute_name,omitempty"`
@@ -69,8 +69,8 @@ type CredentialsSerializer struct {
 	FSUser       string   `json:"fsuser,omitempty"`
 	FSGID        int      `json:"fsgid"`
 	FSGroup      string   `json:"fsgroup,omitempty"`
-	CapEffective []string `json:"cap_effective,omitempty"`
-	CapPermitted []string `json:"cap_permitted,omitempty"`
+	CapEffective []string `json:"cap_effective"`
+	CapPermitted []string `json:"cap_permitted"`
 }
 
 // SetuidSerializer serializes a setuid event

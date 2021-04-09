@@ -788,10 +788,6 @@ func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string
 func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	t.Helper()
 
-	if testEnvironment != DockerEnvironment {
-		return
-	}
-
 	testStringFieldContains(t, event, fieldPath, "docker")
 }
 
