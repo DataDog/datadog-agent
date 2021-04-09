@@ -2160,7 +2160,7 @@ func teardownDNAT(t *testing.T) {
 }
 
 func testConfig() *config.Config {
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false
