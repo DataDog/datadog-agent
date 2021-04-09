@@ -303,9 +303,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 		}
 	}
 	out := pb.StatsPayload{
-		Stats:         []pb.ClientStatsPayload{in},
-		AgentEnv:      a.conf.DefaultEnv,
-		AgentHostname: a.conf.Hostname,
+		ClientComputed: true,
+		Stats:          []pb.ClientStatsPayload{in},
+		AgentEnv:       a.conf.DefaultEnv,
+		AgentHostname:  a.conf.Hostname,
+		AgentVersion:   info.Version,
 	}
 	a.StatsWriter.SendPayload(out)
 }

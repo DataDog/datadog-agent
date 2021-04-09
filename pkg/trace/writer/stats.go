@@ -176,8 +176,10 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
 	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
 	current := pb.StatsPayload{
-		AgentHostname: sp.AgentHostname,
-		AgentEnv:      sp.AgentEnv,
+		AgentHostname:  sp.AgentHostname,
+		AgentEnv:       sp.AgentEnv,
+		AgentVersion:   sp.AgentVersion,
+		ClientComputed: sp.ClientComputed,
 	}
 	var nbEntries, nbBuckets int
 	addPayload := func() {
