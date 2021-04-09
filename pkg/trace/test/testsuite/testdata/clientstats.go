@@ -22,9 +22,11 @@ var ClientStatsTests = []struct {
 }{
 	{
 		In: pb.ClientStatsPayload{
-			Hostname: "testhost",
-			Env:      "testing",
-			Version:  "0.1-alpha",
+			Hostname:  "testhost",
+			Env:       "testing",
+			Version:   "0.1-alpha",
+			RuntimeID: "1",
+			Sequence:  2,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -48,8 +50,8 @@ var ClientStatsTests = []struct {
 			},
 		},
 		Out: pb.StatsPayload{
-			AgentHostname: "agent-hostname",
-			AgentEnv:      "agent-env",
+			AgentHostname:  "agent-hostname",
+			AgentEnv:       "agent-env",
 			ClientComputed: true,
 			Stats: []pb.ClientStatsPayload{{
 				Hostname:      "testhost",
@@ -57,6 +59,8 @@ var ClientStatsTests = []struct {
 				Version:       "0.1-alpha",
 				Lang:          "go",
 				TracerVersion: "0.2.0",
+				RuntimeID:     "1",
+				Sequence:      2,
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -84,9 +88,11 @@ var ClientStatsTests = []struct {
 	},
 	{
 		In: pb.ClientStatsPayload{
-			Hostname: "testhost",
-			Env:      "testing",
-			Version:  "0.1-alpha",
+			Hostname:  "testhost",
+			Env:       "testing",
+			Version:   "0.1-alpha",
+			RuntimeID: "1",
+			Sequence:  2,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -140,8 +146,8 @@ var ClientStatsTests = []struct {
 			},
 		},
 		Out: pb.StatsPayload{
-			AgentHostname: "agent-hostname",
-			AgentEnv:      "agent-env",
+			AgentHostname:  "agent-hostname",
+			AgentEnv:       "agent-env",
 			ClientComputed: true,
 			Stats: []pb.ClientStatsPayload{{
 				Hostname:      "testhost",
@@ -149,6 +155,8 @@ var ClientStatsTests = []struct {
 				Version:       "0.1-alpha",
 				Lang:          "go",
 				TracerVersion: "0.2.0",
+				RuntimeID:     "1",
+				Sequence:      2,
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
