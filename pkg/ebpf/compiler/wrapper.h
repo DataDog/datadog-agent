@@ -1,12 +1,26 @@
 /*
 Patch clang/llvm to remove references to glibc symbols with a too recent version.
 
-See libbcc_compat.patch for the reason behind this patch.
-Of note, we do not have the problem with reallocarray.
+Except for the glibc which is not packaged with the rest. We expect to use
+the glibc shipped with the system.
+
+We are currently facing compatibility issues with old distributions.
+
+Here is the error we get on CentOS 7 when trying to start system-probe:
+```
+[root@qa-linux-agent6-unstable-centos7-node-01 datadog]# /opt/datadog-agent/embedded/bin/system-probe --config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-agent/run/system-probe.pid
+/opt/datadog-agent/embedded/bin/system-probe: /lib64/libm.so.6: version `GLIBC_2.29' not found
+/opt/datadog-agent/embedded/bin/system-probe: /lib64/libc.so.6: version `GLIBC_2.26' not found
+```
+
+The reference to `GLIBC_2.29` comes from the mathematical functions `exp`,
+`log`, `pow`, `exp2` and `log2`.
+Fortunately, the glibc also provides older versions of those function.
+So, the fix consists in using the `GLIBC_2.2.5` version of those symbols
+instead of the `GLIBC_2.29` version one.
 
 Commands used to find symbols requiring a new version of GLIBC:
-// build without BCC so it doesn't cloud requirements
-$ inv -e system-probe.build --no-with-bcc
+$ inv -e system-probe.build
 // see version requirements at end of output
 $ objdump -p bin/system-probe/system-probe
 // figure out which functions/symbols need that version

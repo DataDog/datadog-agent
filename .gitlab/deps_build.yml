@@ -2,42 +2,6 @@
 # deps_build stage
 # Contains jobs which build various libraries needed for system-probe.
 
-.build_libbcc_common:
-  stage: deps_build
-  script:
-    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
-    # Patch libbcc to remove references to glibc symbols with a too recent version
-    - cd /tmp/bcc
-    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
-    - mkdir /tmp/bcc/build
-    - cd /tmp/bcc/build
-    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
-    - make -j 4  # "$(nproc)"
-    # Check that libbcc has no references to too recent glibc
-    - objdump -p src/cc/libbcc.so | grep GLIBC_2.29 && exit 1
-    - objdump -p src/cc/libbcc.so | grep GLIBC_2.26 && exit 1
-    - make install
-    - cd /opt/libbcc
-    - chmod go-rwx lib/libbcc*
-    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools lib/python2* lib/python3*
-    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
-    - tar cvaf /tmp/libbcc.tar.xz .
-    - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
-
-build_libbcc_x64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
-  variables:
-    ARCH: amd64
-
-build_libbcc_arm64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  variables:
-    ARCH: arm64
-
 .build_clang_common:
   rules:
     - when: manual

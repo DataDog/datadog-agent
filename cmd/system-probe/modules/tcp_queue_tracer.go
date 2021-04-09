@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
@@ -10,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 // TCPQueueLength Factory
@@ -24,7 +24,7 @@ var TCPQueueLength = api.Factory{
 
 		t, err := probe.NewTCPQueueLengthTracer(ebpf.SysProbeConfigFromConfig(cfg))
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to start the TCP queue length tracer")
+			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
 		}
 
 		return &tcpQueueLengthModule{t}, nil

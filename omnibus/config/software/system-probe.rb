@@ -5,10 +5,6 @@
 
 name 'system-probe'
 
-if ENV['WITH_BCC'] == 'true'
-  dependency 'libbcc'
-end
-
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
