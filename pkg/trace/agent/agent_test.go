@@ -1008,7 +1008,7 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	return data, count, nil
 }
 
-func TestProcessStats(t *testing.T) {
+func TestConvertStats(t *testing.T) {
 	testCases := []struct {
 		in            pb.ClientStatsPayload
 		lang          string
@@ -1096,7 +1096,7 @@ func TestProcessStats(t *testing.T) {
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}
 	for _, testCase := range testCases {
-		out := a.convertPayload(testCase.in, testCase.lang, testCase.tracerVersion)
+		out := a.convertStats(testCase.in, testCase.lang, testCase.tracerVersion)
 		assert.Equal(t, testCase.out, out)
 	}
 }
