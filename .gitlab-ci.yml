@@ -678,7 +678,7 @@ molecule_tests_integrations:
   dependencies: []
   <<: *molecule_base
   script:
-    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s integrations
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s integrations
   artifacts:
     when: always
     paths:

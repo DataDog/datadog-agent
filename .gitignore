@@ -155,3 +155,6 @@ pkg/network/netlink/testdata/message_dump*
 version.txt
 
 .cd-builders/windows/builder7/runner/roles/
+
+# molecule local json files
+/test/molecule-role/molecule/*/topic-*.json

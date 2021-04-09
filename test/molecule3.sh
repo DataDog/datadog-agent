@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
+export CONDA_BASE="${HOME}/miniconda3"
 
-source $HOME/miniconda3/etc/profile.d/conda.sh
+# see if conda is available -- when running locally and use the conda base path
+if [ -x "$(command -v conda)" ]; then
+    CONDA_BASE=$(conda info --base)
+fi
+
+source $CONDA_BASE/etc/profile.d/conda.sh
 conda env list | grep 'molecule' &> /dev/null
 if [ $? != 0 ]; then
    conda create -n molecule python=3.6.12 -y || true

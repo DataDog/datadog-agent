@@ -51,7 +51,7 @@ To start working on the Agent, you can build the `master` branch:
    - `invoke agent.build --python-runtimes 2,3` for both Python2 and Python3
   You can specify a custom Python location for the agent (useful when using
    virtualenvs): `invoke agent.build
-   --python-runtimes 2,3pkg/collector/python/aggregator.go
+   --python-runtimes 2,3
    --python-home-2=$GOPATH/src/github.com/StackVista/stackstate-agent/venv2
    --python-home-3=$GOPATH/src/github.com/StackVista/stackstate-agent/venv3`.
   Running `invoke agent.build`:

@@ -6,16 +6,16 @@
 package config
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	interpreterconfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config" //sts
+	"github.com/StackVista/stackstate-agent/pkg/util"
+
 	// /[sts]
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -198,18 +198,11 @@ var fallbackHostnameFunc = os.Hostname
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
 func (c *AgentConfig) acquireHostname() error {
-	var out bytes.Buffer
-	cmd := exec.Command(c.DDAgentBin, "hostname")
-	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
-	cmd.Stdout = &out
-	err := cmd.Run()
-	c.Hostname = strings.TrimSpace(out.String())
-	if err != nil || c.Hostname == "" {
-		c.Hostname, err = fallbackHostnameFunc()
+	// sts - use util.GetHostname instead of using the agent bin path and running a shell command.
+	hostname, err := util.GetHostname(); if err == nil {
+		c.Hostname = hostname
 	}
-	if c.Hostname == "" {
-		err = ErrMissingHostname
-	}
+
 	return err
 }
 
@@ -270,6 +263,10 @@ func prepareConfig(path string) (*AgentConfig, error) {
 		return cfg, err
 	}
 	cfg.ConfigPath = path
+	// if the agent binary path is empty, use the default path
+	if cfg.DDAgentBin == "" {
+		cfg.DDAgentBin = defaultDDAgentBin
+	}
 	return cfg, nil
 }
 
