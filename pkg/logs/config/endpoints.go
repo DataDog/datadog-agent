@@ -23,20 +23,22 @@ type Endpoint struct {
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
-	Main        Endpoint
-	Additionals []Endpoint
-	UseProto    bool
-	UseHTTP     bool
-	BatchWait   time.Duration
+	Main                   Endpoint
+	Additionals            []Endpoint
+	UseProto               bool
+	UseHTTP                bool
+	BatchWait              time.Duration
+	BatchMaxConcurrentSend int
 }
 
 // NewEndpoints returns a new endpoints composite.
-func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration) *Endpoints {
+func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int) *Endpoints {
 	return &Endpoints{
-		Main:        main,
-		Additionals: additionals,
-		UseProto:    useProto,
-		UseHTTP:     useHTTP,
-		BatchWait:   batchWait,
+		Main:                   main,
+		Additionals:            additionals,
+		UseProto:               useProto,
+		UseHTTP:                useHTTP,
+		BatchWait:              batchWait,
+		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 	}
 }
