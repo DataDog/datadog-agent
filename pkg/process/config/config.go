@@ -23,7 +23,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	validate "github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 )
