@@ -114,6 +114,15 @@ kitchen_windows_installer_npm_install_scenarios-a7:
     - .kitchen_test_windows_installer_npm
 
 kitchen_windows_installer_npm_driver-a7:
+  # Run NPM driver installer test on branches, on a reduced number of platforms
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_kitchen_deploy
+      when: on_success
+    - when: on_success
+      variables:
+        KITCHEN_OSVERS: "win20h2"
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_driver
