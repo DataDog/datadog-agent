@@ -43,7 +43,7 @@ require (
 	github.com/DataDog/agent-payload v4.59.0+incompatible
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.3.1
-	github.com/DataDog/ebpf v0.0.0-20210301225224-1e8911b1b835
+	github.com/DataDog/ebpf v0.0.0-20210407211251-e1ec0c7b627d
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -171,7 +171,7 @@ require (
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20210303074136-134d130e1a04
+	golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57
 	golang.org/x/text v0.3.5
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/tools v0.1.0
