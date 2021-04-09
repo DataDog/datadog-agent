@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix kernel version parsing when subversion/patch is > 255, so eBPF program loading does not fail.
