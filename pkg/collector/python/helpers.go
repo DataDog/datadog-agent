@@ -107,7 +107,13 @@ func newStickyLock() (*stickyLock, error) {
 // Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
 	atomic.StoreUint32(&sl.locked, 0)
-	C.release_gil(rtloader, sl.gstate)
+
+	pyDestroyLock.RLock()
+	if rtloader != nil {
+		C.release_gil(rtloader, sl.gstate)
+	}
+	pyDestroyLock.RUnlock()
+
 	runtime.UnlockOSThread()
 }
 
