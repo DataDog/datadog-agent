@@ -90,8 +90,6 @@ variables:
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
   OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
-  OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
-  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
