@@ -7,9 +7,6 @@ if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
 if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~2
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
 
-REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
-set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
-
 set OMNIBUS_BUILD=agent.omnibus-build
 set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 

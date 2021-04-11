@@ -14,19 +14,23 @@ REM
 call %~p0dobuild.bat %*
 if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
 
-REM show output directories (for debugging)
-dir \omnibus\pkg
-
+REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
-REM copy resulting packages to expected location for collection by gitlab.
-if not exist %PKG_OUTDIR% mkdir %PKG_OUTDIR% || exit /b 5
-if exist \omnibus-ruby\pkg\*.msi copy \omnibus-ruby\pkg\*.msi %PKG_OUTDIR% || exit /b 6
-if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip %PKG_OUTDIR% || exit /b 7
-if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb %PKG_OUTDIR% || exit /b 8
+dir \dev\go\src\github.com\DataDog\datadog-agent\omnibus\pkg\
 
+REM copy resulting packages to expected location for collection by gitlab.
+if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
+copy \dev\go\src\github.com\DataDog\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
+
+REM copy wixpdb file for debugging purposes
+if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb c:\mnt\omnibus\pkg\ || exit /b 7
+
+REM show output binary directories (for debugging)
 dir C:\opt\datadog-agent\bin\agent\
-if exist C:\opt\datadog-agent\bin\agent\*.pdb copy C:\opt\datadog-agent\bin\agent\*.pdb %PKG_OUTDIR% || exit /b 9
+
+REM copy customaction pdb file for debugging purposes
+if exist C:\opt\datadog-agent\bin\agent\*.pdb copy C:\opt\datadog-agent\bin\agent\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
 
 goto :EOF
 
