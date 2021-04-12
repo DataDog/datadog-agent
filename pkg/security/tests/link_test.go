@@ -11,9 +11,9 @@ import (
 	"os"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestLink(t *testing.T) {
@@ -40,8 +40,8 @@ func TestLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("link", func(t *testing.T) {
-		_, _, errno := syscall.Syscall(syscall.SYS_LINK, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
+	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
+		_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 		if errno != 0 {
 			t.Fatal(err)
 		}
@@ -50,43 +50,25 @@ func TestLink(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "link" {
-				t.Errorf("expected link event, got %s", event.GetType())
-			}
+			assert.Equal(t, event.GetType(), "link", "wrong event type")
+			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
 
 			testContainerPath(t, event, "link.file.container_path")
 			testContainerPath(t, event, "link.file.destination.container_path")
 
-			if int(event.Link.Source.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected source mode %d, got %d", expectedMode, event.Link.Source.Mode)
-			}
+			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
+			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 
-			if int(event.Link.Target.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected target mode %d, got %d", expectedMode, event.Link.Target.Mode)
-			}
-
-			now := time.Now()
-			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected source mtime close to %s, got %s", now, event.Link.Source.MTime)
-			}
-
-			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected source ctime close to %s, got %s", now, event.Link.Source.CTime)
-			}
-
-			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected target mtime close to %s, got %s", now, event.Link.Target.MTime)
-			}
-
-			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected target ctime close to %s, got %s", now, event.Link.Target.CTime)
-			}
+			assertNearTime(t, event.Link.Source.MTime)
+			assertNearTime(t, event.Link.Source.CTime)
+			assertNearTime(t, event.Link.Target.MTime)
+			assertNearTime(t, event.Link.Target.CTime)
 		}
-	})
 
-	if err := os.Remove(testNewFile); err != nil {
-		t.Fatal(err)
-	}
+		if err := os.Remove(testNewFile); err != nil {
+			t.Fatal(err)
+		}
+	}))
 
 	t.Run("linkat", func(t *testing.T) {
 		_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
@@ -98,41 +80,19 @@ func TestLink(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if event.GetType() != "link" {
-				t.Errorf("expected rename event, got %s", event.GetType())
-			}
-
-			if inode := getInode(t, testNewFile); inode != event.Link.Source.Inode {
-				t.Logf("expected inode %d, got %d", event.Link.Source.Inode, inode)
-			}
+			assert.Equal(t, event.GetType(), "link", "wrong event type")
+			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
 
 			testContainerPath(t, event, "link.file.container_path")
 			testContainerPath(t, event, "link.file.destination.container_path")
 
-			if int(event.Link.Source.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, event.Link.Source.Mode)
-			}
+			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
+			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 
-			if int(event.Link.Target.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected target mode %d, got %d", expectedMode, event.Link.Target.Mode)
-			}
-
-			now := time.Now()
-			if event.Link.Source.MTime.After(now) || event.Link.Source.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected source mtime close to %s, got %s", now, event.Link.Source.MTime)
-			}
-
-			if event.Link.Source.CTime.After(now) || event.Link.Source.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected source ctime close to %s, got %s", now, event.Link.Source.CTime)
-			}
-
-			if event.Link.Target.MTime.After(now) || event.Link.Target.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected target mtime close to %s, got %s", now, event.Link.Target.MTime)
-			}
-
-			if event.Link.Target.CTime.After(now) || event.Link.Target.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected target ctime close to %s, got %s", now, event.Link.Target.CTime)
-			}
+			assertNearTime(t, event.Link.Source.MTime)
+			assertNearTime(t, event.Link.Source.CTime)
+			assertNearTime(t, event.Link.Target.MTime)
+			assertNearTime(t, event.Link.Target.CTime)
 		}
 	})
 }

@@ -3,6 +3,7 @@ Golang related tasks go here
 """
 
 
+import copy
 import datetime
 import os
 import shutil
@@ -222,7 +223,7 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     # staticcheck checks recursively only if path is in "path/..." format
     pkgs = [sub + "/..." for sub in targets]
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
     tags.remove("python")
     tags.remove("jmx")
@@ -351,7 +352,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
-    deps_vendored(ctx, verbose=True)
+    deps_vendored(ctx)
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []

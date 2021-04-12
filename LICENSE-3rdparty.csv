@@ -259,6 +259,7 @@ core,"github.com/emicklei/go-restful-swagger12",MIT
 core,"github.com/emicklei/go-restful/log",MIT
 core,"github.com/evanphx/json-patch",NewBSD
 core,"github.com/fatih/color",MIT
+core,"github.com/fatih/structtag",NewBSD
 core,"github.com/florianl/go-conntrack",MIT
 core,"github.com/florianl/go-conntrack/internal/unix",MIT
 core,"github.com/florianl/go-tc",MIT
@@ -391,6 +392,8 @@ core,"github.com/hectane/go-acl/api",MIT
 core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",NewBSD
 core,"github.com/ianlancetaylor/demangle",NewBSD
+core,"github.com/iceber/iouring-go",MIT
+core,"github.com/iceber/iouring-go/syscall",MIT
 core,"github.com/imdario/mergo",NewBSD
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
 core,"github.com/iovisor/gobpf/bcc",Apache-2.0

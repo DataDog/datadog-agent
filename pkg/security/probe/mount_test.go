@@ -9,6 +9,7 @@ package probe
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/stretchr/testify/assert"
@@ -334,6 +335,9 @@ func TestMountResolver(t *testing.T) {
 					}
 				}
 			}
+
+			mr.dequeue(time.Now().Add(1 * time.Minute))
+
 			for _, testC := range tt.args.cases {
 				cp, p, _, err := mr.GetMountPath(testC.mountID)
 				if err != nil {

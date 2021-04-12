@@ -28,6 +28,8 @@ var (
 	// These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in metricNamesMapper
 	// For reference see METRIC_TRANSFORMERS in KSM check V1
 	metricTransformers = map[string]metricTransformerFunc{
+		"kube_pod_created":                            podCreationTransformer,
+		"kube_pod_start_time":                         podStartTimeTransformer,
 		"kube_pod_status_phase":                       podPhaseTransformer,
 		"kube_pod_container_status_waiting_reason":    containerWaitingReasonTransformer,
 		"kube_pod_container_status_terminated_reason": containerTerminatedReasonTransformer,
@@ -148,9 +150,25 @@ func nodeUnschedulableTransformer(s aggregator.Sender, name string, metric ksmst
 	s.Gauge(ksmMetricPrefix+"node.status", 1, hostname, tags)
 }
 
+// submitAge generates a resource age or uptime metric based on a given timestamp
+// The metric value must correspond to a timestamp
+func submitAge(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	s.Gauge(name, float64(now().Unix())-metric.Val, hostname, tags)
+}
+
 // nodeCreationTransformer generates the node age metric based on the creation timestamp
 func nodeCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
-	s.Gauge(ksmMetricPrefix+"node.age", float64(now().Unix())-metric.Val, hostname, tags)
+	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags)
+}
+
+// podCreationTransformer generates the pod age metric based on the creation timestamp
+func podCreationTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags)
+}
+
+// podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
+func podStartTimeTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags)
 }
 
 // podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status

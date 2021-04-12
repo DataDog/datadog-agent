@@ -32,7 +32,7 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	defer testutil.TeardownCrossNsDNAT(t)
 	testutil.SetupCrossNsDNAT(t)
 
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	cfg.EnableConntrackAllNamespaces = false

@@ -8,55 +8,11 @@
 package common
 
 import (
-	"os"
-	"path"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	proc_config "github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
-
-const sysProbeConfigFile = "system-probe.yaml"
-const sysProbeSocketConfig = "system_probe_config.sysprobe_socket"
 
 // SetupSystemProbeConfig reads the system-probe.yaml into the global config object
 func SetupSystemProbeConfig(sysProbeConfFilePath string) error {
-	// Open the system-probe.yaml file if it's in a custom location
-	if sysProbeConfFilePath != "" {
-		// If file is not set directly assume we need to add /system-probe.yaml
-		if !strings.HasSuffix(sysProbeConfFilePath, ".yaml") {
-			sysProbeConfFilePath = path.Join(sysProbeConfFilePath, sysProbeConfigFile)
-		}
-	} else {
-		// Assume it is in the default location if nothing is passed in
-		sysProbeConfFilePath = path.Join(DefaultConfPath, sysProbeConfigFile)
-	}
-
-	file, err := os.Open(sysProbeConfFilePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Merge config with an IO reader since this lets us merge the configs without changing
-	// the config file set with viper
-	if err := config.Datadog.MergeConfig(file); err != nil {
-		return err
-	}
-
-	// The address where connections will be accessed. This is a path to a unix socket (unix) or a TCP address (windows).
-	// This is not necessarily set in the system-probe.yaml, so set it manually if it is not
-	if !config.Datadog.IsSet(sysProbeSocketConfig) {
-		config.Datadog.Set(sysProbeSocketConfig, proc_config.GetSocketPath())
-	} else {
-		if err := proc_config.ValidateSysprobeSocket(config.Datadog.GetString(sysProbeSocketConfig)); err != nil {
-			log.Errorf("Could not parse system_probe_config.sysprobe_socket: %s", err)
-			config.Datadog.Set(sysProbeSocketConfig, proc_config.GetSocketPath())
-		}
-	}
-
-	// Load the env vars last to overwrite values
-	proc_config.LoadSysProbeEnvVariables()
-	return nil
+	_, err := sysconfig.Merge(sysProbeConfFilePath)
+	return err
 }

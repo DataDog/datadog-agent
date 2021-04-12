@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -13,8 +13,8 @@ var ErrNotEnabled = errors.New("module is not enabled")
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
-	Name string
-	Fn   func(cfg *config.AgentConfig) (Module, error)
+	Name config.ModuleName
+	Fn   func(cfg *config.Config) (Module, error)
 }
 
 // Module defines the common API implemented by every System Probe Module

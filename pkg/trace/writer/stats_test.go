@@ -66,6 +66,7 @@ func TestStatsWriter(t *testing.T) {
 			{
 				AgentHostname: "1",
 				AgentEnv:      "1",
+				AgentVersion:  "agent-version",
 				Stats: []pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
@@ -79,6 +80,7 @@ func TestStatsWriter(t *testing.T) {
 			{
 				AgentHostname: "2",
 				AgentEnv:      "2",
+				AgentVersion:  "agent-version",
 				Stats: []pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
@@ -105,6 +107,7 @@ func TestStatsWriter(t *testing.T) {
 		stats := pb.StatsPayload{
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
+			AgentVersion:  "agent-version",
 			Stats: []pb.ClientStatsPayload{{
 				Hostname: testHostname,
 				Env:      testEnv,
@@ -135,6 +138,7 @@ func TestStatsWriter(t *testing.T) {
 		for _, p := range payloads {
 			assert.Equal("agentenv", p.AgentEnv)
 			assert.Equal("agenthost", p.AgentHostname)
+			assert.Equal("agent-version", p.AgentVersion)
 		}
 	})
 

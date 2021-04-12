@@ -191,6 +191,7 @@ type RuleLoaded struct {
 // PolicyLoaded is used to report policy was loaded
 // easyjson:json
 type PolicyLoaded struct {
+	Version      string
 	RulesLoaded  []*RuleLoaded  `json:"rules_loaded"`
 	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
 }
@@ -216,7 +217,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policyName := rule.Definition.Policy.Name
 
 		if policy, exists = mp[policyName]; !exists {
-			policy = &PolicyLoaded{}
+			policy = &PolicyLoaded{Version: rule.Definition.Policy.Version}
 			mp[policyName] = policy
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{

@@ -17,7 +17,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	fmt.Printf("-- Config: %+v --\n", cfg)
 	cfg.BPFDebug = true
 
