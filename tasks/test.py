@@ -17,7 +17,7 @@ from .agent import integration_tests as agent_integration_tests
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
@@ -101,14 +101,8 @@ def test(
     generate(ctx)
 
     if skip_linters:
-        print("--- [skipping linters]")
+        print("--- [skipping Go linters]")
     else:
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
-
-        print("--- Linting filenames:")
-        lint_filenames(ctx)
-
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
