@@ -18,7 +18,7 @@ from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
 
-ALLOWED_REPO_BRANCHES = ["stable", "beta", "nightly", "none"]
+ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
 @task
@@ -42,7 +42,7 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
     # Check that the target repo branch is valid
     if repo_branch not in ALLOWED_REPO_BRANCHES:
         print(
-            "--repo-branch argument '{}' is not in the list of allowed repsoitory branches: {}".format(
+            "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
                 repo_branch, ALLOWED_REPO_BRANCHES
             )
         )
