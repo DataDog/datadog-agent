@@ -14,7 +14,7 @@ type resultValueStore struct {
 func (v *resultValueStore) getScalarValue(oid string) (snmpValueType, error) {
 	value, ok := v.scalarValues[oid]
 	if !ok {
-		return snmpValueType{}, fmt.Errorf("value for Scalar OID `%s` not found in `%v`", oid, v.scalarValues)
+		return snmpValueType{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
 	}
 	return value, nil
 }

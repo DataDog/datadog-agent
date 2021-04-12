@@ -178,7 +178,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		UseCompression:   true,
 		CompressionLevel: 2}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second, 0)
 	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
@@ -212,7 +212,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128"}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0, 0)
 	endpoints, err := buildTCPEndpoints()
 
 	suite.Nil(err)
@@ -264,7 +264,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		UseCompression:   true,
 		CompressionLevel: 2}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, time.Second, 0)
 	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
@@ -303,7 +303,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128"}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0)
+	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false, 0, 0)
 	endpoints, err := buildTCPEndpoints()
 
 	suite.Nil(err)

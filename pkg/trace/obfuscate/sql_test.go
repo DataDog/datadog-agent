@@ -9,12 +9,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -148,8 +148,7 @@ func TestSQLUTF8(t *testing.T) {
 
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("table_names")()
 
 		span := &pb.Span{
 			Resource: "SELECT * FROM users WHERE id = 42",
@@ -172,8 +171,7 @@ func TestSQLTableNames(t *testing.T) {
 
 func TestSQLQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "quantize_sql_tables")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("quantize_sql_tables")()
 
 		for _, tt := range []struct {
 			query      string
@@ -217,8 +215,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 
 func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names,quantize_sql_tables")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("table_names,quantize_sql_tables")()
 
 		for _, tt := range []struct {
 			query      string

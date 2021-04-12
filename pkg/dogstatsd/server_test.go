@@ -496,9 +496,9 @@ func TestE2EParsing(t *testing.T) {
 	s.Stop()
 
 	// EOL enabled
-	config.Datadog.SetDefault("dogstatsd_eol_required", true)
+	config.Datadog.SetDefault("dogstatsd_eol_required", []string{"udp"})
 	// reset to default
-	defer config.Datadog.SetDefault("dogstatsd_eol_required", false)
+	defer config.Datadog.SetDefault("dogstatsd_eol_required", []string{})
 
 	agg = mockAggregator()
 	metricOut, _, _ = agg.GetBufferedChannels()

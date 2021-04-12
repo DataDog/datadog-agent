@@ -102,10 +102,12 @@ global_metrics:
 - symbol:
     OID: 1.2.3.4
     name: aGlobalMetric
+oid_batch_size: 10
 `)
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
+	assert.Equal(t, 10, check.config.oidBatchSize)
 	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
@@ -252,6 +254,63 @@ community_string: abc
 	err = check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(1234), check.config.port)
+}
+
+func TestBatchSizeConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default batch size
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 60, check.config.oidBatchSize)
+
+	// TEST Instance config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+oid_batch_size: 10
+`)
+	err = check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 10, check.config.oidBatchSize)
+
+	// TEST Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 15, check.config.oidBatchSize)
+
+	// TEST Instance & Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+oid_batch_size: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 20, check.config.oidBatchSize)
 }
 
 func TestGlobalMetricsConfigurations(t *testing.T) {

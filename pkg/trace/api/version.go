@@ -68,4 +68,5 @@ const (
 	// 		The dictionary in this case would be []string{""}, having only the empty string at index 0.
 	//
 	v05 Version = "v0.5"
+	v06 Version = "v0.6"
 )
