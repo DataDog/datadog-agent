@@ -13,6 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
+from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 # List of modules to ignore when running lint
@@ -422,3 +423,35 @@ def generate(ctx, mod="mod"):
     """
     ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
+
+
+@task
+def check_mod_tidy(ctx, test_folder="testmodule"):
+    errors_found = []
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")
+            res = ctx.run("git diff-files --exit-code go.mod", warn=True)
+            if res.exited is None or res.exited > 0:
+                errors_found.append("go.mod for {} module is out of sync".format(mod.import_path))
+
+    generate_dummy_package(ctx, test_folder)
+    with ctx.cd(test_folder):
+        ctx.run("go mod tidy")
+        res = ctx.run("go build main.go", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("could not build test module importing external modules")
+        if os.path.isfile(os.path.join(ctx.cwd, "main")):
+            os.remove(os.path.join(ctx.cwd, "main"))
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+        message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+        raise Exit(message=message)
+
+
+@task
+def tidy_all(ctx):
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")

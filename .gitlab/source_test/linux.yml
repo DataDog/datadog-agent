@@ -116,6 +116,7 @@ go_mod_tidy_check:
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:
-    # Print a message and fail if "go mod tidy" modifies go.mod
-    - go mod tidy
-    - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)
+    - inv -e check-mod-tidy
+  artifacts:
+    paths:
+      - testmodule/
