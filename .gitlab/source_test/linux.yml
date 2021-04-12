@@ -111,7 +111,7 @@ go_mod_tidy_check:
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:
-    - inv check-mod-tidy
+    - inv -e check-mod-tidy
   artifacts:
     paths:
       - testmodule/

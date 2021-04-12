@@ -89,10 +89,12 @@ def generate_dummy_package(ctx, folder):
 
     os.mkdir(folder)
     with ctx.cd(folder):
+        print("Creating dummy 'main.go' file... ", end="")
         with open(os.path.join(ctx.cwd, 'main.go'), 'w') as main_file:
             main_file.write(
                 MAIN_TEMPLATE.format(imports="\n".join(PACKAGE_TEMPLATE.format(path) for path in import_paths))
             )
+        print("Done")
 
         ctx.run("go mod init")
         for mod in DEFAULT_MODULES.values():
