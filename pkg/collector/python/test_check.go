@@ -188,8 +188,7 @@ void reset_check_mock() {
 import "C"
 
 func testRunCheck(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -197,7 +196,7 @@ func testRunCheck(t *testing.T) {
 		return
 	}
 
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -217,8 +216,7 @@ func testRunCheck(t *testing.T) {
 }
 
 func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -226,7 +224,7 @@ func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
 		return
 	}
 
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -267,8 +265,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 }
 
 func testCheckCancel(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -277,7 +274,7 @@ func testCheckCancel(t *testing.T) {
 	}
 
 	C.reset_check_mock()
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 	C.run_check_return = C.CString("")
 
 	err = check.runCheck(false)
@@ -305,8 +302,7 @@ func testCheckCancel(t *testing.T) {
 }
 
 func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -315,7 +311,7 @@ func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
 	}
 
 	C.reset_check_mock()
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 	C.run_check_return = C.CString("")
 
 	err = check.runCheck(false)
@@ -341,8 +337,7 @@ func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testFinalizer(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() {
 		// We have to wrap this in locks otherwise the race detector complains
 		pyDestroyLock.Lock()
@@ -356,7 +351,7 @@ func testFinalizer(t *testing.T) {
 	}
 
 	C.reset_check_mock()
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 	C.run_check_return = C.CString("")
 
 	err = check.runCheck(false)
@@ -386,8 +381,7 @@ func testFinalizer(t *testing.T) {
 }
 
 func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() {
 		// We have to wrap this in locks otherwise the race detector complains
 		pyDestroyLock.Lock()
@@ -401,7 +395,7 @@ func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
 	}
 
 	C.reset_check_mock()
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 	C.run_check_return = C.CString("")
 
 	err = check.runCheck(false)
@@ -432,8 +426,7 @@ func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testRunErrorNil(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -441,7 +434,7 @@ func testRunErrorNil(t *testing.T) {
 		return
 	}
 
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 	C.run_check_return = nil
@@ -461,8 +454,7 @@ func testRunErrorNil(t *testing.T) {
 }
 
 func testRunErrorReturn(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	check, err := NewPythonFakeCheck()
@@ -470,7 +462,7 @@ func testRunErrorReturn(t *testing.T) {
 		return
 	}
 
-	check.instance = &C.rtloader_pyobject_t{}
+	check.instance = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("not OK")
@@ -491,8 +483,7 @@ func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	c, err := NewPythonFakeCheck()
@@ -500,7 +491,7 @@ func testRun(t *testing.T) {
 		return
 	}
 
-	c.instance = &C.rtloader_pyobject_t{}
+	c.instance = newMockPyObjectPtr()
 	c.id = check.ID("testID")
 
 	C.reset_check_mock()
@@ -525,8 +516,7 @@ func testRunSimple(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
 
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	c, err := NewPythonFakeCheck()
@@ -534,7 +524,7 @@ func testRunSimple(t *testing.T) {
 		return
 	}
 
-	c.instance = &C.rtloader_pyobject_t{}
+	c.instance = newMockPyObjectPtr()
 	c.id = check.ID("testID")
 
 	C.reset_check_mock()
@@ -556,8 +546,7 @@ func testRunSimple(t *testing.T) {
 }
 
 func testConfigure(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	c, err := NewPythonFakeCheck()
@@ -565,12 +554,12 @@ func testConfigure(t *testing.T) {
 		return
 	}
 
-	c.class = &C.rtloader_pyobject_t{}
+	c.class = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 
 	C.get_check_return = 1
-	C.get_check_check = &C.rtloader_pyobject_t{}
+	C.get_check_check = newMockPyObjectPtr()
 	err = c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
 
@@ -591,8 +580,7 @@ func testConfigure(t *testing.T) {
 }
 
 func testConfigureDeprecated(t *testing.T) {
-	// Initialize rtloader pointer
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	c, err := NewPythonFakeCheck()
@@ -600,12 +588,12 @@ func testConfigureDeprecated(t *testing.T) {
 		return
 	}
 
-	c.class = &C.rtloader_pyobject_t{}
+	c.class = newMockPyObjectPtr()
 
 	C.reset_check_mock()
 
 	C.get_check_return = 0
-	C.get_check_deprecated_check = &C.rtloader_pyobject_t{}
+	C.get_check_deprecated_check = newMockPyObjectPtr()
 	C.get_check_deprecated_return = 1
 	err = c.Configure(integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
 	assert.Nil(t, err)
