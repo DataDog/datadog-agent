@@ -261,7 +261,7 @@ spec:
             - NET_RAW
             - IPC_LOCK
           privileged: false
-        command: ["/opt/datadog-agent/embedded/bin/system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
+        command: ["/opt/datadog-agent/embedded/bin/system-probe", "run", "--config=/etc/datadog-agent/system-probe.yaml"]
         env:
         - name: DD_API_KEY
           valueFrom:
