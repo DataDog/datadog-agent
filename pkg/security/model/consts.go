@@ -22,7 +22,7 @@ import (
 const MaxSegmentLength = 255
 
 // MaxPathDepth defines the maximum depth of a path
-const MaxPathDepth = 1740
+const MaxPathDepth = 1500
 
 var (
 	errorConstants = map[string]int{

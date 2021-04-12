@@ -212,6 +212,7 @@ struct dr_erpc_state_t {
     struct path_key_t key;
     int ret;
     int iteration;
+    u32 buffer_size;
     u16 cursor;
 };
 
@@ -243,15 +244,23 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
         if (map_value == NULL)
             goto exit;
 
+        // make sure we do not write outside of the provided buffer
+        if (state->cursor + 16 >= state->buffer_size)
+            goto exit;
+
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &state->key, sizeof(state->key));
         if (state->ret < 0)
             goto exit;
 
         state->cursor += sizeof(state->key);
 
+        // make sure we do not write outside of the provided buffer
+        if (state->cursor + map_value->len >= state->buffer_size)
+            goto exit;
+
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
         if (state->ret < 0)
-            goto exit;
+           goto exit;
 
         state->cursor += map_value->len;
 
@@ -277,6 +286,7 @@ int __attribute__((always_inline)) handle_resolve_path(struct pt_regs* ctx, void
 
     bpf_probe_read(&state->key, sizeof(state->key), data);
     bpf_probe_read(&state->userspace_buffer, sizeof(state->userspace_buffer), data + sizeof(state->key));
+    bpf_probe_read(&state->buffer_size, sizeof(state->buffer_size), data + sizeof(state->key) + sizeof(state->userspace_buffer));
     state->iteration = 0;
     state->ret = 0;
     state->cursor = 0;
@@ -288,12 +298,19 @@ int __attribute__((always_inline)) handle_resolve_path(struct pt_regs* ctx, void
 int __attribute__((always_inline)) handle_resolve_segment(void *data) {
     struct path_key_t key = {};
     char *userspace_buffer = 0;
+    u32 buffer_size = 0;
     bpf_probe_read(&key, sizeof(key), data);
     bpf_probe_read(&userspace_buffer, sizeof(userspace_buffer), data + sizeof(key));
+    bpf_probe_read(&buffer_size, sizeof(buffer_size), data + sizeof(key) + sizeof(userspace_buffer));
 
     // resolve segment and write in buffer
     struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &key);
     if (map_value == NULL) {
+        return 0;
+    }
+
+    if (map_value->len + sizeof(key) > buffer_size) {
+        // make sure we do not write outside of the provided buffer
         return 0;
     }
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +65,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
-		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
+		Expression: `open.file.path =~ "*/a" && open.flags & O_CREAT != 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, opts)
@@ -72,7 +73,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		t.Fatal(err)
 	}
 
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
+	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%s", truncatedParents))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +90,22 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		defer os.Remove(truncatedParentsFile)
 		defer f.Close()
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
+		customEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+			assert.Equal(t, customEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+		}
+
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			// check the length of the filepath that triggered the custom event
+			filepath, err := event.GetFieldValue("open.file.path")
+			if err == nil {
+				assert.Assert(t, len(strings.Split(filepath.(string), "/")) >= model.MaxPathDepth, "invalid path depth")
+			}
 		}
 	})
 }

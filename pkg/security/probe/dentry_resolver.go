@@ -281,6 +281,11 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	// if we don't access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.erpcSegment[0] = 0
 	dr.erpcSegment[os.Getpagesize()] = 0
+	dr.erpcSegment[2*os.Getpagesize()] = 0
+	dr.erpcSegment[3*os.Getpagesize()] = 0
+	dr.erpcSegment[4*os.Getpagesize()] = 0
+	dr.erpcSegment[5*os.Getpagesize()] = 0
+	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
 // GetNameFromERPC resolves the name of the provided inode / mount id / path id
@@ -291,6 +296,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
@@ -319,6 +325,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
@@ -462,7 +469,11 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		return nil, errors.Wrap(err, "failed to initialize eRPC client")
 	}
 
-	segment, err := unix.Mmap(0, 0, 2*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
+	// We need at least 7 memory pages for the eRPC segment method to work.
+	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
+	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
+	// Then, 27k + 256 / page_size < 7.
+	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to mmap memory segment")
 	}
