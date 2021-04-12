@@ -19,6 +19,17 @@
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
 
+# Kitchen: providers
+# ---------------
+
+.kitchen_ec2:
+  variables:
+    KITCHEN_PROVIDER: ec2
+    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
+
+.kitchen_ec2_spot_instances:
+  variables:
+    KITCHEN_EC2_SPOT_PRICE: on-demand
 
 # Kitchen: agents
 # ---------------
@@ -109,6 +120,18 @@
   variables:
     KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "South Central US"
+
+
+# Kitchen: EC2 locations
+# -------------------------------
+
+.kitchen_ec2_location_us_east_1:
+  extends:
+    - .kitchen_ec2
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-c18341ed
+    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
 
 
 # Kitchen: Test types (test suite * agent flavor + azure location)

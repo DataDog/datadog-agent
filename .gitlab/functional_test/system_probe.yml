@@ -34,15 +34,12 @@
 .kitchen_test_system_probe_arm64:
   extends:
     - .kitchen_test_system_probe
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2_spot_instances
   needs: [ "tests_ebpf_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
-    KITCHEN_PROVIDER: ec2
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
-    KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
-    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
-    KITCHEN_EC2_SPOT_PRICE: on-demand
 
 kitchen_centos_sysprobe_x64:
   extends: .kitchen_test_system_probe_x64
