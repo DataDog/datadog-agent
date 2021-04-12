@@ -23,6 +23,7 @@ Consider the following example where the in-memory retry queue can store up to 4
 
 At the beginning, the retry queue in memory is empty. When the transactions `tr1`, `tr2`, `tr3` and `tr4` fail, they are added sequentially to the retry queue which then becomes full. When trying to add `tr5`, the oldest transactions are removed from the retry queue in memory and serialized into the file `File 1`. The number of transactions to serialize to disk is defined as a percent of the size of the retry queue. In this example, when the retry queue is full, 50% of the transactions (in terms of payload size) are serialized on disk. 
 When adding the transactions `tr6` and `tr7`, the retry queue becomes full again and the `tr4` and `tr3` are serialized to the on-disk transaction file `File 2`.
+
 ![Adding transactions to the retry queue](images/Enqueue.png)
 
 ##### Removing transactions from the retry queue
