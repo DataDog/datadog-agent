@@ -526,7 +526,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.Comm
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.container.id":
@@ -546,7 +546,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return int((*Event)(ctx.Object).Exec.Process.Cookie)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.egid":
@@ -617,7 +617,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.ContainerPath
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.filesystem":
@@ -627,7 +627,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.Filesystem
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.gid":
@@ -687,7 +687,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.BasenameStr
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.path":
@@ -697,7 +697,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.rights":
@@ -790,6 +790,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "exec.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "exec.ppid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -797,7 +807,17 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return int((*Event)(ctx.Object).Exec.Process.PPid)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.tty_name":
@@ -807,7 +827,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).Exec.Process.TTYName
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.uid":
@@ -2108,7 +2128,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(value)
 
-					result = int(element.ProcessContext.Pid)
+					result = int(element.ProcessContext.Process.Pid)
 
 					results = append(results, result)
 
@@ -2158,7 +2178,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*ProcessCacheEntry)(value)
 
-					result = int(element.ProcessContext.Tid)
+					result = int(element.ProcessContext.Process.Tid)
 
 					results = append(results, result)
 
@@ -2272,7 +2292,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.Comm
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.container.id":
@@ -2292,7 +2312,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return int((*Event)(ctx.Object).ProcessContext.Process.Cookie)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.egid":
@@ -2342,7 +2362,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.filesystem":
@@ -2352,7 +2372,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.Filesystem
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.gid":
@@ -2412,7 +2432,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.BasenameStr
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.path":
@@ -2422,7 +2442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.rights":
@@ -2519,7 +2539,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.Pid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2532,14 +2552,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return int((*Event)(ctx.Object).ProcessContext.Process.PPid)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.Tid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2552,7 +2572,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return (*Event)(ctx.Object).ProcessContext.Process.TTYName
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.uid":
@@ -3857,7 +3877,11 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.group",
 
+		"exec.pid",
+
 		"exec.ppid",
+
+		"exec.tid",
 
 		"exec.tty_name",
 
@@ -4634,9 +4658,17 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.Process.Credentials.Group, nil
 
+	case "exec.pid":
+
+		return int(e.Exec.Process.Pid), nil
+
 	case "exec.ppid":
 
 		return int(e.Exec.Process.PPid), nil
+
+	case "exec.tid":
+
+		return int(e.Exec.Process.Tid), nil
 
 	case "exec.tty_name":
 
@@ -5493,7 +5525,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.Pid)
+			result := int(element.ProcessContext.Process.Pid)
 
 			values = append(values, result)
 
@@ -5537,7 +5569,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.Tid)
+			result := int(element.ProcessContext.Process.Tid)
 
 			values = append(values, result)
 
@@ -5722,7 +5754,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.pid":
 
-		return int(e.ProcessContext.Pid), nil
+		return int(e.ProcessContext.Process.Pid), nil
 
 	case "process.ppid":
 
@@ -5730,7 +5762,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.tid":
 
-		return int(e.ProcessContext.Tid), nil
+		return int(e.ProcessContext.Process.Tid), nil
 
 	case "process.tty_name":
 
@@ -6420,7 +6452,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.group":
 		return "exec", nil
 
+	case "exec.pid":
+		return "exec", nil
+
 	case "exec.ppid":
+		return "exec", nil
+
+	case "exec.tid":
 		return "exec", nil
 
 	case "exec.tty_name":
@@ -7442,7 +7480,15 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.pid":
+
+		return reflect.Int, nil
+
 	case "exec.ppid":
+
+		return reflect.Int, nil
+
+	case "exec.tid":
 
 		return reflect.Int, nil
 
@@ -9164,6 +9210,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "exec.pid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Pid"}
+		}
+		e.Exec.Process.Pid = uint32(v)
+		return nil
+
 	case "exec.ppid":
 
 		var ok bool
@@ -9172,6 +9228,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
 		}
 		e.Exec.Process.PPid = uint32(v)
+		return nil
+
+	case "exec.tid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Tid"}
+		}
+		e.Exec.Process.Tid = uint32(v)
 		return nil
 
 	case "exec.tty_name":
@@ -10212,9 +10278,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Pid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Pid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Pid = uint32(v)
 		return nil
 
 	case "process.ancestors.ppid":
@@ -10240,9 +10306,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Tid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Tid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Tid = uint32(v)
 		return nil
 
 	case "process.ancestors.tty_name":
@@ -10577,9 +10643,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Pid"}
 		}
-		e.ProcessContext.Pid = uint32(v)
+		e.ProcessContext.Process.Pid = uint32(v)
 		return nil
 
 	case "process.ppid":
@@ -10597,9 +10663,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Tid"}
 		}
-		e.ProcessContext.Tid = uint32(v)
+		e.ProcessContext.Process.Tid = uint32(v)
 		return nil
 
 	case "process.tty_name":

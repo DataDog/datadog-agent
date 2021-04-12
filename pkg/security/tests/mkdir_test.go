@@ -60,7 +60,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 
-			testContainerPath(t, event, "mkdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "mkdir.file.container_path")
+			}
 		}
 	}))
 
@@ -89,7 +91,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 
-			testContainerPath(t, event, "mkdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "mkdir.file.container_path")
+			}
 		}
 	})
 }

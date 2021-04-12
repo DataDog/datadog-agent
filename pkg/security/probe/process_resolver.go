@@ -514,7 +514,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 }
 
 // SetTTY resolves TTY and cache the result
-func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
 		if tty == "" {

@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
@@ -259,6 +260,16 @@ func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interfac
 		t.Errorf("failed to get field '%s': %s", field, err)
 	} else {
 		assert.Equal(t, fieldValue, value, msgAndArgs...)
+	}
+}
+
+func assertFieldOneOf(t *testing.T, e *probe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Assert(t, is.Contains(values, fieldValue))
 	}
 }
 
@@ -773,7 +784,7 @@ func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string
 	switch value.(type) {
 	case string:
 		if !strings.Contains(value.(string), expected) {
-			t.Errorf("expected value `%s` for `%s` not found", expected, fieldPath)
+			t.Errorf("expected value `%s` for `%s` not found: %+v", expected, fieldPath, event)
 		}
 	case []string:
 		for _, v := range value.([]string) {
@@ -781,7 +792,7 @@ func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string
 				return
 			}
 		}
-		t.Errorf("expected value `%s` for `%s` not found in for `%+v`", expected, fieldPath, value)
+		t.Errorf("expected value `%s` for `%s` not found in for `%+v`: %+v", expected, fieldPath, value, event)
 	}
 }
 

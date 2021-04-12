@@ -10,6 +10,7 @@
 package probe
 
 import (
+	"encoding/json"
 	"syscall"
 	"time"
 
@@ -57,20 +58,20 @@ type UserContextSerializer struct {
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int      `json:"uid"`
-	User         string   `json:"user,omitempty"`
-	GID          int      `json:"gid"`
-	Group        string   `json:"group,omitempty"`
-	EUID         int      `json:"euid"`
-	EUser        string   `json:"euser,omitempty"`
-	EGID         int      `json:"egid"`
-	EGroup       string   `json:"egroup,omitempty"`
-	FSUID        int      `json:"fsuid"`
-	FSUser       string   `json:"fsuser,omitempty"`
-	FSGID        int      `json:"fsgid"`
-	FSGroup      string   `json:"fsgroup,omitempty"`
-	CapEffective []string `json:"cap_effective"`
-	CapPermitted []string `json:"cap_permitted"`
+	UID          int          `json:"uid"`
+	User         string       `json:"user,omitempty"`
+	GID          int          `json:"gid"`
+	Group        string       `json:"group,omitempty"`
+	EUID         int          `json:"euid"`
+	EUser        string       `json:"euser,omitempty"`
+	EGID         int          `json:"egid"`
+	EGroup       string       `json:"egroup,omitempty"`
+	FSUID        int          `json:"fsuid"`
+	FSUser       string       `json:"fsuser,omitempty"`
+	FSGID        int          `json:"fsgid"`
+	FSGroup      string       `json:"fsgroup,omitempty"`
+	CapEffective JStringArray `json:"cap_effective"`
+	CapPermitted JStringArray `json:"cap_permitted"`
 }
 
 // SetuidSerializer serializes a setuid event
@@ -95,11 +96,21 @@ type SetgidSerializer struct {
 	FSGroup string `json:"fsgroup,omitempty"`
 }
 
+// JStringArray handles empty array properly not generating null output but []
+type JStringArray []string
+
+func (j *JStringArray) MarshalJSON() ([]byte, error) {
+	if len(*j) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(*j))
+}
+
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective []string `json:"cap_effective,omitempty"`
-	CapPermitted []string `json:"cap_permitted,omitempty"`
+	CapEffective JStringArray `json:"cap_effective"`
+	CapPermitted JStringArray `json:"cap_permitted"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
@@ -216,27 +227,6 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 	}
 }
 
-func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer {
-	mode := uint32(process.FileFields.Mode)
-	return &FileSerializer{
-		Path:                e.ResolveProcessPath(process),
-		PathResolutionError: process.GetPathResolutionError(),
-		Name:                e.ResolveProcessBasename(process),
-		ContainerPath:       e.ResolveProcessContainerPath(process),
-		Inode:               getUint64Pointer(&process.FileFields.Inode),
-		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          e.ResolveProcessFilesystem(process),
-		InUpperLayer:        getInUpperLayer(e.resolvers, &process.FileFields),
-		Mode:                getUint32Pointer(&mode),
-		UID:                 process.FileFields.UID,
-		GID:                 process.FileFields.GID,
-		User:                e.ResolveFileFieldsUser(&process.FileFields),
-		Group:               e.ResolveFileFieldsGroup(&process.FileFields),
-		Mtime:               &process.FileFields.MTime,
-		Ctime:               &process.FileFields.CTime,
-	}
-}
-
 func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers) *FileSerializer {
 	mode := uint32(process.FileFields.Mode)
 	return &FileSerializer{
@@ -293,8 +283,8 @@ func newCredentialsSerializer(ce *model.Credentials, e *Event) *CredentialsSeria
 		EGroup:       e.ResolveCredentialsEGroup(ce),
 		FSGID:        e.ResolveCredentialsFSGID(ce),
 		FSGroup:      e.ResolveCredentialsFSGroup(ce),
-		CapEffective: model.KernelCapability(e.ResolveCredentialsCapEffective(ce)).StringArray(),
-		CapPermitted: model.KernelCapability(e.ResolveCredentialsCapPermitted(ce)).StringArray(),
+		CapEffective: JStringArray(model.KernelCapability(e.ResolveCredentialsCapEffective(ce)).StringArray()),
+		CapPermitted: JStringArray(model.KernelCapability(e.ResolveCredentialsCapPermitted(ce)).StringArray()),
 	}
 }
 
@@ -312,8 +302,8 @@ func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) 
 		EGroup:       r.ResolveCredentialsEGroup(ce),
 		FSGID:        int(ce.FSGID),
 		FSGroup:      r.ResolveCredentialsFSGroup(ce),
-		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
-		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
+		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
+		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
 	}
 }
 
@@ -346,12 +336,12 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 
 		Pid:           e.ProcessContext.Pid,
 		Tid:           e.ProcessContext.Tid,
-		PPid:          uint32(e.ResolveProcessPPID(&pce.Process)),
-		Path:          e.ResolveProcessPath(&pce.Process),
-		ContainerPath: e.ResolveProcessContainerPath(&pce.Process),
-		Comm:          e.ResolveProcessComm(&pce.Process),
-		TTY:           e.ResolveProcessTTY(&pce.Process),
-		Executable:    newProcessFileSerializer(&pce.Process, e),
+		PPid:          pce.Process.PPid,
+		Path:          pce.Process.PathnameStr,
+		ContainerPath: pce.Process.ContainerPath,
+		Comm:          pce.Process.Comm,
+		TTY:           pce.Process.TTYName,
+		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
 		Args:          args,
 		ArgsTruncated: pce.Process.ArgsTruncated,
 		Envs:          pce.EnvsArray,
@@ -442,7 +432,7 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	first := true
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
-		// pass nil instead of e to prevent mixing values with the ancestors
+
 		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r)
 		ps.Ancestors = append(ps.Ancestors, s)
 
@@ -625,8 +615,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
-			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
+			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
+			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
@@ -638,7 +628,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newProcessFileSerializer(&event.processCacheEntry.Process, event),
+			FileSerializer: *newProcessFileSerializerWithResolvers(&event.processCacheEntry.Process, event.resolvers),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity

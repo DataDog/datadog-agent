@@ -224,19 +224,22 @@ type Process struct {
 	// proc_cache_t
 	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"file.path,ResolveProcessPath"`
-	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
-	BasenameStr         string `field:"file.name,ResolveProcessBasename"`
-	Filesystem          string `field:"file.filesystem,ResolveProcessFilesystem"`
+	Pid uint32 `field:"pid"`
+	Tid uint32 `field:"tid"`
+
+	PathnameStr         string `field:"file.path"`
+	ContainerPath       string `field:"file.container_path"`
+	BasenameStr         string `field:"file.name"`
+	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
 
-	ContainerID string `field:"container.id" handler:"ResolveProcessContainerID"`
+	ContainerID string `field:"container.id"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
-	TTYName string `field:"tty_name,ResolveProcessTTY"`
-	Comm    string `field:"comm,ResolveProcessComm"`
+	TTYName string `field:"tty_name"`
+	Comm    string `field:"comm"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -245,8 +248,8 @@ type Process struct {
 	ExitTimestamp uint64    `field:"-"`
 	ExitTime      time.Time `field:"-"`
 
-	Cookie uint32 `field:"cookie,ResolveProcessCookie"`
-	PPid   uint32 `field:"ppid,ResolveProcessPPID"`
+	Cookie uint32 `field:"cookie"`
+	PPid   uint32 `field:"ppid"`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -442,9 +445,6 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
-
-	Pid uint32 `field:"pid"`
-	Tid uint32 `field:"tid"`
 
 	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator"`
 }

@@ -8,7 +8,6 @@
 package model
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -67,7 +66,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	copyProcessContext(pc, childEntry)
 }
 
-func (pc *ProcessCacheEntry) String() string {
+/*func (pc *ProcessCacheEntry) String() string {
 	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {
@@ -78,4 +77,4 @@ func (pc *ProcessCacheEntry) String() string {
 		ancestor = ancestor.Ancestor
 	}
 	return s
-}
+}*/

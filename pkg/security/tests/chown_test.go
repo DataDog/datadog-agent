@@ -73,7 +73,9 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			testContainerPath(t, event, "chown.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chown.file.container_path")
+			}
 		}
 	})
 
@@ -101,7 +103,9 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			testContainerPath(t, event, "chown.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chown.file.container_path")
+			}
 		}
 	})
 
@@ -140,7 +144,9 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			testContainerPath(t, event, "chown.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chown.file.container_path")
+			}
 		}
 	})
 
@@ -169,7 +175,9 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			testContainerPath(t, event, "chown.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chown.file.container_path")
+			}
 		}
 	}))
 }

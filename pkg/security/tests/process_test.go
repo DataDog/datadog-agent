@@ -32,19 +32,16 @@ import (
 )
 
 func TestProcess(t *testing.T) {
-	currentUser, err := user.LookupId("0")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	currentUser, _ := user.LookupId("0")
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`process.file.user == "%s" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, currentUser.Name, path.Base(executable)),
+		Expression: fmt.Sprintf(`process.user == "%s" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, currentUser.Username, path.Base(executable)),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -109,8 +106,6 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
-	inContainer := testEnvironment == DockerEnvironment
-
 	f, err := os.Create(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -137,16 +132,11 @@ func TestProcessContext(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper()
+		wrapper, err := newDockerCmdWrapper(t, test.Root())
 		if err == nil {
-			err = wrapper.Start(test.Root())
-			if err != nil {
-				t.Fatal(err)
-			}
 			defer wrapper.Stop()
-			cmdWrapper = wrapper
 
-			inContainer = true
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
 			cmdWrapper = newSkipCmdWrapper("docker not found")
 		}
@@ -186,7 +176,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "args-envs", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	cmdWrapper.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		cmd := cmdFunc("ls", args, envs)
@@ -249,8 +239,8 @@ func TestProcessContext(t *testing.T) {
 				t.Fatal(event.String())
 			}
 
-			if inContainer {
-				testContainerPath(t, event, "process.file.container_path")
+			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
+				testContainerPath(t, event, "exec.file.container_path")
 			}
 		}
 	})
@@ -293,7 +283,8 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}
 	})
-	cmdWrapper.Run(t, "args-overflow", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+
+	cmdWrapper.Run(t, "args-overflow", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -353,8 +344,8 @@ func TestProcessContext(t *testing.T) {
 				t.Fatal(event.String())
 			}
 
-			if inContainer {
-				testContainerPath(t, event, "process.file.container_path")
+			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
+				testContainerPath(t, event, "exec.file.container_path")
 			}
 		}
 	})
@@ -423,7 +414,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "ancestors", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	cmdWrapper.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -451,14 +442,14 @@ func TestProcessContext(t *testing.T) {
 				t.Fatal(event.String())
 			}
 
-			if inContainer {
+			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
 				testContainerPath(t, event, "process.file.container_path")
 				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 			}
 		}
 	})
 
-	cmdWrapper.Run(t, "pid1", func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	cmdWrapper.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
 			t.Fatal(err)
@@ -485,7 +476,7 @@ func TestProcessContext(t *testing.T) {
 				t.Fatal(event.String())
 			}
 
-			if inContainer {
+			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
 				testContainerPath(t, event, "process.file.container_path")
 				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 			}
@@ -524,8 +515,10 @@ func TestProcessExec(t *testing.T) {
 		t.Error(err)
 	} else {
 		assertFieldEqual(t, event, "exec.file.path", executable)
-		assertFieldEqual(t, event, "process.file.path", executable)
-		testContainerPath(t, event, "exec.file.container_path")
+		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
+		if testEnvironment == DockerEnvironment {
+			testContainerPath(t, event, "exec.file.container_path")
+		}
 	}
 }
 
@@ -700,7 +693,10 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		}
 	}
 
-	testContainerPath(t, event, "process.file.container_path")
+	if testEnvironment == DockerEnvironment {
+		testContainerPath(t, event, "process.file.container_path")
+	}
+
 	return nil
 }
 
@@ -727,7 +723,9 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 			// child entry deleted).
 		}
 
-		testContainerPath(t, event, "process.file.container_path")
+		if testEnvironment == DockerEnvironment {
+			testContainerPath(t, event, "process.file.container_path")
+		}
 	}
 }
 

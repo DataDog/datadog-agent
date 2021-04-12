@@ -57,6 +57,7 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			}
+			f.PathResolutionError = err
 		}
 		f.PathnameStr = path
 	}
@@ -138,16 +139,6 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
 	return e.RootStr
 }
 
-// ResolveProcessContainerID resolves the container ID of the event
-func (ev *Event) ResolveProcessContainerID(e *model.Process) string {
-	if len(e.ContainerID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ContainerID = entry.ContainerID
-		}
-	}
-	return e.ContainerID
-}
-
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
@@ -170,10 +161,8 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
-	entry.ProcessContext = model.ProcessContext{
-		Pid: ev.ProcessContext.Pid,
-		Tid: ev.ProcessContext.Tid,
-	}
+	entry.Pid = ev.ProcessContext.Pid
+	entry.Tid = ev.ProcessContext.Tid
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -183,10 +172,6 @@ func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 
 	ev.processCacheEntry = entry
 
-	// Some fields need to be copied manually in the ExecEvent structure because they do not have "Exec" specific
-	// resolvers, and the data was parsed in the ProcessCacheEntry structure. We couldn't introduce resolvers for these
-	// fields because those resolvers would be shared with FileEvents.
-	ev.Exec.FileFields = ev.processCacheEntry.ProcessContext.FileFields
 	return n, nil
 }
 
@@ -227,92 +212,10 @@ func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
 	return e.Group
 }
 
-// ResolveProcessPPID resolves the parent process ID
-func (ev *Event) ResolveProcessPPID(e *model.Process) int {
-	if e.PPid == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.PPid = entry.PPid
-		}
-	}
-	return int(e.PPid)
-}
-
-// ResolveProcessPath resolves the executable inode to a full path
-func (ev *Event) ResolveProcessPath(e *model.Process) string {
-	if len(e.PathnameStr) == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.PathnameStr = entry.PathnameStr
-		}
-	}
-	return e.PathnameStr
-}
-
-// ResolveProcessContainerPath resolves the inode to a path relative to the container
-func (ev *Event) ResolveProcessContainerPath(e *model.Process) string {
-	if len(e.ContainerPath) == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ContainerPath = entry.ContainerPath
-		}
-	}
-	return e.ContainerPath
-}
-
-// ResolveProcessBasename resolves the inode to a filename
-func (ev *Event) ResolveProcessBasename(e *model.Process) string {
-	if len(e.BasenameStr) == 0 {
-		if e.PathnameStr == "" {
-			e.PathnameStr = ev.ResolveProcessPath(e)
-		}
-
-		e.BasenameStr = path.Base(e.PathnameStr)
-	}
-	return e.BasenameStr
-}
-
-// ResolveProcessCookie resolves the cookie of the process
-func (ev *Event) ResolveProcessCookie(e *model.Process) int {
-	if e.Cookie == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.Cookie = entry.Cookie
-		}
-	}
-	return int(e.Cookie)
-}
-
-// ResolveProcessTTY resolves the name of the process tty
-func (ev *Event) ResolveProcessTTY(e *model.Process) string {
-	if e.TTYName == "" && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.TTYName = ev.resolvers.ProcessResolver.SetTTY(entry)
-		}
-	}
-	return e.TTYName
-}
-
-// ResolveProcessFilesystem resolves the filesystem an executable resides in
-func (ev *Event) ResolveProcessFilesystem(e *model.Process) string {
-	if e.Filesystem == "" && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.Filesystem = ev.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
-		}
-	}
-	return e.Filesystem
-}
-
-// ResolveProcessComm resolves the comm of the process
-func (ev *Event) ResolveProcessComm(e *model.Process) string {
-	if len(e.Comm) == 0 && ev != nil {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.Comm = entry.Comm
-		}
-	}
-	return e.Comm
-}
-
 // ResolveExecArgs resolves the args of the event
 func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
-	if ev.Exec.Args == "" && len(ev.ProcessContext.ArgsArray) > 0 {
-		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
+	if ev.Exec.Args == "" && len(e.ArgsArray) > 0 {
+		ev.Exec.Args = strings.Join(e.ArgsArray, " ")
 	}
 	return ev.Exec.Args
 }
@@ -384,8 +287,8 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 
 // ResolveExecEnvs resolves the envs of the event
 func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
-	if len(ev.Exec.Envs) == 0 && len(ev.ProcessContext.EnvsArray) > 0 {
-		ev.Exec.Envs = ev.ProcessContext.EnvsArray
+	if len(ev.Exec.Envs) == 0 && len(e.EnvsArray) > 0 {
+		ev.Exec.Envs = e.EnvsArray
 	}
 	return ev.Exec.Envs
 }
@@ -620,14 +523,6 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-func (ev *Event) setProcessContextWithProcessCacheEntry(entry *model.ProcessCacheEntry) {
-	ev.ProcessContext.Ancestor = entry.Ancestor
-	ev.ProcessContext.ArgsArray = entry.ArgsArray
-	ev.ProcessContext.ArgsTruncated = entry.ArgsTruncated
-	ev.ProcessContext.EnvsArray = entry.EnvsArray
-	ev.ProcessContext.EnvsTruncated = entry.EnvsTruncated
-}
-
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessCacheEntry of the event
 func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	if ev.processCacheEntry == nil {
@@ -637,16 +532,7 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		}
 	}
 
-	ev.setProcessContextWithProcessCacheEntry(ev.processCacheEntry)
-
 	return ev.processCacheEntry
-}
-
-// updateProcessCachePointer updates the internal pointers of the event structure to the ProcessCacheEntry of the event
-func (ev *Event) updateProcessCachePointer(entry *model.ProcessCacheEntry) {
-	ev.setProcessContextWithProcessCacheEntry(entry)
-
-	ev.processCacheEntry = entry
 }
 
 // Clone returns a copy on the event

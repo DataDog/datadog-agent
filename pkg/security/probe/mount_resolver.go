@@ -216,12 +216,12 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 		}
 	}
 
-	mounts := mr.devices[e.Device]
-	if mounts == nil {
-		mounts = make(map[uint32]*model.MountEvent)
-		mr.devices[e.Device] = mounts
+	deviceMounts := mr.devices[e.Device]
+	if deviceMounts == nil {
+		deviceMounts = make(map[uint32]*model.MountEvent)
+		mr.devices[e.Device] = deviceMounts
 	}
-	mounts[e.MountID] = &e
+	deviceMounts[e.MountID] = &e
 
 	mr.mounts[e.MountID] = &e
 }
@@ -268,7 +268,7 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent, maxDepth int) *mod
 // getOverlayPath uses deviceID to find overlay path
 func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 	for _, deviceMount := range mr.devices[mount.Device] {
-		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
+		if mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
 			if p := mr.getParentPath(deviceMount.MountID); p != "" {
 				return p
 			}
