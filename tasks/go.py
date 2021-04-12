@@ -13,7 +13,6 @@ import tempfile
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
-from requests.exceptions import RequestException
 
 from .build_tags import get_default_build_tags
 from .modules import DEFAULT_MODULES, generate_dummy_package
@@ -359,6 +358,7 @@ def get_licenses_list(ctx):
     from urllib.parse import urlparse
 
     import requests
+    from requests.exceptions import RequestException
 
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
     deps_vendored(ctx)
@@ -421,11 +421,7 @@ def get_licenses_list(ctx):
                     lfp.flush()
 
                     temp_path = os.path.dirname(lfp.name)
-                    result = ctx.run(
-                        "go run github.com/go-enry/go-license-detector/v4/cmd/license-detector -f json {}".format(
-                            temp_path
-                        )
-                    )
+                    result = ctx.run("license-detector -f json {}".format(temp_path))
                     if result.stdout:
                         results = json.loads(result.stdout)
                         for project in results:
@@ -437,7 +433,7 @@ def get_licenses_list(ctx):
                             licenses.append("core,\"{}\",{}".format(pkg, license))
         except RequestException:
             print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
-            continue
+            raise Exit(code=1)
 
     licenses.sort()
     shutil.rmtree("vendor/")
