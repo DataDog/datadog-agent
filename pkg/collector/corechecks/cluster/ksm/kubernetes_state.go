@@ -178,7 +178,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithNamespaces(namespaces)
 
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
 		return err
 	}
@@ -503,4 +503,20 @@ func isKnownMetric(name string) bool {
 		return true
 	}
 	return false
+}
+
+// buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
+// It allows us to get kube_node_created and kube_pod_created and deny
+// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
+func buildDeniedMetricsSet(collectors []string) options.MetricSet {
+	deniedMetrics := defaultDeniedMetrics
+	for _, resource := range collectors {
+		// resource format: pods, nodes, jobs, deployments...
+		if resource == "pods" || resource == "nodes" {
+			continue
+		}
+		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
+	}
+
+	return deniedMetrics
 }
