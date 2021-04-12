@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/stretchr/testify/assert"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -21,14 +23,45 @@ func Test_getWebhookSkeleton(t *testing.T) {
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
 	path := "/bar"
+	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
+	customTimeout := int32(2)
+	webhook := func(to *int32) admiv1beta1.MutatingWebhook {
+		return admiv1beta1.MutatingWebhook{
+			Name: "datadog.webhook.foo",
+			ClientConfig: admiv1beta1.WebhookClientConfig{
+				Service: &admiv1beta1.ServiceReference{
+					Namespace: "default",
+					Name:      "datadog-admission-controller",
+					Port:      &port,
+					Path:      &path,
+				},
+			},
+			Rules: []admiv1beta1.RuleWithOperations{
+				{
+					Operations: []admiv1beta1.OperationType{
+						admiv1beta1.Create,
+					},
+					Rule: admiv1beta1.Rule{
+						APIGroups:   []string{""},
+						APIVersions: []string{"v1"},
+						Resources:   []string{"pods"},
+					},
+				},
+			},
+			FailurePolicy:  &failurePolicy,
+			SideEffects:    &sideEffects,
+			TimeoutSeconds: to,
+		}
+	}
 	type args struct {
 		nameSuffix string
 		path       string
 	}
 	tests := []struct {
-		name string
-		args args
-		want admiv1beta1.MutatingWebhook
+		name    string
+		args    args
+		timeout *int32
+		want    admiv1beta1.MutatingWebhook
 	}{
 		{
 			name: "nominal case",
@@ -36,38 +69,25 @@ func Test_getWebhookSkeleton(t *testing.T) {
 				nameSuffix: "foo",
 				path:       "/bar",
 			},
-			want: admiv1beta1.MutatingWebhook{
-				Name: "datadog.webhook.foo",
-				ClientConfig: admiv1beta1.WebhookClientConfig{
-					Service: &admiv1beta1.ServiceReference{
-						Namespace: "default",
-						Name:      "datadog-admission-controller",
-						Port:      &port,
-						Path:      &path,
-					},
-				},
-				Rules: []admiv1beta1.RuleWithOperations{
-					{
-						Operations: []admiv1beta1.OperationType{
-							admiv1beta1.Create,
-						},
-						Rule: admiv1beta1.Rule{
-							APIGroups:   []string{""},
-							APIVersions: []string{"v1"},
-							Resources:   []string{"pods"},
-						},
-					},
-				},
-				FailurePolicy: &failurePolicy,
-				SideEffects:   &sideEffects,
+			want: webhook(&defaultTimeout),
+		},
+		{
+			name: "custom timeout",
+			args: args{
+				nameSuffix: "foo",
+				path:       "/bar",
 			},
+			timeout: &customTimeout,
+			want:    webhook(&customTimeout),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getWebhookSkeleton(tt.args.nameSuffix, tt.args.path); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getWebhookSkeleton() = %v, want %v", got, tt.want)
+			if tt.timeout != nil {
+				config.Datadog.Set("admission_controller.timeout_seconds", *tt.timeout)
+				defer config.Datadog.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
 			}
+			assert.EqualValues(t, tt.want, getWebhookSkeleton(tt.args.nameSuffix, tt.args.path))
 		})
 	}
 }

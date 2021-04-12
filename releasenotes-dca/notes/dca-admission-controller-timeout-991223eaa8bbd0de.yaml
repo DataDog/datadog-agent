@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    It is now possible to configure a custom timeout for the MutatingWebhookConfigurations
+    objects controlled by the Cluster Agent via DD_ADMISSION_CONTROLLER_TIMEOUT_SECONDS. (Default: 30 seconds)
