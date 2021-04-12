@@ -87,8 +87,8 @@ func TestProcessContext(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
 		},
 		{
-			ID:         "test_rule_args",
-			Expression: `exec.args in [~"*-al*"]`,
+			ID:         "test_rule_args_envs",
+			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
 		},
 		{
 			ID:         "test_rule_tty",
@@ -140,7 +140,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	t.Run("args", func(t *testing.T) {
+	t.Run("args-envs", func(t *testing.T) {
 		executable := "/usr/bin/ls"
 		if resolved, err := os.Readlink(executable); err == nil {
 			executable = resolved
@@ -151,12 +151,14 @@ func TestProcessContext(t *testing.T) {
 		}
 
 		cmd := exec.Command(executable, "-al", "--password", "secret", "--custom", "secret")
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
+			// args
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil || len(args.(string)) == 0 {
 				t.Error("not able to get args")
@@ -175,6 +177,25 @@ func TestProcessContext(t *testing.T) {
 				t.Error("arg not found")
 			}
 
+			// envs
+			envs, err := event.GetFieldValue("exec.envs")
+			if err != nil || len(envs.([]string)) == 0 {
+				t.Error("not able to get envs")
+			}
+
+			contains = func(s string) bool {
+				for _, env := range envs.([]string) {
+					if s == env {
+						return true
+					}
+				}
+				return false
+			}
+
+			if !contains("LD_LIBRARY_PATH") {
+				t.Errorf("env not found: %v", event)
+			}
+
 			// trigger serialization to test scrubber
 			str := event.String()
 
@@ -182,8 +203,8 @@ func TestProcessContext(t *testing.T) {
 				t.Error("args not serialized")
 			}
 
-			if strings.Contains(str, "secret") {
-				t.Error("secret exposed")
+			if strings.Contains(str, "secret") || strings.Contains(str, "/tmp/lib") {
+				t.Error("secret or env values exposed")
 			}
 		}
 	})
@@ -205,6 +226,7 @@ func TestProcessContext(t *testing.T) {
 		}
 
 		cmd := exec.Command(executable, "-al", long)
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err := test.GetEvent()
@@ -221,12 +243,15 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, strings.HasSuffix(argv[1], "..."), true, "args not truncated")
 		}
 
+		nArgs := 200
+
 		// number of args overflow
 		num := []string{"-al"}
-		for i := 0; i != 100; i++ {
+		for i := 0; i != nArgs; i++ {
 			num = append(num, "aaa")
 		}
 		cmd = exec.Command(executable, num...)
+		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
 		event, _, err = test.GetEvent()
@@ -240,12 +265,12 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			n := len(argv)
-			if n == 0 || n > 100 {
-				t.Errorf("incorrect number of args")
+			if n == 0 || n > nArgs {
+				t.Errorf("incorrect number of args %d: %s", n, args.(string))
 			}
 
 			if argv[n-1] != "..." {
-				t.Error("arg not truncated")
+				t.Errorf("arg not truncated: %s", args.(string))
 			}
 		}
 	})
@@ -528,7 +553,7 @@ func TestProcessLineage(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -537,7 +562,7 @@ func TestProcessLineage(t *testing.T) {
 	}
 	defer test.Close()
 
-	cmd := exec.Command(executable, "/dev/null")
+	cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Error(err)
 	}

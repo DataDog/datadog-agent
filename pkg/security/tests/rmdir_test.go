@@ -32,7 +32,7 @@ func TestRmdir(t *testing.T) {
 	mkdirMode := 0o707
 	expectedMode := uint16(applyUmask(mkdirMode))
 
-	t.Run("rmdir", func(t *testing.T) {
+	t.Run("rmdir", ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
 		testFile, testFilePtr, err := test.Path("test-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -45,7 +45,7 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		if _, _, err := syscall.Syscall(syscall.SYS_RMDIR, uintptr(testFilePtr), 0, 0); err != 0 {
+		if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 			t.Fatal(error(err))
 		}
 
@@ -62,7 +62,7 @@ func TestRmdir(t *testing.T) {
 
 			testContainerPath(t, event, "rmdir.file.container_path")
 		}
-	})
+	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
 		testDir, testDirPtr, err := test.Path("test-unlink-rmdir")

@@ -31,8 +31,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -352,7 +352,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		testMod.cleanup()
 	}
 
-	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	agentConfig, err := sysconfig.New("")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
@@ -517,16 +520,14 @@ func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) 
 	}
 
 	// Create file
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
-	if errno != 0 {
-		return testFile, testFilePtr, error(errno)
+	f, err := os.OpenFile(testFile, os.O_CREATE, os.FileMode(mode))
+	if err != nil {
+		return "", nil, err
 	}
-	syscall.Close(int(fd))
+	f.Close()
 
 	// Chown the file
-	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
-		return testFile, testFilePtr, error(errno)
-	}
+	err = os.Chown(testFile, user, group)
 	return testFile, testFilePtr, err
 }
 
@@ -766,7 +767,7 @@ func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
 	}
 
 	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+		t.Errorf("incorrect container_path, should contain `docker`: %s \n %v", path, event)
 	}
 }
 
@@ -796,6 +797,19 @@ func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.E
 		case <-timeout:
 			return nil, errors.New("timeout")
 		}
+	}
+}
+
+func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		syscallNB, found := supportedSyscalls[syscall]
+		if !found {
+			t.Skipf("%s is not supported", syscall)
+		}
+
+		test(t, syscallNB)
 	}
 }
 

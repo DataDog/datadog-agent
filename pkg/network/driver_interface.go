@@ -536,17 +536,23 @@ func createDNSFilters() ([]C.struct__filterDefinition, error) {
 
 	for _, iface := range ifaces {
 		filters = append(filters, C.struct__filterDefinition{
-
 			filterVersion:    C.DD_NPMDRIVER_SIGNATURE,
 			size:             C.sizeof_struct__filterDefinition,
 			filterLayer:      C.FILTER_LAYER_TRANSPORT,
 			af:               windows.AF_INET,
 			remotePort:       53,
 			v4InterfaceIndex: (C.ulonglong)(iface.Index),
-			// direction
-			// port
-			// udp
-			// ipv4
+			direction:        C.DIRECTION_OUTBOUND,
+		})
+
+		filters = append(filters, C.struct__filterDefinition{
+			filterVersion:    C.DD_NPMDRIVER_SIGNATURE,
+			size:             C.sizeof_struct__filterDefinition,
+			filterLayer:      C.FILTER_LAYER_TRANSPORT,
+			af:               windows.AF_INET,
+			remotePort:       53,
+			v4InterfaceIndex: (C.ulonglong)(iface.Index),
+			direction:        C.DIRECTION_INBOUND,
 		})
 	}
 

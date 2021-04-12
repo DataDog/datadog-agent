@@ -59,3 +59,14 @@ execute 'ensure conntrack is enabled' do
   user "root"
   action :run
 end
+
+execute 'disable firewalld on redhat' do
+  command "systemctl disable --now firewalld"
+  user "root"
+  case node[:platform]
+  when 'redhat'
+    action :run
+  else
+    action :nothing
+  end
+end

@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 	defer cancel()
 	bc, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, []*regexp.Regexp{}, []*regexp.Regexp{}, &testBBSClient{})
 	cc, _ = ConfigureGlobalCCCache(ctx, "url", "", "", false, time.Second, &testCCClient{})
-	for range []int{0, 1} {
+	for i := 1; i <= 10; i++ {
 		if cc.GetPollSuccesses() == 0 || bc.GetPollSuccesses() == 0 {
 			time.Sleep(time.Second)
 		}

@@ -42,21 +42,28 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	once                sync.Once
 	payloadChan         chan []byte
+	climit              chan struct{} // semaphore for limiting concurrent background sends
 }
 
 // NewDestination returns a new Destination.
+// If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
+// there is no concurrency and the background sending pipeline will block while sending each payload.
 // TODO: add support for SOCKS5
-func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext) *Destination {
-	return newDestination(endpoint, contentType, destinationsContext, time.Second*10)
+func NewDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, maxConcurrentBackgroundSends int) *Destination {
+	return newDestination(endpoint, contentType, destinationsContext, time.Second*10, maxConcurrentBackgroundSends)
 }
 
-func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration) *Destination {
+func newDestination(endpoint config.Endpoint, contentType string, destinationsContext *client.DestinationsContext, timeout time.Duration, maxConcurrentBackgroundSends int) *Destination {
+	if maxConcurrentBackgroundSends < 0 {
+		maxConcurrentBackgroundSends = 0
+	}
 	return &Destination{
 		url:                 buildURL(endpoint),
 		contentType:         contentType,
 		contentEncoding:     buildContentEncoding(endpoint),
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
+		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 	}
 }
 
@@ -129,7 +136,16 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 		for {
 			select {
 			case payload := <-payloadChan:
-				d.Send(payload) //nolint:errcheck
+				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
+				if cap(d.climit) == 0 {
+					d.Send(payload) //nolint:errcheck
+					break
+				}
+				d.climit <- struct{}{}
+				go func() {
+					d.Send(payload) //nolint:errcheck
+					<-d.climit
+				}()
 			case <-ctx.Done():
 				return
 			}
@@ -178,7 +194,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	ctx.Start()
 	defer ctx.Stop()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := destination.Send(emptyPayload)
 	if err != nil {

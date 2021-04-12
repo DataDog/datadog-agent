@@ -38,12 +38,12 @@ func TestMkdir(t *testing.T) {
 	mkdirMode := uint16(0o707)
 	expectedMode := uint16(applyUmask(int(mkdirMode)))
 
-	t.Run("mkdir", func(t *testing.T) {
+	t.Run("mkdir", ifSyscallSupported("SYS_MKDIR", func(t *testing.T, syscallNB uintptr) {
 		testFile, testFilePtr, err := test.Path("test-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
 			t.Fatal(err)
 		}
 		defer syscall.Rmdir(testFile)
@@ -62,7 +62,7 @@ func TestMkdir(t *testing.T) {
 
 			testContainerPath(t, event, "mkdir.file.container_path")
 		}
-	})
+	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
 		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
