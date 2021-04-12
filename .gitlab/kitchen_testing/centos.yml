@@ -22,6 +22,17 @@
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
+.kitchen_os_centos_fips:
+  variables:
+    KITCHEN_FIPS: "true"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="centos"
+    # for now, we only test FIPS on 8.1
+    - export KITCHEN_OSVERS="rhel-81"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
 # Kitchen: scenarios (os * agent)
 # -------------------------------
 
@@ -37,6 +48,18 @@
     - .kitchen_agent_a7
   needs: ["deploy_rpm_testing-a7"]
 
+.kitchen_scenario_centos_fips_a6:
+  extends:
+    - .kitchen_os_centos_fips
+    - .kitchen_agent_a6
+  needs: ["deploy_rpm_testing-a6"]
+
+.kitchen_scenario_centos_fips_a7:
+  extends:
+    - .kitchen_os_centos_fips
+    - .kitchen_agent_a7
+  needs: ["deploy_rpm_testing-a7"]
+
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------
 
@@ -48,6 +71,16 @@ kitchen_centos_install_script_agent-a6:
 kitchen_centos_install_script_agent-a7:
   extends:
     - .kitchen_scenario_centos_a7
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_fips_install_script_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_fips_a6
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_fips_install_script_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_fips_a7
     - .kitchen_test_install_script_agent
 
 kitchen_centos_install_script_iot_agent-a7:
