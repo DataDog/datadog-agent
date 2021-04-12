@@ -132,7 +132,7 @@ loop:
 			break loop
 		default:
 			log.Warnf("unexpected control request #%d", c)
-			elog.Warning(0xc0000005, string(c.Cmd))
+			elog.Warning(0xc0000005, fmt.Sprint(c.Cmd))
 		}
 	}
 	elog.Info(0x40000006, ServiceName)
