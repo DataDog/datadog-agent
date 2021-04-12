@@ -37,9 +37,6 @@ def genconfig(
     if not platlist and not provider:
         provider = "azure"
 
-    if not arch:
-        arch = "x86_64"
-
     platforms = load_platforms(ctx, platformfile=platformfile)
 
     # create the TEST_PLATFORMS environment variable
