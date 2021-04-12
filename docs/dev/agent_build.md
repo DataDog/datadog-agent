@@ -53,7 +53,7 @@ the `pkg-config` folder.
 
 ## Testing Agent changes in containerized environments
 
-Building an Agent Docker image from strach through an embedded build is a slow process.
+Building an Agent Docker image from scratch through an embedded build is a slow process.
 Sometimes, you may want to quickly test a change or bufix in a containerized environment (Docker, Kubernetes, ECS, etc.).
 
 One way to do it is to patch the Agent binary from official Docker image, with a simple Dockerfile:
