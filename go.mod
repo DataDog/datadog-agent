@@ -123,7 +123,6 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/klauspost/compress v1.11.12 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/kubernetes-incubator/custom-metrics-apiserver v0.0.0-20190918110929-3d9be26a50eb // Pinned to kubernetes-1.16.2
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
@@ -132,7 +131,6 @@ require (
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
 	github.com/moby/sys/mountinfo v0.4.0
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
@@ -184,13 +182,11 @@ require (
 	google.golang.org/grpc v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	gotest.tools v2.2.0+incompatible
-	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 	k8s.io/api v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
