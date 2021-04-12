@@ -868,6 +868,7 @@ func TestResourceNameFromMetric(t *testing.T) {
 }
 
 func TestAllowDeny(t *testing.T) {
+	deniedMetrics := buildDeniedMetricsSet(options.DefaultResources.AsSlice())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
 	assert.NoError(t, err)
 
@@ -901,20 +902,19 @@ func TestAllowDeny(t *testing.T) {
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(options.DefaultResources.AsSlice()))
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
 	assert.NoError(t, err)
 
-	included := []string{"kube_node_created"}
+	included := []string{"kube_node_created", "kube_pod_created"}
 	for _, metric := range included {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}
 
 	excluded := []string{
-		"kube_pod_created",
 		"kube_cronjob_created",
 		"kube_daemonset_created",
 		"kube_deployment_created",

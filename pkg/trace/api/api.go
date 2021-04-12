@@ -429,12 +429,12 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v05, req)
+	ts := r.tagStats(v06, req)
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
-		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)
 		return
 	}
 

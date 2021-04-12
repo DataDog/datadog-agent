@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package transaction
 
 import (
 	"bytes"
@@ -23,21 +23,25 @@ import (
 )
 
 var (
-	connectionDNSSuccess               = expvar.Int{}
-	connectionConnectSuccess           = expvar.Int{}
-	transactionsExpvars                = expvar.Map{}
-	transactionsInputBytesByEndpoint   = expvar.Map{}
-	transactionsConnectionEvents       = expvar.Map{}
-	transactionsInputCountByEndpoint   = expvar.Map{}
-	transactionsDropped                = expvar.Int{}
-	transactionsDroppedByEndpoint      = expvar.Map{}
-	transactionsDroppedOnInput         = expvar.Int{}
-	transactionsRequeued               = expvar.Int{}
-	transactionsRequeuedByEndpoint     = expvar.Map{}
-	transactionsRetried                = expvar.Int{}
-	transactionsRetriedByEndpoint      = expvar.Map{}
-	transactionsRetryQueueSize         = expvar.Int{}
-	transactionsSuccessByEndpoint      = expvar.Map{}
+	// ForwarderExpvars is the root for expvars in the forwarder.
+	ForwarderExpvars = expvar.NewMap("forwarder")
+
+	// TransactionsExpvars the transactions Expvars
+	TransactionsExpvars = expvar.Map{}
+
+	connectionDNSSuccess         = expvar.Int{}
+	connectionConnectSuccess     = expvar.Int{}
+	transactionsConnectionEvents = expvar.Map{}
+
+	// TransactionsDropped is the number of transaction dropped.
+	TransactionsDropped = expvar.Int{}
+
+	// TransactionsDroppedByEndpoint is the number of transaction dropped by endpoint.
+	TransactionsDroppedByEndpoint = expvar.Map{}
+
+	// TransactionsSuccessByEndpoint is the number of transaction succeeded by endpoint.
+	TransactionsSuccessByEndpoint = expvar.Map{}
+
 	transactionsSuccessBytesByEndpoint = expvar.Map{}
 	transactionsSuccess                = expvar.Int{}
 	transactionsErrors                 = expvar.Int{}
@@ -50,22 +54,12 @@ var (
 	transactionsHTTPErrors             = expvar.Int{}
 	transactionsHTTPErrorsByCode       = expvar.Map{}
 
-	tlmTxInputBytes = telemetry.NewCounter("transactions", "input_bytes",
-		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
 	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
-	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
-		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+
+	// TlmTxDropped is a telemetry counter that counts the number transaction dropped.
+	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
-		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
-	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
-		[]string{"domain", "endpoint"}, "Transaction requeue count")
-	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
-		[]string{"domain", "endpoint"}, "Transaction retry count")
-	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
-		[]string{"domain"}, "Retry queue size")
 	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
 		[]string{"domain", "endpoint"}, "Successful transaction count")
 	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
@@ -76,7 +70,8 @@ var (
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
-var trace = &httptrace.ClientTrace{
+// Trace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
+var Trace = &httptrace.ClientTrace{
 	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
 		if dnsInfo.Err != nil {
 			transactionsDNSErrors.Add(1)
@@ -127,55 +122,45 @@ type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, bo
 var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
 var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
 
-func initTransactionExpvars() {
-	transactionsInputBytesByEndpoint.Init()
+func init() {
+	TransactionsExpvars.Init()
 	transactionsConnectionEvents.Init()
-	transactionsInputCountByEndpoint.Init()
-	transactionsDroppedByEndpoint.Init()
-	transactionsRequeuedByEndpoint.Init()
-	transactionsRetriedByEndpoint.Init()
-	transactionsSuccessByEndpoint.Init()
+	TransactionsDroppedByEndpoint.Init()
+	TransactionsSuccessByEndpoint.Init()
 	transactionsSuccessBytesByEndpoint.Init()
 	transactionsErrorsByType.Init()
 	transactionsHTTPErrorsByCode.Init()
+	ForwarderExpvars.Set("Transactions", &TransactionsExpvars)
 	transactionsConnectionEvents.Set("DNSSuccess", &connectionDNSSuccess)
 	transactionsConnectionEvents.Set("ConnectSuccess", &connectionConnectSuccess)
-	transactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
-	transactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
-	transactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
-	transactionsExpvars.Set("Dropped", &transactionsDropped)
-	transactionsExpvars.Set("DroppedByEndpoint", &transactionsDroppedByEndpoint)
-	transactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
-	transactionsExpvars.Set("Requeued", &transactionsRequeued)
-	transactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
-	transactionsExpvars.Set("Retried", &transactionsRetried)
-	transactionsExpvars.Set("RetriedByEndpoint", &transactionsRetriedByEndpoint)
-	transactionsExpvars.Set("RetryQueueSize", &transactionsRetryQueueSize)
-	transactionsExpvars.Set("SuccessByEndpoint", &transactionsSuccessByEndpoint)
-	transactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
-	transactionsExpvars.Set("Success", &transactionsSuccess)
-	transactionsExpvars.Set("Errors", &transactionsErrors)
-	transactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
+	TransactionsExpvars.Set("ConnectionEvents", &transactionsConnectionEvents)
+	TransactionsExpvars.Set("Dropped", &TransactionsDropped)
+	TransactionsExpvars.Set("DroppedByEndpoint", &TransactionsDroppedByEndpoint)
+	TransactionsExpvars.Set("SuccessByEndpoint", &TransactionsSuccessByEndpoint)
+	TransactionsExpvars.Set("SuccessBytesByEndpoint", &transactionsSuccessBytesByEndpoint)
+	TransactionsExpvars.Set("Success", &transactionsSuccess)
+	TransactionsExpvars.Set("Errors", &transactionsErrors)
+	TransactionsExpvars.Set("ErrorsByType", &transactionsErrorsByType)
 	transactionsErrorsByType.Set("DNSErrors", &transactionsDNSErrors)
 	transactionsErrorsByType.Set("TLSErrors", &transactionsTLSErrors)
 	transactionsErrorsByType.Set("ConnectionErrors", &transactionsConnectionErrors)
 	transactionsErrorsByType.Set("WroteRequestErrors", &transactionsWroteRequestErrors)
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
-	transactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
-	transactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
+	TransactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
+	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
-// TransactionPriority defines the priority of a transaction
+// Priority defines the priority of a transaction
 // Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
 // before dropping transactions with priority `TransactionPriorityHigh`.
-type TransactionPriority int
+type Priority int
 
 const (
 	// TransactionPriorityNormal defines a transaction with a normal priority
-	TransactionPriorityNormal TransactionPriority = 0
+	TransactionPriorityNormal Priority = iota
 
 	// TransactionPriorityHigh defines a transaction with an high priority
-	TransactionPriorityHigh TransactionPriority = 1
+	TransactionPriorityHigh Priority = iota
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -183,7 +168,7 @@ type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
 	Domain string
 	// Endpoint is the API Endpoint used by the HTTPTransaction.
-	Endpoint endpoint
+	Endpoint Endpoint
 	// Headers are the HTTP headers used by the HTTPTransaction.
 	Headers http.Header
 	// Payload is the content delivered to the backend.
@@ -191,21 +176,26 @@ type HTTPTransaction struct {
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
-	createdAt time.Time
-	// retryable indicates whether this transaction can be retried
-	retryable bool
+	CreatedAt time.Time
+	// Retryable indicates whether this transaction can be retried
+	Retryable bool
 
-	// storableOnDisk indicates whether this transaction can be stored on disk
-	storableOnDisk bool
+	// StorableOnDisk indicates whether this transaction can be stored on disk
+	StorableOnDisk bool
 
-	// attemptHandler will be called with a transaction before the attempting to send the request
+	// AttemptHandler will be called with a transaction before the attempting to send the request
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
-	attemptHandler HTTPAttemptHandler
-	// completionHandler will be called with a transaction after it has been successfully sent
+	AttemptHandler HTTPAttemptHandler
+	// CompletionHandler will be called with a transaction after it has been successfully sent
 	// This field is not restored when a transaction is deserialized from the disk (the default value is used).
-	completionHandler HTTPCompletionHandler
+	CompletionHandler HTTPCompletionHandler
 
-	priority TransactionPriority
+	Priority Priority
+}
+
+// TransactionsSerializer serializes Transaction instances.
+type TransactionsSerializer interface {
+	Add(transaction *HTTPTransaction) error
 }
 
 // Transaction represents the task to process for a Worker.
@@ -213,7 +203,7 @@ type Transaction interface {
 	Process(ctx context.Context, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
-	GetPriority() TransactionPriority
+	GetPriority() Priority
 	GetEndpointName() string
 	GetPayloadSize() int
 
@@ -221,46 +211,47 @@ type Transaction interface {
 	// It forces a new implementation of `Transaction` to define how to
 	// serialize the transaction to `TransactionsSerializer` as a `Transaction`
 	// must be serializable in domainForwarder.
-	SerializeTo(*TransactionsSerializer) error
+	SerializeTo(TransactionsSerializer) error
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	tr := &HTTPTransaction{
-		createdAt:      time.Now(),
+		CreatedAt:      time.Now(),
 		ErrorCount:     0,
-		retryable:      true,
-		storableOnDisk: true,
+		Retryable:      true,
+		StorableOnDisk: true,
 		Headers:        make(http.Header),
 	}
-	tr.setDefaultHandlers()
+	tr.SetDefaultHandlers()
 	return tr
 }
 
-func (t *HTTPTransaction) setDefaultHandlers() {
-	t.attemptHandler = defaultAttemptHandler
-	t.completionHandler = defaultCompletionHandler
+// SetDefaultHandlers sets the default handlers for AttemptHandler and CompletionHandler
+func (t *HTTPTransaction) SetDefaultHandlers() {
+	t.AttemptHandler = defaultAttemptHandler
+	t.CompletionHandler = defaultCompletionHandler
 }
 
 // GetCreatedAt returns the creation time of the HTTPTransaction.
 func (t *HTTPTransaction) GetCreatedAt() time.Time {
-	return t.createdAt
+	return t.CreatedAt
 }
 
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
-	url := t.Domain + t.Endpoint.route
+	url := t.Domain + t.Endpoint.Route
 	return log.SanitizeURL(url) // sanitized url that can be logged
 }
 
 // GetPriority returns the priority
-func (t *HTTPTransaction) GetPriority() TransactionPriority {
-	return t.priority
+func (t *HTTPTransaction) GetPriority() Priority {
+	return t.Priority
 }
 
 // GetEndpointName returns the name of the endpoint used by the transaction
 func (t *HTTPTransaction) GetEndpointName() string {
-	return t.Endpoint.name
+	return t.Endpoint.Name
 }
 
 // GetPayloadSize returns the size of the payload.
@@ -274,17 +265,17 @@ func (t *HTTPTransaction) GetPayloadSize() int {
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
-	t.attemptHandler(t)
+	t.AttemptHandler(t)
 
 	statusCode, body, err := t.internalProcess(ctx, client)
 
-	if err == nil || !t.retryable {
-		t.completionHandler(t, statusCode, body, err)
+	if err == nil || !t.Retryable {
+		t.CompletionHandler(t, statusCode, body, err)
 	}
 
 	// If the txn is retryable, return the error (if present) to the worker to allow it to be retried
 	// Otherwise, return nil so the txn won't be retried.
-	if t.retryable {
+	if t.Retryable {
 		return err
 	}
 
@@ -295,7 +286,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(*t.Payload)
-	url := t.Domain + t.Endpoint.route
+	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := log.SanitizeURL(url) // sanitized url that can be logged
 
@@ -345,15 +336,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
-		transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+		TransactionsDropped.Add(1)
+		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
-		transactionsDropped.Add(1)
-		tlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
+		TransactionsDropped.Add(1)
+		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
@@ -364,7 +355,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
-	transactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
+	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
 
@@ -385,8 +376,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 }
 
 // SerializeTo serializes the transaction using TransactionsSerializer
-func (t *HTTPTransaction) SerializeTo(serializer *TransactionsSerializer) error {
-	if t.storableOnDisk {
+func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
+	if t.StorableOnDisk {
 		return serializer.Add(t)
 	}
 	log.Trace("The transaction is not stored on disk because `storableOnDisk` is false.")

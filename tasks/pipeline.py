@@ -18,6 +18,8 @@ from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
 
+ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
+
 
 @task
 def trigger(_, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
@@ -36,6 +38,15 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
+
+    # Check that the target repo branch is valid
+    if repo_branch not in ALLOWED_REPO_BRANCHES:
+        print(
+            "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
+                repo_branch, ALLOWED_REPO_BRANCHES
+            )
+        )
+        raise Exit(code=1)
 
     #
     # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.

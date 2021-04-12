@@ -567,7 +567,6 @@ func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
-	t.Skip("temporarily disabled")
 	bucket := func(start, duration uint64) pb.ClientStatsBucket {
 		return pb.ClientStatsBucket{
 			Start:    start,
@@ -606,7 +605,7 @@ func TestHandleStats(t *testing.T) {
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
 		req.Header.Set(headerTracerVersion, "0.1.0")

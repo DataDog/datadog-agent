@@ -1,4 +1,9 @@
-package forwarder
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package retry
 
 import (
 	"net/http"
@@ -6,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,10 +20,10 @@ const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
 const domain = "domain"
 
-func TestSerializeDeserialize(t *testing.T) {
+func TestHTTPSerializeDeserialize(t *testing.T) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -27,7 +33,7 @@ func TestSerializeDeserialize(t *testing.T) {
 	a.NoError(err)
 	a.Equal(0, errorCount)
 	a.Len(transactions, 1)
-	transactionDeserialized := transactions[0].(*HTTPTransaction)
+	transactionDeserialized := transactions[0].(*transaction.HTTPTransaction)
 
 	assertTransactionEqual(a, tr, transactionDeserialized)
 
@@ -41,11 +47,11 @@ func TestSerializeDeserialize(t *testing.T) {
 
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
-	transaction := createHTTPTransactionTests()
-	serializer := NewTransactionsSerializer(domain, nil)
+	initialTransaction := createHTTPTransactionTests()
+	serializer := NewHTTPTransactionsSerializer(domain, nil)
 
-	a.NoError(serializer.Add(transaction))
-	a.NoError(serializer.Add(transaction))
+	a.NoError(serializer.Add(initialTransaction))
+	a.NoError(serializer.Add(initialTransaction))
 	bytes, err := serializer.GetBytesAndReset()
 	a.NoError(err)
 
@@ -55,16 +61,16 @@ func TestPartialDeserialize(t *testing.T) {
 		// If there is no error, transactions should be valid.
 		if err == nil {
 			for _, tr := range trs {
-				assertTransactionEqual(a, tr.(*HTTPTransaction), transaction)
+				assertTransactionEqual(a, tr.(*transaction.HTTPTransaction), initialTransaction)
 			}
 		}
 	}
 }
 
-func TestTransactionSerializerMissingAPIKey(t *testing.T) {
+func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 
-	serializer := NewTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}})))
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}})))
@@ -75,45 +81,45 @@ func TestTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.NoError(err)
 	r.Equal(0, errorCount)
 
-	serializerMissingAPIKey := NewTransactionsSerializer(domain, []string{apiKey1})
+	serializerMissingAPIKey := NewHTTPTransactionsSerializer(domain, []string{apiKey1})
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(1, errorCount)
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {
-	transaction := HTTPTransaction{}
-	transactionType := reflect.TypeOf(transaction)
+	tr := transaction.HTTPTransaction{}
+	transactionType := reflect.TypeOf(tr)
 	assert.Equalf(t, 11, transactionType.NumField(),
 		"A field was added or remove from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
-			"TransactionsSerializer and then adjust this unit test.")
+			"HTTPTransactionsSerializer and then adjust this unit test.")
 }
 
-func createHTTPTransactionTests() *HTTPTransaction {
+func createHTTPTransactionTests() *transaction.HTTPTransaction {
 	return createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{"value1", apiKey1, apiKey2}})
 }
 
-func createHTTPTransactionWithHeaderTests(header http.Header) *HTTPTransaction {
+func createHTTPTransactionWithHeaderTests(header http.Header) *transaction.HTTPTransaction {
 	payload := []byte{1, 2, 3}
-	tr := NewHTTPTransaction()
+	tr := transaction.NewHTTPTransaction()
 	tr.Domain = domain
-	tr.Endpoint = endpoint{route: "route" + apiKey1, name: "name"}
+	tr.Endpoint = transaction.Endpoint{Route: "route" + apiKey1, Name: "name"}
 	tr.Headers = header
 	tr.Payload = &payload
 	tr.ErrorCount = 1
-	tr.createdAt = time.Now()
-	tr.retryable = true
-	tr.priority = TransactionPriorityHigh
+	tr.CreatedAt = time.Now()
+	tr.Retryable = true
+	tr.Priority = transaction.TransactionPriorityHigh
 	return tr
 }
 
-func assertTransactionEqual(a *assert.Assertions, tr1 *HTTPTransaction, tr2 *HTTPTransaction) {
+func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransaction, tr2 *transaction.HTTPTransaction) {
 	a.Equal(tr1.Domain, tr2.Domain)
 	a.Equal(tr1.Endpoint, tr2.Endpoint)
 	a.EqualValues(tr1.Headers, tr2.Headers)
-	a.Equal(tr1.retryable, tr2.retryable)
-	a.Equal(tr1.priority, tr2.priority)
+	a.Equal(tr1.Retryable, tr2.Retryable)
+	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
 
 	a.NotNil(tr1.Payload)
@@ -121,5 +127,5 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *HTTPTransaction, tr2 *HTT
 	a.Equal(*tr1.Payload, *tr2.Payload)
 
 	// Ignore monotonic clock
-	a.Equal(tr1.createdAt.Format(time.RFC3339), tr2.createdAt.Format(time.RFC3339))
+	a.Equal(tr1.CreatedAt.Format(time.RFC3339), tr2.CreatedAt.Format(time.RFC3339))
 }

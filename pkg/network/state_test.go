@@ -1394,6 +1394,6 @@ func latestEpochTime() uint64 {
 }
 
 func newDefaultState() State {
-	// Using values from ebpf.NewDefaultConfig()
+	// Using values from ebpf.NewConfig()
 	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, false)
 }

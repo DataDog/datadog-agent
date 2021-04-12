@@ -27,7 +27,7 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
         .type = SYSCALL_CHMOD,
         .policy = policy,
         .setattr = {
-            .mode = mode
+            .mode = mode & S_IALLUGO,
         }
     };
 

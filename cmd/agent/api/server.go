@@ -57,7 +57,6 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
-
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
