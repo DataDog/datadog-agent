@@ -45,6 +45,12 @@ type installInfo struct {
 	} `yaml:"install_method"`
 }
 
+// NetworkInfo returns configuration information for the host network stack
+type NetworkInfo struct {
+	EphemeralPortStart uint16 // beginning of ephemeral port range
+	EphemeralPortEnd   uint16 // end of ephemeral port range
+}
+
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
 func GetPayload(hostnameData util.HostnameData) *Payload {

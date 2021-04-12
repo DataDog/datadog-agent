@@ -232,6 +232,11 @@ func batchConnections(
 			cc.Platform = hostInfo.Platform
 			cc.PlatformVersion = hostInfo.PlatformVersion
 		}
+		// Add network telemetry
+		if netInfo, err := host.GetNetworkInfo(); err == nil {
+			cc.EphemeralPortRangeStart = int32(netInfo.EphemeralPortStart)
+			cc.EphemeralPortRangeEnd = int32(netInfo.EphemeralPortEnd)
+		}
 
 		// only add the telemetry to the first message to prevent double counting
 		if len(batches) == 0 {

@@ -6,26 +6,20 @@
 package host
 
 import (
-	"runtime"
-
-	"github.com/shirou/gopsutil/host"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 )
-
-type osVersion [3]interface{}
-
-const osName = runtime.GOOS
-
-func fillOsVersion(stats *systemStats, info *host.InfoStat) {
-	stats.Macver = osVersion{info.PlatformVersion, [3]string{"", "", ""}, runtime.GOARCH}
-}
 
 // GetNetworkInfo returns host specific network configuration.
 // At this time, only information queried is the ephemeral port range
 func GetNetworkInfo() (*NetworkInfo, error) {
-	// TODO get values at runtime
+	intpair := sysctl.NewIntPair("/proc", "net/ipv4/ip_local_port_range", 0)
+	low, hi, err := intpair.Get()
+	if nil != err {
+		return nil, err
+	}
 	ni := &NetworkInfo{
-		EphemeralPortStart: uint16(1025),
-		EphemeralPortEnd:   uint16(65534),
+		EphemeralPortStart: uint16(low),
+		EphemeralPortEnd:   uint16(hi),
 	}
 	return ni, nil
 }

@@ -172,3 +172,14 @@ func Pids() ([]int32, error) {
 	}
 
 }
+
+// GetNetworkInfo returns host specific network configuration.
+// At this time, only information queried is the ephemeral port range
+func GetNetworkInfo() (*NetworkInfo, error) {
+	// TODO get values at runtime
+	ni := &NetworkInfo{
+		EphemeralPortStart: uint16(1025),
+		EphemeralPortEnd:   uint16(65534),
+	}
+	return ni, nil
+}
