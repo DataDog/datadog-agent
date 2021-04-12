@@ -9,9 +9,7 @@ import json
 import os
 import shutil
 import tempfile
-from urllib.parse import urlparse
 
-import requests
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
@@ -356,6 +354,12 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
+
+    # local imports
+    from urllib.parse import urlparse
+
+    import requests
+
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
     deps_vendored(ctx)
 
