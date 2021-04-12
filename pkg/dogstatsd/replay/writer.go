@@ -57,13 +57,13 @@ type TrafficCaptureWriter struct {
 	sync.RWMutex
 }
 
-// NewTrafficCaptureWriter creaes a TrafficCaptureWriter instance.
-func NewTrafficCaptureWriter(l string, depth int) (*TrafficCaptureWriter, error) {
+// NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.
+func NewTrafficCaptureWriter(l string, depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
 		Location: l,
 		Traffic:  make(chan *CaptureBuffer, depth),
-	}, nil
+	}
 }
 
 // Path returns the path to file where the traffic capture will be written.
@@ -81,7 +81,7 @@ func (tc *TrafficCaptureWriter) Path() (string, error) {
 // Capture start the traffic capture and writes the packets to file for the specified duration.
 func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 
-	log.Debugf("Starting capture...")
+	log.Debug("Starting capture...")
 
 	tc.Lock()
 
@@ -100,6 +100,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	err = tc.WriteHeader()
 	if err != nil {
 		log.Errorf("There was an issue writing the capture file header: %v ", err)
+
+		tc.Unlock()
 		return
 	}
 
@@ -112,7 +114,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	tc.Unlock()
 
 	go func() {
-		log.Debugf("Capture will be stopped after %v", d)
+		log.Debug("Capture will be stopped after %v", d)
 
 		<-time.After(d)
 		err := tc.StopCapture()
@@ -127,7 +129,8 @@ process:
 		case msg := <-tc.Traffic:
 			err := tc.WriteNext(msg)
 			if err != nil {
-				err := tc.StopCapture()
+				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
+				err = tc.StopCapture()
 				if err != nil {
 					log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
 				}
@@ -141,7 +144,7 @@ process:
 				tc.oobPacketPoolManager.Put(msg.Oob)
 			}
 		case <-tc.shutdown:
-			log.Debugf("Capture shutting down")
+			log.Debug("Capture shutting down")
 			break process
 		}
 	}
@@ -173,7 +176,10 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 		return nil
 	}
 
-	tc.writer.Flush()
+	err := tc.writer.Flush()
+	if err != nil {
+		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
+	}
 
 	if tc.sharedPacketPoolManager != nil {
 		tc.sharedPacketPoolManager.SetPassthru(false)
@@ -185,7 +191,7 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 	close(tc.shutdown)
 	tc.ongoing = false
 
-	log.Debugf("Capture was stopped")
+	log.Debug("Capture was stopped")
 	return tc.File.Close()
 }
 
@@ -234,6 +240,7 @@ func (tc *TrafficCaptureWriter) WriteHeader() error {
 }
 
 // WriteNext writes the next CaptureBuffer after serializing it to a protobuf format.
+// Continuing writes after an error calling this function would result in a corrupted file
 func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
 	buff, err := proto.Marshal(&msg.Pb)
 	if err != nil {
@@ -241,12 +248,7 @@ func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
 	}
 
 	_, err = tc.Write(buff)
-	if err != nil {
-		// continuing writes after this would result in a corrupted file
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // Write writes the byte slice argument to file.

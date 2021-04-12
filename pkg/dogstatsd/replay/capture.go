@@ -23,9 +23,9 @@ type TrafficCapture struct {
 // NewTrafficCapture creates a TrafficCapture instance.
 func NewTrafficCapture() (*TrafficCapture, error) {
 	location := config.Datadog.GetString("dogstatsd_uds_capture_path")
-	writer, err := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_uds_capture_depth"))
-	if err != nil {
-		return nil, err
+	writer := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_uds_capture_depth"))
+	if writer == nil {
+		return nil, fmt.Errorf("unable to instantiate capture writer")
 	}
 
 	tc := &TrafficCapture{

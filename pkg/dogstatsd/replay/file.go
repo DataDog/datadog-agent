@@ -14,7 +14,7 @@ import (
 
 var (
 	datadogType = filetype.NewType("dog", "datadog/capture")
-	// DATADOG0F1FF0000 in HEX; F1 for different versions, 00 to terminate header
+	// DATADOG0F1FF0000 in HEX (D474D060F1FF0000); F1 for different versions, 00 to terminate header
 	datadogHeader = []byte{0xD4, 0x74, 0xD0, 0x60, 0xF1, 0xFF, 0x00, 0x00}
 )
 

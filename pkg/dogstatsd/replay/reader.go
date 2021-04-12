@@ -59,7 +59,7 @@ func (tc *TrafficCaptureReader) Read() {
 	for {
 		msg, err := tc.ReadNext()
 		if err != nil && err == io.EOF {
-			log.Debugf("Done reading capture file...", err)
+			log.Debugf("Done reading capture file...")
 			break
 		} else if err != nil {
 			log.Errorf("Error processing: %v", err)
@@ -89,12 +89,14 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	tc.Lock()
 
 	if int(tc.offset+4) > len(tc.Contents) {
+		tc.Unlock()
 		return nil, io.EOF
 	}
 	sz := binary.LittleEndian.Uint32(tc.Contents[tc.offset : tc.offset+4])
 	tc.offset += 4
 
 	if int(tc.offset+sz) > len(tc.Contents) {
+		tc.Unlock()
 		return nil, io.EOF
 	}
 
@@ -102,6 +104,7 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	msg := &pb.UnixDogstatsdMsg{}
 	err := proto.Unmarshal(tc.Contents[tc.offset:tc.offset+sz], msg)
 	if err != nil {
+		tc.Unlock()
 		return nil, err
 	}
 	tc.offset += sz
