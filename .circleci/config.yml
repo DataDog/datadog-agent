@@ -140,6 +140,14 @@ jobs:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
 
+  licenses_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - run:
+          name: run license linting
+          command: inv -e lint-licenses
+
   filename_linting:
     <<: *job_template
     steps:
@@ -316,6 +324,9 @@ workflows:
           filters:
             branches:
               ignore: master
+          requires:
+            - dependencies
+      - licenses_linting:
           requires:
             - dependencies
       - filename_linting:
