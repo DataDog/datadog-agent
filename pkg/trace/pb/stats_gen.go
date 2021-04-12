@@ -673,6 +673,18 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "TracerVersion")
 				return
 			}
+		case "RuntimeID":
+			z.RuntimeID, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeID")
+				return
+			}
+		case "Sequence":
+			z.Sequence, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "Sequence")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -686,9 +698,9 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 6
+	// map header, size 8
 	// write "Hostname"
-	err = en.Append(0x86, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	err = en.Append(0x88, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	if err != nil {
 		return
 	}
@@ -754,15 +766,35 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "TracerVersion")
 		return
 	}
+	// write "RuntimeID"
+	err = en.Append(0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x44)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.RuntimeID)
+	if err != nil {
+		err = msgp.WrapError(err, "RuntimeID")
+		return
+	}
+	// write "Sequence"
+	err = en.Append(0xa8, 0x53, 0x65, 0x71, 0x75, 0x65, 0x6e, 0x63, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.Sequence)
+	if err != nil {
+		err = msgp.WrapError(err, "Sequence")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 6
+	// map header, size 8
 	// string "Hostname"
-	o = append(o, 0x86, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	o = append(o, 0x88, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Hostname)
 	// string "Env"
 	o = append(o, 0xa3, 0x45, 0x6e, 0x76)
@@ -786,6 +818,12 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "TracerVersion"
 	o = append(o, 0xad, 0x54, 0x72, 0x61, 0x63, 0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.TracerVersion)
+	// string "RuntimeID"
+	o = append(o, 0xa9, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x49, 0x44)
+	o = msgp.AppendString(o, z.RuntimeID)
+	// string "Sequence"
+	o = append(o, 0xa8, 0x53, 0x65, 0x71, 0x75, 0x65, 0x6e, 0x63, 0x65)
+	o = msgp.AppendUint64(o, z.Sequence)
 	return
 }
 
@@ -856,6 +894,18 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "TracerVersion")
 				return
 			}
+		case "RuntimeID":
+			z.RuntimeID, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeID")
+				return
+			}
+		case "Sequence":
+			z.Sequence, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Sequence")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -874,7 +924,7 @@ func (z *ClientStatsPayload) Msgsize() (s int) {
 	for za0001 := range z.Stats {
 		s += z.Stats[za0001].Msgsize()
 	}
-	s += 5 + msgp.StringPrefixSize + len(z.Lang) + 14 + msgp.StringPrefixSize + len(z.TracerVersion)
+	s += 5 + msgp.StringPrefixSize + len(z.Lang) + 14 + msgp.StringPrefixSize + len(z.TracerVersion) + 10 + msgp.StringPrefixSize + len(z.RuntimeID) + 9 + msgp.Uint64Size
 	return
 }
 
