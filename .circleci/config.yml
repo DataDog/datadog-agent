@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen17-godeps-{{ .Branch }}-{{ .Revision }}
-          - gen17-godeps-{{ .Branch }}-
-          - gen17-godeps-master-
+          - gen18-godeps-{{ .Branch }}-{{ .Revision }}
+          - gen18-godeps-{{ .Branch }}-
+          - gen18-godeps-master-
     - save_cache: &save_deps
-        key: gen17-godeps-{{ .Branch }}-{{ .Revision }}
+        key: gen18-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
@@ -81,10 +81,15 @@ jobs:
           name: test rtloader
           command: |
             inv rtloader.test
+      - run:
+          name: install go tooling
+          command: |
+            inv -e install-tools
       - save_cache:
           <<: *save_deps
           paths:
             - /go/pkg/mod
+            - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /usr/local/lib/python3.6/dist-packages
             - /usr/local/bin
@@ -290,7 +295,7 @@ jobs:
           name: Run tests
           command: |
             source ~/.build_setup
-
+            inv -e install-tools
             inv -e deps
             inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 

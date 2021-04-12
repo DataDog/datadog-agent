@@ -33,6 +33,27 @@ def ensure_bytes(s):
     return s
 
 
+TOOL_LIST = [
+    'github.com/client9/misspell/cmd/misspell',
+    'github.com/frapposelli/wwhrd',
+    'github.com/fzipp/gocyclo',
+    'github.com/golangci/golangci-lint/cmd/golangci-lint',
+    'github.com/gordonklaus/ineffassign',
+    'github.com/goware/modvendor',
+    'golang.org/x/lint/golint',
+    'gotest.tools/gotestsum',
+    'honnef.co/go/tools/cmd/staticcheck',
+]
+
+
+@task
+def install_tools(ctx):
+    """Install all Go tools for testing."""
+    with ctx.cd("internal/tools"):
+        for tool in TOOL_LIST:
+            ctx.run("go install {}".format(tool))
+
+
 @task()
 def test(
     ctx,
@@ -190,6 +211,7 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
+
     TMP_JSON = 'tmp.json'
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -197,7 +219,7 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
     args = {
         "go_mod": go_mod,
