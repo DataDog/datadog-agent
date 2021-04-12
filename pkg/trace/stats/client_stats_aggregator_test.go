@@ -1,0 +1,152 @@
+package stats
+
+import (
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	fuzz "github.com/google/gofuzz"
+	"github.com/stretchr/testify/assert"
+)
+
+func newTestAggregator() *ClientStatsAggregator {
+	conf := &config.AgentConfig{
+		DefaultEnv: "agentEnv",
+		Hostname:   "agentHostname",
+	}
+	a := NewClientStatsAggregator(conf, make(chan pb.StatsPayload, 100))
+	a.Start()
+	a.flushTicker.Stop()
+	return a
+}
+
+func wrapPayload(p pb.ClientStatsPayload) pb.StatsPayload {
+	return pb.StatsPayload{
+		AgentEnv:       "agentEnv",
+		AgentHostname:  "agentHostname",
+		ClientComputed: true,
+		Stats:          []pb.ClientStatsPayload{p},
+	}
+}
+
+func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
+	f := fuzz.New()
+	b := pb.ClientStatsBucket{}
+	f.Fuzz(&b)
+	b.Start = uint64(start.UnixNano())
+	stats := pb.ClientStatsPayload{
+		Stats:   []pb.ClientStatsBucket{b},
+		Version: "0.1",
+	}
+	return stats
+}
+
+func assertEqualWithNoCounts(t *testing.T, withCounts, res pb.StatsPayload) {
+	for _, p := range withCounts.Stats {
+		for _, s := range p.Stats {
+			for i := range s.Stats {
+				s.Stats[i].Hits = 0
+				s.Stats[i].Errors = 0
+				s.Stats[i].Duration = 0
+			}
+		}
+	}
+	assert.Equal(t, withCounts, res)
+}
+
+func assertAggCountsEmptyFields(t *testing.T, aggCounts pb.StatsPayload) {
+	for _, p := range aggCounts.Stats {
+		assert.Empty(t, p.Lang)
+		assert.Empty(t, p.TracerVersion)
+		assert.Empty(t, p.RuntimeID)
+		assert.Equal(t, uint64(0), p.Sequence)
+		for _, s := range p.Stats {
+			for _, b := range s.Stats {
+				assert.Nil(t, b.OkSummary)
+				assert.Nil(t, b.ErrorSummary)
+			}
+		}
+	}
+}
+
+func TestAggregatorFlushTime(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	testTime := time.Now()
+	a.flushOnTime(testTime)
+	assert.Len(a.out, 0)
+	testPayload := getTestStatsWithStart(testTime)
+	a.add(testTime, deepCopy(testPayload))
+	a.flushOnTime(testTime)
+	assert.Len(a.out, 0)
+	a.flushOnTime(testTime.Add(19 * time.Second))
+	assert.Len(a.out, 0)
+	a.flushOnTime(testTime.Add(21 * time.Second))
+	assert.Equal(<-a.out, wrapPayload(testPayload))
+	assert.Len(a.buckets, 0)
+}
+
+func TestMergeMany(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	testTime := time.Unix(time.Now().Unix(), 0)
+	merge1 := getTestStatsWithStart(testTime)
+	merge2 := getTestStatsWithStart(testTime.Add(time.Nanosecond))
+	other := getTestStatsWithStart(testTime.Add(-time.Nanosecond))
+	merge3 := getTestStatsWithStart(testTime.Add(time.Second - time.Nanosecond))
+
+	a.add(testTime, deepCopy(merge1))
+	a.add(testTime, deepCopy(merge2))
+	a.add(testTime, deepCopy(other))
+	a.add(testTime, deepCopy(merge3))
+	assert.Len(a.out, 3)
+	a.flushOnTime(testTime.Add(20 * time.Second))
+	assert.Len(a.out, 4)
+	a.flushOnTime(testTime.Add(21 * time.Second))
+	assert.Len(a.out, 5)
+
+	assertEqualWithNoCounts(t, wrapPayload(merge1), <-a.out)
+	assertEqualWithNoCounts(t, wrapPayload(merge2), <-a.out)
+	assertEqualWithNoCounts(t, wrapPayload(merge3), <-a.out)
+	assert.Equal(wrapPayload(other), <-a.out)
+	assertAggCountsEmptyFields(t, <-a.out)
+	assert.Len(a.buckets, 0)
+}
+
+func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
+	new := p
+	new.Stats = deepCopyStatsBucket(p.Stats)
+	return new
+}
+
+func deepCopyStatsBucket(s []pb.ClientStatsBucket) []pb.ClientStatsBucket {
+	if s == nil {
+		return nil
+	}
+	new := make([]pb.ClientStatsBucket, len(s))
+	for i, b := range s {
+		new[i] = b
+		new[i].Stats = deepCopyGroupedStats(b.Stats)
+	}
+	return new
+}
+
+func deepCopyGroupedStats(s []pb.ClientGroupedStats) []pb.ClientGroupedStats {
+	if s == nil {
+		return nil
+	}
+	new := make([]pb.ClientGroupedStats, len(s))
+	for i, b := range s {
+		new[i] = b
+		if b.OkSummary != nil {
+			new[i].OkSummary = make([]byte, len(b.OkSummary))
+			copy(new[i].OkSummary, b.OkSummary)
+		}
+		if b.ErrorSummary != nil {
+			new[i].ErrorSummary = make([]byte, len(b.ErrorSummary))
+			copy(new[i].ErrorSummary, b.ErrorSummary)
+		}
+	}
+	return new
+}
