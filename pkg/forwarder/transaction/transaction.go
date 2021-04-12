@@ -157,10 +157,10 @@ type Priority int
 
 const (
 	// TransactionPriorityNormal defines a transaction with a normal priority
-	TransactionPriorityNormal Priority = 0
+	TransactionPriorityNormal Priority = iota
 
 	// TransactionPriorityHigh defines a transaction with an high priority
-	TransactionPriorityHigh Priority = 1
+	TransactionPriorityHigh Priority = iota
 )
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.

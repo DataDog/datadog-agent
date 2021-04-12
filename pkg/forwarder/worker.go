@@ -40,7 +40,11 @@ type Worker struct {
 
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
-func NewWorker(highPrioChan <-chan transaction.Transaction, lowPrioChan <-chan transaction.Transaction, requeueChan chan<- transaction.Transaction, blocked *blockedEndpoints) *Worker {
+func NewWorker(
+	highPrioChan <-chan transaction.Transaction,
+	lowPrioChan <-chan transaction.Transaction,
+	requeueChan chan<- transaction.Transaction,
+	blocked *blockedEndpoints) *Worker {
 	return &Worker{
 		HighPrio:            highPrioChan,
 		LowPrio:             lowPrioChan,
