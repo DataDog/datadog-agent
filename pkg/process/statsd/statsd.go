@@ -3,7 +3,6 @@ package statsd
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -12,8 +11,8 @@ import (
 var Client *statsd.Client
 
 // Configure creates a statsd client from a dogweb.ini style config file and set it to the global Statsd.
-func Configure(cfg *config.AgentConfig) error {
-	client, err := statsd.New(fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort))
+func Configure(host string, port int) error {
+	client, err := statsd.New(fmt.Sprintf("%s:%d", host, port))
 	if err != nil {
 		return err
 	}

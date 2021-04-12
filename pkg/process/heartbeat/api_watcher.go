@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,8 +54,8 @@ func (w *apiWatcher) state() int64 {
 }
 
 // handler is meant to be passed to the `forwarder` instance responsible for flushing the data
-func (w *apiWatcher) handler() forwarder.HTTPCompletionHandler {
-	return func(_ *forwarder.HTTPTransaction, statusCode int, _ []byte, err error) {
+func (w *apiWatcher) handler() transaction.HTTPCompletionHandler {
+	return func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, err error) {
 		if err == nil && statusCode >= 200 && statusCode < 300 {
 			atomic.StoreInt64(&w.apiState, apiReachable)
 		}

@@ -44,10 +44,11 @@ To start working on the Agent, you can build the `master` branch:
 
 1. Checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
-3. Install project's dependencies: `invoke deps`.
+3. Install go tools: `invoke install-tools`.
+4. Install go dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
-5. Build the agent with `invoke agent.build --build-exclude=systemd`.
+5. Create a development `datadog.yaml` configuration file in `dev/dist/datadog.yaml`, containing a valid API key: `api_key: <API_KEY>`
+6. Build the agent with `invoke agent.build --build-exclude=systemd`.
 
     By default, the Agent will be built to use Python 3 but you can select which Python version you want to use:
 

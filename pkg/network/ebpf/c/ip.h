@@ -8,7 +8,7 @@
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
 
-static __always_inline void read_ipv6_skb(struct __sk_buff* skb, __u64 off, __u64* addr_l, __u64* addr_h) {
+static __always_inline void read_ipv6_skb(struct __sk_buff *skb, __u64 off, __u64 *addr_l, __u64 *addr_h) {
     *addr_h |= (__u64)load_word(skb, off) << 32;
     *addr_h |= (__u64)load_word(skb, off + 4);
     *addr_h = bpf_ntohll(*addr_h);
@@ -18,12 +18,12 @@ static __always_inline void read_ipv6_skb(struct __sk_buff* skb, __u64 off, __u6
     *addr_l = bpf_ntohll(*addr_l);
 }
 
-static __always_inline void read_ipv4_skb(struct __sk_buff* skb, __u64 off, __u64* addr) {
+static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u64 *addr) {
     *addr = load_word(skb, off);
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
-static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info_t* info) {
+static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info) {
     __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
@@ -62,7 +62,7 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
 
         info->tcp_flags = load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
         // TODO: Improve readability and explain the bit twiddling below
-        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct tcphdr, ack_seq) + 4)& 0xF0) >> 4)*4;
+        info->data_off += ((load_byte(skb, info->data_off + offsetof(struct tcphdr, ack_seq) + 4) & 0xF0) >> 4) * 4;
         break;
     default:
         return 0;
@@ -71,7 +71,7 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff* skb, skb_info
     return 1;
 }
 
-static __always_inline void flip_tuple(conn_tuple_t* t) {
+static __always_inline void flip_tuple(conn_tuple_t *t) {
     // TODO: we can probably replace this by swap operations
     __u16 tmp_port = t->sport;
     t->sport = t->dport;
@@ -87,7 +87,7 @@ static __always_inline void flip_tuple(conn_tuple_t* t) {
 }
 
 static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
-    if (metadata&CONN_V6) {
+    if (metadata & CONN_V6) {
         log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
     } else {
         log_debug("v4 %x:%u\n", bpf_ntohl((u32)ip_l), port);

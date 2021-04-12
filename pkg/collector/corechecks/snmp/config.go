@@ -19,6 +19,7 @@ var defaultTimeout = 2
 type snmpInitConfig struct {
 	Profiles      profileConfigMap `yaml:"profiles"`
 	GlobalMetrics []metricsConfig  `yaml:"global_metrics"`
+	OidBatchSize  Number           `yaml:"oid_batch_size"`
 }
 
 type snmpInstanceConfig struct {
@@ -28,6 +29,7 @@ type snmpInstanceConfig struct {
 	SnmpVersion      string            `yaml:"snmp_version"`
 	Timeout          Number            `yaml:"timeout"`
 	Retries          Number            `yaml:"retries"`
+	OidBatchSize     Number            `yaml:"oid_batch_size"`
 	User             string            `yaml:"user"`
 	AuthProtocol     string            `yaml:"authProtocol"`
 	AuthKey          string            `yaml:"authKey"`
@@ -68,7 +70,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	if _, ok := c.profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
-	log.Debugf("Refreshing with profile `%s` with content: %#v", profile, c.profiles[profile])
+	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
 
@@ -103,8 +105,8 @@ func (c *snmpConfig) getStaticTags() []string {
 // toString used for logging snmpConfig without sensitive information
 func (c *snmpConfig) toString() string {
 	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
-		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, metrics=`%#v`, "+
-		"metricTags=`%#v`, oidBatchSize=`%d`, profiles=`%#v`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
+		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, "+
+		"oidBatchSize=`%d`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
 		c.ipAddress,
 		c.port,
 		c.snmpVersion,
@@ -115,10 +117,7 @@ func (c *snmpConfig) toString() string {
 		c.privProtocol,
 		c.contextName,
 		c.oidConfig,
-		c.metrics,
-		c.metricTags,
 		c.oidBatchSize,
-		c.profiles,
 		c.profileTags,
 		c.uptimeMetricAdded,
 	)
@@ -177,8 +176,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.metrics = instance.Metrics
 
-	// Let's use a default batch for now and expose it as configuration if needed.
-	c.oidBatchSize = defaultOidBatchSize
+	if instance.OidBatchSize != 0 {
+		c.oidBatchSize = int(instance.OidBatchSize)
+	} else if initConfig.OidBatchSize != 0 {
+		c.oidBatchSize = int(initConfig.OidBatchSize)
+	} else {
+		c.oidBatchSize = defaultOidBatchSize
+	}
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {

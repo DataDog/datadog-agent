@@ -299,7 +299,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in `map[]`", 1},
+				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
 			},
 		},
 		{
@@ -409,8 +409,8 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
-				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in `map[]`", 1},
-				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in `map[]`", 1},
+				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in results", 1},
+				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in results", 1},
 			},
 		},
 		{

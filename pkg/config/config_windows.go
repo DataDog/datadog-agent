@@ -19,6 +19,9 @@ var (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
+	defaultSystemProbeAddress     = "localhost:3333"
+	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )
 
 // ServiceName is the name that'll be used to register the Agent
@@ -31,6 +34,7 @@ func osinit() {
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
 		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
+		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}

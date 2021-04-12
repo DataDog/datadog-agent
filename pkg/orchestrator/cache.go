@@ -12,6 +12,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +45,10 @@ var (
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
+
+	// Telemetry
+	tlmCacheHits   = telemetry.NewCounter("orchestrator", "cache_hits", []string{"orchestrator", "resource"}, "Number of cache hits")
+	tlmCacheMisses = telemetry.NewCounter("orchestrator", "cache_misses", []string{"orchestrator", "resource"}, "Number of cache misses")
 )
 
 func init() {
@@ -100,7 +105,9 @@ func incCacheHit(nodeType NodeType) {
 		clusterCacheHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+		return
 	}
+	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
 }
 
 func incCacheMiss(nodeType NodeType) {
@@ -119,5 +126,7 @@ func incCacheMiss(nodeType NodeType) {
 		clusterHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
+		return
 	}
+	tlmCacheMisses.Inc(nodeType.TelemetryTags()...)
 }

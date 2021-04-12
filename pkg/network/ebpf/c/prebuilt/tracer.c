@@ -204,18 +204,30 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
     // Retrieve addresses
     if (check_family(skp, AF_INET)) {
         t->metadata |= CONN_V4;
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
+        if (t->saddr_l == 0) {
+            bpf_probe_read(&t->saddr_l, sizeof(u32), ((char*)skp) + offset_saddr());
+        }
+        if (t->daddr_l == 0) {
+            bpf_probe_read(&t->daddr_l, sizeof(u32), ((char*)skp) + offset_daddr());
+        }
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
     } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
-        if (t->saddr_h == 0) bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
-        if (t->daddr_h == 0) bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+        if (t->saddr_h == 0) {
+            bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
+        }
+        if (t->saddr_l == 0) {
+            bpf_probe_read(&t->saddr_l, sizeof(t->saddr_l), ((char*)skp) + offset_daddr_ipv6() + 3 * sizeof(u64));
+        }
+        if (t->daddr_h == 0) {
+            bpf_probe_read(&t->daddr_h, sizeof(t->daddr_h), ((char*)skp) + offset_daddr_ipv6());
+        }
+        if (t->daddr_l == 0) {
+            bpf_probe_read(&t->daddr_l, sizeof(t->daddr_l), ((char*)skp) + offset_daddr_ipv6() + sizeof(u64));
+        }
 
         // We can only pass 4 args to bpf_trace_printk
         // so split those 2 statements to be able to log everything
@@ -269,7 +281,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk) {
-    u32 rtt = 0, rtt_var = 0;
+    u32 rtt = 0;
+    u32 rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), ((char*)sk) + offset_rtt());
     bpf_probe_read(&rtt_var, sizeof(rtt_var), ((char*)sk) + offset_rtt_var());
 
@@ -505,8 +518,12 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    if (sk) {
+        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    }
+    if (msg) {
+        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    }
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
@@ -521,8 +538,12 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct msghdr* msg = (struct msghdr*) PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    if (sk) {
+        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    }
+    if (msg) {
+        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    }
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
