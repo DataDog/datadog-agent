@@ -39,7 +39,6 @@ func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resour
 	group := res.Group
 
 	f, err := os.Open(e.EtcGroupPath())
-
 	if err != nil {
 		log.Errorf("%s: failed to open %s: %v", id, e.EtcGroupPath(), err)
 		return nil, err
@@ -99,6 +98,9 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 }
 
 type lineFunc func(line []byte) (bool, error)
+
+// Copyright (c) 2009 The Go Authors. All rights reserved.
+// Adapted from Go readGroup code
 
 func readEtcGroup(r io.Reader, fn lineFunc) error {
 	bs := bufio.NewScanner(r)
