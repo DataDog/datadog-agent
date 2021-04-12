@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"expvar"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -76,16 +77,16 @@ var (
 )
 
 func init() {
-	forwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
+	transaction.ForwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
 	newRemovalPolicyCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"new_removal_policy_count",
-		"The number of times failedTransactionRemovalPolicy is created",
+		"The number of times FileRemovalPolicy is created",
 		&removalPolicyExpvar)
 	registeredDomainCountTelemetry = newCounterExpvar(
 		"removal_policy",
 		"registered_domain_count",
-		"The number of domains registered by failedTransactionRemovalPolicy",
+		"The number of domains registered by FileRemovalPolicy",
 		&removalPolicyExpvar)
 	outdatedFilesCountTelemetry = newCounterExpvar(
 		"removal_policy",
@@ -98,7 +99,7 @@ func init() {
 		"The number of files removed from an unknown domain",
 		&removalPolicyExpvar)
 
-	forwarderExpvars.Set("TransactionContainer", &transactionContainerExpvar)
+	transaction.ForwarderExpvars.Set("TransactionContainer", &transactionContainerExpvar)
 	currentMemSizeInBytesTelemetry = newGaugeExpvar(
 		"transaction_container",
 		"current_mem_size_in_bytes",
@@ -120,7 +121,7 @@ func init() {
 		"The number of errors",
 		&transactionContainerExpvar)
 
-	forwarderExpvars.Set("FileStorage", &fileStorageExpvar)
+	transaction.ForwarderExpvars.Set("FileStorage", &fileStorageExpvar)
 	serializeCountTelemetry = newCounterExpvar(
 		"file_storage",
 		"serialize_count",
@@ -168,76 +169,78 @@ func init() {
 		&fileStorageExpvar)
 }
 
-type failedTransactionRemovalPolicyTelemetry struct{}
+// FileRemovalPolicyTelemetry handles the telemetry for FileRemovalPolicy.
+type FileRemovalPolicyTelemetry struct{}
 
-func (failedTransactionRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
+func (FileRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
 	newRemovalPolicyCountTelemetry.add(1)
 }
 
-func (failedTransactionRemovalPolicyTelemetry) addRegisteredDomainCount() {
+func (FileRemovalPolicyTelemetry) addRegisteredDomainCount() {
 	registeredDomainCountTelemetry.add(1)
 }
-func (failedTransactionRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
+func (FileRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
 	outdatedFilesCountTelemetry.add(float64(count))
 }
 
-func (failedTransactionRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
+func (FileRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
 	filesFromUnknownDomainCountTelemetry.add(float64(count))
 }
 
-type transactionContainerTelemetry struct{}
+// TransactionRetryQueueTelemetry handles the telemetry for TransactionRetryQueue
+type TransactionRetryQueueTelemetry struct{}
 
-func (transactionContainerTelemetry) setCurrentMemSizeInBytes(count int) {
+func (TransactionRetryQueueTelemetry) setCurrentMemSizeInBytes(count int) {
 	currentMemSizeInBytesTelemetry.set(float64(count))
 }
 
-func (transactionContainerTelemetry) setTransactionsCount(count int) {
+func (TransactionRetryQueueTelemetry) setTransactionsCount(count int) {
 	transactionsCountTelemetry.set(float64(count))
 }
 
-func (transactionContainerTelemetry) addTransactionsDroppedCount(count int) {
+func (TransactionRetryQueueTelemetry) addTransactionsDroppedCount(count int) {
 	transactionsDroppedCountTelemetry.add(float64(count))
 }
 
-func (transactionContainerTelemetry) incErrorsCount() {
+func (TransactionRetryQueueTelemetry) incErrorsCount() {
 	errorsCountTelemetry.add(1)
 }
 
-type transactionsFileStorageTelemetry struct{}
+type onDiskRetryQueueTelemetry struct{}
 
-func (transactionsFileStorageTelemetry) addSerializeCount() {
+func (onDiskRetryQueueTelemetry) addSerializeCount() {
 	serializeCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeCount() {
+func (onDiskRetryQueueTelemetry) addDeserializeCount() {
 	deserializeCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) setFileSize(count int64) {
+func (onDiskRetryQueueTelemetry) setFileSize(count int64) {
 	fileSizeTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) setCurrentSizeInBytes(count int64) {
+func (onDiskRetryQueueTelemetry) setCurrentSizeInBytes(count int64) {
 	currentSizeInBytesTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) setFilesCount(count int) {
+func (onDiskRetryQueueTelemetry) setFilesCount(count int) {
 	filesCountTelemetry.set(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addReloadedRetryFilesCount(count int) {
+func (onDiskRetryQueueTelemetry) addReloadedRetryFilesCount(count int) {
 	reloadedRetryFilesCountTelemetry.add(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addFilesRemovedCount() {
+func (onDiskRetryQueueTelemetry) addFilesRemovedCount() {
 	filesRemovedCountTelemetry.add(1)
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeErrorsCount(count int) {
+func (onDiskRetryQueueTelemetry) addDeserializeErrorsCount(count int) {
 	deserializeErrorsCountTelemetry.add(float64(count))
 }
 
-func (transactionsFileStorageTelemetry) addDeserializeTransactionsCount(count int) {
+func (onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
 	deserializeTransactionsCountTelemetry.add(float64(count))
 }
 

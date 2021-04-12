@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"errors"
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,21 +27,21 @@ const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 
-// TransactionsSerializer serializes Transaction instances.
+// HTTPTransactionsSerializer serializes Transaction instances.
 // To support a new Transaction implementation, add a new
-// method `func (s *TransactionsSerializer) Add(transaction NEW_TYPE) error {`
-type TransactionsSerializer struct {
+// method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
+type HTTPTransactionsSerializer struct {
 	collection          HttpTransactionProtoCollection
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
 	domain              string
 }
 
-// NewTransactionsSerializer creates a new instance of TransactionsSerializer
-func NewTransactionsSerializer(domain string, apiKeys []string) *TransactionsSerializer {
+// NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
+func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransactionsSerializer {
 	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(apiKeys)
 
-	return &TransactionsSerializer{
+	return &HTTPTransactionsSerializer{
 		collection: HttpTransactionProtoCollection{
 			Version: transactionsSerializerVersion,
 		},
@@ -53,13 +54,13 @@ func NewTransactionsSerializer(domain string, apiKeys []string) *TransactionsSer
 // Add adds a transaction to the serializer.
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
-func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
+func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
 	if transaction.Domain != s.domain {
 		// This error is not supposed to happen (Sanity check).
 		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
 	}
 
-	priority, err := toTransactionPriorityProto(transaction.priority)
+	priority, err := toTransactionPriorityProto(transaction.Priority)
 	if err != nil {
 		return err
 	}
@@ -76,12 +77,12 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
 		Domain:     "",
-		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.route), Name: endpoint.name},
+		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
 		Headers:    s.toHeaderProto(transaction.Headers),
 		Payload:    payload,
 		ErrorCount: int64(transaction.ErrorCount),
-		CreatedAt:  transaction.createdAt.Unix(),
-		Retryable:  transaction.retryable,
+		CreatedAt:  transaction.CreatedAt.Unix(),
+		Retryable:  transaction.Retryable,
 		Priority:   priority,
 	}
 	s.collection.Values = append(s.collection.Values, &transactionProto)
@@ -90,32 +91,32 @@ func (s *TransactionsSerializer) Add(transaction *HTTPTransaction) error {
 
 // GetBytesAndReset returns as bytes the serialized transactions and reset
 // the transaction collection.
-func (s *TransactionsSerializer) GetBytesAndReset() ([]byte, error) {
+func (s *HTTPTransactionsSerializer) GetBytesAndReset() ([]byte, error) {
 	out, err := proto.Marshal(&s.collection)
 	s.collection.Values = nil
 	return out, err
 }
 
 // Deserialize deserializes from bytes.
-func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, error) {
+func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Transaction, int, error) {
 	collection := HttpTransactionProtoCollection{}
 
 	if err := proto.Unmarshal(bytes, &collection); err != nil {
 		return nil, 0, err
 	}
 
-	var httpTransactions []Transaction
+	var httpTransactions []transaction.Transaction
 	errorCount := 0
-	for _, transaction := range collection.Values {
+	for _, tr := range collection.Values {
 		var route string
 		var proto http.Header
-		e := transaction.Endpoint
+		e := tr.Endpoint
 
-		priority, err := fromTransactionPriorityProto(transaction.Priority)
+		priority, err := fromTransactionPriorityProto(tr.Priority)
 		if err == nil {
 			route, err = s.restoreAPIKeys(e.Route)
 			if err == nil {
-				proto, err = s.fromHeaderProto(transaction.Headers)
+				proto, err = s.fromHeaderProto(tr.Headers)
 			}
 		}
 
@@ -124,28 +125,28 @@ func (s *TransactionsSerializer) Deserialize(bytes []byte) ([]Transaction, int, 
 			errorCount++
 			continue
 		}
-		tr := HTTPTransaction{
+		tr := transaction.HTTPTransaction{
 			Domain:         s.domain,
-			Endpoint:       endpoint{route: route, name: e.Name},
+			Endpoint:       transaction.Endpoint{Route: route, Name: e.Name},
 			Headers:        proto,
-			Payload:        &transaction.Payload,
-			ErrorCount:     int(transaction.ErrorCount),
-			createdAt:      time.Unix(transaction.CreatedAt, 0),
-			retryable:      transaction.Retryable,
-			storableOnDisk: true,
-			priority:       priority,
+			Payload:        &tr.Payload,
+			ErrorCount:     int(tr.ErrorCount),
+			CreatedAt:      time.Unix(tr.CreatedAt, 0),
+			Retryable:      tr.Retryable,
+			StorableOnDisk: true,
+			Priority:       priority,
 		}
-		tr.setDefaultHandlers()
+		tr.SetDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
 	}
 	return httpTransactions, errorCount, nil
 }
 
-func (s *TransactionsSerializer) replaceAPIKeys(str string) string {
+func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
 	return s.apiKeyToPlaceholder.Replace(str)
 }
 
-func (s *TransactionsSerializer) restoreAPIKeys(str string) (string, error) {
+func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string) (string, error) {
 	newStr := s.placeholderToAPIKey.Replace(str)
 
 	if strings.Contains(newStr, placeHolderPrefix) {
@@ -154,7 +155,7 @@ func (s *TransactionsSerializer) restoreAPIKeys(str string) (string, error) {
 	return newStr, nil
 }
 
-func (s *TransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) (http.Header, error) {
+func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*HeaderValuesProto) (http.Header, error) {
 	headers := make(http.Header)
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
@@ -170,18 +171,18 @@ func (s *TransactionsSerializer) fromHeaderProto(headersProto map[string]*Header
 	return headers, nil
 }
 
-func fromTransactionPriorityProto(priority TransactionPriorityProto) (TransactionPriority, error) {
+func fromTransactionPriorityProto(priority TransactionPriorityProto) (transaction.Priority, error) {
 	switch priority {
 	case TransactionPriorityProto_NORMAL:
-		return TransactionPriorityNormal, nil
+		return transaction.TransactionPriorityNormal, nil
 	case TransactionPriorityProto_HIGH:
-		return TransactionPriorityHigh, nil
+		return transaction.TransactionPriorityHigh, nil
 	default:
-		return TransactionPriorityNormal, fmt.Errorf("Unsupported priority %v", priority)
+		return transaction.TransactionPriorityNormal, fmt.Errorf("Unsupported priority %v", priority)
 	}
 }
 
-func (s *TransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
+func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
 		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
@@ -190,11 +191,11 @@ func (s *TransactionsSerializer) toHeaderProto(headers http.Header) map[string]*
 	return headersProto
 }
 
-func toTransactionPriorityProto(priority TransactionPriority) (TransactionPriorityProto, error) {
+func toTransactionPriorityProto(priority transaction.Priority) (TransactionPriorityProto, error) {
 	switch priority {
-	case TransactionPriorityNormal:
+	case transaction.TransactionPriorityNormal:
 		return TransactionPriorityProto_NORMAL, nil
-	case TransactionPriorityHigh:
+	case transaction.TransactionPriorityHigh:
 		return TransactionPriorityProto_HIGH, nil
 	default:
 		return TransactionPriorityProto_NORMAL, fmt.Errorf("Unsupported priority %v", priority)

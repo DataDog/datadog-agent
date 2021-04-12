@@ -1,4 +1,4 @@
-package forwarder
+package retry
 
 import (
 	"io/ioutil"
@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
+func TestFileRemovalPolicyUnknownDomain(t *testing.T) {
 	a := assert.New(t)
 	root, clean := createTmpFolder(a)
 	defer clean()
-	p, err := newFailedTransactionRemovalPolicy(root, 1, failedTransactionRemovalPolicyTelemetry{})
+	p, err := NewFileRemovalPolicy(root, 1, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
 
-	domain1, err := p.registerDomain("domain1")
+	domain1, err := p.RegisterDomain("domain1")
 	a.NoError(err)
-	domain2, err := p.registerDomain("domain2")
+	domain2, err := p.RegisterDomain("domain2")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain1, "file1")
@@ -28,21 +28,21 @@ func TestFailedTransactionRemovalPolicyUnknownDomain(t *testing.T) {
 	file3 := createRetryFile(a, path.Join(root, "unknownDomain"), "file3")
 	file4 := createFile(a, path.Join(root, "unknownDomain"), "notRetryFileMustNotBeRemoved")
 
-	pathsRemoved, err := p.removeUnknownDomains()
+	pathsRemoved, err := p.RemoveUnknownDomains()
 	a.NoError(err)
 	assertFilenamesEqual(a, []string{file3}, pathsRemoved)
 	assertFilenamesEqual(a, []string{file1, file2, file4}, getRemainingFiles(a, root))
 }
 
-func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
+func TestFileRemovalPolicyOutdatedFiles(t *testing.T) {
 	a := assert.New(t)
 	root, clean := createTmpFolder(a)
 	defer clean()
 	outDatedFileDayCount := 2
-	p, err := newFailedTransactionRemovalPolicy(root, outDatedFileDayCount, failedTransactionRemovalPolicyTelemetry{})
+	p, err := NewFileRemovalPolicy(root, outDatedFileDayCount, FileRemovalPolicyTelemetry{})
 	a.NoError(err)
 
-	domain, err := p.registerDomain("domain")
+	domain, err := p.RegisterDomain("domain")
 	a.NoError(err)
 
 	file1 := createRetryFile(a, domain, "file1")
@@ -55,22 +55,22 @@ func TestFailedTransactionRemovalPolicyOutdatedFiles(t *testing.T) {
 	modTime = time.Now().Add(time.Duration(-1*24) * time.Hour)
 	a.NoError(os.Chtimes(file3, modTime, modTime))
 
-	pathsRemoved, err := p.removeOutdatedFiles()
+	pathsRemoved, err := p.RemoveOutdatedFiles()
 	a.NoError(err)
 	assertFilenamesEqual(a, []string{file2}, pathsRemoved)
 	assertFilenamesEqual(a, []string{file1, file3}, getRemainingFiles(a, root))
 }
 
-func TestFailedTransactionRemovalPolicyExistingDomain(t *testing.T) {
+func TestFileRemovalPolicyExistingDomain(t *testing.T) {
 	a := assert.New(t)
 	root, clean := createTmpFolder(a)
 	defer clean()
-	telemetry := failedTransactionRemovalPolicyTelemetry{}
-	_, err := newFailedTransactionRemovalPolicy(root, 1, telemetry)
+	telemetry := FileRemovalPolicyTelemetry{}
+	_, err := NewFileRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)
 
 	// No error if the folder already exits.
-	_, err = newFailedTransactionRemovalPolicy(root, 1, telemetry)
+	_, err = NewFileRemovalPolicy(root, 1, telemetry)
 	a.NoError(err)
 }
 

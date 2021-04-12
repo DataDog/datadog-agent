@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package retry
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,30 +22,30 @@ import (
 const retryTransactionsExtension = ".retry"
 const retryFileFormat = "2006_01_02__15_04_05_"
 
-type transactionsFileStorage struct {
-	serializer         *TransactionsSerializer
+type onDiskRetryQueue struct {
+	serializer         *HTTPTransactionsSerializer
 	storagePath        string
-	maxStorage         *forwarderMaxStorage
+	diskUsageLimit     *diskUsageLimit
 	filenames          []string
 	currentSizeInBytes int64
-	telemetry          transactionsFileStorageTelemetry
+	telemetry          onDiskRetryQueueTelemetry
 }
 
-func newTransactionsFileStorage(
-	serializer *TransactionsSerializer,
+func newOnDiskRetryQueue(
+	serializer *HTTPTransactionsSerializer,
 	storagePath string,
-	maxStorage *forwarderMaxStorage,
-	telemetry transactionsFileStorageTelemetry) (*transactionsFileStorage, error) {
+	diskUsageLimit *diskUsageLimit,
+	telemetry onDiskRetryQueueTelemetry) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
-	storage := &transactionsFileStorage{
-		serializer:  serializer,
-		storagePath: storagePath,
-		maxStorage:  maxStorage,
-		telemetry:   telemetry,
+	storage := &onDiskRetryQueue{
+		serializer:     serializer,
+		storagePath:    storagePath,
+		diskUsageLimit: diskUsageLimit,
+		telemetry:      telemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -53,13 +54,13 @@ func newTransactionsFileStorage(
 
 	// Check if there is an error when computing the available space
 	// in this function to warn the user sooner (and not when there is an outage)
-	_, err := maxStorage.computeMaxStorage(0)
+	_, err := diskUsageLimit.computeAvailableSpace(0)
 
 	return storage, err
 }
 
 // Serialize serializes transactions to the file system.
-func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
+func (s *onDiskRetryQueue) Serialize(transactions []transaction.Transaction) error {
 	s.telemetry.addSerializeCount()
 
 	// Reset the serializer in case some transactions were serialized
@@ -103,7 +104,7 @@ func (s *transactionsFileStorage) Serialize(transactions []Transaction) error {
 }
 
 // Deserialize deserializes a transactions from the file system.
-func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
+func (s *onDiskRetryQueue) Deserialize() ([]transaction.Transaction, error) {
 	if len(s.filenames) == 0 {
 		return nil, nil
 	}
@@ -133,22 +134,22 @@ func (s *transactionsFileStorage) Deserialize() ([]Transaction, error) {
 }
 
 // GetFileCount returns the current files count.
-func (s *transactionsFileStorage) getFilesCount() int {
+func (s *onDiskRetryQueue) getFilesCount() int {
 	return len(s.filenames)
 }
 
 // getCurrentSizeInBytes returns the current disk space used.
-func (s *transactionsFileStorage) getCurrentSizeInBytes() int64 {
+func (s *onDiskRetryQueue) getCurrentSizeInBytes() int64 {
 	return s.currentSizeInBytes
 }
 
-func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
-	maxSizeInBytes := s.maxStorage.getMaxSizeInBytes()
+func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
+	maxSizeInBytes := s.diskUsageLimit.getMaxSizeInBytes()
 	if bufferSize > maxSizeInBytes {
 		return fmt.Errorf("The payload is too big. Current:%v Maximum:%v", bufferSize, maxSizeInBytes)
 	}
 
-	maxStorageInBytes, err := s.maxStorage.computeMaxStorage(s.currentSizeInBytes)
+	maxStorageInBytes, err := s.diskUsageLimit.computeAvailableSpace(s.currentSizeInBytes)
 	if err != nil {
 		return err
 	}
@@ -165,7 +166,7 @@ func (s *transactionsFileStorage) makeRoomFor(bufferSize int64) error {
 	return nil
 }
 
-func (s *transactionsFileStorage) removeFileAt(index int) error {
+func (s *onDiskRetryQueue) removeFileAt(index int) error {
 	filename := s.filenames[index]
 
 	// Remove the file from s.filenames also in case of error to not
@@ -185,7 +186,7 @@ func (s *transactionsFileStorage) removeFileAt(index int) error {
 	return nil
 }
 
-func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
+func (s *onDiskRetryQueue) reloadExistingRetryFiles() error {
 	files, sizeInBytes, err := s.getExistingRetryFiles()
 	if err != nil {
 		return err
@@ -205,7 +206,7 @@ func (s *transactionsFileStorage) reloadExistingRetryFiles() error {
 	return nil
 }
 
-func (s *transactionsFileStorage) getExistingRetryFiles() ([]os.FileInfo, int64, error) {
+func (s *onDiskRetryQueue) getExistingRetryFiles() ([]os.FileInfo, int64, error) {
 	entries, err := ioutil.ReadDir(s.storagePath)
 	if err != nil {
 		return nil, 0, err
