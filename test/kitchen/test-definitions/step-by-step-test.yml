@@ -3,6 +3,10 @@ suites:
 # Installs the latest release candidate using the step-by-step instructions (on dogweb)
 - name: dd-agent-step-by-step
   run_list:
+    <% if ENV['FIPS'] == 'true' %>
+    - "recipe[dd-agent-enable-fips::enable]"
+    - "recipe[dd-agent-enable-fips::ensure]"
+    <% end %>
     - "recipe[dd-agent-disable-system-repos]"
     - "recipe[dd-agent-sles-workaround]"
     - "recipe[dd-agent-step-by-step]"
