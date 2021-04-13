@@ -249,8 +249,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
-	_ = p.resolvers.ResolveProcessContextUser(&entry.ProcessContext)
-	_ = p.resolvers.ResolveProcessContextGroup(&entry.ProcessContext)
+	p.SetProcessUsersGroups(entry)
+
 	return nil
 }
 
@@ -523,6 +523,17 @@ func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 		pce.TTYName = tty
 	}
 	return pce.TTYName
+}
+
+// SetUsersGroups resolves and set users and groups
+func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
+	pce.User, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.UID))
+	pce.EUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.EUID))
+	pce.FSUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+
+	pce.Group, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.GID))
+	pce.EGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
+	pce.FSGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
 }
 
 // Get returns the cache entry for a specified pid

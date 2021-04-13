@@ -269,39 +269,20 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 	return &t
 }
 
-func newCredentialsSerializer(ce *model.Credentials, e *Event) *CredentialsSerializer {
-	return &CredentialsSerializer{
-		UID:          e.ResolveCredentialsUID(ce),
-		User:         e.ResolveCredentialsUser(ce),
-		EUID:         e.ResolveCredentialsEUID(ce),
-		EUser:        e.ResolveCredentialsEUser(ce),
-		FSUID:        e.ResolveCredentialsFSUID(ce),
-		FSUser:       e.ResolveCredentialsFSUser(ce),
-		GID:          e.ResolveCredentialsGID(ce),
-		Group:        e.ResolveCredentialsGroup(ce),
-		EGID:         e.ResolveCredentialsEGID(ce),
-		EGroup:       e.ResolveCredentialsEGroup(ce),
-		FSGID:        e.ResolveCredentialsFSGID(ce),
-		FSGroup:      e.ResolveCredentialsFSGroup(ce),
-		CapEffective: JStringArray(model.KernelCapability(e.ResolveCredentialsCapEffective(ce)).StringArray()),
-		CapPermitted: JStringArray(model.KernelCapability(e.ResolveCredentialsCapPermitted(ce)).StringArray()),
-	}
-}
-
-func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) *CredentialsSerializer {
+func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	return &CredentialsSerializer{
 		UID:          int(ce.UID),
-		User:         r.ResolveCredentialsUser(ce),
+		User:         ce.User,
 		EUID:         int(ce.EUID),
-		EUser:        r.ResolveCredentialsEUser(ce),
+		EUser:        ce.EUser,
 		FSUID:        int(ce.FSUID),
-		FSUser:       r.ResolveCredentialsFSUser(ce),
+		FSUser:       ce.FSUser,
 		GID:          int(ce.GID),
-		Group:        r.ResolveCredentialsGroup(ce),
+		Group:        ce.Group,
 		EGID:         int(ce.EGID),
-		EGroup:       r.ResolveCredentialsEGroup(ce),
+		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
-		FSGroup:      r.ResolveCredentialsFSGroup(ce),
+		FSGroup:      ce.FSGroup,
 		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
 		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
 	}
@@ -348,7 +329,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		EnvsTruncated: pce.Process.EnvsTruncated,
 	}
 
-	credsSerializer := newCredentialsSerializer(&pce.Credentials, e)
+	credsSerializer := newCredentialsSerializer(&pce.Credentials)
 	// Populate legacy user / group fields
 	pceSerializer.UID = credsSerializer.UID
 	pceSerializer.User = credsSerializer.User
@@ -385,7 +366,7 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, r),
 	}
 
-	credsSerializer := newCredentialsSerializerWithResolvers(&pce.Credentials, r)
+	credsSerializer := newCredentialsSerializer(&pce.Credentials)
 	// Populate legacy user / group fields
 	pceSerializer.UID = credsSerializer.UID
 	pceSerializer.User = credsSerializer.User

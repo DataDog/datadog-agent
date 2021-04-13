@@ -504,20 +504,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapEffective)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.cap_permitted":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapPermitted)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.comm":
@@ -554,20 +554,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.EGID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.egroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.EGroup
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.envs":
@@ -595,20 +595,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.EUID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.euser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.EUser
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.container_path":
@@ -735,60 +735,60 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSGID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsgroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.FSGroup
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsuid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSUID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsuser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.FSUser
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.GID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.pid":
@@ -835,20 +835,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.UID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.User
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.file.container_path":
@@ -1459,7 +1459,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.CapEffective)
 
 					results = append(results, result)
 
@@ -1490,7 +1490,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 					results = append(results, result)
 
@@ -1614,7 +1614,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.EGID)
 
 					results = append(results, result)
 
@@ -1645,7 +1645,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.EGroup
 
 					results = append(results, result)
 
@@ -1676,7 +1676,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.EUID)
 
 					results = append(results, result)
 
@@ -1707,7 +1707,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.EUser
 
 					results = append(results, result)
 
@@ -2110,7 +2110,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.FSGID)
 
 					results = append(results, result)
 
@@ -2141,7 +2141,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.FSGroup
 
 					results = append(results, result)
 
@@ -2172,7 +2172,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.FSUID)
 
 					results = append(results, result)
 
@@ -2203,7 +2203,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.FSUser
 
 					results = append(results, result)
 
@@ -2234,7 +2234,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.GID)
 
 					results = append(results, result)
 
@@ -2265,7 +2265,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.Group
 
 					results = append(results, result)
 
@@ -2420,7 +2420,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.UID)
 
 					results = append(results, result)
 
@@ -2451,7 +2451,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.User
 
 					results = append(results, result)
 
@@ -2468,20 +2468,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapEffective)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.cap_permitted":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapPermitted)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.comm":
@@ -2518,40 +2518,40 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.egroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.euser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.container_path":
@@ -2678,60 +2678,60 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsgroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsuid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsuser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.GID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.pid":
@@ -2778,20 +2778,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.UID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.file.container_path":
@@ -4743,11 +4743,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.cap_effective":
 
-		return int(e.ResolveCredentialsCapEffective(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.CapEffective), nil
 
 	case "exec.cap_permitted":
 
-		return int(e.ResolveCredentialsCapPermitted(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.CapPermitted), nil
 
 	case "exec.comm":
 
@@ -4763,11 +4763,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.egid":
 
-		return int(e.ResolveCredentialsEGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.EGID), nil
 
 	case "exec.egroup":
 
-		return e.ResolveCredentialsEGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.EGroup, nil
 
 	case "exec.envs":
 
@@ -4779,11 +4779,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.euid":
 
-		return int(e.ResolveCredentialsEUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.EUID), nil
 
 	case "exec.euser":
 
-		return e.ResolveCredentialsEUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.EUser, nil
 
 	case "exec.file.container_path":
 
@@ -4835,27 +4835,27 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.fsgid":
 
-		return int(e.ResolveCredentialsFSGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.FSGID), nil
 
 	case "exec.fsgroup":
 
-		return e.ResolveCredentialsFSGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.FSGroup, nil
 
 	case "exec.fsuid":
 
-		return int(e.ResolveCredentialsFSUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.FSUID), nil
 
 	case "exec.fsuser":
 
-		return e.ResolveCredentialsFSUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.FSUser, nil
 
 	case "exec.gid":
 
-		return int(e.ResolveCredentialsGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.GID), nil
 
 	case "exec.group":
 
-		return e.ResolveCredentialsGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.Group, nil
 
 	case "exec.pid":
 
@@ -4875,11 +4875,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.uid":
 
-		return int(e.ResolveCredentialsUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.UID), nil
 
 	case "exec.user":
 
-		return e.ResolveCredentialsUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.User, nil
 
 	case "link.file.container_path":
 
@@ -5130,7 +5130,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.CapEffective)
 
 			values = append(values, result)
 
@@ -5152,7 +5152,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 			values = append(values, result)
 
@@ -5240,7 +5240,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.EGID)
 
 			values = append(values, result)
 
@@ -5262,7 +5262,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
 
@@ -5284,7 +5284,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.EUID)
 
 			values = append(values, result)
 
@@ -5306,7 +5306,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.EUser
 
 			values = append(values, result)
 
@@ -5592,7 +5592,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.FSGID)
 
 			values = append(values, result)
 
@@ -5614,7 +5614,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.FSGroup
 
 			values = append(values, result)
 
@@ -5636,7 +5636,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.FSUID)
 
 			values = append(values, result)
 
@@ -5658,7 +5658,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.FSUser
 
 			values = append(values, result)
 
@@ -5680,7 +5680,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.GID)
 
 			values = append(values, result)
 
@@ -5702,7 +5702,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.Group
 
 			values = append(values, result)
 
@@ -5812,7 +5812,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.UID)
 
 			values = append(values, result)
 
@@ -5834,7 +5834,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.User
 
 			values = append(values, result)
 
@@ -5845,11 +5845,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.cap_effective":
 
-		return int(e.ResolveCredentialsCapEffective(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
 
 	case "process.cap_permitted":
 
-		return int(e.ResolveCredentialsCapPermitted(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.CapPermitted), nil
 
 	case "process.comm":
 
@@ -5865,19 +5865,19 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.egid":
 
-		return int(e.ResolveCredentialsEGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.EGID), nil
 
 	case "process.egroup":
 
-		return e.ResolveCredentialsEGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.EGroup, nil
 
 	case "process.euid":
 
-		return int(e.ResolveCredentialsEUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.EUID), nil
 
 	case "process.euser":
 
-		return e.ResolveCredentialsEUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.EUser, nil
 
 	case "process.file.container_path":
 
@@ -5929,27 +5929,27 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.fsgid":
 
-		return int(e.ResolveCredentialsFSGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.FSGID), nil
 
 	case "process.fsgroup":
 
-		return e.ResolveCredentialsFSGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.FSGroup, nil
 
 	case "process.fsuid":
 
-		return int(e.ResolveCredentialsFSUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.FSUID), nil
 
 	case "process.fsuser":
 
-		return e.ResolveCredentialsFSUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.FSUser, nil
 
 	case "process.gid":
 
-		return int(e.ResolveCredentialsGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.GID), nil
 
 	case "process.group":
 
-		return e.ResolveCredentialsGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.Group, nil
 
 	case "process.pid":
 
@@ -5969,11 +5969,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.uid":
 
-		return int(e.ResolveCredentialsUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.UID), nil
 
 	case "process.user":
 
-		return e.ResolveCredentialsUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.User, nil
 
 	case "removexattr.file.container_path":
 

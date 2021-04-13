@@ -192,23 +192,23 @@ type CapsetEvent struct {
 
 // Credentials represents the kernel credentials of a process
 type Credentials struct {
-	UID   uint32 `field:"uid,ResolveCredentialsUID"`
-	GID   uint32 `field:"gid,ResolveCredentialsGID"`
-	User  string `field:"user,ResolveCredentialsUser"`
-	Group string `field:"group,ResolveCredentialsGroup"`
+	UID   uint32 `field:"uid"`
+	GID   uint32 `field:"gid"`
+	User  string `field:"user"`
+	Group string `field:"group"`
 
-	EUID   uint32 `field:"euid,ResolveCredentialsEUID"`
-	EGID   uint32 `field:"egid,ResolveCredentialsEGID"`
-	EUser  string `field:"euser,ResolveCredentialsEUser"`
-	EGroup string `field:"egroup,ResolveCredentialsEGroup"`
+	EUID   uint32 `field:"euid"`
+	EGID   uint32 `field:"egid"`
+	EUser  string `field:"euser"`
+	EGroup string `field:"egroup"`
 
-	FSUID   uint32 `field:"fsuid,ResolveCredentialsFSUID"`
-	FSGID   uint32 `field:"fsgid,ResolveCredentialsFSGID"`
-	FSUser  string `field:"fsuser,ResolveCredentialsFSUser"`
-	FSGroup string `field:"fsgroup,ResolveCredentialsFSGroup"`
+	FSUID   uint32 `field:"fsuid"`
+	FSGID   uint32 `field:"fsgid"`
+	FSUser  string `field:"fsuser"`
+	FSGroup string `field:"fsgroup"`
 
-	CapEffective uint64 `field:"cap_effective,ResolveCredentialsCapEffective"`
-	CapPermitted uint64 `field:"cap_permitted,ResolveCredentialsCapPermitted"`
+	CapEffective uint64 `field:"cap_effective"`
+	CapPermitted uint64 `field:"cap_permitted"`
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one

@@ -595,12 +595,12 @@ func TestProcessMetadata(t *testing.T) {
 		} else {
 			assert.Equal(t, event.GetType(), "exec", "wrong event type")
 
-			assert.Equal(t, event.ResolveCredentialsUID(&event.Exec.Credentials), 1001, "wrong uid")
-			assert.Equal(t, event.ResolveCredentialsEUID(&event.Exec.Credentials), 1001, "wrong euid")
-			assert.Equal(t, event.ResolveCredentialsFSUID(&event.Exec.Credentials), 1001, "wrong fsuid")
-			assert.Equal(t, event.ResolveCredentialsGID(&event.Exec.Credentials), 2001, "wrong gid")
-			assert.Equal(t, event.ResolveCredentialsEGID(&event.Exec.Credentials), 2001, "wrong egid")
-			assert.Equal(t, event.ResolveCredentialsFSGID(&event.Exec.Credentials), 2001, "wrong fsgid")
+			assert.Equal(t, event.Exec.Credentials.UID, 1001, "wrong uid")
+			assert.Equal(t, event.Exec.Credentials.EUID, 1001, "wrong euid")
+			assert.Equal(t, event.Exec.Credentials.FSUID, 1001, "wrong fsuid")
+			assert.Equal(t, event.Exec.Credentials.GID, 2001, "wrong gid")
+			assert.Equal(t, event.Exec.Credentials.EGID, 2001, "wrong egid")
+			assert.Equal(t, event.Exec.Credentials.FSGID, 2001, "wrong fsgid")
 		}
 	})
 }

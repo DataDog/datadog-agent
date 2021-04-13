@@ -177,22 +177,6 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
-// ResolveProcessContextUser resolves the user id of the process to a username
-func (r *Resolvers) ResolveProcessContextUser(p *model.ProcessContext) string {
-	if len(p.User) == 0 {
-		p.User, _ = r.UserGroupResolver.ResolveUser(int(p.UID))
-	}
-	return p.User
-}
-
-// ResolveProcessContextGroup resolves the group id of the process to a group name
-func (r *Resolvers) ResolveProcessContextGroup(p *model.ProcessContext) string {
-	if len(p.Group) == 0 {
-		p.Group, _ = r.UserGroupResolver.ResolveGroup(int(p.GID))
-	}
-	return p.Group
-}
-
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
