@@ -77,6 +77,7 @@ def test(
     cache=True,
     skip_linters=False,
     save_result_json=None,
+    rerun_fails=None,
     go_mod="mod",
 ):
     """
@@ -218,8 +219,8 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
+    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
@@ -233,6 +234,7 @@ def test(
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
+        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
     }
 
     failed_modules = []
@@ -245,7 +247,7 @@ def test(
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
-                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    packages=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
                     **args
                 ),
                 env=env,
