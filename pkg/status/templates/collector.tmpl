@@ -118,15 +118,3 @@ Collector
     {{- end }}
   {{- end}}
 {{- end }}
-
-{{- with .AutodiscoveryErrors }}
-  Autodiscovery Errors
-  ====================
-    {{range $identifier, $errors := . }}
-    {{$identifier}}
-    {{printDashes $identifier "-"}}
-      {{- range $idx, $err := $errors}}
-        {{$err}}
-      {{- end }}
-    {{ end }}
-{{- end }}

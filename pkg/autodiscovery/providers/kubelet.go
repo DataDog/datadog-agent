@@ -29,14 +29,14 @@ const (
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
-	Errors  map[string][]string
+	Errors  map[string]map[string]bool
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeletConfigProvider{
-		Errors: make(map[string][]string),
+		Errors: make(map[string]map[string]bool),
 	}, nil
 }
 
@@ -96,30 +96,23 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
-		adErrors := []string{}
-		validIDs := map[string]bool{}
+		adErrors := []error{}
+		containerIdentifiers := map[string]bool{}
 		containerNames := map[string]bool{}
-
-		errorKeys := map[string]bool{}
-		for _, err := range k.Errors[pod.Metadata.Name] {
-			if _, ok := errorKeys[err]; !ok {
-				errorKeys[err] = true
-			}
-		}
 
 		for _, container := range pod.Status.GetAllContainers() {
 			adIdentifier := container.Name
 			containerNames[container.Name] = true
 			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, container.Name); customIDFound {
 				adIdentifier = customADIdentifier
+				containerIdentifiers[customADIdentifier] = true
 			}
-			validIDs[adIdentifier] = true
 
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, adIdentifier))
 
 			for _, err := range errors {
-				adErrors = append(adErrors, fmt.Sprintf("%v", err))
+				adErrors = append(adErrors, err)
 			}
 
 			for idx := range c {
@@ -128,12 +121,14 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 
 			configs = append(configs, c...)
 		}
-		adErrors = append(adErrors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, validIDs, containerNames, adPrefix)...)
+		adErrors = append(adErrors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames, adPrefix)...)
 		for _, err := range adErrors {
 			log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
-			if _, ok := errorKeys[err]; !ok {
-				k.Errors[pod.Metadata.Name] = append(k.Errors[pod.Metadata.Name], err)
-				errorKeys[err] = true
+			_, found := k.Errors[pod.Metadata.Name]
+			if !found {
+				k.Errors[pod.Metadata.Name] = map[string]bool{err.Error(): true}
+			} else {
+				k.Errors[pod.Metadata.Name][err.Error()] = true
 			}
 		}
 	}

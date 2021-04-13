@@ -25,7 +25,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 		desc        string
 		pod         *kubelet.Pod
 		expectedCfg []integration.Config
-		expectedErr []string
+		expectedErr map[string]bool
 	}{
 		{
 			desc: "No annotations",
@@ -256,10 +256,10 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 			},
 			expectedCfg: nil,
-			expectedErr: []string{
-				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier",
-				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier",
-				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier",
+			expectedErr: map[string]bool{
+				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier":  true,
+				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier": true,
+				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier":    true,
 			},
 		},
 	} {

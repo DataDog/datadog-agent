@@ -6,6 +6,7 @@
 package utils
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want []string
+		want []error
 	}{
 		{
 			name: "match",
@@ -71,7 +72,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 				adPrefix: "ad.datadoghq.com/",
 			},
-			want: []string{},
+			want: []error{},
 		},
 		{
 			name: "no match",
@@ -89,10 +90,10 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 				adPrefix: "ad.datadoghq.com/",
 			},
-			want: []string{
-				"annotation ad.datadoghq.com/nginx.check_names is invalid: nginx doesn't match a container identifier",
-				"annotation ad.datadoghq.com/nginx.init_configs is invalid: nginx doesn't match a container identifier",
-				"annotation ad.datadoghq.com/nginx.instances is invalid: nginx doesn't match a container identifier",
+			want: []error{
+				fmt.Errorf("annotation ad.datadoghq.com/nginx.check_names is invalid: nginx doesn't match a container identifier"),
+				fmt.Errorf("annotation ad.datadoghq.com/nginx.init_configs is invalid: nginx doesn't match a container identifier"),
+				fmt.Errorf("annotation ad.datadoghq.com/nginx.instances is invalid: nginx doesn't match a container identifier"),
 			},
 		},
 		{
@@ -106,7 +107,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 				adPrefix: "ad.datadoghq.com/",
 			},
-			want: []string{},
+			want: []error{},
 		},
 		{
 			name: "check.id match",
@@ -125,7 +126,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 				adPrefix: "ad.datadoghq.com/",
 			},
-			want: []string{},
+			want: []error{},
 		},
 		{
 			name: "check.id no match",
@@ -144,8 +145,8 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 				adPrefix: "ad.datadoghq.com/",
 			},
-			want: []string{
-				"annotation ad.datadoghq.com/nginx.check.id is invalid: nginx doesn't match a container identifier",
+			want: []error{
+				fmt.Errorf("annotation ad.datadoghq.com/nginx.check.id is invalid: nginx doesn't match a container identifier"),
 			},
 		},
 	}

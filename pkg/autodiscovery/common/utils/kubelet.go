@@ -22,20 +22,25 @@ func GetCustomCheckID(annotations map[string]string, containerName string) (stri
 }
 
 // ValidateAnnotationsMatching detects if AD annotations don't match a valid container identifier
-func ValidateAnnotationsMatching(annotations map[string]string, validIDs map[string]bool, containerNames map[string]bool, adPrefix string) []string {
-	var errors []string
+func ValidateAnnotationsMatching(annotations map[string]string, containerIdentifiers map[string]bool, containerNames map[string]bool, adPrefix string) []error {
+	var errors []error
 	adAnnotation := fmt.Sprintf(`%s.+\..+`, adPrefix)
 	checkIDAnnotation := fmt.Sprintf(checkIDAnnotationFormat, ".+\\")
+	if len(containerIdentifiers) == 0 {
+		containerIdentifiers = containerNames
+	}
 
 	for annotation := range annotations {
 		if matched, _ := regexp.MatchString(checkIDAnnotation, annotation); matched {
+			// validate check.id annotation
 			err := validateIdentifier(annotation, containerNames, adPrefix)
-			if err != "" {
+			if err != nil {
 				errors = append(errors, err)
 			}
 		} else if matched, _ := regexp.MatchString(adAnnotation, annotation); matched {
-			err := validateIdentifier(annotation, validIDs, adPrefix)
-			if err != "" {
+			// validate other AD annotations
+			err := validateIdentifier(annotation, containerIdentifiers, adPrefix)
+			if err != nil {
 				errors = append(errors, err)
 			}
 		}
@@ -43,10 +48,10 @@ func ValidateAnnotationsMatching(annotations map[string]string, validIDs map[str
 	return errors
 }
 
-func validateIdentifier(annotation string, validIDs map[string]bool, adPrefix string) string {
+func validateIdentifier(annotation string, containerIdentifiers map[string]bool, adPrefix string) error {
 	id := strings.Split(annotation[len(adPrefix):], ".")[0]
-	if found := validIDs[id]; !found {
-		return fmt.Sprintf("annotation %s is invalid: %s doesn't match a container identifier", annotation, id)
+	if found := containerIdentifiers[id]; !found {
+		return fmt.Errorf("annotation %s is invalid: %s doesn't match a container identifier", annotation, id)
 	}
-	return ""
+	return nil
 }

@@ -1,0 +1,20 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}
+
+{{- with . }}
+=============
+Autodiscovery
+=============
+
+  Errors
+  ======
+    {{range $identifier, $errors := . }}
+    {{$identifier}}
+    {{printDashes $identifier "-"}}
+      {{- range $idx, $err := $errors}}
+        {{$idx}}
+      {{- end }}
+    {{ end }}
+{{- end }}

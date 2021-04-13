@@ -33,7 +33,6 @@ func FormatStatus(data []byte) (string, error) {
 	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	autodiscoveryErrors := stats["autodiscoveryErrors"]
 	aggregatorStats := stats["aggregatorStats"]
 	dogstatsdStats := stats["dogstatsdStats"]
 	logsStats := stats["logsStats"]
@@ -42,10 +41,11 @@ func FormatStatus(data []byte) (string, error) {
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
+	autodiscoveryErrors := stats["autodiscoveryErrors"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, autodiscoveryErrors, inventoriesStats, "")
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
 	renderStatusTemplate(b, "/jmxfetch.tmpl", stats)
 	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
@@ -61,6 +61,9 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	if traps.IsEnabled() {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	}
+	if config.IsKubernetes() {
+		renderStatusTemplate(b, "/autodiscovery.tmpl", autodiscoveryErrors)
 	}
 
 	return b.String(), nil
@@ -82,7 +85,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
-	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, nil, "")
+	renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, "")
 	renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats)
 	renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos)
 	if config.Datadog.GetBool("compliance_config.enabled") {
@@ -135,14 +138,13 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, autodiscoveryErrors, inventoriesStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["pyLoaderStats"] = pyLoaderStats
 	checkStats["pythonInit"] = pythonInit
 	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["CheckSchedulerStats"] = checkSchedulerStats
-	checkStats["AutodiscoveryErrors"] = autodiscoveryErrors
 	checkStats["OnlyCheck"] = onlyCheck
 	checkStats["CheckMetadata"] = inventoriesStats
 	renderStatusTemplate(w, "/collector.tmpl", checkStats)
@@ -158,9 +160,8 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	pythonInit := stats["pythonInit"]
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
-	autodiscoveryErrors := stats["autodiscoveryErrors"]
 	inventoriesStats := stats["inventories"]
-	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, autodiscoveryErrors, inventoriesStats, checkName)
+	renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName)
 
 	return b.String(), nil
 }

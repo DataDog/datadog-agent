@@ -649,29 +649,17 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	})
 }
 
-// GetAutodiscoveryErrors fetches configuration errors based on the configuration provider
-func GetAutodiscoveryErrors(cp config.ConfigurationProviders) map[string][]string {
-	factory, found := providers.ProviderCatalog[cp.Name]
-	if found {
-		configProvider, err := factory(cp)
-		if err != nil {
-			log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
-			return nil
-		}
-		_, err = configProvider.Collect()
-		if err != nil {
-			log.Errorf("Unexpected error returned when collecting configurations from provider %v: %v", configProvider.String(), err)
-			return nil
-		}
-
-		if configProvider.String() == "kubernetes" {
-			return configProvider.(*providers.KubeletConfigProvider).Errors
-		} else {
-			log.Errorf("Unknown configuration provider %v", configProvider.String())
-			return nil
-		}
-	} else {
-		log.Errorf("Configuration provider %v not found", cp.Name)
+// GetKubernetesAutodiscoveryErrors fetches configuration errors from the kubelet ConfigProvider
+func GetKubernetesAutodiscoveryErrors() map[string]map[string]bool {
+	cp, err := providers.NewKubeletConfigProvider(config.ConfigurationProviders{})
+	if err != nil {
+		log.Errorf("Error creating kubelet config provider: %v", err)
+		return nil
 	}
-	return nil
+	_, err = cp.Collect()
+	if err != nil {
+		log.Errorf("Unexpected error returned when collecting configurations from provider %v: %v", cp.String(), err)
+		return nil
+	}
+	return cp.(*providers.KubeletConfigProvider).Errors
 }

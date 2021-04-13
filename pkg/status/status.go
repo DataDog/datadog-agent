@@ -80,8 +80,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if config.IsKubernetes() {
-		cp := config.ConfigurationProviders{Name: "kubelet"}
-		stats["autodiscoveryErrors"] = autodiscovery.GetAutodiscoveryErrors(cp)
+		stats["autodiscoveryErrors"] = autodiscovery.GetKubernetesAutodiscoveryErrors()
 	}
 
 	return stats, nil
