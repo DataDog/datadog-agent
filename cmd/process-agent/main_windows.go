@@ -75,7 +75,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					close(exit)
 					break
 				default:
-					elog.Warning(0xc000000A, string(c.Cmd))
+					elog.Warning(0xc000000A, fmt.Sprint(c.Cmd))
 				}
 			}
 		}

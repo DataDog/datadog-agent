@@ -12,9 +12,13 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -24,34 +28,31 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
 	elog           debug.Log
-	defaultLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
+	defaultLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
 
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
-
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
 )
 
 func init() {
-	pd, err := winutil.GetProgramDataDirForProduct("Datadog Dogstatsd")
+	// ISSUE: We need to make change to the MSI to install Security Agent.
+	pd, err := winutil.GetProgramDataDirForProduct("Datadog Security Agent")
 	if err == nil {
 		DefaultConfPath = pd
-		defaultLogFile = filepath.Join(pd, "logs", "dogstatsd.log")
+		defaultLogFile = filepath.Join(pd, "logs", "security-agent.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultLogFile)
 	}
 }
 
 // ServiceName is the name of the service in service control manager
-const ServiceName = "dogstatsd"
+const ServiceName = "datadog-security-agent"
 
 // EnableLoggingToFile -- set up logging to file
 
@@ -62,8 +63,12 @@ func main() {
 
 	// go_expvar server
 	go func() {
-		port := config.Datadog.GetInt("dogstatsd_stats_port")
-		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
+		var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
+		coreconfig.Datadog.Set("expvar_port", port)
+		if coreconfig.Datadog.GetBool("telemetry.enabled") {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating expvar server on port %v: %v", port, err)
 		}
@@ -74,13 +79,13 @@ func main() {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
-		confPath = DefaultConfPath
+		// confPath = DefaultConfPath
 		runService(false)
 		return
 	}
 	defer log.Flush()
 
-	if err = dogstatsdCmd.Execute(); err != nil {
+	if err = app.SecurityAgentCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
@@ -91,51 +96,49 @@ type myservice struct{}
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := runAgent(ctx)
+	err := app.RunAgent(ctx)
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
-		stopAgent(cancel)
+		app.StopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
 	elog.Info(0x40000003, ServiceName)
 
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 loop:
-	for {
-		select {
-		case c := <-r:
-			switch c.Cmd {
-			case svc.Interrogate:
-				changes <- c.CurrentStatus
-				// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
-				time.Sleep(100 * time.Millisecond)
-				changes <- c.CurrentStatus
-			case svc.Stop:
-				log.Info("Received stop message from service control manager")
-				elog.Info(0x4000000b, ServiceName)
-				break loop
-			case svc.Shutdown:
-				log.Info("Received shutdown message from service control manager")
-				elog.Info(0x4000000c, ServiceName)
-				break loop
-			default:
-				log.Warnf("unexpected control request #%d", c)
-				elog.Warning(0xc0000005, fmt.Sprint(c.Cmd))
-			}
+	for c := range r {
+		switch c.Cmd {
+		case svc.Interrogate:
+			changes <- c.CurrentStatus
+			// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
+			time.Sleep(100 * time.Millisecond)
+			changes <- c.CurrentStatus
+		case svc.Stop:
+			log.Info("Received stop message from service control manager")
+			elog.Info(0x4000000b, ServiceName)
+			break loop
+		case svc.Shutdown:
+			log.Info("Received shutdown message from service control manager")
+			elog.Info(0x4000000c, ServiceName)
+			break loop
+		default:
+			log.Warnf("unexpected control request #%d", c)
+			elog.Warning(0xc0000005, fmt.Sprint(c.Cmd))
 		}
 	}
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	stopAgent(cancel)
+	app.StopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }
