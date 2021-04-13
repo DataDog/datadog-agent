@@ -147,7 +147,7 @@ func GetHostTags(cached bool) *Tags {
 	}
 
 	t := &Tags{
-		System:              hostTags,
+		System:              util.SortUniqInPlace(hostTags),
 		GoogleCloudPlatform: gceTags,
 	}
 

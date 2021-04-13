@@ -37,7 +37,7 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 
 	hostTags := GetHostTags(false)
 	assert.NotNil(t, hostTags.System)
-	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0", "kafka_partition:1", "kafka_partition:2"}, hostTags.System)
+	assert.Equal(t, []string{"kafka_partition:0", "kafka_partition:1", "kafka_partition:2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
 
 func TestGetHostTagsWithoutSplits(t *testing.T) {
@@ -48,7 +48,7 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 
 	hostTags := GetHostTags(false)
 	assert.NotNil(t, hostTags.System)
-	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"}, hostTags.System)
+	assert.Equal(t, []string{"kafka_partition:0,1,2", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
 
 func TestGetHostTagsWithEnv(t *testing.T) {
@@ -60,7 +60,7 @@ func TestGetHostTagsWithEnv(t *testing.T) {
 
 	hostTags := GetHostTags(false)
 	assert.NotNil(t, hostTags.System)
-	assert.Equal(t, []string{"tag1:value1", "tag2", "tag3", "env:prod", "env:preprod"}, hostTags.System)
+	assert.Equal(t, []string{"env:preprod", "env:prod", "tag1:value1", "tag2", "tag3"}, hostTags.System)
 }
 
 func TestMarshalEmptyHostTags(t *testing.T) {
@@ -84,5 +84,5 @@ func TestCombineExtraTags(t *testing.T) {
 
 	hostTags := GetHostTags(false)
 	assert.NotNil(t, hostTags.System)
-	assert.Equal(t, []string{"tag1:value1", "tag2", "tag4", "tag1:value2", "tag3", "tag4"}, hostTags.System)
+	assert.Equal(t, []string{"tag1:value1", "tag1:value2", "tag2", "tag3", "tag4"}, hostTags.System)
 }
