@@ -59,7 +59,6 @@ RUN usermod --shell /bin/zsh root && \
     usermod --shell /bin/zsh ${USERNAME}
 
 COPY --chown=${USER_UID}:${USER_GID} shell/.p10k.zsh shell/.zshrc shell/.welcome.sh /home/${USERNAME}/
-COPY --chown=${USER_UID}:${USER_GID} config/kubeconfig /home/${USERNAME}/.kube/config
 
 RUN ln -s /home/${USERNAME}/.p10k.zsh /root/.p10k.zsh && \
     cp /home/${USERNAME}/.zshrc /root/.zshrc && \

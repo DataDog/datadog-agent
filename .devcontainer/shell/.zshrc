@@ -46,6 +46,5 @@ fi
 echo
 
 [ -f ~/.welcome.sh ] && source ~/.welcome.sh
-[ -f /go/src/github.com/StackVista/stackstate-agent/.env ] && source /go/src/github.com/StackVista/stackstate-agent/.env
 
 alias k=kubectl

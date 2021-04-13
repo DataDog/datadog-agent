@@ -22,6 +22,9 @@
         "VENV_BASE_PATH": "/home/vscode/.venv",
     },
     "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
+    "mounts": [
+        "type=bind,target=/home/vscode/.kube,src=${localEnv:HOME}/.kube"
+    ],
     "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
     "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
     "settings": {
@@ -30,11 +33,6 @@
             "-v"
         ],
         "go.useLanguageServer": true,
-        // "gopls": {
-        //     "buildFlags": [
-        //         "-tags=kubeapiserver,cpython,kubelet,etcd,docker,zk"
-        //     ],
-        // },
         "[go]": {
             "editor.formatOnSave": true,
             "editor.codeActionsOnSave": {
