@@ -428,14 +428,11 @@ static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
     char *event_type = NULL;
 
     if (!PyArg_ParseTuple(args, "Osss", &check, &check_id, &raw_event, &event_type)) {
-        goto error;
+        PyGILState_Release(gstate);
+        return NULL;
     }
 
     cb_submit_event_platform_event(check_id, raw_event, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
-
-error:
-    PyGILState_Release(gstate);
-    return NULL;
 }
