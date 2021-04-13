@@ -26,7 +26,6 @@ var fmap = Textfmap()
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
-	log.Warn("STATUS FORMAT STATUS")
 
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats) //nolint:errcheck
