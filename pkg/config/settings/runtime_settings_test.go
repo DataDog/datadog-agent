@@ -10,9 +10,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +59,7 @@ func TestRuntimeSettings(t *testing.T) {
 	cleanRuntimeSetting()
 	runtimeSetting := runtimeTestSetting{1}
 
-	err := registerRuntimeSetting(&runtimeSetting)
+	err := RegisterRuntimeSetting(&runtimeSetting)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(RuntimeSettings()))
 
@@ -73,7 +74,7 @@ func TestRuntimeSettings(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 123, v)
 
-	err = registerRuntimeSetting(&runtimeSetting)
+	err = RegisterRuntimeSetting(&runtimeSetting)
 	assert.NotNil(t, err)
 	assert.Equal(t, "duplicated settings detected", err.Error())
 }
@@ -82,7 +83,7 @@ func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
 	config.SetupLogger("TEST", "debug", "", "", true, true, true)
 
-	ll := logLevelRuntimeSetting("log_level")
+	ll := LogLevelRuntimeSetting{}
 	assert.Equal(t, "log_level", ll.Name())
 
 	err := ll.Set("off")
@@ -119,7 +120,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	cleanRuntimeSetting()
 
-	s := dsdStatsRuntimeSetting("dogstatsd_stats")
+	s := DsdStatsRuntimeSetting("dogstatsd_stats")
 
 	// runtime settings set/get underlying implementation
 
@@ -171,7 +172,7 @@ func TestProfiling(t *testing.T) {
 	cleanRuntimeSetting()
 	setupConf()
 
-	ll := profilingRuntimeSetting("profiling")
+	ll := ProfilingRuntimeSetting("profiling")
 	assert.Equal(t, "profiling", ll.Name())
 
 	err := ll.Set("false")

@@ -36,27 +36,8 @@ type RuntimeSetting interface {
 	Hidden() bool
 }
 
-// InitRuntimeSettings builds the map of runtime settings configurable at runtime.
-func InitRuntimeSettings() error {
-	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := registerRuntimeSetting(logLevelRuntimeSetting("log_level")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(dsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(profilingRuntimeSetting("profiling")); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// RegisterRuntimeSettings keeps track of configurable settings
-func registerRuntimeSetting(setting RuntimeSetting) error {
+// RegisterRuntimeSetting keeps track of configurable settings
+func RegisterRuntimeSetting(setting RuntimeSetting) error {
 	if _, ok := runtimeSettings[setting.Name()]; ok {
 		return errors.New("duplicated settings detected")
 	}
