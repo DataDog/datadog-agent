@@ -26,7 +26,7 @@ var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 // ctrProcMsgFactory builds a CollectorProc
-type ctrProcMsgFactory func([]*model.Container, []*model.Process) *model.CollectorProc
+type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.CollectorProc
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -172,8 +172,8 @@ func createProcCtrMessages(
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
-	totalProcs, totalContainers := 0, 0
-	msgs := make([]*model.CollectorProc, 0)
+	var totalProcs, totalContainers int
+	var msgs []*model.CollectorProc
 
 	// we first split non-container processes in chunks
 	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
@@ -188,8 +188,8 @@ func createProcCtrMessages(
 		})
 	}
 
-	procCtrMessages := packProcCtrMessages(cfg.MaxPerMessage, procsByCtr, containers,
-		func(c []*model.Container, p []*model.Process) *model.CollectorProc {
+	procCtrMessages := packProcCtrMessages(cfg.MaxCtrProcessesPerMessage, procsByCtr, containers,
+		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
 			return &model.CollectorProc{
 				HostName:          cfg.HostName,
 				NetworkId:         networkID,
@@ -217,8 +217,10 @@ func createProcCtrMessages(
 	return messages, totalProcs, totalContainers
 }
 
-// packProcCtrMessages this uses the next-fit bin packing algorithm for packing the container processes into
-// CollectorProcs up to the provided capacity
+// packProcCtrMessages packs container processes into messages using the next-fit bin packing algorithm. The
+// container and its processes are placed into a CollectorProc up to the provided capacity. Some containers may have
+// a large number of processes, so we break them up into separate messages which will duplicate the container data across
+// messages. This is needed as we enrich the process data with container data on the backend.
 func packProcCtrMessages(
 	capacity int,
 	procsByCtr map[string][]*model.Process,
@@ -234,9 +236,29 @@ func packProcCtrMessages(
 	for _, ctr := range containers {
 		procs, ok := procsByCtr[ctr.Id]
 
+		if len(procs) > capacity {
+			chunks := chunkProcesses(procs, capacity)
+
+			// Check last chunk to see if it is below the packing capacity. If it is pack it with other messages
+			if len(chunks[len(chunks)-1]) < space {
+				last := chunks[len(chunks)-1]
+				ctrs = append(ctrs, ctr)
+				ctrProcs = append(ctrProcs, last...)
+				space -= len(last)
+
+				chunks = chunks[:len(chunks)-1]
+			}
+
+			for _, chunk := range chunks {
+				msgs = append(msgs, msgFn(chunk, ctr))
+			}
+			continue
+		}
+
 		if ok && len(procs) > space && space != capacity {
-			// there is not enough space to fit the procs, so create the message and reset
-			msgs = append(msgs, msgFn(ctrs, ctrProcs))
+			// there is not enough space to fit the next set of container processes, so complete the payload with
+			// the previous container processes and reset
+			msgs = append(msgs, msgFn(ctrProcs, ctrs...))
 			ctrs = nil
 			ctrProcs = nil
 			space = capacity
@@ -249,7 +271,7 @@ func packProcCtrMessages(
 
 	if len(ctrs) > 0 {
 		// create messages with any remaining containers and processes
-		msgs = append(msgs, msgFn(ctrs, ctrProcs))
+		msgs = append(msgs, msgFn(ctrProcs, ctrs...))
 	}
 
 	return msgs

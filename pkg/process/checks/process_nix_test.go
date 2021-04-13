@@ -161,7 +161,7 @@ func TestContainerProcessChunking(t *testing.T) {
 		ctrProcs                            []ctrProc
 		expectedBatches                     []map[string]int
 		expectedCtrCount, expectedProcCount int
-		maxSize                             int
+		maxSize, maxCtrProcSize             int
 		containerHostType                   model.ContainerHostType
 	}{
 		{
@@ -177,7 +177,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
-			testName: "no containers processes are chunked",
+			testName: "non-container processes are chunked",
 			ctrProcs: []ctrProc{
 				{ctrId: "", pCounts: 8},
 			},
@@ -195,21 +195,22 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "remaining container processes are batched",
 			ctrProcs: []ctrProc{
-				{ctrId: "1", pCounts: 10},
-				{ctrId: "2", pCounts: 2},
-				{ctrId: "3", pCounts: 3},
+				{ctrId: "1", pCounts: 100},
+				{ctrId: "2", pCounts: 20},
+				{ctrId: "3", pCounts: 30},
 			},
 			expectedBatches: []map[string]int{
-				{"1": 10},
-				{"2": 2, "3": 3},
+				{"1": 100},
+				{"2": 20, "3": 30},
 			},
 			expectedCtrCount:  3,
-			expectedProcCount: 15,
+			expectedProcCount: 150,
 			maxSize:           10,
+			maxCtrProcSize:    100,
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
-			testName: "container process mixed 1",
+			testName: "non-container and container process are batched separately",
 			ctrProcs: []ctrProc{
 				{ctrId: "", pCounts: 3},
 				{ctrId: "1", pCounts: 4},
@@ -221,10 +222,11 @@ func TestContainerProcessChunking(t *testing.T) {
 			expectedCtrCount:  1,
 			expectedProcCount: 7,
 			maxSize:           10,
+			maxCtrProcSize:    100,
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
-			testName: "container process mixed 2",
+			testName: "container process batched to size",
 			ctrProcs: []ctrProc{
 				{ctrId: "1", pCounts: 5},
 				{ctrId: "2", pCounts: 4},
@@ -242,31 +244,89 @@ func TestContainerProcessChunking(t *testing.T) {
 			expectedCtrCount:  7,
 			expectedProcCount: 26,
 			maxSize:           10,
+			maxCtrProcSize:    10,
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 		{
-			testName: "container process mixed 3",
+			testName: "container with many processes gets chunked",
+			ctrProcs: []ctrProc{
+				{ctrId: "1", pCounts: 99},
+				{ctrId: "2", pCounts: 109},
+			},
+			expectedBatches: []map[string]int{
+				{"1": 99},
+				{"2": 100},
+				{"2": 9},
+			},
+			expectedCtrCount:  3,
+			expectedProcCount: 208,
+			maxSize:           10,
+			maxCtrProcSize:    100,
+			containerHostType: model.ContainerHostType_notSpecified,
+		},
+		{
+			testName: "container process batched with container over batch size",
 			ctrProcs: []ctrProc{
 				{ctrId: "", pCounts: 3},
-				{ctrId: "1", pCounts: 11},
-				{ctrId: "2", pCounts: 4},
-				{ctrId: "3", pCounts: 8},
-				{ctrId: "4", pCounts: 1},
-				{ctrId: "5", pCounts: 4},
-				{ctrId: "6", pCounts: 2},
-				{ctrId: "7", pCounts: 9},
+				{ctrId: "1", pCounts: 110},
+				{ctrId: "2", pCounts: 40},
+				{ctrId: "3", pCounts: 80},
+				{ctrId: "4", pCounts: 10},
+				{ctrId: "5", pCounts: 40},
+				{ctrId: "6", pCounts: 20},
+				{ctrId: "7", pCounts: 90},
 			},
 			expectedBatches: []map[string]int{
 				{"": 3},
-				{"1": 11},
-				{"2": 4},
-				{"3": 8, "4": 1},
-				{"5": 4, "6": 2},
-				{"7": 9},
+				{"1": 100},
+				{"1": 10, "2": 40},
+				{"3": 80, "4": 10},
+				{"5": 40, "6": 20},
+				{"7": 90},
 			},
-			expectedCtrCount:  7,
-			expectedProcCount: 42,
+			expectedCtrCount:  8,
+			expectedProcCount: 393,
 			maxSize:           10,
+			maxCtrProcSize:    100,
+			containerHostType: model.ContainerHostType_notSpecified,
+		},
+		{
+			testName: "container process over batch size has remaining processes batched with other messages",
+			ctrProcs: []ctrProc{
+				{ctrId: "1", pCounts: 2},
+				{ctrId: "2", pCounts: 4},
+				{ctrId: "3", pCounts: 201},
+			},
+			expectedBatches: []map[string]int{
+				{"1": 2, "2": 4, "3": 1},
+				{"3": 100},
+				{"3": 100},
+			},
+			expectedCtrCount:  5,
+			expectedProcCount: 207,
+			maxSize:           10,
+			maxCtrProcSize:    100,
+			containerHostType: model.ContainerHostType_notSpecified,
+		},
+		{
+			testName: "container process over batch size has remaining processes batched with other messages 2",
+			ctrProcs: []ctrProc{
+				{ctrId: "1", pCounts: 2},
+				{ctrId: "2", pCounts: 4},
+				{ctrId: "3", pCounts: 209},
+				{ctrId: "4", pCounts: 1},
+				{ctrId: "5", pCounts: 4},
+				{ctrId: "6", pCounts: 3},
+			},
+			expectedBatches: []map[string]int{
+				{"1": 2, "2": 4, "3": 9, "4": 1, "5": 4, "6": 3},
+				{"3": 100},
+				{"3": 100},
+			},
+			expectedCtrCount:  8,
+			expectedProcCount: 223,
+			maxSize:           10,
+			maxCtrProcSize:    100,
 			containerHostType: model.ContainerHostType_notSpecified,
 		},
 	} {
@@ -280,6 +340,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			sysInfo := &model.SystemInfo{}
 			lastCtrRates := util.ExtractContainerRateMetric(ctrs)
 			cfg.MaxPerMessage = tc.maxSize
+			cfg.MaxCtrProcessesPerMessage = tc.maxCtrProcSize
 			cfg.ContainerHostType = tc.containerHostType
 
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun)
@@ -315,7 +376,7 @@ func sortMsgs(m []model.MessageBody) {
 		cpJ := m[j].(*model.CollectorProc)
 
 		for k := range cpI.Containers {
-			if cpJ.Containers == nil {
+			if cpJ.Containers == nil || k > len(cpJ.Containers)-1 {
 				return false
 			}
 			if cpI.Containers[k].Id < cpJ.Containers[k].Id {
@@ -325,6 +386,7 @@ func sortMsgs(m []model.MessageBody) {
 				return false
 			}
 		}
+
 		for k := range cpI.Processes {
 			if cpJ.Processes == nil {
 				return false
