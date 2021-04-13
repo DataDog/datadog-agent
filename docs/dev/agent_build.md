@@ -54,9 +54,9 @@ the `pkg-config` folder.
 ## Testing Agent changes in containerized environments
 
 Building an Agent Docker image from scratch through an embedded build is a slow process.
-Sometimes, you may want to quickly test a change or bugfix in a containerized environment (Docker, Kubernetes, ECS, etc.).
+You can quickly test a change or bug fix in a containerized environment (such as Docker, Kubernetes, or ECS).
 
-One way to do it is to patch the Agent binary from official Docker image, with a simple Dockerfile:
+One way to do this is to patch the Agent binary from an official Docker image, with a Dockerfile:
 
 ```
 FROM datadog/agent:<AGENT_VERSION>
@@ -64,10 +64,10 @@ FROM datadog/agent:<AGENT_VERSION>
 COPY agent /opt/datadog-agent/bin/agent/agent
 ```
 
-However, for this to work properly, two things are important:
-- Your change needs to be done on top of `<AGENT_VERSION>` tag from our repository.
-- You need to run invoke task with proper embedded path `inv -e agent.build -e /opt/datadog-agent/embedded`.
+For this to work properly, two things are important:
+- Your change needs to be done on top of the `<AGENT_VERSION>` tag from the DataDog repository.
+- You need to run the invoke task with the proper embedded path `inv -e agent.build -e /opt/datadog-agent/embedded`.
 
-Note that this will make `invoke` to install the builds artifacts in `/opt/datadog-agent/embedded` folder. Make sure folder exists and current user has write permissions.
+**Note**: This makes `invoke` install the build's artifacts in the `/opt/datadog-agent/embedded` folder. Make sure the folder exists and the current user has write permissions.
 
 [dev-env]: agent_dev_env.md
