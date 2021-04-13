@@ -325,7 +325,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	}
 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
-		// lookup hostname if there is no config override
+		// lookup hostname if there is no config override or if the override is invalid
 		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
