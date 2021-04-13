@@ -80,7 +80,8 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder *forwarder.DefaultForwarder
+	orchestratorForwarder  *forwarder.DefaultForwarder
+	eventPlatformForwarder epforwarder.EventPlatformForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -346,14 +347,14 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
-	common.EventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	if common.EventPlatformForwarder != nil {
-		common.EventPlatformForwarder.Start()
+	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
+	if eventPlatformForwarder != nil {
+		eventPlatformForwarder.Start()
 	}
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
-	agg := aggregator.InitAggregator(s, common.EventPlatformForwarder, hostname)
+	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -463,8 +464,8 @@ func StopAgent() {
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Stop()
 	}
-	if common.EventPlatformForwarder != nil {
-		common.EventPlatformForwarder.Stop()
+	if eventPlatformForwarder != nil {
+		eventPlatformForwarder.Stop()
 	}
 	logs.Stop()
 	gui.StopGUIServer()

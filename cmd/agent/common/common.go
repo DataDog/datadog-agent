@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -39,9 +38,6 @@ var (
 
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
-
-	// EventPlatformForwarder is the global event platform forwarder instance
-	EventPlatformForwarder epforwarder.EventPlatformForwarder
 
 	// MainCtx is the main agent context passed to components
 	MainCtx context.Context

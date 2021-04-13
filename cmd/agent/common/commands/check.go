@@ -131,14 +131,14 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
-			common.EventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
-			if common.EventPlatformForwarder != nil {
-				common.EventPlatformForwarder.Start()
+			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
+			if eventPlatformForwarder != nil {
+				eventPlatformForwarder.Start()
 			}
 
 			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, common.EventPlatformForwarder, hostname, 0)
+			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
 			common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
