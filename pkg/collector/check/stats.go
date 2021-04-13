@@ -20,7 +20,7 @@ const (
 	runCheckSuccessTag = "ok"
 )
 
-// EventPlatformNameTranslations contains human readable translations for event platform even types
+// EventPlatformNameTranslations contains human readable translations for event platform event types
 var EventPlatformNameTranslations = map[string]string{
 	"dbm-samples": "Database Monitoring Query Samples",
 	"dbm-metrics": "Database Monitoring Query Metrics",
