@@ -23,7 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -323,7 +323,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *config.Config) (api.Module, error) {
+func NewModule(cfg *config.Config) (module.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {

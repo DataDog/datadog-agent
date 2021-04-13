@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -27,9 +27,9 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 var inactivityLogDuration = 10 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = api.Factory{
+var NetworkTracer = module.Factory{
 	Name: config.NetworkTracerModule,
-	Fn: func(cfg *config.Config) (api.Module, error) {
+	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer
@@ -44,7 +44,7 @@ var NetworkTracer = api.Factory{
 	},
 }
 
-var _ api.Module = &networkTracer{}
+var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer *tracer.Tracer
