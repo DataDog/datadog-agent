@@ -17,7 +17,8 @@
 provisioner:
   name: chef_solo
   product_name: chef
-  product_version: 15.16.4
+  # allow overriding of chef version since we need >= 15 for arm64 testing
+  product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
   chef_license: accept
   install_strategy: always
   # the following settings make it possible to do a reboot during setup
