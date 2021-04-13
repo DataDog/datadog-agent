@@ -9,8 +9,6 @@ At present the Go modules offer no public stability guarantees and are intended 
 Before you create a Go nested module, determine the packages that you want to expose and their dependencies. You might need to refactor the code to have an exportable package, because the `replace` directives that we use might be incompatible with your project.
 After you have refactored, if needed, and listed the packages that you want to expose and their dependencies, follow these steps for each module you want to create:
 
-1. Create a `tools.go` file in the module root folder. You can use the one on the main folder as a starting point. This will define the tools used for CI.
-1. Create a `.golangci.yml` file in the module root folder. You can use the one on the main folder as a starting point. This defines how the `golangci-lint` CI check works.
 1. Create `go.mod` and `go.sum` files in the module root folder. You can use `go mod init && go mod tidy` within the module folder as a starting point. Ensure the `go version` line matches the version in the main `go.mod` file.
 1. On each module that depends on the current one, add a `require` directive with the module path with version `v0.0.0`.
    ```

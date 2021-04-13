@@ -28,6 +28,16 @@ func (f *Blacklister) Allows(span *pb.Span) bool {
 	return true
 }
 
+// AllowsStat returns true if the Blacklister permits this stat
+func (f *Blacklister) AllowsStat(stat *pb.ClientGroupedStats) bool {
+	for _, entry := range f.list {
+		if entry.MatchString(stat.Resource) {
+			return false
+		}
+	}
+	return true
+}
+
 // NewBlacklister creates a new Blacklister based on the given list of
 // regular expressions.
 func NewBlacklister(exprs []string) *Blacklister {

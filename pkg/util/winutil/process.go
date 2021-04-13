@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -88,9 +90,12 @@ func ReadProcessMemory(h windows.Handle, from, to uintptr, count uint32) (bytesR
 		uintptr(unsafe.Pointer(&bytes)))
 
 	if r == 0 {
-		err = windows.GetLastError()
-		fmt.Printf("Error %v %v\n", err, e)
-		return
+		if e == windows.ERROR_ACCESS_DENIED {
+			log.Debugf("Access denied error getting process memory")
+		} else {
+			log.Warnf("Unexpected error getting process memory for handle (h) %v (err) %v", h, e)
+		}
+		return 0, e
 	}
 	bytesRead = bytes
 	return

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -174,6 +175,11 @@ func (ev *Event) ResolveGroup(e *model.FileFields) string {
 	return e.Group
 }
 
+// ResolveRights resolves the rights of a file
+func (ev *Event) ResolveRights(e *model.FileFields) int {
+	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
+}
+
 // ResolveChownUID resolves the user id of a chown event to a username
 func (ev *Event) ResolveChownUID(e *model.ChownEvent) string {
 	if len(e.User) == 0 {
@@ -274,12 +280,18 @@ func (ev *Event) ResolveProcessComm(e *model.Process) string {
 
 // ResolveExecArgs resolves the args of the event
 func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
-	return strings.Join(ev.ProcessContext.ArgsArray, " ")
+	if ev.Exec.Args == "" && len(ev.ProcessContext.ArgsArray) > 0 {
+		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
+	}
+	return ev.Exec.Args
 }
 
-// ResolveExecEnvs resolves the args of the event
-func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) string {
-	return strings.Join(ev.ProcessContext.EnvsArray, " ")
+// ResolveExecEnvs resolves the envs of the event
+func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
+	if len(ev.Exec.Envs) == 0 && len(ev.ProcessContext.EnvsArray) > 0 {
+		ev.Exec.Envs = ev.ProcessContext.EnvsArray
+	}
+	return ev.Exec.Envs
 }
 
 // ResolveCredentialsUID resolves the user id of the process

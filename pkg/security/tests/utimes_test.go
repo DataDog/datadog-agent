@@ -30,7 +30,7 @@ func TestUtime(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("utime", func(t *testing.T) {
+	t.Run("utime", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		fileMode := 0o447
 		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
@@ -44,7 +44,7 @@ func TestUtime(t *testing.T) {
 			Modtime: 456,
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIME, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(errno)
 		}
 
@@ -64,9 +64,9 @@ func TestUtime(t *testing.T) {
 
 			testContainerPath(t, event, "utimes.file.container_path")
 		}
-	})
+	}))
 
-	t.Run("utimes", func(t *testing.T) {
+	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
 		fileMode := 0o447
 		expectedMode := uint16(applyUmask(fileMode))
 		testFile, testFilePtr, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
@@ -86,7 +86,7 @@ func TestUtime(t *testing.T) {
 			},
 		}
 
-		if _, _, errno := syscall.Syscall(syscall.SYS_UTIMES, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
 			t.Fatal(errno)
 		}
 
@@ -106,7 +106,7 @@ func TestUtime(t *testing.T) {
 
 			testContainerPath(t, event, "utimes.file.container_path")
 		}
-	})
+	}))
 
 	t.Run("utimensat", func(t *testing.T) {
 		fileMode := 0o447

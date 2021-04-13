@@ -12,7 +12,8 @@
 
 - `ANDROID_HOME` environment variable set to the android sdk path (if installed with android studio:  `$HOME/Android/Sdk` on linux and `$HOME/Library/Android/sdk` on macos).
 - `ANDROID_NDK_HOME` environment variable set to the android bdk path (ndk is at `$ANDROID_HOME/ndk-bundle` if installed with android studio).
-- install and initialize gomobile with `invoke deps --android`.
+- install go tools: `invoke install-tools`
+- install and initialize gomobile with `invoke deps-vendored`.
 
 `datadog-agent` is installed as a system service on Android and has to be signed with the platform key.
 

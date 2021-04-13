@@ -40,8 +40,8 @@ func TestLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("link", func(t *testing.T) {
-		_, _, errno := syscall.Syscall(syscall.SYS_LINK, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
+	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
+		_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 		if errno != 0 {
 			t.Fatal(err)
 		}
@@ -64,11 +64,11 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
 		}
-	})
 
-	if err := os.Remove(testNewFile); err != nil {
-		t.Fatal(err)
-	}
+		if err := os.Remove(testNewFile); err != nil {
+			t.Fatal(err)
+		}
+	}))
 
 	t.Run("linkat", func(t *testing.T) {
 		_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)

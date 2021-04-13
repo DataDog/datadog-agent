@@ -138,7 +138,9 @@ build do
     command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
-      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
+      # Specify C99 standard explicitly to avoid issues while building some
+      # wheels (eg. ddtrace)
+      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc -std=c99",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",

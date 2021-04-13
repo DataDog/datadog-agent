@@ -120,16 +120,15 @@ var (
 	// but shouldn't be submitted to Datadog
 	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels)")
 
-	// deniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
-	deniedMetrics = options.MetricSet{
-		// deny all *_created metrics except for kube_node_created
-		"^_created|^(?:[^k]|k[^u]|ku[^b]|kub[^e]|kube[^_]|kube_[^n]|kube_n[^o]|kube_no[^d]|kube_nod[^e]|kube_node.).*_created": {},
+	// defaultDeniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
+	defaultDeniedMetrics = options.MetricSet{
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_owner":                                   {},
 		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
-		"kube_pod_.*_time":                                 {},
+		"kube_pod_completion_time":                         {},
+		"kube_pod_status_scheduled_time":                   {},
 		"kube_cronjob_status_active":                       {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},

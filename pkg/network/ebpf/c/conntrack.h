@@ -13,12 +13,12 @@
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;
-    bpf_probe_read(&status, sizeof(status), &ct->status);
+    bpf_probe_read(&status, sizeof(status), (void *)&ct->status);
     return status;
 }
 
 static __always_inline void print_translation(const conn_tuple_t *t) {
-    if (t->metadata&CONN_TYPE_TCP) {
+    if (t->metadata & CONN_TYPE_TCP) {
         log_debug("TCP\n");
     } else {
         log_debug("UDP\n");
@@ -28,23 +28,23 @@ static __always_inline void print_translation(const conn_tuple_t *t) {
     print_ip(t->daddr_h, t->daddr_l, t->dport, t->metadata);
 }
 
-static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, const struct nf_conntrack_tuple* ct) {
+static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t *t, const struct nf_conntrack_tuple *ct) {
     __builtin_memset(t, 0, sizeof(conn_tuple_t));
 
     switch (ct->dst.protonum) {
-        case IPPROTO_TCP:
-            t->metadata = CONN_TYPE_TCP;
-            t->sport = ct->src.u.tcp.port;
-            t->dport = ct->dst.u.tcp.port;
-            break;
-        case IPPROTO_UDP:
-            t->metadata = CONN_TYPE_UDP;
-            t->sport = ct->src.u.udp.port;
-            t->dport = ct->dst.u.udp.port;
-            break;
-        default:
-            log_debug("ERR(to_conn_tuple): unknown protocol number: %u\n", ct->dst.protonum);
-            return 0;
+    case IPPROTO_TCP:
+        t->metadata = CONN_TYPE_TCP;
+        t->sport = ct->src.u.tcp.port;
+        t->dport = ct->dst.u.tcp.port;
+        break;
+    case IPPROTO_UDP:
+        t->metadata = CONN_TYPE_UDP;
+        t->sport = ct->src.u.udp.port;
+        t->dport = ct->dst.u.udp.port;
+        break;
+    default:
+        log_debug("ERR(to_conn_tuple): unknown protocol number: %u\n", ct->dst.protonum);
+        return 0;
     }
 
     t->sport = bpf_ntohs(t->sport);
@@ -72,12 +72,12 @@ static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, const 
 
         if (!(t->saddr_h || t->saddr_l)) {
             log_debug("ERR(to_conn_tuple.v6): src addr not set: src_l: %llu, src_h: %llu\n",
-                      t->saddr_l, t->saddr_h);
+                t->saddr_l, t->saddr_h);
             return 0;
         }
         if (!(t->daddr_h || t->daddr_l)) {
             log_debug("ERR(to_conn_tuple.v6): dst addr not set: dst_l: %llu, dst_h: %llu\n",
-                      t->daddr_l, t->daddr_h);
+                t->daddr_l, t->daddr_h);
             return 0;
         }
     }
@@ -88,7 +88,7 @@ static __always_inline int conntrack_tuple_to_conn_tuple(conn_tuple_t* t, const 
 
 static __always_inline void increment_telemetry_count(enum conntrack_telemetry_counter counter_name) {
     u64 key = 0;
-    conntrack_telemetry_t* val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
+    conntrack_telemetry_t *val = bpf_map_lookup_elem(&conntrack_telemetry, &key);
     if (val == NULL) {
         return;
     }
@@ -100,7 +100,6 @@ static __always_inline void increment_telemetry_count(enum conntrack_telemetry_c
     case registers_dropped:
         __sync_fetch_and_add(&val->registers_dropped, 1);
     }
-    return;
 }
 
 #endif
