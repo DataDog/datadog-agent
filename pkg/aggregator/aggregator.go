@@ -683,11 +683,6 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
-	// Event Platform Events are forwarded continuously instead of being buffered/aggregated in memory like the other
-	// types of telemetry. They are buffered in memory only when flushing is disabled to allow the agent check command
-	// to read them out. Even though they are not buffered in memory under normal operation we still trigger a flush
-	// here to prevent endless growth just in case the aggregator is being misused somehow.
-	agg.GetEventPlatformEvents()
 }
 
 func (agg *BufferedAggregator) logPostFlushMessages() {
