@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -654,21 +653,11 @@ type EventPlatformDebugEvent struct {
 }
 
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
-// If tryUnmarshalJSON then the raw events will be unmarshalled into JSON if possible before being returned.
-func (agg *BufferedAggregator) GetEventPlatformEvents(tryUnmarshalJSON bool) []EventPlatformDebugEvent {
+func (agg *BufferedAggregator) GetEventPlatformEvents() []EventPlatformDebugEvent {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	events := agg.eventPlatformEvents
 	agg.eventPlatformEvents = nil
-	for i, e := range events {
-		if tryUnmarshalJSON {
-			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
-			if err == nil {
-				e.RawEvent = ""
-			}
-		}
-		events[i] = e
-	}
 	return events
 }
 
@@ -722,7 +711,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	// types of telemetry. They are buffered in memory only when flushing is disabled to allow the agent check command
 	// to read them out. Even though they are not buffered in memory under normal operation we still trigger a flush
 	// here to prevent endless growth just in case the aggregator is being misused somehow.
-	agg.GetEventPlatformEvents(false)
+	agg.GetEventPlatformEvents()
 }
 
 func (agg *BufferedAggregator) logPostFlushMessages() {

@@ -536,7 +536,7 @@ func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buf
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
-	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents(true)) {
+	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents()) {
 		if len(v) > 0 {
 			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
 				k = translated
@@ -576,6 +576,11 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 func groupEventPlatformEvents(events []aggregator.EventPlatformDebugEvent) map[string][]aggregator.EventPlatformDebugEvent {
 	grouped := make(map[string][]aggregator.EventPlatformDebugEvent)
 	for _, e := range events {
+		// try unmarshaling json to make the check output more user friendly
+		err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+		if err == nil {
+			e.RawEvent = ""
+		}
 		grouped[e.EventType] = append(grouped[e.EventType], e)
 	}
 	return grouped
@@ -608,7 +613,7 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 		aggData["events"] = events
 	}
 
-	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents(true)) {
+	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents()) {
 		aggData[k] = v
 	}
 
