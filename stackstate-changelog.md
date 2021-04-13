@@ -21,6 +21,8 @@
 
   - Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
   - Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
+  - Fixed the core check for the Excluded Filesystems to use the conf file variable.
+  - Fixed the core check for the Excluded Disks to use the conf file variable.
 
 ## 2.10.0 (2021-02-25)
 
