@@ -326,41 +326,41 @@ func TestFormatNetworks(t *testing.T) {
 	}{
 		{
 			connsByPID: map[int32][]*model.Connection{
-				1: yieldEmptyConnections(10),
+				1: yieldConnections(10),
 			},
 			interval: 2,
 			pid:      1,
-			expected: &model.ProcessNetworks{ConnectionRate: 5},
+			expected: &model.ProcessNetworks{ConnectionRate: 5, BytesRate: 150},
 		},
 		{
 			connsByPID: map[int32][]*model.Connection{
-				1: yieldEmptyConnections(10),
+				1: yieldConnections(10),
 			},
 			interval: 10,
 			pid:      1,
-			expected: &model.ProcessNetworks{ConnectionRate: 1},
+			expected: &model.ProcessNetworks{ConnectionRate: 1, BytesRate: 30},
 		},
 		{
 			connsByPID: map[int32][]*model.Connection{
-				1: yieldEmptyConnections(10),
+				1: yieldConnections(10),
 			},
 			interval: 20,
 			pid:      1,
-			expected: &model.ProcessNetworks{ConnectionRate: 0.5},
+			expected: &model.ProcessNetworks{ConnectionRate: 0.5, BytesRate: 15},
 		},
 		{
 			connsByPID: nil,
 			interval:   20,
 			pid:        1,
-			expected:   &model.ProcessNetworks{ConnectionRate: 0},
+			expected:   &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
 		},
 		{
 			connsByPID: map[int32][]*model.Connection{
-				1: yieldEmptyConnections(10),
+				1: yieldConnections(10),
 			},
 			interval: 10,
 			pid:      2,
-			expected: &model.ProcessNetworks{ConnectionRate: 0},
+			expected: &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
 		},
 	} {
 		result := formatNetworks(tc.pid, tc.connsByPID, tc.interval)
@@ -373,10 +373,10 @@ func floatEquals(a, b float32) bool {
 	return a-b < e && b-a < e
 }
 
-func yieldEmptyConnections(count int) []*model.Connection {
+func yieldConnections(count int) []*model.Connection {
 	result := make([]*model.Connection, count)
 	for i := 0; i < count; i++ {
-		result[i] = &model.Connection{}
+		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
 	}
 	return result
 }
