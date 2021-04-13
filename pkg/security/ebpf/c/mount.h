@@ -94,7 +94,7 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     if (retval)
         return 0;
 
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
 

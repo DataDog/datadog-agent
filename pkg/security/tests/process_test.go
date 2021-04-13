@@ -25,6 +25,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"gotest.tools/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -99,7 +100,7 @@ func TestProcessContext(t *testing.T) {
 
 	var rhel7 bool
 
-	kv, err := probe.NewKernelVersion()
+	kv, err := kernel.NewKernelVersion()
 	if err == nil {
 		rhel7 = kv.IsRH7Kernel()
 	}

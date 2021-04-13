@@ -27,12 +27,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cihub/seelog"
+	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
-
-	"github.com/cihub/seelog"
-	"github.com/pkg/errors"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"

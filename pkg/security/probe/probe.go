@@ -50,7 +50,7 @@ type Probe struct {
 	config         *config.Config
 	statsdClient   *statsd.Client
 	startTime      time.Time
-	kernelVersion  *kernel.KernelVersion
+	kernelVersion  *kernel.Version
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc

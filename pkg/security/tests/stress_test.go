@@ -10,8 +10,6 @@ package tests
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/cihub/seelog"
 	"os"
 	"os/exec"
 	"path"
@@ -19,6 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 

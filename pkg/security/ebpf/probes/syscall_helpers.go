@@ -39,7 +39,7 @@ func resolveRuntimeArch() {
 }
 
 // currentKernelVersion is the current kernel version
-var currentKernelVersion *kernel.KernelVersion
+var currentKernelVersion *kernel.Version
 
 func resolveCurrentKernelVersion() error {
 	var err error

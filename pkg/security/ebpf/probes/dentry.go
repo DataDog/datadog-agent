@@ -107,7 +107,6 @@ func getDentryResolverTailCallRoutes() []manager.TailCallRoute {
 			},
 		},
 
-
 		// dentry resolver tracepoint callbacks
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",

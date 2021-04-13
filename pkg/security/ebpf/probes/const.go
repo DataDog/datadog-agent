@@ -52,7 +52,7 @@ const (
 	DentryResolverOpenCallbackTracepointKey uint32 = iota + 1
 	// DentryResolverMkdirCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an mkdir event
 	DentryResolverMkdirCallbackTracepointKey
-	// DentryResolverMountCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an mount event
+	// DentryResolverMountCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an mount event
 	DentryResolverMountCallbackTracepointKey
 	// DentryResolverLinkDstCallbackTracepointKey is the key to the callback program to execute after resolving the destination dentry of a link event
 	DentryResolverLinkDstCallbackTracepointKey

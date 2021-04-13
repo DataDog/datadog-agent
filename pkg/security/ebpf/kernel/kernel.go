@@ -21,6 +21,7 @@ import (
 
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+
 	// Kernel4_12 is the KernelVersion representation of kernel version 4.12
 	Kernel4_12 = kernel.VersionCode(4, 12, 0) //nolint:deadcode,unused
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
@@ -28,17 +29,17 @@ var (
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
-	Kernel5_3  = kernel.VersionCode(5, 3, 0)  //nolint:deadcode,unused
+	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 )
 
-// KernelVersion defines a kernel version helper
-type KernelVersion struct {
-	osrelease map[string]string
-	Code kernel.Version
+// Version defines a kernel version helper
+type Version struct {
+	osRelease map[string]string
+	Code      kernel.Version
 }
 
 // NewKernelVersion returns a new kernel version helper
-func NewKernelVersion() (*KernelVersion, error) {
+func NewKernelVersion() (*Version, error) {
 	osReleasePaths := []string{
 		osrelease.EtcOsRelease,
 		osrelease.UsrLibOsRelease,
@@ -60,9 +61,9 @@ func NewKernelVersion() (*KernelVersion, error) {
 	for _, osReleasePath := range osReleasePaths {
 		release, err = osrelease.ReadFile(osReleasePath)
 		if err == nil {
-			return &KernelVersion{
-				osrelease: release,
-				Code: kv,
+			return &Version{
+				osRelease: release,
+				Code:      kv,
 			}, nil
 		}
 	}
@@ -71,26 +72,26 @@ func NewKernelVersion() (*KernelVersion, error) {
 }
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
-func (k *KernelVersion) IsRH7Kernel() bool {
-	return (k.osrelease["ID"] == "centos" || k.osrelease["ID"] == "rhel") && k.osrelease["VERSION_ID"] == "7"
+func (k *Version) IsRH7Kernel() bool {
+	return (k.osRelease["ID"] == "centos" || k.osRelease["ID"] == "rhel") && k.osRelease["VERSION_ID"] == "7"
 }
 
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
-func (k *KernelVersion) IsRH8Kernel() bool {
-	return k.osrelease["PLATFORM_ID"] == "platform:el8"
+func (k *Version) IsRH8Kernel() bool {
+	return k.osRelease["PLATFORM_ID"] == "platform:el8"
 }
 
 // IsSuseKernel returns whether the kernel is a suse kernel
-func (k *KernelVersion) IsSuseKernel() bool {
-	return k.osrelease["ID"] == "sles" || k.osrelease["ID"] == "opensuse-leap"
+func (k *Version) IsSuseKernel() bool {
+	return k.osRelease["ID"] == "sles" || k.osRelease["ID"] == "opensuse-leap"
 }
 
 // IsSLES12Kernel returns whether the kernel is a sles 12 kernel
-func (k *KernelVersion) IsSLES12Kernel() bool {
-	return k.IsSuseKernel() && strings.HasPrefix(k.osrelease["VERSION_ID"], "12")
+func (k *Version) IsSLES12Kernel() bool {
+	return k.IsSuseKernel() && strings.HasPrefix(k.osRelease["VERSION_ID"], "12")
 }
 
 // IsSLES15Kernel returns whether the kernel is a sles 15 kernel
-func (k *KernelVersion) IsSLES15Kernel() bool {
-	return k.IsSuseKernel() && strings.HasPrefix(k.osrelease["VERSION_ID"], "15")
+func (k *Version) IsSLES15Kernel() bool {
+	return k.IsSuseKernel() && strings.HasPrefix(k.osRelease["VERSION_ID"], "15")
 }
