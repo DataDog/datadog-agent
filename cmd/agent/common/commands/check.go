@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -129,7 +130,8 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
-			common.EventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
+			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
+			common.EventPlatformForwarder = epforwarder.NewNoopEventPlatformForwarder()
 			if common.EventPlatformForwarder != nil {
 				common.EventPlatformForwarder.Start()
 			}
@@ -536,7 +538,7 @@ func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buf
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
-	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents()) {
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
 		if len(v) > 0 {
 			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
 				k = translated
@@ -573,17 +575,28 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	}
 }
 
-func groupEventPlatformEvents(events []aggregator.EventPlatformDebugEvent) map[string][]aggregator.EventPlatformDebugEvent {
-	grouped := make(map[string][]aggregator.EventPlatformDebugEvent)
-	for _, e := range events {
-		// try unmarshaling json to make the check output more user friendly
-		err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
-		if err == nil {
-			e.RawEvent = ""
+type eventPlatformDebugEvent struct {
+	RawEvent          string `json:",omitempty"`
+	EventType         string
+	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+}
+
+// toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
+func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPlatformDebugEvent {
+	result := make(map[string][]eventPlatformDebugEvent)
+	for eventType, messages := range events {
+		var events []eventPlatformDebugEvent
+		for _, m := range messages {
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
 		}
-		grouped[e.EventType] = append(grouped[e.EventType], e)
+		result[eventType] = events
 	}
-	return grouped
+	return result
 }
 
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
@@ -613,7 +626,7 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 		aggData["events"] = events
 	}
 
-	for k, v := range groupEventPlatformEvents(agg.GetEventPlatformEvents()) {
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
 		aggData[k] = v
 	}
 

@@ -220,7 +220,6 @@ type BufferedAggregator struct {
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
-	eventPlatformEvents    []EventPlatformDebugEvent // buffer of event platform events used only for debugging with manual checks
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
@@ -404,21 +403,7 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	m := &message.Message{Content: []byte(event.rawEvent)}
-	err := agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
-	if err != nil {
-		return err
-	}
-	if agg.flushInterval == 0 {
-		// If flushing is disabled then we want to buffer the events in memory to allow them to be read back out
-		// by the check command. During normal operation there is no buffering done in the aggregator for these events.
-		// We only buffer events that were successfully sent to the eventPlatformForwarder in order to aid local
-		// debugging in case of immediate errors, like sending an unsupported eventType.
-		agg.eventPlatformEvents = append(agg.eventPlatformEvents, EventPlatformDebugEvent{
-			RawEvent:  event.rawEvent,
-			EventType: event.eventType,
-		})
-	}
-	return nil
+	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -644,21 +629,12 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	return events
 }
 
-// EventPlatformDebugEvent contains a single event platform event submitted to the aggregator. If the RawEvent
-// is JSON then it is unmarshalled into UnmarshalledEvent.
-type EventPlatformDebugEvent struct {
-	RawEvent          string `json:",omitempty"`
-	EventType         string
-	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
-}
-
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
-func (agg *BufferedAggregator) GetEventPlatformEvents() []EventPlatformDebugEvent {
+// Note that this works only if using the 'noop' event platform forwarder
+func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
-	events := agg.eventPlatformEvents
-	agg.eventPlatformEvents = nil
-	return events
+	return agg.eventPlatformForwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {

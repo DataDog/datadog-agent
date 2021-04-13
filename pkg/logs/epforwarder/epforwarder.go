@@ -22,6 +22,7 @@ const (
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
+	Purge() map[string][]*message.Message
 	Start()
 	Stop()
 }
@@ -42,6 +43,29 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
 	}
+}
+
+func purgeChan(in chan *message.Message) (result []*message.Message) {
+	for {
+		select {
+		case m, isOpen := <-in:
+			if !isOpen {
+				return
+			}
+			result = append(result, m)
+		default:
+			return
+		}
+	}
+}
+
+// Purge clears out all pipeline channels, returning a map of eventType to list of messages in that were removed from each channel
+func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
+	result := make(map[string][]*message.Message)
+	for eventType, p := range s.pipelines {
+		result[eventType] = purgeChan(p.in)
+	}
+	return result
 }
 
 func (s *defaultEventPlatformForwarder) Start() {
@@ -122,7 +146,9 @@ func newHTTPPassthroughPipeline(
 
 func (p *passthroughPipeline) Start() {
 	p.auditor.Start()
-	p.sender.Start()
+	if p.sender != nil {
+		p.sender.Start()
+	}
 }
 
 func (p *passthroughPipeline) Stop() {
@@ -138,8 +164,7 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-// NewEventPlatformForwarder creates a new EventPlatformForwarder
-func NewEventPlatformForwarder() EventPlatformForwarder {
+func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
@@ -155,4 +180,20 @@ func NewEventPlatformForwarder() EventPlatformForwarder {
 		pipelines:       pipelines,
 		destinationsCtx: destinationsCtx,
 	}
+}
+
+// NewEventPlatformForwarder creates a new EventPlatformForwarder
+func NewEventPlatformForwarder() EventPlatformForwarder {
+	return newDefaultEventPlatformForwarder()
+}
+
+// NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
+// will build up in each pipeline channel without being forwarded to the intake
+func NewNoopEventPlatformForwarder() EventPlatformForwarder {
+	f := newDefaultEventPlatformForwarder()
+	// remove the senders
+	for _, p := range f.pipelines {
+		p.sender = nil
+	}
+	return f
 }
