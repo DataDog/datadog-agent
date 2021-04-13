@@ -82,11 +82,11 @@ DWORD TargetMachine::DetectMachineType()
     DWORD status = NetServerGetInfo(nullptr, 101, reinterpret_cast<LPBYTE *>(&serverInfo));
     if (status != NERR_Success)
     {
-        WcaLog(LOGMSG_STANDARD, "Failed to get server info: %d %d.", status, GetLastError());
         if (status == NERR_ServerNotStarted || status == NERR_ServiceNotInstalled || status == NERR_WkstaNotStarted)
         {
             // NetServerGetInfo will fail if the Server service isn't running,
             // but in that case it's safe to assume we are a workstation.
+            WcaLog(LOGMSG_STANDARD, "Failed to get server info: %S", FormatErrorMessage(status));
             WcaLog(LOGMSG_STANDARD, "Continuing assuming machine type is SV_TYPE_WORKSTATION.");
             _serverType = SV_TYPE_WORKSTATION;
             return ERROR_SUCCESS;
