@@ -14,11 +14,14 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mholt/archiver/v3"
 )
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
+const debKernelModulesPath = "/lib/modules/%s/source"
+const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
@@ -71,9 +74,18 @@ func getHeaderDirs(v Version) ([]string, error) {
 	}
 
 	// KernelVersion == uname -r
-	dirs := []string{fmt.Sprintf(kernelModulesPath, hi.KernelVersion)}
+	// check KernelHeadersDownloadDir to see if we've previously downloaded kernel headers
+	dirs := []string{
+		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(KernelHeadersDownloadDir+kernelModulesPath, hi.KernelVersion),
+	}
 	if hi.Platform == "debian" {
-		dirs = append(dirs, fmt.Sprintf("/lib/modules/%s/source", hi.KernelVersion))
+		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
+		dirs = append(dirs, fmt.Sprintf(KernelHeadersDownloadDir+debKernelModulesPath, hi.KernelVersion))
+	}
+	if hi.Platform == "cos" {
+		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
+		dirs = append(dirs, fmt.Sprintf(KernelHeadersDownloadDir+cosKernelModulesPath, hi.KernelVersion))
 	}
 
 	for _, d := range dirs {
@@ -86,6 +98,7 @@ func getHeaderDirs(v Version) ([]string, error) {
 			return nil, fmt.Errorf("error validating headers version: %w", err)
 		}
 		if hv == v {
+			log.Debugf("found valid kernel headers at %s", d)
 			return dirs, nil
 		}
 	}

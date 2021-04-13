@@ -27,6 +27,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EBPFCompiler struct {
@@ -140,8 +141,13 @@ func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 	} else {
 		dirs, err = kernel.FindHeaderDirs()
 		if err != nil {
-			ebpfCompiler.Close()
-			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+			log.Infof("unable to find kernel headers: %w. Attempting to download kernel headers", err)
+			dirs, err = kernel.DownloadHeaders()
+			if err != nil {
+				ebpfCompiler.Close()
+				return nil, fmt.Errorf("unable to download kernel headers: %w", err)
+			}
+			log.Infof("successfully downloaded kernel headers to %s", kernel.KernelHeadersDownloadDir)
 		}
 	}
 
