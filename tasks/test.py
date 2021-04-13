@@ -211,7 +211,6 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-
     TMP_JSON = 'tmp.json'
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
