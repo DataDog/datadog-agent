@@ -58,7 +58,7 @@ type checkSender struct {
 	defaultHostnameDisabled bool
 	metricStats             check.SenderStats
 	priormetricStats        check.SenderStats
-	metricStatsLock         sync.RWMutex
+	statsLock               sync.RWMutex
 	smsOut                  chan<- senderMetricSample
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
@@ -206,14 +206,14 @@ func (s *checkSender) Commit() {
 }
 
 func (s *checkSender) GetSenderStats() (metricStats check.SenderStats) {
-	s.metricStatsLock.RLock()
-	defer s.metricStatsLock.RUnlock()
+	s.statsLock.RLock()
+	defer s.statsLock.RUnlock()
 	return s.priormetricStats.Copy()
 }
 
 func (s *checkSender) cyclemetricStats() {
-	s.metricStatsLock.Lock()
-	defer s.metricStatsLock.Unlock()
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
 	s.priormetricStats = s.metricStats.Copy()
 	s.metricStats = check.NewSenderStats()
 }
@@ -246,9 +246,9 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}
 
-	s.metricStatsLock.Lock()
+	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
-	s.metricStatsLock.Unlock()
+	s.statsLock.Unlock()
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
@@ -322,9 +322,9 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 
 	s.histogramBucketOut <- senderHistogramBucket{s.id, histogramBucket}
 
-	s.metricStatsLock.Lock()
+	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
-	s.metricStatsLock.Unlock()
+	s.statsLock.Unlock()
 }
 
 // Historate should be used to create a histogram metric for "rate" like metrics.
@@ -357,9 +357,9 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 
 	s.serviceCheckOut <- serviceCheck
 
-	s.metricStatsLock.Lock()
+	s.statsLock.Lock()
 	s.metricStats.ServiceChecks++
-	s.metricStatsLock.Unlock()
+	s.statsLock.Unlock()
 }
 
 // Event submits an event
@@ -374,9 +374,9 @@ func (s *checkSender) Event(e metrics.Event) {
 
 	s.eventOut <- e
 
-	s.metricStatsLock.Lock()
+	s.statsLock.Lock()
 	s.metricStats.Events++
-	s.metricStatsLock.Unlock()
+	s.statsLock.Unlock()
 }
 
 // Event submits an event
@@ -386,8 +386,8 @@ func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
 		rawEvent:  rawEvent,
 		eventType: eventType,
 	}
-	s.metricStatsLock.Lock()
-	defer s.metricStatsLock.Unlock()
+	s.statsLock.Lock()
+	defer s.statsLock.Unlock()
 	s.metricStats.EventPlatformEvents[eventType] = s.metricStats.EventPlatformEvents[eventType] + 1
 }
 
