@@ -257,6 +257,15 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # and it will match beta.0
     # git_sha: for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     version, pre, git_sha = version_match.group('version', 'pre', 'git_sha')
+
+    # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
+    # We need it, so we fetch it another way.
+    if not git_sha:
+        cmd = "git rev-parse HEAD"
+        # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
+        # therefore we keep the same number of characters.
+        git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
+
     return version, pre, commit_number, git_sha
 
 
@@ -267,8 +276,17 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     version, pre, commits_since_version, git_sha = query_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
+
+    is_nightly = os.getenv("DEB_RPM_BUCKET_BRANCH") == "nightly"
     if pre:
         version = "{0}-{1}".format(version, pre)
+
+    if not commits_since_version and is_nightly and include_git:
+        if url_safe:
+            version = "{0}.git.{1}.{2}".format(version, 0, git_sha)
+        else:
+            version = "{0}+git.{1}.{2}".format(version, 0, git_sha)
+
     if commits_since_version and include_git:
         if url_safe:
             version = "{0}.git.{1}.{2}".format(version, commits_since_version, git_sha)
