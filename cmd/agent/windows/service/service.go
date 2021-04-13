@@ -8,6 +8,7 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
