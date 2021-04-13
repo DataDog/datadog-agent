@@ -7,8 +7,9 @@ instances:
     # The (optional) excluded_filesystems parameter will instruct the check to
     # ignore disks using these filesystems. Note: On some linux distributions,
     # rootfs will be found and tagged as a device, add rootfs here to exclude.
-    # excluded_filesystems:
-    #   - tmpfs
+    excluded_filesystems:
+      - tmpfs
+      - squashfs
 
     # The (optional) excluded_disks parameter will instruct the check to
     # ignore this list of disks.
