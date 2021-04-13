@@ -77,6 +77,7 @@ def test(
     cache=True,
     skip_linters=False,
     save_result_json=None,
+    rerun_fails=None,
     go_mod="mod",
 ):
     """
@@ -219,7 +220,7 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {json_flag} --format pkgname --rerun-fails --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
@@ -234,6 +235,7 @@ def test(
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
+        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
     }
 
     failed_modules = []
