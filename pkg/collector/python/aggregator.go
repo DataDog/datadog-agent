@@ -142,5 +142,4 @@ func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.ch
 		return
 	}
 	sender.EventPlatformEvent(C.GoString(rawEvent), C.GoString(eventType))
-	return
 }
