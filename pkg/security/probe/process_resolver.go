@@ -513,7 +513,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// SetTTY resolves TTY and cache the result
+// SetProcessTTY resolves TTY and cache the result
 func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
@@ -525,7 +525,7 @@ func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	return pce.TTYName
 }
 
-// SetUsersGroups resolves and set users and groups
+// SetProcessUsersGroups resolves and set users and groups
 func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
 	pce.User, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.UID))
 	pce.EUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.EUID))

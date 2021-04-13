@@ -99,6 +99,7 @@ type SetgidSerializer struct {
 // JStringArray handles empty array properly not generating null output but []
 type JStringArray []string
 
+// MarshalJSON custom marshaller to handle empty array
 func (j *JStringArray) MarshalJSON() ([]byte, error) {
 	if len(*j) == 0 {
 		return []byte("[]"), nil

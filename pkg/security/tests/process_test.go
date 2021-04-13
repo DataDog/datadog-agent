@@ -128,20 +128,6 @@ func TestProcessContext(t *testing.T) {
 		return executable
 	}
 
-	var cmdWrapper cmdWrapper
-	if testEnvironment == DockerEnvironment {
-		cmdWrapper = newStdCmdWrapper()
-	} else {
-		wrapper, err := newDockerCmdWrapper(t, test.Root())
-		if err == nil {
-			defer wrapper.Stop()
-
-			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
-		} else {
-			cmdWrapper = newSkipCmdWrapper("docker not found")
-		}
-	}
-
 	t.Run("inode", func(t *testing.T) {
 		testFile, _, err := test.Path("test-process-context")
 		if err != nil {
@@ -176,7 +162,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		cmd := cmdFunc("ls", args, envs)
@@ -284,7 +270,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "args-overflow", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "args-overflow", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -414,7 +400,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -427,8 +413,8 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
 		cmd := cmdFunc("sh", args, nil)
-		if err := cmd.Run(); err != nil {
-			t.Error(err)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("%s: %s", out, err)
 		}
 
 		event, rule, err := test.GetEvent()
@@ -449,7 +435,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	cmdWrapper.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
 			t.Fatal(err)
@@ -462,8 +448,8 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
 		cmd := cmdFunc(shell, args, nil)
-		if err := cmd.Run(); err != nil {
-			t.Error(err)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("%s: %s", out, err)
 		}
 
 		event, rule, err := test.GetEvent()
@@ -595,12 +581,12 @@ func TestProcessMetadata(t *testing.T) {
 		} else {
 			assert.Equal(t, event.GetType(), "exec", "wrong event type")
 
-			assert.Equal(t, event.Exec.Credentials.UID, 1001, "wrong uid")
-			assert.Equal(t, event.Exec.Credentials.EUID, 1001, "wrong euid")
-			assert.Equal(t, event.Exec.Credentials.FSUID, 1001, "wrong fsuid")
-			assert.Equal(t, event.Exec.Credentials.GID, 2001, "wrong gid")
-			assert.Equal(t, event.Exec.Credentials.EGID, 2001, "wrong egid")
-			assert.Equal(t, event.Exec.Credentials.FSGID, 2001, "wrong fsgid")
+			assert.Equal(t, int(event.Exec.Credentials.UID), 1001, "wrong uid")
+			assert.Equal(t, int(event.Exec.Credentials.EUID), 1001, "wrong euid")
+			assert.Equal(t, int(event.Exec.Credentials.FSUID), 1001, "wrong fsuid")
+			assert.Equal(t, int(event.Exec.Credentials.GID), 2001, "wrong gid")
+			assert.Equal(t, int(event.Exec.Credentials.EGID), 2001, "wrong egid")
+			assert.Equal(t, int(event.Exec.Credentials.FSGID), 2001, "wrong fsgid")
 		}
 	})
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//+build functionaltests
+//+build functionaltests stresstests
 
 package tests
 
@@ -52,20 +52,11 @@ func newStdCmdWrapper() *stdCmdWrapper {
 }
 
 type dockerCmdWrapper struct {
-	t          *testing.T
 	executable string
 	root       string
-	isStarted  bool
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
-	if !d.isStarted {
-		if out, err := d.start(); err != nil {
-			d.t.Fatalf("%s: %s", string(out), err)
-		}
-		d.isStarted = true
-	}
-
 	dockerArgs := []string{"exec"}
 	for _, env := range envs {
 		dockerArgs = append(dockerArgs, "-e"+env)
@@ -87,7 +78,7 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 	return nil, nil
 }
 
-func (d *dockerCmdWrapper) Stop() ([]byte, error) {
+func (d *dockerCmdWrapper) stop() ([]byte, error) {
 	cmd := exec.Command(d.executable, "kill", "docker-wrapper")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return out, err
@@ -103,7 +94,13 @@ func (d *dockerCmdWrapper) Stop() ([]byte, error) {
 
 func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	t.Run(name, func(t *testing.T) {
+		if out, err := d.start(); err != nil {
+			t.Fatalf("%s: %s", string(out), err)
+		}
 		fnc(t, d.Type(), d.Command)
+		if out, err := d.stop(); err != nil {
+			t.Fatalf("%s: %s", string(out), err)
+		}
 	})
 }
 
@@ -111,14 +108,13 @@ func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
 
-func newDockerCmdWrapper(t *testing.T, root string) (*dockerCmdWrapper, error) {
+func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return nil, err
 	}
 
 	return &dockerCmdWrapper{
-		t:          t,
 		executable: executable,
 		root:       root,
 	}, nil

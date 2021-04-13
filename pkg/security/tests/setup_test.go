@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -145,6 +146,7 @@ type testModule struct {
 	listener     net.Listener
 	events       chan testEvent
 	discarders   chan *testDiscarder
+	cmdWrapper   cmdWrapper
 }
 
 var testMod *testModule
@@ -361,10 +363,23 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 	defer os.Remove(cfgFilename)
 
+	var cmdWrapper cmdWrapper
+	if testEnvironment == DockerEnvironment {
+		cmdWrapper = newStdCmdWrapper()
+	} else {
+		wrapper, err := newDockerCmdWrapper(st.Root())
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
+		} else {
+			cmdWrapper = newSkipCmdWrapper("docker not found")
+		}
+	}
+
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.cleanup()
@@ -404,6 +419,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
 			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
 		},
+		cmdWrapper: cmdWrapper,
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -416,6 +432,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	testMod.probe.SetEventHandler(testMod.probeHandler)
 
 	return testMod, nil
+}
+
+func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	tm.cmdWrapper.Run(t, name, fnc)
 }
 
 func (tm *testModule) reset() {
