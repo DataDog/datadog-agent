@@ -57,7 +57,7 @@
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 /*! \fn void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t)
-    \brief Sets the submit event callback to be used by rtloader for histogram bucket submission.
+    \brief Sets the submit event callback to be used by rtloader for event-platform event submission.
     \param cb A function pointer with cb_submit_event_platform_event_t prototype to the callback
     function.
 
