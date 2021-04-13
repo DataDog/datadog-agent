@@ -61,7 +61,7 @@ func NewSenderStats() SenderStats {
 // Copy creates a copy of the current SenderStats
 func (s SenderStats) Copy() (result SenderStats) {
 	result = s
-	result.EventPlatformEvents = make(map[string]int64)
+	result.EventPlatformEvents = make(map[string]int64, len(s.EventPlatformEvents))
 	for k, v := range s.EventPlatformEvents {
 		result.EventPlatformEvents[k] = v
 	}
