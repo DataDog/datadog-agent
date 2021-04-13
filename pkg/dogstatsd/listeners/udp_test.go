@@ -134,13 +134,13 @@ func TestUDPReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packets := <-packetChannel:
-		packet := packets[0]
+	case pkts := <-packetChannel:
+		packet := pkts[0]
 		assert.NotNil(t, packet)
-		assert.Equal(t, 1, len(packets))
+		assert.Equal(t, 1, len(pkts))
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
-		assert.Equal(t, packet.Source, UDP)
+		assert.Equal(t, packet.Source, packets.UDP)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

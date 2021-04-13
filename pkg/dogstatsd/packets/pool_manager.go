@@ -53,7 +53,6 @@ func (p *PoolManager) Put(x interface{}) {
 	p.RLock()
 
 	// TODO: use LoadAndDelete when go 1.15 is introduced
-
 	_, loaded := p.refs.Load(x)
 	if loaded {
 		// reference exists, put back.
@@ -73,13 +72,29 @@ func (p *PoolManager) IsPassthru() bool {
 	return atomic.LoadInt32(&(p.passthru)) != 0
 }
 
-// SetPassthru sets the passthru mode to the specified value.
+// SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
+// enabling passthru mode.
 func (p *PoolManager) SetPassthru(b bool) {
 	if b {
 		atomic.StoreInt32(&(p.passthru), 1)
+		p.Flush()
 	} else {
 		atomic.StoreInt32(&(p.passthru), 0)
 	}
+}
+
+// Count returns the number of elements accounted by the PoolManager.
+func (p *PoolManager) Count() int {
+	p.RLock()
+	defer p.RUnlock()
+
+	size := 0
+	p.refs.Range(func(k, v interface{}) bool {
+		size++
+		return true
+	})
+
+	return size
 }
 
 // Flush flushes all objects back to the object pool, and stops tracking any pending objects.

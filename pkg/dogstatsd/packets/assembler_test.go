@@ -122,7 +122,7 @@ func TestPacketBufferHasCorrectSource(t *testing.T) {
 	pb, out := buildPacketAssembler()
 	message1 := []byte("test")
 
-	pb.addMessage(message1)
+	pb.AddMessage(message1)
 
 	packets := <-out
 	assert.Equal(t, UDP, packets[0].Source)

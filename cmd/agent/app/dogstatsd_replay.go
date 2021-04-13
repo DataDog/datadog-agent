@@ -65,13 +65,13 @@ func dogstatsdReplay() error {
 	// depth should be configurable....
 	// reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, dsdTaggerFilePath)
 	depth := 10
-	reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth)
+	reader, err := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth)
 	if reader != nil {
 		defer reader.Close()
 	}
 
-	if e != nil {
-		return e
+	if err != nil {
+		return err
 	}
 
 	addr, err := net.ResolveUnixAddr("unixgram", s)

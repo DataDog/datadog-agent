@@ -182,10 +182,10 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 	}
 
 	if tc.sharedPacketPoolManager != nil {
-		tc.sharedPacketPoolManager.SetPassthru(false)
+		tc.sharedPacketPoolManager.SetPassthru(true)
 	}
 	if tc.oobPacketPoolManager != nil {
-		tc.oobPacketPoolManager.SetPassthru(false)
+		tc.oobPacketPoolManager.SetPassthru(true)
 	}
 
 	close(tc.shutdown)

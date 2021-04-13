@@ -36,6 +36,7 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	// MMap file so that we can have reasonable performance with very large files
 	c, err := getFileMap(path)
 	if err != nil {
+		fmt.Printf("Unable to map file: %v\n", err)
 		return nil, err
 	}
 
@@ -55,6 +56,13 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 func (tc *TrafficCaptureReader) Read() {
 	tc.Shutdown = make(chan struct{})
 	defer close(tc.Shutdown)
+
+	log.Debugf("About to begin processing file of size: %d\n", len(tc.Contents))
+
+	// skip header
+	tc.Lock()
+	tc.offset += uint32(len(datadogHeader))
+	tc.Unlock()
 
 	for {
 		msg, err := tc.ReadNext()
