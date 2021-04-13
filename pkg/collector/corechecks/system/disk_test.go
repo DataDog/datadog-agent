@@ -275,13 +275,11 @@ func TestExcludedDiskFSFromConfig(t *testing.T) {
 		{
 			test: "No file system and disk exclusions",
 			config: integration.Data("use_mount: true"),
-			excludedDisks: []string(nil),
 			excludedFileSystems: []string{"iso9660"},
 		},
 		{
 			test: "Exclude file systems",
 			config: integration.Data("use_mount: true\nexcluded_filesystems: \n  - tmpfs\n  - squashfs"),
-			excludedDisks: []string(nil),
 			excludedFileSystems: []string{"iso9660", "tmpfs", "squashfs"},
 		},
 		{
