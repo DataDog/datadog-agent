@@ -67,8 +67,10 @@ func GetHostTags(cached bool) *Tags {
 	}
 
 	rawHostTags := config.Datadog.GetStringSlice("tags")
-	hostTags := make([]string, 0, len(rawHostTags))
+	rawExtraTags := config.Datadog.GetStringSlice("extra_tags")
+	hostTags := make([]string, 0, len(rawHostTags)+len(rawExtraTags))
 	hostTags = appendToHostTags(hostTags, rawHostTags)
+	hostTags = appendToHostTags(hostTags, rawExtraTags)
 
 	env := config.Datadog.GetString("env")
 	if env != "" {

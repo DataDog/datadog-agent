@@ -74,3 +74,15 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 	// `System` should be marshaled as an empty list
 	assert.Equal(t, string(marshaled), `{"system":[]}`)
 }
+
+func TestCombineExtraTags(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag4"})
+	mockConfig.Set("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
+	defer mockConfig.Set("tags", nil)
+	defer mockConfig.Set("extra_tags", nil)
+
+	hostTags := GetHostTags(false)
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, []string{"tag1:value1", "tag2", "tag4", "tag1:value2", "tag3", "tag4"}, hostTags.System)
+}
