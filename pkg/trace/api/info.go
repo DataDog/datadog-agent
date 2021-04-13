@@ -68,7 +68,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		BuildDate:     info.BuildDate,
 		Endpoints:     all,
 		FeatureFlags:  config.Features(),
-		ClientDropP0s: false,
+		ClientDropP0s: true,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

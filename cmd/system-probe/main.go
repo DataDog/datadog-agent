@@ -8,17 +8,15 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	_ "net/http/pprof"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -27,15 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// All System Probe modules should register their factories here
-var factories = []api.Factory{
-	modules.NetworkTracer,
-	modules.TCPQueueLength,
-	modules.OOMKillProbe,
-	modules.SecurityRuntime,
-	modules.Process,
-}
 
 // Flag values
 var opts struct {
@@ -73,15 +62,28 @@ func runAgent(exit <-chan struct{}) {
 		}()
 	}
 
-	// Parsing YAML config files
-	cfg, err := config.NewSystemProbeConfig(loggerName, opts.configPath)
+	cfg, err := config.New(opts.configPath)
 	if err != nil {
 		log.Criticalf("Failed to create agent config: %s", err)
 		cleanupAndExit(1)
 	}
 
+	err = ddconfig.SetupLogger(
+		loggerName,
+		cfg.LogLevel,
+		cfg.LogFile,
+		ddconfig.GetSyslogURI(),
+		ddconfig.Datadog.GetBool("syslog_rfc"),
+		ddconfig.Datadog.GetBool("log_to_console"),
+		ddconfig.Datadog.GetBool("log_format_json"),
+	)
+	if err != nil {
+		log.Criticalf("failed to setup configured logger: %s", err)
+		cleanupAndExit(1)
+	}
+
 	// Exit if system probe is disabled
-	if !cfg.EnableSystemProbe {
+	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting.")
 		gracefulExit()
 	}
@@ -96,21 +98,21 @@ func runAgent(exit <-chan struct{}) {
 	log.Infof("running system-probe with version: %s", versionString(", "))
 
 	// configure statsd
-	if err := statsd.Configure(cfg); err != nil {
+	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		cleanupAndExit(1)
 	}
 
-	conn, err := net.NewListener(cfg)
+	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		log.Criticalf("Error creating IPC socket: %s", err)
 		cleanupAndExit(1)
 	}
 
 	// if a debug port is specified, we expose the default handler to that port
-	if cfg.SystemProbeDebugPort > 0 {
+	if cfg.DebugPort > 0 {
 		go func() {
-			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.SystemProbeDebugPort), http.DefaultServeMux)
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.DebugPort), http.DefaultServeMux)
 			if err != nil && err != http.ErrServerClosed {
 				log.Criticalf("Error creating debug HTTP server: %v", err)
 				cleanupAndExit(1)
@@ -123,16 +125,9 @@ func runAgent(exit <-chan struct{}) {
 
 	httpMux := http.NewServeMux()
 
-	err = loader.Register(cfg, httpMux, factories)
+	err = loader.Register(cfg, httpMux, modules.All)
 	if err != nil {
 		loader.Close()
-
-		if strings.HasPrefix(err.Error(), modules.ErrSysprobeUnsupported.Error()) {
-			// If tracer is unsupported by this operating system, then exit gracefully
-			log.Infof("%s, exiting.", err)
-			gracefulExit()
-		}
-
 		log.Criticalf("failed to create system probe: %s", err)
 		cleanupAndExit(1)
 	}
@@ -156,7 +151,7 @@ func runAgent(exit <-chan struct{}) {
 	<-exit
 }
 
-func enableProfiling(cfg *config.AgentConfig) error {
+func enableProfiling(cfg *config.Config) error {
 	var site string
 	v, _ := version.Agent()
 
@@ -164,13 +159,7 @@ func enableProfiling(cfg *config.AgentConfig) error {
 	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
 		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
 	} else {
-		// allow full url override for development use
-		s := ddconfig.DefaultSite
-		if cfg.ProfilingSite != "" {
-			s = cfg.ProfilingSite
-		}
-
-		site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
+		site = fmt.Sprintf(profiling.ProfileURLTemplate, cfg.ProfilingSite)
 		if cfg.ProfilingURL != "" {
 			site = cfg.ProfilingURL
 		}

@@ -199,8 +199,8 @@ func run(cmd *cobra.Command, args []string) error {
 	var clusterCheckHandler *clusterchecks.Handler
 	clusterCheckHandler, err = setupClusterCheck(mainCtx)
 	if err == nil {
-		api.ModifyRouter(func(r *mux.Router) {
-			dcav1.Install(r.PathPrefix("/api/v1").Subrouter(), clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+		api.ModifyAPIRouter(func(r *mux.Router) {
+			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 		})
 	} else {
 		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)

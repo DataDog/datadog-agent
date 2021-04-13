@@ -1,14 +1,24 @@
 package config
 
 import (
+	"strings"
 	"time"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	spNS  = "system_probe_config"
+	netNS = "network_config"
+
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
+
+	defaultOffsetThreshold = 400
+	maxOffsetThreshold     = 3000
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -76,9 +86,9 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered int
 
-	// MaxDNSStatsBufferred represents the maximum number of DNS stats we'll buffer in memory. These stats
+	// MaxDNSStatsBuffered represents the maximum number of DNS stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
-	MaxDNSStatsBufferred int
+	MaxDNSStatsBuffered int
 
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
@@ -131,40 +141,79 @@ type Config struct {
 	EnableGatewayLookup bool
 }
 
-// NewDefaultConfig enables traffic collection for all connection types
-func NewDefaultConfig() *Config {
-	return &Config{
-		Config:                       *ebpf.NewDefaultConfig(),
-		CollectTCPConns:              true,
-		CollectUDPConns:              true,
-		CollectIPv6Conns:             true,
-		CollectLocalDNS:              false,
-		DNSInspection:                true,
-		EnableHTTPMonitoring:         false,
-		UDPConnTimeout:               defaultUDPTimeoutSeconds * time.Second,
-		UDPStreamTimeout:             defaultUDPStreamTimeoutSeconds * time.Second,
-		TCPConnTimeout:               2 * time.Minute,
-		TCPClosedTimeout:             time.Second,
-		MaxTrackedConnections:        65536,
-		ConntrackMaxStateSize:        65536,
-		ConntrackRateLimit:           500,
-		EnableConntrackAllNamespaces: true,
-		EnableConntrack:              true,
-		EnableGatewayLookup:          false,
-		IgnoreConntrackInitFailure:   false,
-		// With clients checking connection stats roughly every 30s, this gives us roughly ~1.6k + ~2.5k objects a second respectively.
-		MaxClosedConnectionsBuffered: 50000,
-		MaxConnectionsStateBuffered:  75000,
-		MaxDNSStatsBufferred:         75000,
-		MaxHTTPStatsBuffered:         100000,
+func join(pieces ...string) string {
+	return strings.Join(pieces, ".")
+}
+
+// New creates a config for the network tracer
+func New() *Config {
+	cfg := ddconfig.Datadog
+	c := &Config{
+		Config: *ebpf.NewConfig(),
+
+		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
+		TCPConnTimeout:   2 * time.Minute,
+		TCPClosedTimeout: 1 * time.Second,
+
+		CollectUDPConns:  !cfg.GetBool(join(spNS, "disable_udp")),
+		UDPConnTimeout:   defaultUDPTimeoutSeconds * time.Second,
+		UDPStreamTimeout: defaultUDPStreamTimeoutSeconds * time.Second,
+
+		CollectIPv6Conns:               !cfg.GetBool(join(spNS, "disable_ipv6")),
+		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
+		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
+		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
+
+		MaxTrackedConnections:        uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered: cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
+		ClosedChannelSize:            cfg.GetInt(join(spNS, "closed_channel_size")),
+		MaxConnectionsStateBuffered:  cfg.GetInt(join(spNS, "max_connection_state_buffered")),
 		ClientStateExpiry:            2 * time.Minute,
-		ClosedChannelSize:            500,
-		// DNS Stats related configurations
-		CollectDNSStats:      true,
-		CollectDNSDomains:    false,
-		DNSTimeout:           15 * time.Second,
-		MaxDNSStats:          10000,
-		OffsetGuessThreshold: 400,
-		EnableMonotonicCount: false,
+
+		DNSInspection:       !cfg.GetBool(join(spNS, "disable_dns_inspection")),
+		CollectDNSStats:     cfg.GetBool(join(spNS, "collect_dns_stats")),
+		CollectLocalDNS:     cfg.GetBool(join(spNS, "collect_local_dns")),
+		CollectDNSDomains:   cfg.GetBool(join(spNS, "collect_dns_domains")),
+		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
+		MaxDNSStatsBuffered: 75000,
+		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+
+		EnableHTTPMonitoring: cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		MaxHTTPStatsBuffered: 100000,
+
+		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+
+		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
+
+		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
+		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
 	}
+
+	if c.OffsetGuessThreshold > maxOffsetThreshold {
+		log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
+		c.OffsetGuessThreshold = defaultOffsetThreshold
+	}
+
+	if !kernel.IsIPv6Enabled() {
+		c.CollectIPv6Conns = false
+		log.Info("network tracer IPv6 tracing disabled by system")
+	} else if !c.CollectIPv6Conns {
+		log.Info("network tracer IPv6 tracing disabled by configuration")
+	}
+
+	if !c.CollectUDPConns {
+		log.Info("network tracer UDP tracing disabled by configuration")
+	}
+	if !c.CollectTCPConns {
+		log.Info("network tracer TCP tracing disabled by configuration")
+	}
+	if !c.DNSInspection {
+		log.Info("network tracer DNS inspection disabled by configuration")
+	}
+
+	return c
 }

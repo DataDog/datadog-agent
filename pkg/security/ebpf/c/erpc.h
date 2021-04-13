@@ -81,6 +81,10 @@ int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
+    if (is_flushing_discarders()) {
+        return 0;
+    }
+
     void *req = (void *)PT_REGS_PARM4(ctx);
 
     u8 op;

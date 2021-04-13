@@ -7,7 +7,8 @@
 #define true 1
 #define false 0
 
-typedef enum {
+typedef enum
+{
     CONN_DIRECTION_UNKNOWN = 0b00,
     CONN_DIRECTION_INCOMING = 0b01,
     CONN_DIRECTION_OUTGOING = 0b10,
@@ -20,19 +21,21 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
-    __u8  direction;
+    __u8 direction;
 } conn_stats_ts_t;
 
 // Connection flags
-typedef enum {
-    CONN_L_INIT  = 1 << 0, // initial/first message sent
-    CONN_R_INIT  = 1 << 1, // reply received for initial message from remote
-    CONN_ASSURED = 1 << 2  // "3-way handshake" complete, i.e. response to initial reply sent
+typedef enum
+{
+    CONN_L_INIT = 1 << 0, // initial/first message sent
+    CONN_R_INIT = 1 << 1, // reply received for initial message from remote
+    CONN_ASSURED = 1 << 2 // "3-way handshake" complete, i.e. response to initial reply sent
 } conn_flags_t;
 
 // Metadata bit masks
 // 0 << x is only for readability
-typedef enum {
+typedef enum
+{
     // Connection type
     CONN_TYPE_UDP = 0,
     CONN_TYPE_TCP = 1,
@@ -97,13 +100,15 @@ typedef struct {
 // The greater this number is the less likely are colisions/data-races between the flushes
 #define HTTP_BATCH_PAGES 10
 
-typedef enum {
+typedef enum
+{
     HTTP_PACKET_UNKNOWN,
     HTTP_REQUEST,
     HTTP_RESPONSE
 } http_packet_t;
 
-typedef enum {
+typedef enum
+{
     HTTP_METHOD_UNKNOWN,
     HTTP_GET,
     HTTP_POST,
@@ -206,7 +211,7 @@ typedef struct {
 
 typedef struct {
     __u32 netns;
-    struct flowi4 * fl;
+    struct flowi4 *fl;
 } ip_route_flow_t;
 
 typedef struct {

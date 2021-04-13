@@ -364,7 +364,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
     if (tgid == pid) {
         if (!is_flushing_discarders()) {
-            bpf_map_delete_elem(&pid_discarders, &tgid);
+            remove_pid_discarder(tgid);
         }
 
         // update exit time

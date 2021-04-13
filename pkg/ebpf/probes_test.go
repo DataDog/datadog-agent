@@ -13,7 +13,7 @@ import (
 )
 
 func TestChooseSyscall(t *testing.T) {
-	c := NewDefaultConfig()
+	c := NewConfig()
 
 	_, err := c.ChooseSyscallProbe("wrongformat", "", "")
 	assert.Error(t, err)

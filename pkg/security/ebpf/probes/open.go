@@ -33,6 +33,10 @@ var openProbes = []*manager.Probe{
 		UID:     SecurityAgentUID,
 		Section: "kretprobe/io_openat2",
 	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/filp_close",
+	},
 }
 
 func getOpenProbes() []*manager.Probe {

@@ -48,7 +48,7 @@ func TestOverlayFS(t *testing.T) {
 		sles12 = kv.IsSLES12Kernel()
 	}
 
-	if testEnvironment == DockerEnvironment || sles12 {
+	if sles12 {
 		t.Skip()
 	}
 
