@@ -93,29 +93,26 @@ type passthroughPipeline struct {
 	auditor auditor.Auditor
 }
 
+type passthroughPipelineDesc struct {
+	eventType              string
+	endpointsConfigPrefix  string
+	hostnameEndpointPrefix string
+}
+
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(
-	eventType string,
-	endpointsConfigPrefix string,
-	hostnameEndpointPrefix string,
-	destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", eventType, err.Error())
-		}
-	}()
+func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
 	configKeys := config.LogsConfigKeys{
-		CompressionLevel:        endpointsConfigPrefix + ".compression_level",
-		ConnectionResetInterval: endpointsConfigPrefix + ".connection_reset_interval",
-		LogsDDURL:               endpointsConfigPrefix + ".logs_dd_url",
-		DDURL:                   endpointsConfigPrefix + ".dd_url",
-		DevModeNoSSL:            endpointsConfigPrefix + ".dev_mode_no_ssl",
-		AdditionalEndpoints:     endpointsConfigPrefix + ".additional_endpoints",
-		BatchWait:               endpointsConfigPrefix + ".batch_wait",
-		BatchMaxConcurrentSend:  endpointsConfigPrefix + ".batch_max_concurrent_send",
+		CompressionLevel:        desc.endpointsConfigPrefix + ".compression_level",
+		ConnectionResetInterval: desc.endpointsConfigPrefix + ".connection_reset_interval",
+		LogsDDURL:               desc.endpointsConfigPrefix + ".logs_dd_url",
+		DDURL:                   desc.endpointsConfigPrefix + ".dd_url",
+		DevModeNoSSL:            desc.endpointsConfigPrefix + ".dev_mode_no_ssl",
+		AdditionalEndpoints:     desc.endpointsConfigPrefix + ".additional_endpoints",
+		BatchWait:               desc.endpointsConfigPrefix + ".batch_wait",
+		BatchMaxConcurrentSend:  desc.endpointsConfigPrefix + ".batch_max_concurrent_send",
 	}
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, hostnameEndpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +133,7 @@ func newHTTPPassthroughPipeline(
 	inputChan := make(chan *message.Message, 100)
 	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend)
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d", eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d", desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend)
 	return &passthroughPipeline{
 		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
 		in:      inputChan,
@@ -164,18 +161,31 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
+var passthroughPipelineDescs = []passthroughPipelineDesc{
+	{
+		eventType:              eventTypeDBMSamples,
+		endpointsConfigPrefix:  "database_monitoring.samples",
+		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+	},
+	{
+		eventType:              eventTypeDBMMetrics,
+		endpointsConfigPrefix:  "database_monitoring.metrics",
+		hostnameEndpointPrefix: "dbmetrics-http-intake.logs.",
+	},
+}
+
 func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-
-	if p, err := newHTTPPassthroughPipeline(eventTypeDBMSamples, "database_monitoring.samples", "dbquery-http-intake.logs.", destinationsCtx); err == nil {
-		pipelines[eventTypeDBMSamples] = p
+	for _, desc := range passthroughPipelineDescs {
+		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx)
+		if err != nil {
+			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
+			continue
+		}
+		pipelines[desc.eventType] = p
 	}
-	if p, err := newHTTPPassthroughPipeline(eventTypeDBMMetrics, "database_monitoring.metrics", "dbmetrics-http-intake.logs.", destinationsCtx); err == nil {
-		pipelines[eventTypeDBMMetrics] = p
-	}
-
 	return &defaultEventPlatformForwarder{
 		pipelines:       pipelines,
 		destinationsCtx: destinationsCtx,
