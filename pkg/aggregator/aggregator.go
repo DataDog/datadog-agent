@@ -398,11 +398,11 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
 	if agg.eventPlatformForwarder == nil {
 		return errors.New("event platform forwarder not initialized")
 	}
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	m := &message.Message{Content: []byte(event.rawEvent)}
 	err := agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 	if err != nil {
