@@ -36,7 +36,6 @@ build_dogstatsd-deb_x64:
 build_dogstatsd-deb_arm64:
   rules:
     - <<: *if_run_all_builds
-      when: on_success
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -69,7 +68,6 @@ build_iot_agent-deb_x64:
 build_iot_agent-deb_arm64:
   rules:
     - <<: *if_run_all_builds
-      when: on_success
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]

@@ -49,7 +49,6 @@ build_system-probe-x64:
 build_system-probe-arm64:
   rules:
     - <<: *if_run_all_builds
-      when: on_success
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["go_mod_tidy_check"]
