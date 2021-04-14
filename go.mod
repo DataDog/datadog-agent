@@ -128,6 +128,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.3-0.20200929063507-e6143ca7d51d
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.3 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.10.0
@@ -219,3 +220,5 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 
 // Remove once the upstream PR is merged
 replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
+
+replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
