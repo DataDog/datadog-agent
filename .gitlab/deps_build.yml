@@ -50,9 +50,6 @@ build_libbcc_arm64:
     ARCH: arm64
 
 .build_clang_common:
-  rules:
-    - when: manual
-      allow_failure: true
   stage: deps_build
   script:
     # use tmpdir to prevent git remote capture by clang build
@@ -92,6 +89,9 @@ build_libbcc_arm64:
 
 build_clang_x64:
   extends: .build_clang_common
+  rules:
+    - when: manual
+      allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
   variables:
@@ -99,6 +99,10 @@ build_clang_x64:
 
 build_clang_arm64:
   extends: .build_clang_common
+  rules:
+    - <<: *if_run_all_builds
+      when: manual
+      allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:

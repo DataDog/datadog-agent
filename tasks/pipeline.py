@@ -105,7 +105,7 @@ def run_pipeline(
     """
     Trigger a pipeline on the given git ref, or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests.
-    Use --no-all-builds to not run builds for all architectures (only x64 jobs will run).
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
     deploy them.

@@ -5,6 +5,9 @@
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
+.if_run_all_builds: &if_run_all_builds
+  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
+
 .if_not_run_all_builds: &if_not_run_all_builds
   if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
 
@@ -207,9 +210,9 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
+  rules:
+    - <<: *if_run_all_builds
   needs:
-    - <<: *if_not_run_all_builds
-      when: never
     - job: cluster_agent-build_arm64
       artifacts: false
   variables:
