@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	aggBucketSize           = uint64(1e9)
-	bucketDuration          = uint64(1e10) // 10s
-	oldestBucketStartSecond = uint64(20)   // 20s
-	distributionsPayload    = "distributions"
-	aggregatedCountPayload  = "counts"
+	aggBucketSize          = uint64(1e9)
+	bucketDuration         = uint64(1e10) // 10s
+	oldestBucketStart      = 20 * time.Second
+	distributionsPayload   = "distributions"
+	aggregatedCountPayload = "counts"
 )
 
 // ClientStatsAggregator aggregates client stats payloads on 1s buckets.
@@ -38,7 +38,6 @@ type ClientStatsAggregator struct {
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
 func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload) *ClientStatsAggregator {
-	oldestTSUnix := uint64(time.Now().Add(-10 * time.Second).Unix())
 	return &ClientStatsAggregator{
 		flushTicker:   time.NewTicker(time.Second),
 		In:            make(chan pb.ClientStatsPayload, 10),
@@ -46,7 +45,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
-		oldestTs:      oldestTSUnix,
+		oldestTs:      uint64(time.Now().Add(-oldestBucketStart).Unix()),
 	}
 }
 
@@ -54,33 +53,30 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 func (a *ClientStatsAggregator) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
-		a.run()
+		for {
+			select {
+			case t := <-a.flushTicker.C:
+				a.flushOnTime(t)
+			case input := <-a.In:
+				a.add(time.Now(), input)
+			case <-a.exit:
+				a.flushAll()
+				close(a.done)
+			}
+		}
 	}()
 }
 
-// Stop stops the aggregator.
+// Stop stops the aggregator. Calling Stop twice will panic.
 func (a *ClientStatsAggregator) Stop() {
 	close(a.exit)
 	<-a.done
 }
 
-func (a *ClientStatsAggregator) run() {
-	for {
-		select {
-		case t := <-a.flushTicker.C:
-			a.flushOnTime(t)
-		case input := <-a.In:
-			a.add(time.Now(), input)
-		case <-a.exit:
-			a.flushAll()
-			close(a.done)
-		}
-	}
-}
-
+// flushOnTime flushes all buckets up to t, except the last one.
 func (a *ClientStatsAggregator) flushOnTime(t time.Time) {
-	flushTs := uint64(t.Unix()) - oldestBucketStartSecond
-	for ts := a.oldestTs; ts < flushTs; ts += 1 {
+	flushTs := uint64(t.Unix()) - uint64(oldestBucketStart.Seconds())
+	for ts := a.oldestTs; ts < flushTs; ts++ {
 		if b, ok := a.buckets[ts]; ok {
 			for _, p := range b.flush() {
 				a.flush(p)
@@ -102,31 +98,29 @@ func (a *ClientStatsAggregator) flushAll() {
 // getAggregationBucketTime returns unix time at which we aggregate the bucket.
 // We timeshift payloads older than a.oldestTs to a.oldestTs.
 // Payloads in the future are timeshifted to time.Now().Unix()
-func (a *ClientStatsAggregator) getAggregationBucketTime(now time.Time, bucketStart uint64) (uint64, bool) {
-	tsUnix := bucketStart / aggBucketSize
-	if tsUnix < a.oldestTs {
+func (a *ClientStatsAggregator) getAggregationBucketTime(t time.Time, bucketStart uint64) (uint64, bool) {
+	ts := bucketStart / aggBucketSize
+	if ts < a.oldestTs {
 		return a.oldestTs, true
 	}
-	nowUnix := uint64(now.Unix())
-	if tsUnix > nowUnix {
-		return nowUnix, true
+	now := uint64(t.Unix())
+	if ts > now {
+		return now, true
 	}
 	return bucketStart / aggBucketSize, false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
-	clientStats := p.Stats
-	for _, clientBucket := range clientStats {
-		tsUnix, timeShifted := a.getAggregationBucketTime(now, clientBucket.Start)
-		if timeShifted {
-			newStart := tsUnix * 1e9
-			clientBucket.AgentTimeShift = int64(tsUnix) - int64(clientBucket.Start)
-			clientBucket.Start = newStart
+	for _, clientBucket := range p.Stats {
+		ts, shifted := a.getAggregationBucketTime(now, clientBucket.Start)
+		if shifted {
+			clientBucket.AgentTimeShift = int64(ts) - int64(clientBucket.Start)
+			clientBucket.Start = ts * 1e9
 		}
-		b, ok := a.buckets[tsUnix]
+		b, ok := a.buckets[ts]
 		if !ok {
-			b = &bucket{tsUnix: tsUnix}
-			a.buckets[tsUnix] = b
+			b = &bucket{ts: ts}
+			a.buckets[ts] = b
 		}
 		p.Stats = []pb.ClientStatsBucket{clientBucket}
 		for _, p := range b.add(p) {
@@ -146,43 +140,49 @@ func (a *ClientStatsAggregator) flush(p pb.ClientStatsPayload) {
 }
 
 type bucket struct {
-	firstPayload pb.ClientStatsPayload
-	tsUnix       uint64
-	numPayloads  int
-	aggregator   map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts
+	// first is the first payload matching the bucket. If a second payload matches the bucket
+	// this field will be empty
+	first pb.ClientStatsPayload
+	// ts is the unix timestamp attached to the payload
+	ts uint64
+	// n counts the number of payloads matching the bucket
+	n int
+	// agg contains the aggregated Hits/Errors/Duration counts
+	agg map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts
 }
 
 func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
-	b.numPayloads++
-	if b.numPayloads == 1 {
-		b.firstPayload = p
+	b.n++
+	if b.n == 1 {
+		b.first = p
 		return nil
 	}
-	if b.numPayloads == 2 {
-		firstPayload := b.firstPayload
-		b.firstPayload = pb.ClientStatsPayload{}
-		b.aggregator = make(map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts, 2)
-		b.aggregateHitsErrors(firstPayload)
-		b.aggregateHitsErrors(p)
-		firstPayload.AgentAggregation = distributionsPayload
+	// if it's the second payload we flush the first payload with counts trimmed
+	if b.n == 2 {
+		first := b.first
+		b.first = pb.ClientStatsPayload{}
+		b.agg = make(map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts, 2)
+		b.aggregateCounts(first)
+		b.aggregateCounts(p)
+		first.AgentAggregation = distributionsPayload
 		p.AgentAggregation = distributionsPayload
-		return []pb.ClientStatsPayload{trimHitsErrors(firstPayload), trimHitsErrors(p)}
+		return []pb.ClientStatsPayload{trimHitsErrors(first), trimHitsErrors(p)}
 	}
-	b.aggregateHitsErrors(p)
+	b.aggregateCounts(p)
 	p.AgentAggregation = distributionsPayload
 	return []pb.ClientStatsPayload{trimHitsErrors(p)}
 }
 
-func (b *bucket) aggregateHitsErrors(p pb.ClientStatsPayload) {
+func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version)
-	payloadAgg, ok := b.aggregator[payloadAggKey]
+	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
 		var size int
 		for _, s := range p.Stats {
 			size += len(s.Stats)
 		}
 		payloadAgg = make(map[bucketAggregationKey]*aggregatedCounts, size)
-		b.aggregator[payloadAggKey] = payloadAgg
+		b.agg[payloadAggKey] = payloadAgg
 	}
 	for _, s := range p.Stats {
 		for _, sb := range s.Stats {
@@ -200,15 +200,15 @@ func (b *bucket) aggregateHitsErrors(p pb.ClientStatsPayload) {
 }
 
 func (b *bucket) flush() []pb.ClientStatsPayload {
-	if b.numPayloads == 1 {
-		return []pb.ClientStatsPayload{b.firstPayload}
+	if b.n == 1 {
+		return []pb.ClientStatsPayload{b.first}
 	}
 	return b.aggregationToPayloads()
 }
 
 func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
-	res := make([]pb.ClientStatsPayload, 0, len(b.aggregator))
-	for payloadKey, aggrCounts := range b.aggregator {
+	res := make([]pb.ClientStatsPayload, 0, len(b.agg))
+	for payloadKey, aggrCounts := range b.agg {
 		stats := make([]pb.ClientGroupedStats, 0, len(aggrCounts))
 		for aggrKey, counts := range aggrCounts {
 			stats = append(stats, pb.ClientGroupedStats{
@@ -224,7 +224,7 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 		}
 		clientBuckets := []pb.ClientStatsBucket{
 			{
-				Start:    b.tsUnix * 1e9, // to nanosecond
+				Start:    b.ts * 1e9, // to nanosecond
 				Duration: bucketDuration,
 				Stats:    stats,
 			}}
