@@ -106,16 +106,6 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
-	f, err := os.Create(testFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
 	which := func(name string) string {
 		executable := "/usr/bin/" + name
 		if resolved, err := os.Readlink(executable); err == nil {

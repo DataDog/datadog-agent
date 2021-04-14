@@ -154,8 +154,7 @@ type ProcessCacheEntrySerializer struct {
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
-	ID   string   `json:"id,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	ID string `json:"id,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON

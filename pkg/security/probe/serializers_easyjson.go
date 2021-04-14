@@ -2531,29 +2531,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 		switch key {
 		case "id":
 			out.ID = string(in.String())
-		case "tags":
-			if in.IsNull() {
-				in.Skip()
-				out.Tags = nil
-			} else {
-				in.Delim('[')
-				if out.Tags == nil {
-					if !in.IsDelim(']') {
-						out.Tags = make([]string, 0, 4)
-					} else {
-						out.Tags = []string{}
-					}
-				} else {
-					out.Tags = (out.Tags)[:0]
-				}
-				for !in.IsDelim(']') {
-					var v26 string
-					v26 = string(in.String())
-					out.Tags = append(out.Tags, v26)
-					in.WantComma()
-				}
-				in.Delim(']')
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2573,25 +2550,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
-	}
-	if len(in.Tags) != 0 {
-		const prefix string = ",\"tags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		{
-			out.RawByte('[')
-			for v27, v28 := range in.Tags {
-				if v27 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v28))
-			}
-			out.RawByte(']')
-		}
 	}
 	out.RawByte('}')
 }
@@ -2654,9 +2612,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 					out.CapEffective = (out.CapEffective)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v29 string
-					v29 = string(in.String())
-					out.CapEffective = append(out.CapEffective, v29)
+					var v26 string
+					v26 = string(in.String())
+					out.CapEffective = append(out.CapEffective, v26)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2677,9 +2635,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 					out.CapPermitted = (out.CapPermitted)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v30 string
-					v30 = string(in.String())
-					out.CapPermitted = append(out.CapPermitted, v30)
+					var v27 string
+					v27 = string(in.String())
+					out.CapPermitted = append(out.CapPermitted, v27)
 					in.WantComma()
 				}
 				in.Delim(']')

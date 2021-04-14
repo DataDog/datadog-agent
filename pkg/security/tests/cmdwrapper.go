@@ -80,20 +80,17 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {
 	cmd := exec.Command(d.executable, "kill", "docker-wrapper")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return out, err
-	}
+	_ = cmd.Run()
 
-	cmd = exec.Command(d.executable, "rm", "docker-wrapper")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return out, err
-	}
-
-	return nil, nil
+	cmd = exec.Command(d.executable, "rm", "-f", "docker-wrapper")
+	return cmd.CombinedOutput()
 }
 
 func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	t.Run(name, func(t *testing.T) {
+		// force stop in case of previous failure
+		_, _ = d.stop()
+
 		if out, err := d.start(); err != nil {
 			t.Fatalf("%s: %s", string(out), err)
 		}

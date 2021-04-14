@@ -104,7 +104,7 @@ func bindataContainerJson() (*asset, error) {
 		name:        "/container.json",
 		size:        236,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -132,7 +132,7 @@ func bindataContainercontextJson() (*asset, error) {
 		name:        "/container_context.json",
 		size:        274,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -160,7 +160,7 @@ func bindataContainerpathJson() (*asset, error) {
 		name:        "/container_path.json",
 		size:        150,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -188,7 +188,7 @@ func bindataEventJson() (*asset, error) {
 		name:        "/event.json",
 		size:        722,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -216,7 +216,7 @@ func bindataExecSchemaJson() (*asset, error) {
 		name:        "/exec.schema.json",
 		size:        1917,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -244,7 +244,7 @@ func bindataFileJson() (*asset, error) {
 		name:        "/file.json",
 		size:        1517,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -272,7 +272,7 @@ func bindataProcessJson() (*asset, error) {
 		name:        "/process.json",
 		size:        5114,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -300,7 +300,7 @@ func bindataProcesscontextJson() (*asset, error) {
 		name:        "/process_context.json",
 		size:        1060,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -328,7 +328,7 @@ func bindataUsrJson() (*asset, error) {
 		name:        "/usr.json",
 		size:        486,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 

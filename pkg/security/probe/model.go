@@ -57,7 +57,6 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			}
-			f.PathResolutionError = err
 		}
 		f.PathnameStr = path
 	}
@@ -222,15 +221,15 @@ func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
 
 // ResolveExecArgv resolves the args of the event as an array
 func (ev *Event) ResolveExecArgv(e *model.ExecEvent) []string {
-	if len(ev.Exec.Argv) == 0 && len(ev.ProcessContext.ArgsArray) > 0 {
-		ev.Exec.Argv = ev.ProcessContext.ArgsArray
+	if len(ev.Exec.Argv) == 0 && len(e.ArgsArray) > 0 {
+		ev.Exec.Argv = e.ArgsArray
 	}
 	return ev.Exec.Argv
 }
 
 // ResolveExecArgsFlags resolves the arguments flags of the event
 func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
-	for _, arg := range ev.ProcessContext.ArgsArray {
+	for _, arg := range e.ArgsArray {
 		if len(arg) > 1 && arg[0] == '-' {
 			isFlag := true
 			name := arg[1:]
@@ -262,7 +261,7 @@ func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
 
 // ResolveExecArgsOptions resolves the arguments options of the event
 func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
-	args := ev.ProcessContext.ArgsArray
+	args := e.ArgsArray
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if len(arg) > 1 && arg[0] == '-' {
