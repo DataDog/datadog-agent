@@ -25,6 +25,7 @@ message ClientStatsPayload {
 	string tracerVersion = 6;
 	string runtimeID = 7;
 	uint64 sequence = 8;
+	string agentAggregation = 9;
 }
 
 // TODO(gbbr): doc
@@ -32,6 +33,7 @@ message ClientStatsBucket {
 	uint64 start = 1;
 	uint64 duration = 2;
 	repeated ClientGroupedStats stats = 3 [(gogoproto.nullable) = false];
+	int64 agentTimeShift = 4;
 }
 
 // TODO(gbbr): doc

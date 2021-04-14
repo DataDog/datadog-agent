@@ -49,7 +49,7 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: []pb.StatsPayload{pb.StatsPayload{
+		Out: []pb.StatsPayload{{
 			AgentHostname:  "agent-hostname",
 			AgentEnv:       "agent-env",
 			ClientComputed: true,
@@ -144,7 +144,7 @@ var ClientStatsTests = []struct {
 			},
 		},
 		Out: []pb.StatsPayload{
-			pb.StatsPayload{
+			{
 				AgentHostname:  "agent-hostname",
 				AgentEnv:       "agent-env",
 				ClientComputed: true,
@@ -178,7 +178,7 @@ var ClientStatsTests = []struct {
 				},
 				},
 			},
-			pb.StatsPayload{
+			{
 				AgentHostname:  "agent-hostname",
 				AgentEnv:       "agent-env",
 				ClientComputed: true,
@@ -224,7 +224,7 @@ var ClientStatsTests = []struct {
 				},
 				},
 			},
-			pb.StatsPayload{
+			{
 				AgentHostname:  "agent-hostname",
 				AgentEnv:       "agent-env",
 				ClientComputed: true,

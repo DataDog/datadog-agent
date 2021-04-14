@@ -13,6 +13,8 @@ const (
 	aggBucketSize           = uint64(1e9)
 	bucketDuration          = uint64(1e10) // 10s
 	oldestBucketStartSecond = uint64(20)   // 20s
+	distributionsPayload    = "distributions"
+	aggregatedCountPayload  = "counts"
 )
 
 // ClientStatsAggregator aggregates client stats payloads on 1s buckets.
@@ -100,22 +102,27 @@ func (a *ClientStatsAggregator) flushAll() {
 // getAggregationBucketTime returns unix time at which we aggregate the bucket.
 // We timeshift payloads older than a.oldestTs to a.oldestTs.
 // Payloads in the future are timeshifted to time.Now().Unix()
-func (a *ClientStatsAggregator) getAggregationBucketTime(now time.Time, bucketStart uint64) uint64 {
+func (a *ClientStatsAggregator) getAggregationBucketTime(now time.Time, bucketStart uint64) (uint64, bool) {
 	tsUnix := bucketStart / aggBucketSize
 	if tsUnix < a.oldestTs {
-		return a.oldestTs
+		return a.oldestTs, true
 	}
 	nowUnix := uint64(now.Unix())
 	if tsUnix > nowUnix {
-		return nowUnix
+		return nowUnix, true
 	}
-	return bucketStart / aggBucketSize
+	return bucketStart / aggBucketSize, false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 	clientStats := p.Stats
 	for _, clientBucket := range clientStats {
-		tsUnix := a.getAggregationBucketTime(now, clientBucket.Start)
+		tsUnix, timeShifted := a.getAggregationBucketTime(now, clientBucket.Start)
+		if timeShifted {
+			newStart := tsUnix * 1e9
+			clientBucket.AgentTimeShift = int64(tsUnix) - int64(clientBucket.Start)
+			clientBucket.Start = newStart
+		}
 		b, ok := a.buckets[tsUnix]
 		if !ok {
 			b = &bucket{tsUnix: tsUnix}
@@ -157,9 +164,12 @@ func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
 		b.aggregator = make(map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts, 2)
 		b.aggregateHitsErrors(firstPayload)
 		b.aggregateHitsErrors(p)
+		firstPayload.AgentAggregation = distributionsPayload
+		p.AgentAggregation = distributionsPayload
 		return []pb.ClientStatsPayload{trimHitsErrors(firstPayload), trimHitsErrors(p)}
 	}
 	b.aggregateHitsErrors(p)
+	p.AgentAggregation = distributionsPayload
 	return []pb.ClientStatsPayload{trimHitsErrors(p)}
 }
 
@@ -213,16 +223,17 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 			})
 		}
 		clientBuckets := []pb.ClientStatsBucket{
-			pb.ClientStatsBucket{
+			{
 				Start:    b.tsUnix * 1e9, // to nanosecond
 				Duration: bucketDuration,
 				Stats:    stats,
 			}}
 		res = append(res, pb.ClientStatsPayload{
-			Hostname: payloadKey.hostname,
-			Env:      payloadKey.env,
-			Version:  payloadKey.version,
-			Stats:    clientBuckets,
+			Hostname:         payloadKey.hostname,
+			Env:              payloadKey.env,
+			Version:          payloadKey.version,
+			Stats:            clientBuckets,
+			AgentAggregation: aggregatedCountPayload,
 		})
 	}
 	return res

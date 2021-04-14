@@ -42,8 +42,9 @@ func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
 	return stats
 }
 
-func assertEqualWithNoCounts(t *testing.T, withCounts, res pb.StatsPayload) {
-	for _, p := range withCounts.Stats {
+func assertDistribPayload(t *testing.T, withCounts, res pb.StatsPayload) {
+	for j, p := range withCounts.Stats {
+		withCounts.Stats[j].AgentAggregation = distributionsPayload
 		for _, s := range p.Stats {
 			for i := range s.Stats {
 				s.Stats[i].Hits = 0
@@ -55,12 +56,13 @@ func assertEqualWithNoCounts(t *testing.T, withCounts, res pb.StatsPayload) {
 	assert.Equal(t, withCounts, res)
 }
 
-func assertAggCountsEmptyFields(t *testing.T, aggCounts pb.StatsPayload) {
+func assertAggCountsPayload(t *testing.T, aggCounts pb.StatsPayload) {
 	for _, p := range aggCounts.Stats {
 		assert.Empty(t, p.Lang)
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
+		assert.Equal(t, aggregatedCountPayload, p.AgentAggregation)
 		for _, s := range p.Stats {
 			for _, b := range s.Stats {
 				assert.Nil(t, b.OkSummary)
@@ -106,11 +108,11 @@ func TestMergeMany(t *testing.T) {
 	a.flushOnTime(testTime.Add(21 * time.Second))
 	assert.Len(a.out, 5)
 
-	assertEqualWithNoCounts(t, wrapPayload(merge1), <-a.out)
-	assertEqualWithNoCounts(t, wrapPayload(merge2), <-a.out)
-	assertEqualWithNoCounts(t, wrapPayload(merge3), <-a.out)
+	assertDistribPayload(t, wrapPayload(merge1), <-a.out)
+	assertDistribPayload(t, wrapPayload(merge2), <-a.out)
+	assertDistribPayload(t, wrapPayload(merge3), <-a.out)
 	assert.Equal(wrapPayload(other), <-a.out)
-	assertAggCountsEmptyFields(t, <-a.out)
+	assertAggCountsPayload(t, <-a.out)
 	assert.Len(a.buckets, 0)
 }
 
