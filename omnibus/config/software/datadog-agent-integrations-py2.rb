@@ -145,14 +145,24 @@ build do
     command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
-      # Specify C99 standard explicitly to avoid issues while building some
-      # wheels (eg. ddtrace)
-      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc -std=c99",
+      "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
+    # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
+    # wheels (eg. ddtrace).
+    # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
+    # wheel has to be manually built, as the C code in ddtrace doesn't follow the C89 standard (the default value of std).
+    # Note: We don't set this on MacOS, as on MacOS we need to build a bunch of packages & C extensions that
+    # don't have precompiled MacOS wheels. When building C extensions, the CFLAGS variable is added to
+    # the command-line parameters, even when compiling C++ code, where -std=c99 is invalid.
+    # See: https://github.com/python/cpython/blob/v2.7.18/Lib/distutils/sysconfig.py#L222
+    if linux? || windows?
+      nix_build_env["CFLAGS"] += " -std=c99"
+    end
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by
