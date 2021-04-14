@@ -11,15 +11,15 @@
     - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
     - mkdir /tmp/bcc/build
     - cd /tmp/bcc/build
-    - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
-    - make -j 4  # "$(nproc)"
+    - cmake .. -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF -DENABLE_MAN=OFF -DENABLE_USDT=OFF -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
+    - make -j 4 # "$(nproc)"
     # Check that libbcc has no references to glibc >= 2.23
     - objdump -p src/cc/libbcc.so | egrep 'GLIBC_2\.(2[3-9]|[3-9][0-9])' && exit 1
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*
-    - rm -rf share/bcc/examples share/bcc/introspection share/bcc/man share/bcc/tools lib/python2* lib/python3*
-    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo* lib
+    - rm -rf share/bcc/introspection share/bcc/tools lib/python2* lib/python3*
+    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo.so.6* lib
     - tar cvaf /tmp/libbcc.tar.xz .
     - $S3_CP_CMD /tmp/libbcc.tar.xz $S3_ARTIFACTS_URI/libbcc-$ARCH.tar.xz
 
