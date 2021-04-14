@@ -41,7 +41,7 @@ func NewPacketManager(
 	return &PacketManager{
 		bufferSize:      bufferSize,
 		PacketsBuffer:   packetsBuffer,
-		PacketAssembler: NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager),
+		PacketAssembler: NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, NamedPipe),
 	}
 }
 
