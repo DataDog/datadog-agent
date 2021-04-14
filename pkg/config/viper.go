@@ -123,6 +123,17 @@ func (c *safeConfig) GetInt(key string) int {
 	return val
 }
 
+// GetInt32 wraps Viper for concurrent access
+func (c *safeConfig) GetInt32(key string) int32 {
+	c.RLock()
+	defer c.RUnlock()
+	val, err := c.Viper.GetInt32E(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
+}
+
 // GetInt64 wraps Viper for concurrent access
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()

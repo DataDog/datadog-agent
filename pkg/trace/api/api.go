@@ -422,19 +422,19 @@ func (r *HTTPReceiver) rateLimited(n int64) bool {
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p pb.ClientStatsPayload, lang string)
+	ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string)
 }
 
 // handleStats handles incoming stats payloads.
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v05, req)
+	ts := r.tagStats(v06, req)
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
-		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.5"}, w)
+		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)
 		return
 	}
 
@@ -442,7 +442,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang))
+	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
 }
 
 // handleTraces knows how to handle a bunch of traces

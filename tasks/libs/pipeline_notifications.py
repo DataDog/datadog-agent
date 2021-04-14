@@ -58,6 +58,13 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
         for line in test_output.iter_lines():
             json_test = json.loads(line)
             if 'Test' in json_test and json_test["Action"] == "fail":
+                # Ignore subtests, only the parent test should be reported for now
+                # to avoid multiple reports on the same test
+                # NTH: maybe the Test object should be more flexible to incorporate
+                # subtests? This would require some postprocessing of the Test objects
+                # we yield here to merge child Test objects with their parents.
+                if '/' in json_test["Test"]:  # Subtests have a name of the form "Test/Subtest"
+                    continue
                 yield Test(owners, json_test['Test'], json_test['Package'])
 
 

@@ -121,6 +121,8 @@ func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
 	}
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+	req.Header.Set("Datadog-Meta-Tracer-Version", "0.2.0")
+	req.Header.Set("Datadog-Meta-Lang", "go")
 
 	return s.doRequest(req)
 }

@@ -1811,44 +1811,52 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 	}
 }
 
-func Test_nodeCreationTransformer(t *testing.T) {
+func Test_timestampTransformers(t *testing.T) {
+	argsTemplate := args{
+		metric: ksmstore.DDMetric{
+			Val: 1595501615,
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		},
+		tags: []string{"foo:bar"},
+		now:  func() time.Time { return time.Unix(int64(1595501615+86400), 0) },
+	}
+
+	expectedTemplate := &metricsExpected{
+		val:  86400,
+		tags: []string{"foo:bar"},
+	}
+
 	tests := []struct {
-		name     string
-		args     args
-		expected *metricsExpected
+		name        string
+		newName     string
+		transformer metricTransformerFunc
 	}{
 		{
-			name: "nominal case",
-			args: args{
-				name: "kube_node_created",
-				metric: ksmstore.DDMetric{
-					Val: 1595501615,
-					Labels: map[string]string{
-						"node": "foo",
-					},
-				},
-				tags: []string{"node:foo"},
-				now:  func() time.Time { return time.Unix(int64(1595501615+86400), 0) },
-			},
-			expected: &metricsExpected{
-				name: "kubernetes_state.node.age",
-				val:  86400,
-				tags: []string{"node:foo"},
-			},
+			name:        "kube_node_created",
+			newName:     "kubernetes_state.node.age",
+			transformer: nodeCreationTransformer,
+		},
+		{
+			name:        "kube_pod_created",
+			newName:     "kubernetes_state.pod.age",
+			transformer: podCreationTransformer,
+		},
+		{
+			name:        "kube_pod_start_time",
+			newName:     "kubernetes_state.pod.uptime",
+			transformer: podStartTimeTransformer,
 		},
 	}
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
-			now = tt.args.now
-			nodeCreationTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
-			if tt.expected != nil {
-				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
-				s.AssertNumberOfCalls(t, "Gauge", 1)
-			} else {
-				s.AssertNotCalled(t, "Gauge")
-			}
+			now = argsTemplate.now
+			tt.transformer(s, tt.name, argsTemplate.metric, argsTemplate.hostname, argsTemplate.tags)
+			s.AssertMetric(t, "Gauge", tt.newName, expectedTemplate.val, expectedTemplate.hostname, expectedTemplate.tags)
+			s.AssertNumberOfCalls(t, "Gauge", 1)
 		})
 	}
 }

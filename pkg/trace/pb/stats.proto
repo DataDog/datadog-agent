@@ -11,6 +11,8 @@ message StatsPayload {
 	string agentHostname = 1;
 	string agentEnv = 2;
 	repeated ClientStatsPayload stats = 3 [(gogoproto.nullable) = false];
+	string agentVersion = 4;
+	bool clientComputed = 5;
 }
 
 // TODO(gbbr): doc
@@ -19,6 +21,10 @@ message ClientStatsPayload {
 	string env = 2;
 	string version = 3;
 	repeated ClientStatsBucket stats = 4 [(gogoproto.nullable) = false];
+	string lang = 5;
+	string tracerVersion = 6;
+	string runtimeID = 7;
+	uint64 sequence = 8;
 }
 
 // TODO(gbbr): doc

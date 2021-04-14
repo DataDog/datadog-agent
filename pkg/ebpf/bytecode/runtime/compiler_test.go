@@ -26,7 +26,7 @@ func TestCompilerMatch(t *testing.T) {
 		return
 	}
 
-	cfg := ebpf.NewDefaultConfig()
+	cfg := ebpf.NewConfig()
 
 	c, err := compiler.NewEBPFCompiler(nil, false)
 	require.NoError(t, err)

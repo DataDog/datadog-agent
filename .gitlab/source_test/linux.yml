@@ -13,12 +13,13 @@
     - source /root/.bashrc && conda activate $CONDA_ENV
     - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
+    - inv -e install-tools
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
   script:
-    - inv -e test --race --profile --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
+    - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -116,6 +117,7 @@ go_mod_tidy_check:
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:
-    # Print a message and fail if "go mod tidy" modifies go.mod
-    - go mod tidy
-    - git diff-files --exit-code go.mod || (echo "go.mod is out of sync with project imports. Please run 'inv deps' and commit the changes on go.mod/go.sum." && false)
+    - inv -e check-mod-tidy
+  artifacts:
+    paths:
+      - testmodule/

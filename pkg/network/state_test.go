@@ -1100,7 +1100,6 @@ func TestUnorderedCloseEvent(t *testing.T) {
 
 	// Ensure we don't have underflows / unordered conns
 	assert.Zero(t, state.(*networkState).telemetry.statsResets)
-	assert.Zero(t, state.(*networkState).telemetry.unorderedConns)
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Connections, 0)
 }
@@ -1395,6 +1394,6 @@ func latestEpochTime() uint64 {
 }
 
 func newDefaultState() State {
-	// Using values from ebpf.NewDefaultConfig()
+	// Using values from ebpf.NewConfig()
 	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, false)
 }

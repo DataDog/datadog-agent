@@ -8,8 +8,7 @@ struct umount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int mount_id;
-    u32 discarder_revision;
+    u32 mount_id;
 };
 
 SYSCALL_KPROBE0(umount) {
@@ -38,14 +37,15 @@ SYSCALL_KRETPROBE(umount) {
 
     struct umount_event_t event = {
         .syscall .retval = PT_REGS_RC(ctx),
-        .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
+        .mount_id = mount_id
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
     send_event(ctx, EVENT_UMOUNT, event);
+
+    umounted(ctx, mount_id);
 
     return 0;
 }

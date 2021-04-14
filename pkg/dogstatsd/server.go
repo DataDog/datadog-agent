@@ -84,7 +84,9 @@ type Server struct {
 	extraTags                 []string
 	Debug                     *dsdServerDebug
 	mapper                    *mapper.MetricMapper
-	eolTerminationEnabled     bool
+	eolTerminationUDP         bool
+	eolTerminationUDS         bool
+	eolTerminationNamedPipe   bool
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
@@ -211,6 +213,23 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
+	eolTerminationUDP := false
+	eolTerminationUDS := false
+	eolTerminationNamedPipe := false
+
+	for _, v := range config.Datadog.GetStringSlice("dogstatsd_eol_required") {
+		switch v {
+		case "udp":
+			eolTerminationUDP = true
+		case "uds":
+			eolTerminationUDS = true
+		case "named_pipe":
+			eolTerminationNamedPipe = true
+		default:
+			log.Errorf("Invalid dogstatsd_eol_required value: %s", v)
+		}
+	}
+
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
@@ -227,7 +246,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		eolTerminationEnabled:     config.Datadog.GetBool("dogstatsd_eol_required"),
+		eolTerminationUDP:         eolTerminationUDP,
+		eolTerminationUDS:         eolTerminationUDS,
+		eolTerminationNamedPipe:   eolTerminationNamedPipe,
 		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
@@ -389,11 +410,23 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
+func (s *Server) eolEnabled(sourceType listeners.SourceType) bool {
+	switch sourceType {
+	case listeners.UDS:
+		return s.eolTerminationUDS
+	case listeners.UDP:
+		return s.eolTerminationUDP
+	case listeners.NamedPipe:
+		return s.eolTerminationNamedPipe
+	}
+	return false
+}
+
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
-			message := nextMessage(&packet.Contents, s.eolTerminationEnabled)
+			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
 			if message == nil {
 				break
 			}

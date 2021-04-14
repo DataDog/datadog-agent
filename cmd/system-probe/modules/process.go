@@ -1,3 +1,5 @@
+// +build linux
+
 package modules
 
 import (
@@ -9,8 +11,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,13 +22,8 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
 var Process = api.Factory{
-	Name: "process",
-	Fn: func(agentConfig *config.AgentConfig) (api.Module, error) {
-		if !agentConfig.CheckIsEnabled(config.ProcessModuleCheckName) {
-			log.Infof("Process module disabled")
-			return nil, api.ErrNotEnabled
-		}
-
+	Name: config.ProcessModule,
+	Fn: func(cfg *config.Config) (api.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
@@ -58,7 +55,10 @@ func (t *process) Register(httpMux *http.ServeMux) error {
 			w.WriteHeader(500)
 			return
 		}
-		utils.WriteAsJSON(w, stats)
+
+		contentType := req.Header.Get("Accept")
+		marshaler := encoding.GetMarshaler(contentType)
+		writeStats(w, marshaler, stats)
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logProcTracerRequests(count, len(stats), start)
@@ -82,4 +82,17 @@ func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
 	default:
 		log.Debugf(msg, args...)
 	}
+}
+
+func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[int32]*procutil.StatsWithPerm) {
+	buf, err := marshaler.Marshal(stats)
+	if err != nil {
+		log.Errorf("unable to marshall stats with type %s: %s", marshaler.ContentType(), err)
+		w.WriteHeader(500)
+		return
+	}
+
+	w.Header().Set("Content-type", marshaler.ContentType())
+	w.Write(buf)
+	log.Tracef("/proc/stats: %d stats, %d bytes", len(stats), len(buf))
 }

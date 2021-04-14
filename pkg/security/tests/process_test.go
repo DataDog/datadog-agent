@@ -91,6 +91,18 @@ func TestProcessContext(t *testing.T) {
 			Expression: `exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
 		},
 		{
+			ID:         "test_rule_argv",
+			Expression: `exec.argv in ["-ll"]`,
+		},
+		{
+			ID:         "test_rule_args_flags",
+			Expression: `exec.args_flags == "l" && exec.args_flags == "s" && exec.args_flags == "escape"`,
+		},
+		{
+			ID:         "test_rule_args_options",
+			Expression: `exec.args_options in ["block-size=123"]`,
+		},
+		{
 			ID:         "test_rule_tty",
 			Expression: `open.file.path == "{{.Root}}/test-process-tty" && open.flags & O_CREAT == 0`,
 		},
@@ -117,6 +129,18 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer os.Remove(testFile)
 
+	which := func(name string) string {
+		executable := "/usr/bin/" + name
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/" + name
+			}
+		}
+		return executable
+	}
+
 	t.Run("inode", func(t *testing.T) {
 		executable, err := os.Executable()
 		if err != nil {
@@ -141,16 +165,8 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-envs", func(t *testing.T) {
-		executable := "/usr/bin/ls"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/ls"
-			}
-		}
-
-		cmd := exec.Command(executable, "-al", "--password", "secret", "--custom", "secret")
+		lsExecutable := which("ls")
+		cmd := exec.Command(lsExecutable, "-al", "--password", "secret", "--custom", "secret")
 		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 
@@ -209,23 +225,54 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	t.Run("args-overflow", func(t *testing.T) {
-		executable := "/usr/bin/ls"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/ls"
-			}
-		}
+	t.Run("argv", func(t *testing.T) {
+		lsExecutable := which("ls")
+		cmd := exec.Command(lsExecutable, "-ll")
+		_ = cmd.Run()
 
+		_, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_rule_argv")
+		}
+	})
+
+	t.Run("args-flags", func(t *testing.T) {
+		lsExecutable := which("ls")
+		cmd := exec.Command(lsExecutable, "-ls", "--escape")
+		_ = cmd.Run()
+
+		_, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_rule_args_flags")
+		}
+	})
+
+	t.Run("args-options", func(t *testing.T) {
+		lsExecutable := which("ls")
+		cmd := exec.Command(lsExecutable, "--block-size", "123")
+		_ = cmd.Run()
+
+		_, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_rule_args_options")
+		}
+	})
+
+	t.Run("args-overflow", func(t *testing.T) {
 		// size overflow
 		var long string
 		for i := 0; i != 1024; i++ {
 			long += "a"
 		}
 
-		cmd := exec.Command(executable, "-al", long)
+		lsExecutable := which("ls")
+		cmd := exec.Command(lsExecutable, "-al", long)
 		cmd.Env = []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		_ = cmd.Run()
 

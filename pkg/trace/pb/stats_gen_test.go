@@ -74,7 +74,7 @@ func TestEncodeDecodeClientGroupedStats(t *testing.T) {
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+		t.Log("WARNING: TestEncodeDecodeClientGroupedStats Msgsize() is inaccurate")
 	}
 
 	vn := ClientGroupedStats{}
@@ -187,7 +187,7 @@ func TestEncodeDecodeClientStatsBucket(t *testing.T) {
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+		t.Log("WARNING: TestEncodeDecodeClientStatsBucket Msgsize() is inaccurate")
 	}
 
 	vn := ClientStatsBucket{}
@@ -300,7 +300,7 @@ func TestEncodeDecodeClientStatsPayload(t *testing.T) {
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+		t.Log("WARNING: TestEncodeDecodeClientStatsPayload Msgsize() is inaccurate")
 	}
 
 	vn := ClientStatsPayload{}
@@ -413,7 +413,7 @@ func TestEncodeDecodeStatsPayload(t *testing.T) {
 
 	m := v.Msgsize()
 	if buf.Len() > m {
-		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+		t.Log("WARNING: TestEncodeDecodeStatsPayload Msgsize() is inaccurate")
 	}
 
 	vn := StatsPayload{}
