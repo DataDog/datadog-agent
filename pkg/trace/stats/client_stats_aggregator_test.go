@@ -45,7 +45,7 @@ func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
 
 func assertDistribPayload(t *testing.T, withCounts, res pb.StatsPayload) {
 	for j, p := range withCounts.Stats {
-		withCounts.Stats[j].AgentAggregation = distributionsPayload
+		withCounts.Stats[j].AgentAggregation = keyDistributions
 		for _, s := range p.Stats {
 			for i := range s.Stats {
 				s.Stats[i].Hits = 0
@@ -63,7 +63,7 @@ func assertAggCountsPayload(t *testing.T, aggCounts pb.StatsPayload) {
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
-		assert.Equal(t, aggregatedCountPayload, p.AgentAggregation)
+		assert.Equal(t, keyCounts, p.AgentAggregation)
 		for _, s := range p.Stats {
 			for _, b := range s.Stats {
 				assert.Nil(t, b.OkSummary)
