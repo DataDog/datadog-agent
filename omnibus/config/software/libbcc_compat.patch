@@ -73,7 +73,7 @@ new file mode 100644
 index 0000000..c01fbe2
 --- /dev/null
 +++ b/src/cc/wrapper.c
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,41 @@
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"
 +#elif defined(__aarch64__)
