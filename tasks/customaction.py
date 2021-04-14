@@ -54,9 +54,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
             vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
         )
     else:
-        cmd = 'msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(
-            CUSTOM_ACTION_ROOT_DIR, configuration, arch
-        )
+        cmd = 'msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(CUSTOM_ACTION_ROOT_DIR, configuration, arch)
 
     cmd += verprops
     print("Build Command: %s" % cmd)
