@@ -120,8 +120,8 @@ func TestOpen(t *testing.T) {
 		if errno != 0 {
 			t.Fatal(errno)
 		}
-		defer syscall.Close(int(fd))
 		defer os.Remove(testFile)
+		defer syscall.Close(int(fd))
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -141,6 +141,7 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer os.Remove(testFile)
 		defer f.Close()
 
 		event, _, err := test.GetEvent()
@@ -170,6 +171,21 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
+		f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+		defer f.Close()
+
+		// wait for this first event
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+		}
+
 		h, mountID, err := unix.NameToHandleAt(unix.AT_FDCWD, testFile, 0)
 		if err != nil {
 			if err == unix.ENOTSUP {
@@ -192,7 +208,7 @@ func TestOpen(t *testing.T) {
 		}
 		defer unix.Close(fdInt)
 
-		event, _, err := test.GetEvent()
+		event, _, err = test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
@@ -205,6 +221,21 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
+		f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+		defer f.Close()
+
+		// wait for this first event
+		event, _, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, event.GetType(), "open", "wrong event type")
+		}
+
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {
@@ -241,7 +272,7 @@ func TestOpen(t *testing.T) {
 			t.Error(err)
 		}
 
-		event, _, err := test.GetEvent()
+		event, _, err = test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {

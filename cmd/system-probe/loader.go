@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
@@ -18,20 +18,20 @@ import (
 // * Module telemetry consolidation;
 type Loader struct {
 	once    sync.Once
-	modules map[string]api.Module
+	modules map[config.ModuleName]api.Module
 }
 
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, factories []api.Factory) error {
+func (l *Loader) Register(cfg *config.Config, httpMux *http.ServeMux, factories []api.Factory) error {
 	for _, factory := range factories {
-		module, err := factory.Fn(cfg)
-
-		// If the module is not enabled we simply skip to the next one
-		if errors.Is(err, api.ErrNotEnabled) {
+		if !cfg.ModuleIsEnabled(factory.Name) {
+			log.Infof("%s module disabled", factory.Name)
 			continue
 		}
+
+		module, err := factory.Fn(cfg)
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
@@ -58,8 +58,8 @@ func (l *Loader) Register(cfg *config.AgentConfig, httpMux *http.ServeMux, facto
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
-func (l *Loader) GetStats() map[string]interface{} {
-	stats := make(map[string]interface{})
+func (l *Loader) GetStats() map[config.ModuleName]interface{} {
+	stats := make(map[config.ModuleName]interface{})
 	for name, module := range l.modules {
 		stats[name] = module.GetStats()
 	}
@@ -78,6 +78,6 @@ func (l *Loader) Close() {
 // NewLoader returns a new Loader instance
 func NewLoader() *Loader {
 	return &Loader{
-		modules: make(map[string]api.Module),
+		modules: make(map[config.ModuleName]api.Module),
 	}
 }

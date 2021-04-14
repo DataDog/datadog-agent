@@ -3,7 +3,6 @@
 package net
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"net"
 )
 
@@ -14,8 +13,8 @@ type WindowsPipeListener struct {
 }
 
 // NewListener sets up a TCP listener for now, will eventually be a named pipe
-func NewListener(cfg *config.AgentConfig) (*WindowsPipeListener, error) {
-	l, err := net.Listen("tcp", "localhost:3333")
+func NewListener(socketAddr string) (*WindowsPipeListener, error) {
+	l, err := net.Listen("tcp", socketAddr)
 	return &WindowsPipeListener{l, "path"}, err
 }
 

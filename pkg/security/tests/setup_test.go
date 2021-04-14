@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -31,8 +32,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -262,10 +262,10 @@ func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interfac
 	}
 }
 
-func setTestConfig(dir string, opts testOpts) error {
+func setTestConfig(dir string, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -279,11 +279,17 @@ func setTestConfig(dir string, opts testOpts) error {
 		"DisableDiscarders":    opts.disableDiscarders,
 		"EventsCountThreshold": opts.eventsCountThreshold,
 	}); err != nil {
-		return err
+		return "", err
 	}
 
-	aconfig.Datadog.SetConfigType("yaml")
-	return aconfig.Datadog.ReadConfig(buffer)
+	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	if err != nil {
+		return "", err
+	}
+	defer sysprobeConfig.Close()
+
+	_, err = io.Copy(sysprobeConfig, buffer)
+	return sysprobeConfig.Name(), err
 }
 
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
@@ -333,7 +339,8 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, err
 	}
 
-	if err := setTestConfig(st.root, opts); err != nil {
+	sysprobeConfig, err := setTestConfig(st.root, opts)
+	if err != nil {
 		return nil, err
 	}
 
@@ -352,7 +359,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		testMod.cleanup()
 	}
 
-	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	agentConfig, err := sysconfig.New(sysprobeConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")

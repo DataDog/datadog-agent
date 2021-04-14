@@ -23,23 +23,29 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
+	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
-	listener net.Listener
-	router   *mux.Router
+	listener  net.Listener
+	router    *mux.Router
+	apiRouter *mux.Router
 )
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
 	// create the root HTTP router
 	router = mux.NewRouter()
+	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
 	agent.SetupHandlers(router)
+
+	// API V1 Metadata APIs
+	v1.InstallMetadataEndpoints(apiRouter)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -98,9 +104,9 @@ func StartServer() error {
 	return nil
 }
 
-// ModifyRouter allows to pass in a function to modify router used in server
-func ModifyRouter(f func(*mux.Router)) {
-	f(router)
+// ModifyAPIRouter allows to pass in a function to modify router used in server
+func ModifyAPIRouter(f func(*mux.Router)) {
+	f(apiRouter)
 }
 
 // StopServer closes the connection and the server

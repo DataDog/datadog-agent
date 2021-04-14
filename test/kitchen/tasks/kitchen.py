@@ -17,6 +17,7 @@ def genconfig(
     uservars=None,
     platformfile="platforms.json",
     platlist=None,
+    fips=False,
 ):
     """
     Create a kitchen config
@@ -122,6 +123,9 @@ def genconfig(
     if uservars:
         env = load_user_env(ctx, provider, uservars)
     env['TEST_PLATFORMS'] = testplatforms
+
+    if fips:
+        env['FIPS'] = 'true'
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
 

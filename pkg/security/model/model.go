@@ -86,7 +86,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
 }
 
 // ChownEvent represents a chown event
@@ -94,14 +94,14 @@ type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
 	UID   uint32    `field:"file.destination.uid"`
-	User  string    `field:"file.destination.user" handler:"ResolveChownUID"`
+	User  string    `field:"file.destination.user,ResolveChownUID"`
 	GID   uint32    `field:"file.destination.gid"`
-	Group string    `field:"file.destination.group" handler:"ResolveChownGID"`
+	Group string    `field:"file.destination.group,ResolveChownGID"`
 }
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID string `field:"id" handler:"ResolveContainerID"`
+	ID string `field:"id,ResolveContainerID"`
 }
 
 // Event represents an event sent from the kernel
@@ -163,21 +163,21 @@ func (e *Event) GetPointer() unsafe.Pointer {
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
 	UID    uint32 `field:"uid"`
-	User   string `field:"user" handler:"ResolveSetuidUser"`
+	User   string `field:"user,ResolveSetuidUser"`
 	EUID   uint32 `field:"euid"`
-	EUser  string `field:"euser" handler:"ResolveSetuidEUser"`
+	EUser  string `field:"euser,ResolveSetuidEUser"`
 	FSUID  uint32 `field:"fsuid"`
-	FSUser string `field:"fsuser" handler:"ResolveSetuidFSUser"`
+	FSUser string `field:"fsuser,ResolveSetuidFSUser"`
 }
 
 // SetgidEvent represents a setgid event
 type SetgidEvent struct {
 	GID     uint32 `field:"gid"`
-	Group   string `field:"group" handler:"ResolveSetgidGroup"`
+	Group   string `field:"group,ResolveSetgidGroup"`
 	EGID    uint32 `field:"egid"`
-	EGroup  string `field:"egroup" handler:"ResolveSetgidEGroup"`
+	EGroup  string `field:"egroup,ResolveSetgidEGroup"`
 	FSGID   uint32 `field:"fsgid"`
-	FSGroup string `field:"fsgroup" handler:"ResolveSetgidFSGroup"`
+	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"`
 }
 
 // CapsetEvent represents a capset event
@@ -188,23 +188,23 @@ type CapsetEvent struct {
 
 // Credentials represents the kernel credentials of a process
 type Credentials struct {
-	UID   uint32 `field:"uid" handler:"ResolveCredentialsUID"`
-	GID   uint32 `field:"gid" handler:"ResolveCredentialsGID"`
-	User  string `field:"user" handler:"ResolveCredentialsUser"`
-	Group string `field:"group" handler:"ResolveCredentialsGroup"`
+	UID   uint32 `field:"uid,ResolveCredentialsUID"`
+	GID   uint32 `field:"gid,ResolveCredentialsGID"`
+	User  string `field:"user,ResolveCredentialsUser"`
+	Group string `field:"group,ResolveCredentialsGroup"`
 
-	EUID   uint32 `field:"euid" handler:"ResolveCredentialsEUID"`
-	EGID   uint32 `field:"egid" handler:"ResolveCredentialsEGID"`
-	EUser  string `field:"euser" handler:"ResolveCredentialsEUser"`
-	EGroup string `field:"egroup" handler:"ResolveCredentialsEGroup"`
+	EUID   uint32 `field:"euid,ResolveCredentialsEUID"`
+	EGID   uint32 `field:"egid,ResolveCredentialsEGID"`
+	EUser  string `field:"euser,ResolveCredentialsEUser"`
+	EGroup string `field:"egroup,ResolveCredentialsEGroup"`
 
-	FSUID   uint32 `field:"fsuid" handler:"ResolveCredentialsFSUID"`
-	FSGID   uint32 `field:"fsgid" handler:"ResolveCredentialsFSGID"`
-	FSUser  string `field:"fsuser" handler:"ResolveCredentialsFSUser"`
-	FSGroup string `field:"fsgroup" handler:"ResolveCredentialsFSGroup"`
+	FSUID   uint32 `field:"fsuid,ResolveCredentialsFSUID"`
+	FSGID   uint32 `field:"fsgid,ResolveCredentialsFSGID"`
+	FSUser  string `field:"fsuser,ResolveCredentialsFSUser"`
+	FSGroup string `field:"fsgroup,ResolveCredentialsFSGroup"`
 
-	CapEffective uint64 `field:"cap_effective" handler:"ResolveCredentialsCapEffective"`
-	CapPermitted uint64 `field:"cap_permitted" handler:"ResolveCredentialsCapPermitted"`
+	CapEffective uint64 `field:"cap_effective,ResolveCredentialsCapEffective"`
+	CapPermitted uint64 `field:"cap_permitted,ResolveCredentialsCapPermitted"`
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -221,17 +221,17 @@ type Process struct {
 	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
 
-	PathnameStr         string `field:"file.path" handler:"ResolveProcessInode"`
-	ContainerPath       string `field:"file.container_path" handler:"ResolveProcessContainerPath"`
-	BasenameStr         string `field:"file.name" handler:"ResolveProcessBasename"`
-	Filesystem          string `field:"file.filesystem" handler:"ResolveProcessFilesystem"`
+	PathnameStr         string `field:"file.path,ResolveProcessInode"`
+	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
+	BasenameStr         string `field:"file.name,ResolveProcessBasename"`
+	Filesystem          string `field:"file.filesystem,ResolveProcessFilesystem"`
 	PathResolutionError error  `field:"-"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
-	TTYName string `field:"tty_name" handler:"ResolveProcessTTY"`
-	Comm    string `field:"comm" handler:"ResolveProcessComm"`
+	TTYName string `field:"tty_name,ResolveProcessTTY"`
+	Comm    string `field:"comm,ResolveProcessComm"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -240,8 +240,8 @@ type Process struct {
 	ExitTimestamp uint64    `field:"-"`
 	ExitTime      time.Time `field:"-"`
 
-	Cookie uint32 `field:"cookie" handler:"ResolveProcessCookie"`
-	PPid   uint32 `field:"ppid" handler:"ResolveProcessPPID"`
+	Cookie uint32 `field:"cookie,ResolveProcessCookie"`
+	PPid   uint32 `field:"ppid,ResolveProcessPPID"`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -259,19 +259,20 @@ type Process struct {
 type ExecEvent struct {
 	Process
 
-	Args          string   `field:"args" handler:"ResolveExecArgs"`
+	Args          string   `field:"args,ResolveExecArgs"`
+	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"`
 	ArgsTruncated bool     `field:"args_truncated"`
-	Envs          []string `field:"envs" handler:"ResolveExecEnvs"`
+	Envs          []string `field:"envs,ResolveExecEnvs"`
 	EnvsTruncated bool     `field:"envs_truncated"`
 }
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32    `field:"uid"`
-	User  string    `field:"user" handler:"ResolveUser"`
+	User  string    `field:"user,ResolveUser"`
 	GID   uint32    `field:"gid"`
-	Group string    `field:"group" handler:"ResolveGroup"`
-	Mode  uint16    `field:"mode"`
+	Group string    `field:"group,ResolveGroup"`
+	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
 
@@ -294,11 +295,11 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path" handler:"ResolveFileInode"`
-	ContainerPath string `field:"container_path" handler:"ResolveFileContainerPath"`
-	BasenameStr   string `field:"name" handler:"ResolveFileBasename"`
-	Filesytem     string `field:"filesystem" handler:"ResolveFileFilesystem"`
-	InUpperLayer  bool   `field:"in_upper_layer" handler:"ResolveFileInUpperLayer"`
+	PathnameStr   string `field:"path,ResolveFileInode"`
+	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
+	BasenameStr   string `field:"name,ResolveFileBasename"`
+	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
+	InUpperLayer  bool   `field:"in_upper_layer,ResolveFileInUpperLayer"`
 
 	PathResolutionError error `field:"-"`
 }
@@ -335,7 +336,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -441,7 +442,7 @@ type ProcessContext struct {
 	Pid uint32 `field:"pid"`
 	Tid uint32 `field:"tid"`
 
-	Ancestor *ProcessCacheEntry `field:"ancestors" iterator:"ProcessAncestorsIterator"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator"`
 }
 
 // RenameEvent represents a rename event
@@ -463,8 +464,8 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace" handler:"GetXAttrNamespace"`
-	Name      string    `field:"file.destination.name" handler:"GetXAttrName"`
+	Namespace string    `field:"file.destination.namespace,GetXAttrNamespace"`
+	Name      string    `field:"file.destination.name,GetXAttrName"`
 
 	NameRaw [200]byte
 }

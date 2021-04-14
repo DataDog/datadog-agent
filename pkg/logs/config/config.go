@@ -183,7 +183,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
-	return NewEndpoints(main, additionals, useProto, false, 0), nil
+	return NewEndpoints(main, additionals, useProto, false, 0, 0), nil
 }
 
 // LogsConfigKeys stores logs configuration keys stored in YAML configuration files
@@ -197,6 +197,7 @@ type LogsConfigKeys struct {
 	DevModeNoSSL            string
 	AdditionalEndpoints     string
 	BatchWait               string
+	BatchMaxConcurrentSend  string
 }
 
 // logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
@@ -210,6 +211,7 @@ var logsConfigDefaultKeys = LogsConfigKeys{
 	DevModeNoSSL:            "logs_config.dev_mode_no_ssl",
 	AdditionalEndpoints:     "logs_config.additional_endpoints",
 	BatchWait:               "logs_config.batch_wait",
+	BatchMaxConcurrentSend:  "logs_config.batch_max_concurrent_send",
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
@@ -258,8 +260,9 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 	}
 
 	batchWait := batchWaitFromKey(coreConfig.Datadog, logsConfig.BatchWait)
+	batchMaxConcurrentSend := batchMaxConcurrentSendFromKey(logsConfig.BatchMaxConcurrentSend)
 
-	return NewEndpoints(main, additionals, false, true, batchWait), nil
+	return NewEndpoints(main, additionals, false, true, batchWait, batchMaxConcurrentSend), nil
 }
 
 func getAdditionalEndpoints() []Endpoint {
@@ -316,6 +319,15 @@ func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Durati
 		return coreConfig.DefaultBatchWait * time.Second
 	}
 	return (time.Duration(batchWait) * time.Second)
+}
+
+func batchMaxConcurrentSendFromKey(batchMaxConcurrentSendKey string) int {
+	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(batchMaxConcurrentSendKey)
+	if batchMaxConcurrentSend < 0 {
+		log.Warnf("Invalid batch_max_concurrent_send: %v should be >= 0, fallback on %v", batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
+		return coreConfig.DefaultBatchMaxConcurrentSend
+	}
+	return batchMaxConcurrentSend
 }
 
 // TaggerWarmupDuration is used to configure the tag providers
