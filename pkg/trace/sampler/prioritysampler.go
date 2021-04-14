@@ -111,7 +111,7 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clie
 		return sampled
 	}
 
-	signature := s.catalog.register(sampler.ServiceSignature{root.Service, env})
+	signature := s.catalog.register(sampler.ServiceSignature{Name: root.Service, Env: env})
 
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)

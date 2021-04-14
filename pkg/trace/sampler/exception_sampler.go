@@ -108,7 +108,7 @@ func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bo
 
 // addSpan adds a span to the seenSpans with an expire time.
 func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
-	shardSig := sampler.ServiceSignature{env, s.Service}.Hash()
+	shardSig := sampler.ServiceSignature{Env: env, Name: s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
 }
@@ -117,7 +117,7 @@ func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 // it's added to the seenSpans set.
 func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 	var sampled bool
-	shardSig := sampler.ServiceSignature{env, s.Service}.Hash()
+	shardSig := sampler.ServiceSignature{Env: env, Name: s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	sig := ss.sign(s)
 	expire, ok := ss.getExpire(sig)

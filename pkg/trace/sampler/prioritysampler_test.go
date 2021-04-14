@@ -18,11 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testServiceA = "service-a"
-	testServiceB = "service-b"
-)
-
 func randomTraceID() uint64 {
 	return uint64(rand.Int63())
 }
@@ -49,7 +44,7 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 	r := rand.Float64()
 	priority := sampler.PriorityAutoDrop
 	rates := s.ratesByService()
-	key := sampler.ServiceSignature{trace[0].Service, defaultEnv}
+	key := sampler.ServiceSignature{Name: trace[0].Service, Env: defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
 		rate = serviceRate
