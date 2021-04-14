@@ -94,7 +94,8 @@ type IntEvaluator struct {
 	Value   int
 	Weight  int
 
-	isPartial bool
+	isPartial  bool
+	isDuration bool
 }
 
 // Eval returns the result of the evaluation
@@ -689,46 +690,75 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				case *IntEvaluator:
 					nextInt := next.(*IntEvaluator)
 
-					switch *obj.ScalarComparison.Op {
-					case "<":
-						boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
+					if nextInt.isDuration {
+						switch *obj.ScalarComparison.Op {
+						case "<":
+							boolEvaluator, err := DurationGreaterThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "<=":
+							boolEvaluator, err := DurationGreaterOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">":
+							boolEvaluator, err := DurationLesserThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">=":
+							boolEvaluator, err := DurationLesserOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
 						}
-						return boolEvaluator, obj.Pos, nil
-					case "<=":
-						boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case ">":
-						boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case ">=":
-						boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case "!=":
-						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
+					} else {
+						switch *obj.ScalarComparison.Op {
+						case "<":
+							boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "<=":
+							boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">":
+							boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">=":
+							boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "!=":
+							boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
 
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
-					case "==":
-						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
+							return Not(boolEvaluator, opts, state), obj.Pos, nil
+						case "==":
+							boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						default:
+							return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 						}
-						return boolEvaluator, obj.Pos, nil
-					default:
-						return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 					}
 				case *IntArrayEvaluator:
 					nextIntArray := next.(*IntArrayEvaluator)
@@ -872,6 +902,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 		case obj.Number != nil:
 			return &IntEvaluator{
 				Value: *obj.Number,
+			}, obj.Pos, nil
+		case obj.Duration != nil:
+			return &IntEvaluator{
+				Value:      *obj.Duration,
+				isDuration: true,
 			}, obj.Pos, nil
 		case obj.String != nil:
 			return &StringEvaluator{

@@ -2,6 +2,10 @@
 
 package eval
 
+import (
+	"time"
+)
+
 func Or(a *BoolEvaluator, b *BoolEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
 	partialA, partialB := a.isPartial, b.isPartial
 
@@ -962,6 +966,322 @@ func LesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *stat
 
 	evalFnc := func(ctx *Context) bool {
 		return ea <= eb(ctx)
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb(ctx)) < time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:     int64(ea+eb) < time.Now().UnixNano(),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		if a.Field != "" {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb) < time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea+eb(ctx)) < time.Now().UnixNano()
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb(ctx)) <= time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:     int64(ea+eb) <= time.Now().UnixNano(),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		if a.Field != "" {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb) <= time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea+eb(ctx)) <= time.Now().UnixNano()
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb(ctx)) > time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:     int64(ea+eb) > time.Now().UnixNano(),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		if a.Field != "" {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb) > time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea+eb(ctx)) > time.Now().UnixNano()
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:   evalFnc,
+		Weight:    b.Weight,
+		isPartial: isPartialLeaf,
+	}, nil
+}
+
+func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	partialA, partialB := a.isPartial, b.isPartial
+
+	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
+		partialA = true
+	}
+	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.Field != "" && b.Field != "" {
+		isPartialLeaf = true
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		// optimize the evaluation if needed, moving the evaluation with more weight at the right
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb(ctx)) >= time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight + b.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		return &BoolEvaluator{
+			Value:     int64(ea+eb) >= time.Now().UnixNano(),
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		if a.Field != "" {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: ScalarValueType}); err != nil {
+				return nil, err
+			}
+		}
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)+eb) >= time.Now().UnixNano()
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:   evalFnc,
+			Weight:    a.Weight,
+			isPartial: isPartialLeaf,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea+eb(ctx)) >= time.Now().UnixNano()
 	}
 
 	return &BoolEvaluator{
