@@ -5,6 +5,7 @@ package topologycollectors
 import (
 	"fmt"
 
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	v1 "k8s.io/api/core/v1"
@@ -12,6 +13,12 @@ import (
 )
 
 var _ ClusterTopologyCorrelator = (*VolumeCorrelator)(nil)
+
+type VolumeCreator interface {
+	CreateStackStateVolumeSourceComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string, addTags map[string]string) (*VolumeComponentsToCreate, error)
+	GetURNBuilder() urn.Builder
+	CreateRelation(sourceExternalID, targetExternalID, typeName string) *topology.Relation
+}
 
 // PodIdentifier resembles the identifying information of the Pod which needs to be correlated
 type PodIdentifier struct {
@@ -124,16 +131,15 @@ func (vc *VolumeCorrelator) mapVolumeAndRelationToStackState(pod PodIdentifier, 
 
 		volumeExternalID = claimedPVExtID
 	} else {
-		found := false
+		var toCreate *VolumeComponentsToCreate
+		var err error
 		for _, mapper := range allVolumeSourceMappers {
-			extID, err := mapper(vc, pod, volume)
+			toCreate, err = mapper(vc, pod, volume)
 			if err != nil {
 				return "", err
 			}
 
-			if extID != "" {
-				volumeExternalID = extID
-				found = true
+			if toCreate != nil {
 				break
 			}
 		}
@@ -142,18 +148,28 @@ func (vc *VolumeCorrelator) mapVolumeAndRelationToStackState(pod PodIdentifier, 
 		// VolumeSource represents the location and type of the mounted volume.
 		// If not specified, the Volume is implied to be an EmptyDir.
 		// This implied behavior is deprecated and will be removed in a future version.
-		if !found {
+		if toCreate == nil {
 			volumeExternalID = vc.GetURNBuilder().BuildVolumeExternalID("empty-dir", fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, volume.Name))
 
 			tags := map[string]string{
 				"kind": "empty-dir",
 			}
 
-			_, err := vc.createStackStateVolumeSourceComponent(pod, volume, volumeExternalID, nil, tags)
+			toCreate, err = vc.CreateStackStateVolumeSourceComponent(pod, volume, volumeExternalID, nil, tags)
 			if err != nil {
 				return "", err
 			}
 		}
+
+		for _, c := range toCreate.Components {
+			vc.ComponentChan <- c
+		}
+
+		for _, r := range toCreate.Relations {
+			vc.RelationChan <- r
+		}
+
+		volumeExternalID = toCreate.VolumeExternalID
 	}
 
 	vc.RelationChan <- vc.podToVolumeStackStateRelation(pod.ExternalID, volumeExternalID)
@@ -201,7 +217,7 @@ func (vc *VolumeCorrelator) projectedVolumeToProjectionStackStateRelation(projec
 	return relation
 }
 
-func (vc *VolumeCorrelator) createStackStateVolumeSourceComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string, addTags map[string]string) (string, error) {
+func (vc *VolumeCorrelator) CreateStackStateVolumeSourceComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string, addTags map[string]string) (*VolumeComponentsToCreate, error) {
 
 	tags := vc.initTags(metav1.ObjectMeta{Namespace: pod.Namespace})
 	for k, v := range addTags {
@@ -226,7 +242,9 @@ func (vc *VolumeCorrelator) createStackStateVolumeSourceComponent(pod PodIdentif
 
 	log.Tracef("Created StackState volume component %s: %v", externalID, component.JSONString())
 
-	vc.ComponentChan <- component
-
-	return component.ExternalID, nil
+	return &VolumeComponentsToCreate{
+		Components:       []*topology.Component{component},
+		Relations:        []*topology.Relation{},
+		VolumeExternalID: component.ExternalID,
+	}, nil
 }

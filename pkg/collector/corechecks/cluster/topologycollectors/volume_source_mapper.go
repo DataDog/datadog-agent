@@ -4,12 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/pborman/uuid"
 	v1 "k8s.io/api/core/v1"
 )
 
+type VolumeComponentsToCreate struct {
+	Components       []*topology.Component
+	Relations        []*topology.Relation
+	VolumeExternalID string
+}
+
 // VolumeSourceMapper maps a VolumeSource to an external Volume topology component externalID
-type VolumeSourceMapper func(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error)
+type VolumeSourceMapper func(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error)
 
 var allVolumeSourceMappers = []VolumeSourceMapper{
 	createAwsEbsVolume,
@@ -39,9 +47,9 @@ var allVolumeSourceMappers = []VolumeSourceMapper{
 	createVsphereVolume,
 }
 
-func createAwsEbsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createAwsEbsVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.AWSElasticBlockStore == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("aws-ebs", strings.TrimPrefix(volume.AWSElasticBlockStore.VolumeID, "aws://"), fmt.Sprint(volume.AWSElasticBlockStore.Partition))
@@ -52,12 +60,12 @@ func createAwsEbsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 		"partition": fmt.Sprint(volume.AWSElasticBlockStore.Partition),
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createAzureDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createAzureDiskVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.AzureDisk == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("azure-disk", volume.AzureDisk.DiskName)
@@ -68,12 +76,12 @@ func createAzureDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 		"disk-uri":  volume.AzureDisk.DataDiskURI,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createAzureFileVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createAzureFileVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.AzureFile == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("azure-file", volume.AzureFile.ShareName)
@@ -83,12 +91,12 @@ func createAzureFileVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 		"share-name": volume.AzureFile.ShareName,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createCephFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createCephFsVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.CephFS == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	tags := map[string]string{
@@ -117,12 +125,12 @@ func createCephFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 		idx++
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
-func createCinderVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createCinderVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Cinder == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("cinder", volume.Cinder.VolumeID)
@@ -132,22 +140,26 @@ func createCinderVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 		"volume-id": volume.Cinder.VolumeID,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createConfigMapVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createConfigMapVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.ConfigMap == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name)
 
-	return extID, nil
+	return &VolumeComponentsToCreate{
+		Components:       []*topology.Component{},
+		Relations:        []*topology.Relation{},
+		VolumeExternalID: extID,
+	}, nil
 }
 
-func createEmptyDirVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createEmptyDirVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.EmptyDir == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildVolumeExternalID("empty-dir", fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, volume.Name))
@@ -156,12 +168,12 @@ func createEmptyDirVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 		"kind": "empty-dir",
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createFCVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createFCVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.FC == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	ids := []string{}
@@ -184,17 +196,17 @@ func createFCVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (
 
 		}
 	} else {
-		return "", fmt.Errorf("Either volume.FC.TargetWWNs or volume.FC.WWIDs needs to be set")
+		return nil, fmt.Errorf("Either volume.FC.TargetWWNs or volume.FC.WWIDs needs to be set")
 	}
 
 	extID := ids[0]
 	identifiers := ids[1:]
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
-func createFlexVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createFlexVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.FlexVolume == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("flex", volume.FlexVolume.Driver)
@@ -204,13 +216,13 @@ func createFlexVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume)
 		"driver": volume.FlexVolume.Driver,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createFlockerVolume DEPRECATED
-func createFlockerVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createFlockerVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Flocker == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	tags := map[string]string{
@@ -225,12 +237,12 @@ func createFlockerVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		extID = vc.GetURNBuilder().BuildExternalVolumeExternalID("flocker", volume.Flocker.DatasetUUID)
 		tags["dataset"] = volume.Flocker.DatasetUUID
 	}
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createGcePersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createGcePersistentDiskVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.GCEPersistentDisk == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("gce-pd", volume.GCEPersistentDisk.PDName)
@@ -240,13 +252,13 @@ func createGcePersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volu
 		"pd-name": volume.GCEPersistentDisk.PDName,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createGitRepoVolume DEPRECATED
-func createGitRepoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createGitRepoVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.GitRepo == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("git-repo", volume.GitRepo.Repository)
@@ -257,12 +269,12 @@ func createGitRepoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		"revision":   volume.GitRepo.Revision,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createGlusterFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createGlusterFsVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Glusterfs == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("gluster-fs", volume.Glusterfs.EndpointsName, volume.Glusterfs.Path)
@@ -273,14 +285,14 @@ func createGlusterFsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 		"path":      volume.Glusterfs.Path,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createHostPathVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createHostPathVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.HostPath == nil {
-		return "", nil
+		return nil, nil
 	} else if pod.NodeName == "" { // Not scheduled yet...
-		return "", nil
+		return nil, nil
 	}
 
 	// The hostpath starts with a '/', strip that as it leads to a double '/' in the externalID
@@ -292,12 +304,12 @@ func createHostPathVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 		"path":     volume.HostPath.Path,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createIscsiVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createIscsiVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.ISCSI == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("iscsi", volume.ISCSI.TargetPortal, volume.ISCSI.IQN, fmt.Sprint(volume.ISCSI.Lun))
@@ -315,12 +327,12 @@ func createIscsiVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume
 		"interface":     volume.ISCSI.ISCSIInterface,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, identifiers, tags)
 }
 
-func createNfsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createNfsVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.NFS == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("nfs", volume.NFS.Server, volume.NFS.Path)
@@ -331,12 +343,12 @@ func createNfsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) 
 		"path":   volume.NFS.Path,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createPhotonPersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createPhotonPersistentDiskVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.PhotonPersistentDisk == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("photon", volume.PhotonPersistentDisk.PdID)
@@ -346,12 +358,12 @@ func createPhotonPersistentDiskVolume(vc *VolumeCorrelator, pod PodIdentifier, v
 		"pd-id": volume.PhotonPersistentDisk.PdID,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createPortWorxVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createPortWorxVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.PortworxVolume == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("portworx", volume.PortworxVolume.VolumeID)
@@ -361,12 +373,12 @@ func createPortWorxVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vol
 		"volume-id": volume.PortworxVolume.VolumeID,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createProjectedVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createProjectedVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Projected == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("projected", uuid.New())
@@ -374,32 +386,33 @@ func createProjectedVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 	tags := map[string]string{
 		"kind": "projection",
 	}
-	_, err := vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+
+	toCreate, err := vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, projection := range volume.Projected.Sources {
 		if projection.ConfigMap != nil {
 			cmExtID := vc.GetURNBuilder().BuildConfigMapExternalID(pod.Namespace, projection.ConfigMap.Name)
 
-			vc.RelationChan <- vc.projectedVolumeToProjectionStackStateRelation(extID, cmExtID)
+			toCreate.Relations = append(toCreate.Relations, projectedVolumeToProjectionStackStateRelation(vc, extID, cmExtID))
 		} else if projection.Secret != nil {
 			secExtID := vc.GetURNBuilder().BuildSecretExternalID(pod.Namespace, projection.Secret.Name)
 
-			vc.RelationChan <- vc.projectedVolumeToProjectionStackStateRelation(extID, secExtID)
+			toCreate.Relations = append(toCreate.Relations, projectedVolumeToProjectionStackStateRelation(vc, extID, secExtID))
 		} else if projection.DownwardAPI != nil {
 			// Empty, nothing to do for downwardAPI
 		}
 		// TODO do we want to support ServiceAccount too?
 	}
 
-	return extID, nil
+	return toCreate, nil
 }
 
-func createQuobyteVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createQuobyteVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Quobyte == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	ids := []string{}
@@ -415,12 +428,12 @@ func createQuobyteVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 	}
 
 	extID := ids[0]
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
 }
 
-func createRbdVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createRbdVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.RBD == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	ids := []string{}
@@ -436,12 +449,12 @@ func createRbdVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) 
 	}
 
 	extID := ids[0]
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, ids[1:], tags)
 }
 
-func createSecretVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createSecretVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.Secret == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildSecretExternalID(pod.Namespace, volume.Secret.SecretName)
@@ -451,13 +464,13 @@ func createSecretVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volum
 		"secretName": volume.Secret.SecretName,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
 // createScaleIoVolume DEPRECATED
-func createScaleIoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createScaleIoVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.ScaleIO == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("scale-io", volume.ScaleIO.Gateway, volume.ScaleIO.System)
@@ -469,12 +482,12 @@ func createScaleIoVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		"protection-domain": volume.ScaleIO.ProtectionDomain,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createStorageOsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createStorageOsVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.StorageOS == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	ns := "default"
@@ -490,12 +503,12 @@ func createStorageOsVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Vo
 		"volume-namespace": volume.StorageOS.VolumeNamespace,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
 }
 
-func createVsphereVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volume) (string, error) {
+func createVsphereVolume(vc VolumeCreator, pod PodIdentifier, volume v1.Volume) (*VolumeComponentsToCreate, error) {
 	if volume.VsphereVolume == nil {
-		return "", nil
+		return nil, nil
 	}
 
 	extID := vc.GetURNBuilder().BuildExternalVolumeExternalID("vsphere", volume.VsphereVolume.VolumePath)
@@ -506,5 +519,16 @@ func createVsphereVolume(vc *VolumeCorrelator, pod PodIdentifier, volume v1.Volu
 		"storage-policy": volume.VsphereVolume.StoragePolicyName,
 	}
 
-	return vc.createStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+	return vc.CreateStackStateVolumeSourceComponent(pod, volume, extID, nil, tags)
+}
+
+// Create a StackState relation from a Kubernetes / OpenShift Projected Volume to a Projection
+func projectedVolumeToProjectionStackStateRelation(vc VolumeCreator, projectedVolumeExternalID, projectionExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes projected volume to projection relation: %s -> %s", projectedVolumeExternalID, projectionExternalID)
+
+	relation := vc.CreateRelation(projectedVolumeExternalID, projectionExternalID, "projects")
+
+	log.Tracef("Created StackState projected volume -> projection relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }
