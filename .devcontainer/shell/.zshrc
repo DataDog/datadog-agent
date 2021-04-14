@@ -4,6 +4,7 @@ POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
 ZSH_THEME="powerlevel10k/powerlevel10k"
 ENABLE_CORRECTION="false"
 COMPLETION_WAITING_DOTS="true"
+PAGER="more"
 plugins=(vscode git colorize docker docker-compose)
 source $ZSH/oh-my-zsh.sh
 source ~/.p10k.zsh
