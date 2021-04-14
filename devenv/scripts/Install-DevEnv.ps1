@@ -53,18 +53,18 @@ cinst -y cmake
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
 
 # TODO: Enable this when we can use Chocolatey again
-#cinst -y golang --version 1.14.12
+#cinst -y golang --version 1.15.11
 
-# Workaround for go 1.14.12 since it does not exist in Chocolatey
+# Workaround for go 1.15.11 since it does not exist in Chocolatey
 # taken from https://github.com/DataDog/datadog-agent-buildimages/blob/master/windows/install_go.ps1
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-Write-Host -ForegroundColor Green "Installing go 1.14.12"
+Write-Host -ForegroundColor Green "Installing go 1.15.11"
 
-$gozip = "https://dl.google.com/go/go1.14.12.windows-amd64.zip"
+$gozip = "https://dl.google.com/go/go1.15.11.windows-amd64.zip"
 if ($Env:TARGET_ARCH -eq "x86") {
-    $gozip = "https://dl.google.com/go/go1.14.12.windows-386.zip"
+    $gozip = "https://dl.google.com/go/go1.15.11.windows-386.zip"
 }
 
 $out = 'c:\go.zip'
