@@ -400,9 +400,8 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 	if agg.eventPlatformForwarder == nil {
 		return errors.New("event platform forwarder not initialized")
 	}
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
 	m := &message.Message{Content: []byte(event.rawEvent)}
+	// eventPlatformForwarder is threadsafe so no locking needed here
 	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
 

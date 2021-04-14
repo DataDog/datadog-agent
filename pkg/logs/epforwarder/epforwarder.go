@@ -3,6 +3,7 @@ package epforwarder
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -28,12 +29,15 @@ type EventPlatformForwarder interface {
 }
 
 type defaultEventPlatformForwarder struct {
+	mx              sync.RWMutex
 	pipelines       map[string]*passthroughPipeline
 	destinationsCtx *client.DestinationsContext
 }
 
 func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
+	s.mx.RLock()
 	p, ok := s.pipelines[eventType]
+	s.mx.RUnlock()
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
@@ -61,6 +65,8 @@ func purgeChan(in chan *message.Message) (result []*message.Message) {
 
 // Purge clears out all pipeline channels, returning a map of eventType to list of messages in that were removed from each channel
 func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
+	s.mx.Lock()
+	defer s.mx.Unlock()
 	result := make(map[string][]*message.Message)
 	for eventType, p := range s.pipelines {
 		result[eventType] = purgeChan(p.in)
