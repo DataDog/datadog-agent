@@ -32,6 +32,31 @@ func wrapPayload(p pb.ClientStatsPayload) pb.StatsPayload {
 	}
 }
 
+func payloadWithCounts(ts time.Time, k bucketAggregationKey, hits, errors, duration uint64) pb.ClientStatsPayload {
+	return pb.ClientStatsPayload{
+		Env:     "test-env",
+		Version: "test-version",
+		Stats: []pb.ClientStatsBucket{
+			{
+				Start: uint64(ts.UnixNano()),
+				Stats: []pb.ClientGroupedStats{
+					{
+						Service:        k.service,
+						Name:           k.name,
+						Resource:       k.resource,
+						HTTPStatusCode: k.statusCode,
+						Type:           k.typ,
+						Synthetics:     k.synthetics,
+						Hits:           hits,
+						Errors:         errors,
+						Duration:       duration,
+					},
+				},
+			},
+		},
+	}
+}
+
 func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
 	b := pb.ClientStatsBucket{}
 	fuzzer.Fuzz(&b)
@@ -154,6 +179,48 @@ func TestTimeShifts(t *testing.T) {
 			assert.Equal(wrapPayload(stats), <-a.out)
 		})
 	}
+}
+
+func TestCountAggregation(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	testTime := time.Unix(time.Now().Unix(), 0)
+	k := bucketAggregationKey{synthetics: true}
+	c1 := payloadWithCounts(testTime, k, 11, 7, 100)
+	c2 := payloadWithCounts(testTime, k, 27, 2, 300)
+	c3 := payloadWithCounts(testTime, k, 5, 10, 3)
+	k55 := bucketAggregationKey{synthetics: false}
+	c55 := payloadWithCounts(testTime, k55, 0, 2, 4)
+
+	assert.Len(a.out, 0)
+	a.add(testTime, deepCopy(c1))
+	a.add(testTime, deepCopy(c2))
+	a.add(testTime, deepCopy(c3))
+	a.add(testTime, deepCopy(c55))
+	assert.Len(a.out, 4)
+	a.flushOnTime(testTime.Add(21 * time.Second))
+	assert.Len(a.out, 5)
+
+	assertDistribPayload(t, wrapPayload(c1), <-a.out)
+	assertDistribPayload(t, wrapPayload(c2), <-a.out)
+	assertDistribPayload(t, wrapPayload(c3), <-a.out)
+	assertDistribPayload(t, wrapPayload(c55), <-a.out)
+	aggCounts := <-a.out
+	assertAggCountsPayload(t, aggCounts)
+	assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []pb.ClientGroupedStats{
+		pb.ClientGroupedStats{
+			Synthetics: true,
+			Hits:       43,
+			Errors:     19,
+			Duration:   403,
+		},
+		pb.ClientGroupedStats{
+			Hits:     0,
+			Errors:   2,
+			Duration: 4,
+		},
+	})
+	assert.Len(a.buckets, 0)
 }
 
 func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {

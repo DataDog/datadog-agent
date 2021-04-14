@@ -53,6 +53,8 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
 		oldestTs:      uint64(time.Now().Add(-oldestBucketStart).Unix()),
+		exit:          make(chan struct{}),
+		done:          make(chan struct{}),
 	}
 }
 
