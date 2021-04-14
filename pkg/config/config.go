@@ -638,7 +638,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 
-	bindLogsConfigKeys(config, "logs_config.")
+	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -801,7 +801,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
-	bindLogsConfigKeys(config, "compliance_config.endpoints.")
+	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -824,7 +824,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
-	bindLogsConfigKeys(config, "runtime_security_config.endpoints.")
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1057,7 +1057,7 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
 }
 
-func bindLogsConfigKeys(config Config, prefix string) {
+func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url")          //nolint:errcheck // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")               //nolint:errcheck
 	config.BindEnv(prefix + "additional_endpoints") //nolint:errcheck

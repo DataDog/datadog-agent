@@ -203,7 +203,7 @@ type LogsConfigKeys struct {
 // logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
 var logsConfigDefaultKeys = NewLogsConfigKeys("logs_config.")
 
-// LogsConfigKeys returns a new logs configuration keys set
+// NewLogsConfigKeys returns a new logs configuration keys set
 func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
 	return LogsConfigKeys{
 		UseCompression:          configPrefix + "use_compression",
