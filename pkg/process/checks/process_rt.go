@@ -166,7 +166,7 @@ func fmtProcessStats(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            cidByPid[pid],
-			Networks:               formatNetworks(pid, connsByPID, connCheckIntervalS),
+			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
 		})
 		if len(chunk) == cfg.MaxPerMessage {
 			chunked = append(chunked, chunk)

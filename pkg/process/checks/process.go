@@ -283,7 +283,7 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
-			Networks:               formatNetworks(fp.Pid, connsByPID, connCheckIntervalS),
+			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -361,10 +361,10 @@ func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 	return ms
 }
 
-func formatNetworks(pid int32, conns map[int32][]*model.Connection, interval int) *model.ProcessNetworks {
-	connRate := float32(len(conns[pid])) / float32(interval)
+func formatNetworks(conns []*model.Connection, interval int) *model.ProcessNetworks {
+	connRate := float32(len(conns)) / float32(interval)
 	totalTraffic := uint64(0)
-	for _, conn := range conns[pid] {
+	for _, conn := range conns {
 		totalTraffic += conn.LastBytesSent + conn.LastBytesReceived
 	}
 	bytesRate := float32(totalTraffic) / float32(interval)

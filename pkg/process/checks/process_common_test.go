@@ -363,7 +363,7 @@ func TestFormatNetworks(t *testing.T) {
 			expected: &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
 		},
 	} {
-		result := formatNetworks(tc.pid, tc.connsByPID, tc.interval)
+		result := formatNetworks(tc.connsByPID[tc.pid], tc.interval)
 		assert.EqualValues(t, tc.expected, result)
 	}
 }
