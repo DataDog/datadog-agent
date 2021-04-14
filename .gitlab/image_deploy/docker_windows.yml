@@ -57,10 +57,6 @@ dev_branch_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-core-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809-core
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-core-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809-core
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-core-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-core-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909-core
@@ -69,9 +65,9 @@ dev_branch_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-core-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1809-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win2004-core,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win1909-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-win2004-core,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1809-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004-core,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag ${CI_COMMIT_REF_SLUG}-py3-jmx-win --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win1909-core,windows/amd64 --image datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win2004-core,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/publish.ps1
     - cat ci-scripts/publish.ps1
@@ -118,10 +114,6 @@ dev_master_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-jmx-win --image datadog/agent-dev:master-py3-jmx-win1809,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win2004,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-core-amd64 datadog/agent-dev:master-py3-win1809-core
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-core-amd64 datadog/agent-dev:master-py3-jmx-win1809-core
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-core-amd64 datadog/agent-dev:master-py3-win1909-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-core-amd64 datadog/agent-dev:master-py3-jmx-win1909-core
@@ -130,9 +122,9 @@ dev_master_docker_hub-a7-windows:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-core-amd64 datadog/agent-dev:master-py3-jmx-win2004-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-win-core --image datadog/agent-dev:master-py3-win1809-core,windows/amd64 --image datadog/agent-dev:master-py3-win1909-core,windows/amd64 --image datadog/agent-dev:master-py3-win2004-core,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-win-core --image datadog/agent-dev:master-py3-win1909-core,windows/amd64 --image datadog/agent-dev:master-py3-win2004-core,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-jmx-win-core --image datadog/agent-dev:master-py3-jmx-win1809-core,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win1909-core,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win2004-core,windows/amd64
+      inv -e docker.publish-manifest --signed-push --name datadog/agent-dev --tag master-py3-jmx-win-core --image datadog/agent-dev:master-py3-jmx-win1909-core,windows/amd64 --image datadog/agent-dev:master-py3-jmx-win2004-core,windows/amd64
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/publish.ps1
     - cat ci-scripts/publish.ps1
@@ -180,10 +172,6 @@ dev_nightly_docker_hub-a7-windows:
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win2004-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win2004
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win2004
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1809-core-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1809-core
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-core-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win1809-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-win1909-core-amd64 datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-win1909-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
