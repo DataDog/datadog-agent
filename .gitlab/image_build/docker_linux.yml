@@ -5,6 +5,9 @@
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
+
 .docker_build_job_definition:
   stage: image_build
   script:
@@ -59,6 +62,8 @@ docker_build_agent6:
 docker_build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_6
       when: on_success
   needs:
@@ -92,6 +97,8 @@ docker_build_agent6_jmx:
 docker_build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_6
       when: on_success
   needs:
@@ -141,6 +148,8 @@ docker_build_agent7:
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_7
       when: on_success
   needs:
@@ -172,6 +181,8 @@ docker_build_agent7_jmx:
 docker_build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_7
       when: on_success
   needs:
@@ -197,6 +208,8 @@ docker_build_cluster_agent_amd64:
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
   needs:
+    - <<: *if_not_run_all_builds
+      when: never
     - job: cluster_agent-build_arm64
       artifacts: false
   variables:

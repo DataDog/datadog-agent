@@ -1,6 +1,8 @@
 ---
 # deps_build stage
 # Contains jobs which build various libraries needed for system-probe.
+.if_run_all_builds: &if_run_all_builds
+  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
 
 .build_libbcc_common:
   rules:
@@ -40,6 +42,8 @@ build_libbcc_x64:
 
 build_libbcc_arm64:
   extends: .build_libbcc_common
+  rules:
+    - <<: *if_run_all_builds
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
