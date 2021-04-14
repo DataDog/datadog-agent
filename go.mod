@@ -105,6 +105,7 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.17
 	github.com/google/pprof v0.0.0-20201117184057-ae444373da19
 	github.com/gorilla/mux v1.7.4
