@@ -46,57 +46,10 @@ That’s why it was not possible to patch libbcc directly to make it use the
 other version of those symbols.
 Instead, I’m using wrapper functions.
 
-The reference to `GLIBC_2.26` comes from `reallocarray`.
-Unfortunately, that function has been introduced in the glibc at that version
-and the glibc doesn’t provide any older version of that symbol.
-Fortunately, libbcc provides a alternative definition of it.
-However, forcing the use of the alternative definition doesn’t work as it
-generates a double symbol definition.
-That’s why I had to rename `reallocarray` into `my_reallocarray` everywhere.
-
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 72096914..60f28bfb 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -17,8 +17,12 @@ enable_testing()
- if(NOT CMAKE_USE_LIBBPF_PACKAGE)
-    if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf/src)
- 	execute_process(COMMAND git submodule update --init --recursive
--                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-+	execute_process(COMMAND sed -i -E s/\\<reallocarray\\>/my_reallocarray/ scripts/check-reallocarray.sh include/tools/libc_compat.h src/libbpf.c
-+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf)
-    else()
-+	execute_process(COMMAND sed -i -E s/\\<my_reallocarray\\>/reallocarray/ scripts/check-reallocarray.sh include/tools/libc_compat.h src/libbpf.c
-+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf)
- 	execute_process(COMMAND git diff --shortstat ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf/
- 		OUTPUT_VARIABLE DIFF_STATUS)
- 	if("${DIFF_STATUS}" STREQUAL "")
-@@ -27,6 +31,8 @@ if(NOT CMAKE_USE_LIBBPF_PACKAGE)
- 	else()
- 		message(WARNING "submodule libbpf dirty, so no sync")
- 	endif()
-+	execute_process(COMMAND sed -i -E s/\\<reallocarray\\>/my_reallocarray/ scripts/check-reallocarray.sh include/tools/libc_compat.h src/libbpf.c
-+		WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf)
-    endif()
- endif()
- 
 diff --git a/src/cc/CMakeLists.txt b/src/cc/CMakeLists.txt
 index 931de2d9..1cd1212f 100644
 --- a/src/cc/CMakeLists.txt
 +++ b/src/cc/CMakeLists.txt
-@@ -59,9 +59,11 @@ endif()
- 
- add_library(bpf-static STATIC libbpf.c perf_reader.c ${libbpf_sources})
- set_target_properties(bpf-static PROPERTIES OUTPUT_NAME bcc_bpf)
-+set_target_properties(bpf-static PROPERTIES COMPILE_DEFINITIONS COMPAT_NEED_REALLOCARRAY)
- add_library(bpf-shared SHARED libbpf.c perf_reader.c ${libbpf_sources})
- set_target_properties(bpf-shared PROPERTIES VERSION ${REVISION_LAST} SOVERSION 0)
- set_target_properties(bpf-shared PROPERTIES OUTPUT_NAME bcc_bpf)
-+set_target_properties(bpf-shared PROPERTIES COMPILE_DEFINITIONS COMPAT_NEED_REALLOCARRAY)
- if(CMAKE_USE_LIBBPF_PACKAGE AND LIBBPF_FOUND)
-   target_link_libraries(bpf-shared ${LIBBPF_LIBRARIES})
- endif()
 @@ -90,7 +92,7 @@ endif()
  if(ENABLE_CLANG_JIT)
  add_library(bcc-shared SHARED
