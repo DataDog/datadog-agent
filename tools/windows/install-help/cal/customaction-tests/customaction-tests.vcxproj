@@ -77,9 +77,9 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)x86\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>$(SolutionDir)x86\Debug\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -97,9 +97,9 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)x64\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>gtest_maind.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>$(SolutionDir)x64\Debug\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -118,9 +118,9 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)x86\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>$(SolutionDir)x86\Release\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -139,12 +139,28 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <AdditionalLibraryDirectories>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)x64\$(Configuration);$(WIX)sdk\VS2017\lib\$(PlatformTargetAsMSBuildArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>gtest_main.lib;userenv.lib;wcautil.lib;netapi32.lib;msi.lib;bcrypt.lib;dutil.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>$(SolutionDir)$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\*.obj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>$(SolutionDir)x64\Release\*.obj %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <PropertyGroup>
     <VcpkgEnableManifest>True</VcpkgEnableManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(ProjectDir)\x86\Debug\</OutDir>
+    <IntDir>$(ProjectDir)\x86\Debug\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(ProjectDir)\x86\Release\</OutDir>
+    <IntDir>$(ProjectDir)\x86\Release\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)\x64\Debug\</OutDir>
+    <IntDir>$(ProjectDir)\x64\Debug\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)\x64\Release\</OutDir>
+    <IntDir>$(ProjectDir)\x64\Release\</IntDir>
   </PropertyGroup>
 </Project>
