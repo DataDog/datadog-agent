@@ -1,5 +1,3 @@
-// +build serverless
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -20,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -182,9 +181,9 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 // EnableLogsCollection is adding the HTTP route on which the HTTP server will receive
 // logs from AWS.
 // Returns the HTTP URL on which AWS should send the logs.
-func (d *Daemon) EnableLogsCollection() (string, chan aws.LogMessage, error) {
+func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage, error) {
 	httpAddr := fmt.Sprintf("http://sandbox:%d%s", httpServerPort, httpLogsCollectionRoute)
-	logsChan := make(chan aws.LogMessage)
+	logsChan := make(chan *logConfig.ChannelMessage)
 	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
 	log.Debugf("Logs collection route has been initialized. Logs must be sent to %s", httpAddr)
 	return httpAddr, logsChan, nil
@@ -195,7 +194,7 @@ func (d *Daemon) EnableLogsCollection() (string, chan aws.LogMessage, error) {
 // already receiving hits from the libraries client.
 type LogsCollection struct {
 	daemon *Daemon
-	ch     chan aws.LogMessage
+	ch     chan *logConfig.ChannelMessage
 }
 
 // ServeHTTP - see type LogsCollection comment.
@@ -214,16 +213,20 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
 		sendLogsToIntake := config.Datadog.GetBool("logs_enabled")
+		arn := aws.GetARN()
+		lastRequestID := aws.GetRequestID()
+		functionName := aws.FunctionNameFromARN()
 		for _, message := range messages {
 			// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 			// First, if the log has a Request ID, set the global Request ID variable
 			if message.Type == aws.LogTypePlatformStart {
 				if len(message.ObjectRecord.RequestID) > 0 {
 					aws.SetRequestID(message.ObjectRecord.RequestID)
+					lastRequestID = message.ObjectRecord.RequestID
 				}
 			}
 			// If the global request ID or ARN variable isn't set at this point, do not process further
-			if aws.GetARN() == "" || aws.GetRequestID() == "" {
+			if arn == "" || lastRequestID == "" {
 				continue
 			}
 
@@ -240,7 +243,8 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// We always collect and process logs for the purpose of extracting enhanced metrics.
 			// However, if logs are not enabled, we do not send them to the intake.
 			if sendLogsToIntake {
-				l.ch <- message
+				logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
+				l.ch <- logMessage
 			}
 		}
 		w.WriteHeader(200)
