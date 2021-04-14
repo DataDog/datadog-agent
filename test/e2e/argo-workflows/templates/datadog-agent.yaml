@@ -35,6 +35,9 @@ spec:
             processAgent:
               enabled: true
             systemProbe:
+              enableTCPQueueLength: true
+              enableOOMKill: true
+            networkMonitoring:
               enabled: true
             securityAgent:
               compliance:

@@ -32,7 +32,9 @@
 #endif
 
 static __always_inline __be32 rt_nexthop_bpf(struct rtable *rt) {
-    if (!rt) return 0;
+    if (!rt) {
+        return 0;
+    }
     __be32 hop = 0;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
     bpf_probe_read(&hop, sizeof(hop), &rt->rt_gateway);
@@ -73,8 +75,12 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // Retrieve addresses
     if (family == AF_INET) {
         t->metadata |= CONN_V4;
-        if (t->saddr_l == 0) bpf_probe_read(&t->saddr_l, sizeof(__be32), &skp->sk_rcv_saddr);
-        if (t->daddr_l == 0) bpf_probe_read(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
+        if (t->saddr_l == 0) {
+            bpf_probe_read(&t->saddr_l, sizeof(__be32), &skp->sk_rcv_saddr);
+        }
+        if (t->daddr_l == 0) {
+            bpf_probe_read(&t->daddr_l, sizeof(__be32), &skp->sk_daddr);
+        }
 
         if (!t->saddr_l || !t->daddr_l) {
             log_debug("ERR(read_conn_tuple.v4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
@@ -115,7 +121,9 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 #endif
 
     // Retrieve ports
-    if (t->sport == 0) t->sport = read_sport(skp);
+    if (t->sport == 0) {
+        t->sport = read_sport(skp);
+    }
     if (t->dport == 0) {
         bpf_probe_read(&t->dport, sizeof(t->dport), &skp->sk_dport);
         t->dport = bpf_ntohs(t->dport);
@@ -138,7 +146,8 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
-    __u32 rtt = 0, rtt_var = 0;
+    __u32 rtt = 0;
+    __u32 rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
     bpf_probe_read(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
 
@@ -351,8 +360,12 @@ int kprobe__udp_recvmsg(struct pt_regs* ctx) {
     struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    if (sk) {
+        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    }
+    if (msg) {
+        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    }
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
@@ -367,8 +380,12 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
     struct msghdr* msg = (struct msghdr*) PT_REGS_PARM3(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    if (msg) bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    if (sk) {
+        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
+    }
+    if (msg) {
+        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
+    }
 
     // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);

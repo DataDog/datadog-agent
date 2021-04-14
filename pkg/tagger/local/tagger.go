@@ -116,7 +116,7 @@ func (t *Tagger) run() error {
 		case <-t.pullTicker.C:
 			go t.pull()
 		case <-t.pruneTicker.C:
-			t.store.prune() //nolint:errcheck
+			t.store.prune()
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
 		}

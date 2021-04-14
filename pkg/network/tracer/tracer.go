@@ -87,8 +87,9 @@ type Tracer struct {
 	//
 	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 	// to determine whether a connection is truly closed or not
-	expiredTCPConns int64
-	closedConns     int64
+	expiredTCPConns  int64
+	closedConns      int64
+	connStatsMapSize int64
 
 	buffer     []network.ConnectionStats
 	bufferLock sync.Mutex
@@ -268,7 +269,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBufferred,
+		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.CollectDNSDomains,
 	)
@@ -711,8 +712,10 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	key, stats := &ConnTuple{}, &ConnStatsWithTimestamp{}
 	seen := make(map[ConnTuple]struct{})
 	var expired []*ConnTuple
+	var entryCount uint
 	entries := mp.IterateFrom(unsafe.Pointer(&ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
+		entryCount++
 		if t.connectionExpired(key, latestTime, stats, cachedConntrack) {
 			expired = append(expired, key.copy())
 			if key.isTCP() {
@@ -734,6 +737,13 @@ func (t *Tracer) getConnections(active []network.ConnectionStats) ([]network.Con
 	if err := entries.Err(); err != nil {
 		return nil, 0, fmt.Errorf("unable to iterate connection map: %s", err)
 	}
+
+	if entryCount >= t.config.MaxTrackedConnections {
+		log.Errorf("connection tracking map size has reached the limit of %d. Accurate connection count and data volume metrics will be affected. Increase config value `system_probe_config.max_tracked_connections` to correct this.", t.config.MaxTrackedConnections)
+	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
+		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
+	}
+	atomic.SwapInt64(&t.connStatsMapSize, int64(entryCount))
 
 	// do gateway resolution only on active connections outside
 	// the map iteration loop to not add to connections while
@@ -851,11 +861,12 @@ func (t *Tracer) getEbpfTelemetry() map[string]int64 {
 	}
 
 	return map[string]int64{
-		"tcp_sent_miscounts":  int64(telemetry.tcp_sent_miscounts),
-		"missed_tcp_close":    int64(telemetry.missed_tcp_close),
-		"missed_udp_close":    int64(telemetry.missed_udp_close),
-		"udp_sends_processed": int64(telemetry.udp_sends_processed),
-		"udp_sends_missed":    int64(telemetry.udp_sends_missed),
+		"tcp_sent_miscounts":         int64(telemetry.tcp_sent_miscounts),
+		"missed_tcp_close":           int64(telemetry.missed_tcp_close),
+		"missed_udp_close":           int64(telemetry.missed_udp_close),
+		"udp_sends_processed":        int64(telemetry.udp_sends_processed),
+		"udp_sends_missed":           int64(telemetry.udp_sends_missed),
+		"conn_stats_max_entries_hit": int64(telemetry.conn_stats_max_entries_hit),
 	}
 }
 
@@ -921,6 +932,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	skipped := atomic.LoadInt64(&t.skippedConns)
 	expiredTCP := atomic.LoadInt64(&t.expiredTCPConns)
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
+	connStatsMapSize := atomic.LoadInt64(&t.connStatsMapSize)
 
 	tracerStats := map[string]int64{
 		"closed_conn_polling_lost":     lost,
@@ -928,6 +940,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"conn_valid_skipped":           skipped, // Skipped connections (e.g. Local DNS requests)
 		"expired_tcp_conns":            expiredTCP,
 		"pid_collisions":               pidCollisions,
+		"conn_stats_map_size":          connStatsMapSize,
 	}
 	for k, v := range runtime.Tracer.GetTelemetry() {
 		tracerStats[k] = v

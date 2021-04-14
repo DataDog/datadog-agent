@@ -70,7 +70,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBufferred,
+		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.CollectDNSDomains,
 	)

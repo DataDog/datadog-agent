@@ -31,8 +31,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -352,7 +352,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		testMod.cleanup()
 	}
 
-	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	agentConfig, err := sysconfig.New("")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")

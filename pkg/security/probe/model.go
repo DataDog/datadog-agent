@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -172,6 +173,11 @@ func (ev *Event) ResolveGroup(e *model.FileFields) string {
 		e.Group, _ = ev.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
 	return e.Group
+}
+
+// ResolveRights resolves the rights of a file
+func (ev *Event) ResolveRights(e *model.FileFields) int {
+	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
 }
 
 // ResolveChownUID resolves the user id of a chown event to a username

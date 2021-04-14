@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -47,6 +48,7 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 	config.SetDefault("baz", "test")
 
 	var wg sync.WaitGroup
+	errs := make(chan error, 1000)
 
 	wg.Add(2)
 	go func() {
@@ -62,12 +64,22 @@ func TestConcurrencyUnmarshalling(t *testing.T) {
 		for n := 0; n <= 1000; n++ {
 			err := config.UnmarshalKey("foo", &s)
 			if err != nil {
-				t.Fatalf("unable to decode into struct, %v", err)
+				errs <- fmt.Errorf("unable to decode into struct, %w", err)
+				return
 			}
 		}
 	}()
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func TestGetConfigEnvVars(t *testing.T) {

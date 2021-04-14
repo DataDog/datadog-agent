@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // Policy represents a policy file in the configuration file
@@ -75,9 +75,9 @@ func (c *Config) IsEnabled() bool {
 }
 
 // NewConfig returns a new Config object
-func NewConfig(cfg *config.AgentConfig) (*Config, error) {
+func NewConfig(cfg *config.Config) (*Config, error) {
 	c := &Config{
-		Config:                             *ebpf.SysProbeConfigFromConfig(cfg),
+		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),

@@ -1,3 +1,5 @@
+// +build linux
+
 package modules
 
 import (
@@ -9,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,13 +22,8 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
 var Process = api.Factory{
-	Name: "process",
-	Fn: func(agentConfig *config.AgentConfig) (api.Module, error) {
-		if !agentConfig.CheckIsEnabled(config.ProcessModuleCheckName) {
-			log.Infof("Process module disabled")
-			return nil, api.ErrNotEnabled
-		}
-
+	Name: config.ProcessModule,
+	Fn: func(cfg *config.Config) (api.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side

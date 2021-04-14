@@ -53,7 +53,8 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e test --race --profile --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader --save-result-json C:\mnt\test_output.json
+& inv -e install-tools
+& inv -e test --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader --save-result-json C:\mnt\test_output.json
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err
