@@ -36,10 +36,6 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 		} else {
 			enabled[probes.TCPRetransmit] = struct{}{}
 		}
-
-		if c.BPFDebug || c.EnableHTTPMonitoring {
-			enabled[probes.TCPSendMsgReturn] = struct{}{}
-		}
 	}
 
 	if c.CollectUDPConns {

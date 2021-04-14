@@ -157,14 +157,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		enabledProbes[probes.SocketDnsFilter] = struct{}{}
 	}
 
-	// TODO: This is a hotfix to prevent the following error when HTTP monitoring is disabled
-	// couldn’t load eBPF programs: map http_in_flight: map create: cannot allocate memory
-	maxHTTPInFlightEntries := uint(1)
-	if config.EnableHTTPMonitoring && !pre410Kernel {
-		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
-		maxHTTPInFlightEntries = config.MaxTrackedConnections
-	}
-
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -181,7 +173,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(maxHTTPInFlightEntries), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
@@ -223,8 +214,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
+	m := netebpf.NewManager(perfHandlerTCP, runtimeTracer)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -279,7 +269,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 reverseDNS,
-		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
+		httpMonitor:                newHTTPMonitor(!pre410Kernel, config),
 		buffer:                     make([]network.ConnectionStats, 0, 512),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -1031,7 +1021,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
-func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
+func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
@@ -1041,7 +1031,7 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 		return nil
 	}
 
-	monitor, err := http.NewMonitor(c.ProcRoot, c.MaxHTTPStatsBuffered, m, h)
+	monitor, err := http.NewMonitor(c)
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

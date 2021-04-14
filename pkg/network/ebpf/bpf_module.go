@@ -23,6 +23,21 @@ func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return ebpfReader, nil
 }
 
+// ReadHTTPModule from the asset file
+func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	file := "http.o"
+	if debug {
+		file = "http-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
+}
+
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	file := "offset-guess.o"
