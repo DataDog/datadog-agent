@@ -192,8 +192,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	} else if config.Datadog.IsSet("env") {
 		c.DefaultEnv = config.Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
-	} else if config.Datadog.IsSet("tags") {
-		for _, tag := range config.Datadog.GetStringSlice("tags") {
+	} else {
+		for _, tag := range config.GetConfiguredTags(false) {
 			if strings.HasPrefix(tag, "env:") {
 				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
