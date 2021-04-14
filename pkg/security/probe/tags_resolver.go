@@ -59,7 +59,7 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 
 // ResolverTags returns the tags for the given id
 func (t *TagsResolver) Resolve(id string) []string {
-	tags, _ := t.tagger.Tag("container_id://"+id, collectors.LowCardinality)
+	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	return tags
 }
 
