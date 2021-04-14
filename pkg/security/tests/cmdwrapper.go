@@ -114,28 +114,16 @@ func newDockerCmdWrapper(root string) (*dockerCmdWrapper, error) {
 		return nil, err
 	}
 
+	// check docker is available
+	cmd := exec.Command(executable, "version")
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
 	return &dockerCmdWrapper{
 		executable: executable,
 		root:       root,
 	}, nil
-}
-
-type skipCmdWrapper struct {
-	reason string
-}
-
-func (s *skipCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
-	t.Skip(s.reason)
-}
-
-func (s *skipCmdWrapper) Type() wrapperType {
-	return skipWrapperType
-}
-
-func newSkipCmdWrapper(reason string) *skipCmdWrapper {
-	return &skipCmdWrapper{
-		reason: reason,
-	}
 }
 
 type multiCmdWrapper struct {

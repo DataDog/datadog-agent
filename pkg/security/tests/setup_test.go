@@ -371,7 +371,8 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
-			cmdWrapper = newSkipCmdWrapper("docker not found")
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
 		}
 	}
 
