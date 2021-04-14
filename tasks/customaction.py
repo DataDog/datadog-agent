@@ -65,7 +65,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         "customaction.pdb",
     ]
     for artefact in artefacts:
-        shutil.copy2("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
+        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
 
 
 @task
