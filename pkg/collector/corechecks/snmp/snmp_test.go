@@ -51,7 +51,7 @@ func (s *mockSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
-func (s *mockSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
+func (s *mockSession) GetBulk(oids []string, bulkMaxRepetitions int) (result *gosnmp.SnmpPacket, err error) {
 	args := s.Mock.Called(oids)
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }

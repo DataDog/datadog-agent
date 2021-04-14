@@ -12,58 +12,65 @@ import (
 )
 
 var defaultOidBatchSize = 60
+
+// Java SNMP uses 50, snmp-net uses 10
+// Same max repetition as gosnmp.defaultMaxRepetitions
+var defaultBulkMaxRepetitions = 50
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
 
 type snmpInitConfig struct {
-	Profiles      profileConfigMap `yaml:"profiles"`
-	GlobalMetrics []metricsConfig  `yaml:"global_metrics"`
-	OidBatchSize  Number           `yaml:"oid_batch_size"`
+	Profiles           profileConfigMap `yaml:"profiles"`
+	GlobalMetrics      []metricsConfig  `yaml:"global_metrics"`
+	OidBatchSize       Number           `yaml:"oid_batch_size"`
+	BulkMaxRepetitions Number           `yaml:"bulk_max_repetitions"`
 }
 
 type snmpInstanceConfig struct {
-	IPAddress        string            `yaml:"ip_address"`
-	Port             Number            `yaml:"port"`
-	CommunityString  string            `yaml:"community_string"`
-	SnmpVersion      string            `yaml:"snmp_version"`
-	Timeout          Number            `yaml:"timeout"`
-	Retries          Number            `yaml:"retries"`
-	OidBatchSize     Number            `yaml:"oid_batch_size"`
-	User             string            `yaml:"user"`
-	AuthProtocol     string            `yaml:"authProtocol"`
-	AuthKey          string            `yaml:"authKey"`
-	PrivProtocol     string            `yaml:"privProtocol"`
-	PrivKey          string            `yaml:"privKey"`
-	ContextName      string            `yaml:"context_name"`
-	Metrics          []metricsConfig   `yaml:"metrics"`
-	MetricTags       []metricTagConfig `yaml:"metric_tags"`
-	Profile          string            `yaml:"profile"`
-	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
-	ExtraTags        string            `yaml:"extra_tags"` // comma separated tags
+	IPAddress          string            `yaml:"ip_address"`
+	Port               Number            `yaml:"port"`
+	CommunityString    string            `yaml:"community_string"`
+	SnmpVersion        string            `yaml:"snmp_version"`
+	Timeout            Number            `yaml:"timeout"`
+	Retries            Number            `yaml:"retries"`
+	OidBatchSize       Number            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions Number            `yaml:"bulk_max_repetitions"`
+	User               string            `yaml:"user"`
+	AuthProtocol       string            `yaml:"authProtocol"`
+	AuthKey            string            `yaml:"authKey"`
+	PrivProtocol       string            `yaml:"privProtocol"`
+	PrivKey            string            `yaml:"privKey"`
+	ContextName        string            `yaml:"context_name"`
+	Metrics            []metricsConfig   `yaml:"metrics"`
+	MetricTags         []metricTagConfig `yaml:"metric_tags"`
+	Profile            string            `yaml:"profile"`
+	UseGlobalMetrics   bool              `yaml:"use_global_metrics"`
+	ExtraTags          string            `yaml:"extra_tags"` // comma separated tags
 }
 
 type snmpConfig struct {
-	ipAddress         string
-	port              uint16
-	communityString   string
-	snmpVersion       string
-	timeout           int
-	retries           int
-	user              string
-	authProtocol      string
-	authKey           string
-	privProtocol      string
-	privKey           string
-	contextName       string
-	oidConfig         oidConfig
-	metrics           []metricsConfig
-	metricTags        []metricTagConfig
-	oidBatchSize      int
-	profiles          profileDefinitionMap
-	profileTags       []string
-	uptimeMetricAdded bool
-	extraTags         []string
+	ipAddress          string
+	port               uint16
+	communityString    string
+	snmpVersion        string
+	timeout            int
+	retries            int
+	user               string
+	authProtocol       string
+	authKey            string
+	privProtocol       string
+	privKey            string
+	contextName        string
+	oidConfig          oidConfig
+	metrics            []metricsConfig
+	metricTags         []metricTagConfig
+	oidBatchSize       int
+	bulkMaxRepetitions int
+	profiles           profileDefinitionMap
+	profileTags        []string
+	uptimeMetricAdded  bool
+	extraTags          []string
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -182,6 +189,14 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.oidBatchSize = int(initConfig.OidBatchSize)
 	} else {
 		c.oidBatchSize = defaultOidBatchSize
+	}
+
+	if instance.BulkMaxRepetitions != 0 {
+		c.bulkMaxRepetitions = int(instance.BulkMaxRepetitions)
+	} else if initConfig.BulkMaxRepetitions != 0 {
+		c.bulkMaxRepetitions = int(initConfig.BulkMaxRepetitions)
+	} else {
+		c.bulkMaxRepetitions = defaultBulkMaxRepetitions
 	}
 
 	// metrics Configs
