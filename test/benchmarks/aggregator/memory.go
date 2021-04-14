@@ -134,7 +134,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 
 				i := 0
 				for range ticker.C {
-					i++
+					i += 1
 					i = i % p
 					select {
 					case <-quitGenerator:
@@ -144,17 +144,17 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 						for _, m := range metrics {
 							for _, generated := range m {
 								rawSender.SendRawMetricSample(generated[i])
-								sent++
+								sent += 1
 							}
 						}
 
 						// Submit ServiceCheck
 						rawSender.SendRawServiceCheck(scs[i])
-						sent++
+						sent += 1
 
 						// Submit Event
 						rawSender.Event(*events[i])
-						sent++
+						sent += 1
 					}
 				}
 			}()
@@ -200,7 +200,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 						quitGenerator <- true
 						return
 					}
-					secs++
+					secs += 1
 				}
 			}()
 
