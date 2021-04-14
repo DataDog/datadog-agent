@@ -18,8 +18,10 @@
   - Improved out-of-the-box support for Kubernetes 1.18+ by automatically falling back to using TLS without verifying CA when communicating with the secure Kubelet [(STAC-12205)](https://stackstate.atlassian.net/browse/STAC-12205)
 
 **Bugfix**
-
-  - Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
+- VSphere Integration
+  - Fix out-of-box VSphere check settings to support the Vsphere StackPack. [(STAC-12360)](https://stackstate.atlassian.net/browse/STAC-12360)
+  
+- Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
 
 ## 2.10.0 (2021-02-25)
 
