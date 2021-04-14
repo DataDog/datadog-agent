@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var fuzzer = fuzz.NewWithSeed(1)
+
 func newTestAggregator() *ClientStatsAggregator {
 	conf := &config.AgentConfig{
 		DefaultEnv: "agentEnv",
@@ -31,9 +33,8 @@ func wrapPayload(p pb.ClientStatsPayload) pb.StatsPayload {
 }
 
 func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
-	f := fuzz.New()
 	b := pb.ClientStatsBucket{}
-	f.Fuzz(&b)
+	fuzzer.Fuzz(&b)
 	b.Start = uint64(start.UnixNano())
 	stats := pb.ClientStatsPayload{
 		Stats:   []pb.ClientStatsBucket{b},
@@ -91,29 +92,31 @@ func TestAggregatorFlushTime(t *testing.T) {
 
 func TestMergeMany(t *testing.T) {
 	assert := assert.New(t)
-	a := newTestAggregator()
-	testTime := time.Unix(time.Now().Unix(), 0)
-	merge1 := getTestStatsWithStart(testTime)
-	merge2 := getTestStatsWithStart(testTime.Add(time.Nanosecond))
-	other := getTestStatsWithStart(testTime.Add(-time.Nanosecond))
-	merge3 := getTestStatsWithStart(testTime.Add(time.Second - time.Nanosecond))
+	for i := 0; i < 10; i++ {
+		a := newTestAggregator()
+		testTime := time.Unix(time.Now().Unix(), 0)
+		merge1 := getTestStatsWithStart(testTime)
+		merge2 := getTestStatsWithStart(testTime.Add(time.Nanosecond))
+		other := getTestStatsWithStart(testTime.Add(-time.Nanosecond))
+		merge3 := getTestStatsWithStart(testTime.Add(time.Second - time.Nanosecond))
 
-	a.add(testTime, deepCopy(merge1))
-	a.add(testTime, deepCopy(merge2))
-	a.add(testTime, deepCopy(other))
-	a.add(testTime, deepCopy(merge3))
-	assert.Len(a.out, 3)
-	a.flushOnTime(testTime.Add(20 * time.Second))
-	assert.Len(a.out, 4)
-	a.flushOnTime(testTime.Add(21 * time.Second))
-	assert.Len(a.out, 5)
+		a.add(testTime, deepCopy(merge1))
+		a.add(testTime, deepCopy(merge2))
+		a.add(testTime, deepCopy(other))
+		a.add(testTime, deepCopy(merge3))
+		assert.Len(a.out, 3)
+		a.flushOnTime(testTime.Add(20 * time.Second))
+		assert.Len(a.out, 4)
+		a.flushOnTime(testTime.Add(21 * time.Second))
+		assert.Len(a.out, 5)
 
-	assertDistribPayload(t, wrapPayload(merge1), <-a.out)
-	assertDistribPayload(t, wrapPayload(merge2), <-a.out)
-	assertDistribPayload(t, wrapPayload(merge3), <-a.out)
-	assert.Equal(wrapPayload(other), <-a.out)
-	assertAggCountsPayload(t, <-a.out)
-	assert.Len(a.buckets, 0)
+		assertDistribPayload(t, wrapPayload(merge1), <-a.out)
+		assertDistribPayload(t, wrapPayload(merge2), <-a.out)
+		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
+		assert.Equal(wrapPayload(other), <-a.out)
+		assertAggCountsPayload(t, <-a.out)
+		assert.Len(a.buckets, 0)
+	}
 }
 
 func TestTimeShifts(t *testing.T) {
