@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Expose new `aggregator.submit_event_platform_event` python API with two supported event types: `dbm-samples` and
-    `dbm-metrics`.
+    Expose new ``aggregator.submit_event_platform_event`` python API with two supported event types:
+    ``dbm-samples`` and ``dbm-metrics``.
