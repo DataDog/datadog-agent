@@ -26,7 +26,8 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir) {
+static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
+                                              __u32 segs_in, __u32 segs_out, segment_count_increment_t segs_type) {
     conn_stats_ts_t *val;
 
     // initialize-if-no-exist the connection stat, and load it
@@ -48,6 +49,20 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
     if (recv_bytes) {
         __sync_fetch_and_add(&val->recv_bytes, recv_bytes);
+    }
+    if (segs_in) {
+        if (segs_type == SEGMENT_COUNT_INCREMENT){
+            __sync_fetch_and_add(&val->recv_segments, segs_in);
+        } else if (segs_type == SEGMENT_COUNT_ABSOLUTE){
+            val->recv_segments = segs_in;
+        }
+    }
+    if (segs_out) {
+        if (segs_type == SEGMENT_COUNT_INCREMENT){
+            __sync_fetch_and_add(&val->sent_segments, segs_out);
+        } else if (segs_type == SEGMENT_COUNT_ABSOLUTE){
+            val->sent_segments = segs_out;
+        }
     }
     val->timestamp = ts;
 
@@ -98,10 +113,12 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     }
 }
 
-static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir) {
+static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
+                                          __u32 segs_in, __u32 segs_out, segment_count_increment_t segs_type) 
+{
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, segs_in, segs_out, segs_type);
 
     return 0;
 }

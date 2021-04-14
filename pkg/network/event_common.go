@@ -118,6 +118,12 @@ type ConnectionStats struct {
 	MonotonicRecvBytes uint64
 	LastRecvBytes      uint64
 
+	MonotonicSentSegs uint64
+	LastSentSegs      uint64
+
+	MonotonicRecvSegs uint64
+	LastRecvSegs      uint64
+
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
 

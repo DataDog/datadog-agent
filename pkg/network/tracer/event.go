@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -257,6 +258,9 @@ __u64 recv_bytes;
 __u64 timestamp;
 __u32 flags;
 __u8  direction;
+__u64 sent_segments;
+__u64 recv_segments;
+
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -297,6 +301,9 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		dest = util.V6Address(uint64(t.daddr_l), uint64(t.daddr_h))
 	}
 
+	if s.sent_bytes > 0 || s.recv_bytes > 0 {
+		log.Infof("sb: %v rb: %v ss: %v rs %v", s.sent_bytes, s.recv_bytes, s.sent_segments, s.recv_segments)
+	}
 	stats := network.ConnectionStats{
 		Pid:                uint32(t.pid),
 		Type:               connType(metadata),
@@ -309,6 +316,8 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		DPort:              uint16(t.dport),
 		MonotonicSentBytes: uint64(s.sent_bytes),
 		MonotonicRecvBytes: uint64(s.recv_bytes),
+		MonotonicSentSegs:  uint64(s.sent_segments),
+		MonotonicRecvSegs:  uint64(s.recv_segments),
 		LastUpdateEpoch:    uint64(s.timestamp),
 	}
 
