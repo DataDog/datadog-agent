@@ -111,7 +111,7 @@ index 931de2d9..1cd1212f 100644
  
  # Link against LLVM libraries
 -target_link_libraries(bcc-shared ${bcc_common_libs_for_s})
-+target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2)
++target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2 -Wl,--wrap=log2f)
  target_link_libraries(bcc-static ${bcc_common_libs_for_a} bcc-loader-static)
  set(bcc-lua-static ${bcc-lua-static} ${bcc_common_libs_for_lua})
  
@@ -147,8 +147,18 @@ index 0000000..c01fbe2
 +  return __ ## func ## _prior_glibc(x, y);                      \
 +}
 +
++#define define_wrapper3_for(func)                               \
++double __ ## func ## _prior_glibc(float x);                     \
++                                                                \
++asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
++                                                                \
++double __wrap_ ## func (float x) {                              \
++  return __ ## func ## _prior_glibc(x);                         \
++}
++
 +define_wrapper1_for(exp)
 +define_wrapper1_for(log)
 +define_wrapper2_for(pow)
 +define_wrapper1_for(exp2)
 +define_wrapper1_for(log2)
++define_wrapper3_for(log2f)
