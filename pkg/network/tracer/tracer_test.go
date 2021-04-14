@@ -32,15 +32,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
 var (
@@ -54,6 +58,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -86,7 +91,6 @@ func TestTracerExpvar(t *testing.T) {
 		},
 		"state": {
 			"StatsResets",
-			"UnorderedConns",
 			"ClosedConnDropped",
 			"ConnDropped",
 			"TimeSyncCollisions",
@@ -2096,27 +2100,29 @@ func TestHTTPStats(t *testing.T) {
 	resp.Body.Close()
 
 	// Iterate through active connections until we find connection created above
-	var matchingConns []network.ConnectionStats
+	var httpReqStats http.RequestStats
 	require.Eventuallyf(t, func() bool {
-		conns := getConnections(t, tr)
-		matchingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr && len(cs.HTTPStatsByPath) == 1
-		})
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		return len(matchingConns) == 1
+		for key, stats := range payload.HTTP {
+			if key.Path == "/test" {
+				httpReqStats = stats
+				return true
+			}
+		}
+
+		return false
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 
 	// Verify HTTP stats
-	conn := matchingConns[0]
-	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing")
-	httpReqStats, ok := conn.HTTPStatsByPath["/test"]
-	assert.True(t, ok)
-	assert.Equal(t, 0, httpReqStats.Count(0), "100s") // number of requests with response status 100
-	// it sees both sides of the req/resp so will register two 200s
-	assert.Equal(t, 1, httpReqStats.Count(1), "200s") // 200
-	assert.Equal(t, 0, httpReqStats.Count(2), "300s") // 300
-	assert.Equal(t, 0, httpReqStats.Count(3), "400s") // 400
-	assert.Equal(t, 0, httpReqStats.Count(4), "500s") // 500
+	assert.Equal(t, 0, httpReqStats[0].Count, "100s") // number of requests with response status 100
+	assert.Equal(t, 1, httpReqStats[1].Count, "200s") // 200
+	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
+	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
+	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
@@ -2154,7 +2160,7 @@ func teardownDNAT(t *testing.T) {
 }
 
 func testConfig() *config.Config {
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false
@@ -2203,35 +2209,41 @@ func TestGatewayLookupNotEnabled(t *testing.T) {
 	})
 }
 
+func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
+	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)`)
+
+	args := []string{"route", "get"}
+	if len(from) > 0 {
+		args = append(args, "from", from)
+	}
+	args = append(args, dest)
+	if iif != nil {
+		args = append(args, "iif", iif.Name)
+	}
+	cmd := exec.Command("ip", args...)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "ip command returned error, output: %s", out)
+
+	matches := ipRouteGetOut.FindSubmatch(out)
+	require.Len(t, matches, 2, string(out))
+	dev := string(matches[1])
+	ifi, err := net.InterfaceByName(dev)
+	require.NoError(t, err)
+	return ifi
+}
+
 func TestGatewayLookupEnabled(t *testing.T) {
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
-	require.NotNil(t, tr)
 	require.NoError(t, err)
+	require.NotNil(t, tr)
 	defer tr.Stop()
 
 	require.NotNil(t, tr.gwLookup)
 
-	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)\s+src`)
-
-	cmd := exec.Command("ip", "route", "get", "8.8.8.8")
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err)
-
-	matches := ipRouteGetOut.FindSubmatch(out)
-	require.Len(t, matches, 2)
-	dev := string(matches[1])
-
-	ipRouteLinkOut := regexp.MustCompile(`(\d+):.+`)
-
-	out, err = exec.Command("ip", "link", "show", dev).CombinedOutput()
-	require.NoError(t, err, "ip link command output: %s", out)
-	matches = ipRouteLinkOut.FindSubmatch(out)
-	require.Len(t, matches, 2)
-	ifindex := string(matches[1])
-
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -2256,7 +2268,148 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	}, 2*time.Second, time.Second)
 
 	require.NotNil(t, conn.Via)
-	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%s", ifindex))
+	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
+}
+
+func TestGatewayLookupCrossNamespace(t *testing.T) {
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+	// setup two network namespaces
+	cmds := []string{
+		"ip link add br0 type bridge",
+		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
+		"ip netns add test1",
+		"ip netns add test2",
+		"ip link add veth1 type veth peer name veth2",
+		"ip link set veth1 master br0",
+		"ip link set veth2 netns test1",
+		"ip -n test1 addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
+		"ip link add veth3 type veth peer name veth4",
+		"ip link set veth3 master br0",
+		"ip link set veth4 netns test2",
+		"ip -n test2 addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
+		"ip link set br0 up",
+		"ip link set veth1 up",
+		"ip -n test1 link set veth2 up",
+		"ip link set veth3 up",
+		"ip -n test2 link set veth4 up",
+		"ip -n test1 r add default via 2.2.2.1",
+		"ip -n test2 r add default via 2.2.2.1",
+		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+		"sysctl -w net.ipv4.ip_forward=1",
+	}
+	defer func() {
+		testutil.RunCommands(t, []string{
+			"iptables -D POSTROUTING 1 -t nat",
+			"ip link del veth1",
+			"ip link del veth3",
+			"ip link del br0",
+			"ip netns del test1",
+			"ip netns del test2",
+		}, true)
+	}()
+	testutil.RunCommands(t, cmds, false)
+
+	ifs, err := net.Interfaces()
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		for _, i := range ifs {
+			if hwAddr.String() == i.HardwareAddr.String() {
+				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil
+			}
+		}
+
+		return network.Subnet{Alias: "subnet"}, nil
+	}
+
+	test1Ns, err := netns.GetFromName("test1")
+	require.NoError(t, err)
+	defer test1Ns.Close()
+
+	// run tcp server in test1 net namespace
+	done := make(chan struct{})
+	var server *TCPServer
+	err = util.WithNS("/proc", test1Ns, func() error {
+		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		return server.Run(done)
+	})
+	require.NoError(t, err)
+	defer close(done)
+
+	var conn *network.ConnectionStats
+	t.Run("client in root namespace", func(t *testing.T) {
+		c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
+		require.NoError(t, err)
+
+		// write some data
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 2*time.Second, 500*time.Millisecond)
+
+		// conn.Via should be nil, since traffic is local
+		require.Nil(t, conn.Via)
+	})
+
+	t.Run("client in other namespace", func(t *testing.T) {
+		// try connecting to server in test1 namespace
+		test2Ns, err := netns.GetFromName("test2")
+		require.NoError(t, err)
+		defer test2Ns.Close()
+
+		var c net.Conn
+		util.WithNS("/proc", test2Ns, func() error {
+			var err error
+			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
+			require.NoError(t, err)
+			return err
+		})
+		defer c.Close()
+
+		// write some data
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err)
+
+		var conn *network.ConnectionStats
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 2*time.Second, 500*time.Millisecond)
+
+		// traffic is local, so Via field should not be set
+		require.Nil(t, conn.Via)
+
+		// try connecting to something outside
+		var dnsClientAddr, dnsServerAddr *net.UDPAddr
+		util.WithNS("/proc", test2Ns, func() error {
+			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+			return nil
+		})
+
+		iif := ipRouteGet(t, "", dnsClientAddr.IP.String(), nil)
+		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), "8.8.8.8", iif)
+
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 3*time.Second, 500*time.Millisecond)
+
+		require.NotNil(t, conn.Via)
+		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
+
+	})
 }
 
 func TestConnectionAssured(t *testing.T) {

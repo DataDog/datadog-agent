@@ -1,6 +1,6 @@
 from invoke import task
 
-from .deploy.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
 from .utils import load_release_versions
 
 

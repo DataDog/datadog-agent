@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,21 +28,18 @@ var inactivityLogDuration = 10 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = api.Factory{
-	Name: "network_tracer",
-	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled(config.NetworkCheckName) {
-			log.Infof("Network tracer disabled")
-			return nil, api.ErrNotEnabled
-		}
+	Name: config.NetworkTracerModule,
+	Fn: func(cfg *config.Config) (api.Module, error) {
+		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, msg := tracer.IsTracerSupportedByOS(cfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%s: %s", ErrSysprobeUnsupported, msg)
+		if supported, msg := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
 		}
 
 		log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 
-		t, err := tracer.NewTracer(networkconfig.TracerConfigFromConfig(cfg))
+		t, err := tracer.NewTracer(ncfg)
 		return &networkTracer{tracer: t}, err
 	},
 }

@@ -34,7 +34,7 @@ AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.js
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "t2.medium",
+  "InstanceType": "c5.xlarge",
   "Monitoring": {
     "Enabled": false
   },

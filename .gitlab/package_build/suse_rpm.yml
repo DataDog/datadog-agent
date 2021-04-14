@@ -63,6 +63,7 @@ agent_suse-x64-a6:
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for suse-x64
@@ -80,6 +81,7 @@ agent_suse-x64-a7:
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
@@ -90,6 +92,7 @@ iot_agent_suse-x64:
   tags: ["runner:main", "size:2xlarge"]
   needs: ["linux_x64_go_deps"]
   before_script:
+    - source /root/.bashrc && conda activate ddpy3
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - *retrieve_linux_go_deps
@@ -125,6 +128,7 @@ dogstatsd_suse-x64:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - *retrieve_linux_go_deps
+    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*

@@ -11,7 +11,7 @@ static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, htt
     key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
 }
 
-static __always_inline void http_notify_batch(struct pt_regs* ctx) {
+static __always_inline void http_notify_batch(struct pt_regs *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
 
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
@@ -26,7 +26,7 @@ static __always_inline void http_notify_batch(struct pt_regs* ctx) {
     // or try to manually add the padding to the struct definition. More
     // information in https://docs.cilium.io/en/v1.8/bpf/ under the
     // alignment/padding section
-    http_batch_notification_t notification = {0};
+    http_batch_notification_t notification = { 0 };
     notification.cpu = cpu;
     notification.batch_idx = batch_state->idx_to_notify;
 
@@ -51,7 +51,7 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         return;
     }
 
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen-http->request_started)/(1000*1000));
+    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen - http->request_started) / (1000 * 1000));
 
     http_batch_key_t key;
     http_prepare_key(cpu, &key, batch_state);
@@ -117,7 +117,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
     return 1;
 }
 
-static __always_inline int http_begin_response(http_transaction_t *http, char *buffer) {
+static __always_inline int http_begin_response(http_transaction_t *http, const char *buffer) {
     // We missed the corresponding request so nothing to do
     if (!(http->request_started)) {
         return 0;
@@ -130,11 +130,11 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
     __u16 status_code = 0;
     __u8 space_found = 0;
 #pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE-1; i++) {
+    for (int i = 0; i < HTTP_BUFFER_SIZE - 1; i++) {
         if (!space_found && buffer[i] == ' ') {
             space_found = 1;
         } else if (space_found && status_code < 100) {
-            status_code = status_code*10 + (buffer[i]-'0');
+            status_code = status_code * 10 + (buffer[i] - '0');
         }
     }
 
@@ -146,7 +146,7 @@ static __always_inline int http_begin_response(http_transaction_t *http, char *b
     return 1;
 }
 
-static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* skb_info, char* p, http_packet_t* packet_type, http_method_t* method) {
+static __always_inline void http_read_data(struct __sk_buff *skb, skb_info_t *skb_info, char *p, http_packet_t *packet_type, http_method_t *method) {
     if (skb->len - skb_info->data_off < HTTP_BUFFER_SIZE) {
         return;
     }
@@ -182,7 +182,7 @@ static __always_inline void http_read_data(struct __sk_buff* skb, skb_info_t* sk
     }
 }
 
-static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t* skb_info) {
+static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info) {
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(&buffer, '\0', sizeof(buffer));
 
@@ -212,13 +212,13 @@ static __always_inline int http_handle_packet(struct __sk_buff* skb, skb_info_t*
     }
 
     if (http_responding(http)) {
-        if (skb->len-1 > skb_info->data_off) {
+        if (skb->len - 1 > skb_info->data_off) {
             // Only if we have a (L7/application-layer) payload we want to update the response_last_seen
             // This is to prevent things such as a keep-alive adding up to the transaction latency
             http->response_last_seen = bpf_ktime_get_ns();
         }
 
-        if (skb_info->tcp_flags&TCPHDR_FIN) {
+        if (skb_info->tcp_flags & TCPHDR_FIN) {
             // The HTTP response has ended
             http_end_response(http);
             bpf_map_delete_elem(&http_in_flight, &skb_info->tup);

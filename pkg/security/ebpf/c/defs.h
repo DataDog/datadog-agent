@@ -181,6 +181,7 @@
 	})
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
+#define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
 
 enum event_type
 {
@@ -208,6 +209,7 @@ enum event_type
     EVENT_SETGID,
     EVENT_CAPSET,
     EVENT_ARGS_ENVS,
+    EVENT_MOUNT_RELEASED,
     EVENT_MAX, // has to be the last one
 };
 
@@ -375,6 +377,81 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+
+
+// implemented in the discarder.h file
+int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
+
+struct mount_released_event_t {
+    struct kevent_t event;
+    u32 mount_id;
+    u32 discarder_revision;
+};
+
+struct mount_ref_t {
+    u32 umounted;
+    s32 counter;
+};
+
+struct bpf_map_def SEC("maps/mount_ref") mount_ref = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct mount_ref_t),
+    .max_entries = 64000,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t zero = {};
+
+    bpf_map_update_elem(&mount_ref, &key, &zero, BPF_NOEXIST);
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        __sync_fetch_and_add(&ref->counter, 1);
+    }
+}
+
+static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        __sync_fetch_and_add(&ref->counter, -1);
+        if (ref->counter > 0 || !ref->umounted) {
+            return;
+        }
+        bpf_map_delete_elem(&mount_ref, &key);
+    } else {
+        return;
+    }
+
+    struct mount_released_event_t event = {
+        .mount_id = mount_id,
+        .discarder_revision = bump_discarder_revision(mount_id),
+    };
+
+    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+}
+
+static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        if (ref->counter <= 0) {
+            bpf_map_delete_elem(&mount_ref, &key);
+        } else {
+            ref->umounted = 1;
+            return;
+        }
+    }
+
+    struct mount_released_event_t event = {
+        .mount_id = mount_id,
+        .discarder_revision = bump_discarder_revision(mount_id),
+    };
+    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+}
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {

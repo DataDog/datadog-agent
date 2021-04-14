@@ -29,10 +29,10 @@ type Pipeline struct {
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
 		destinations = client.NewDestinations(main, additionals)
 	} else {
@@ -48,7 +48,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	var strategy sender.Strategy
 	if endpoints.UseHTTP || serverless {
-		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait)
+		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend)
 	} else {
 		strategy = sender.StreamStrategy
 	}

@@ -83,6 +83,7 @@ type Connections struct {
 	Conns                       []ConnectionStats
 	ConnTelemetry               *ConnectionsTelemetry
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	HTTP                        map[http.Key]http.RequestStats
 }
 
 // ConnectionsTelemetry stores telemetry from the system probe related to connections collection
@@ -157,8 +158,6 @@ type ConnectionStats struct {
 	DNSStatsByDomain       map[string]DNSStats
 
 	Via *Via
-
-	HTTPStatsByPath map[string]http.RequestStats
 }
 
 // Via has info about the routing decision for a flow

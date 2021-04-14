@@ -1,7 +1,6 @@
 package http
 
 import (
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -9,10 +8,30 @@ import (
 
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
-	SourceIP   util.Address
-	DestIP     util.Address
-	SourcePort uint16
-	DestPort   uint16
+	SrcIPHigh uint64
+	SrcIPLow  uint64
+	SrcPort   uint16
+
+	DstIPHigh uint64
+	DstIPLow  uint64
+	DstPort   uint16
+
+	Path string
+}
+
+// NewKey generates a new Key
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
+	saddrl, saddrh := util.ToLowHigh(saddr)
+	daddrl, daddrh := util.ToLowHigh(daddr)
+	return Key{
+		SrcIPHigh: saddrh,
+		SrcIPLow:  saddrl,
+		SrcPort:   sport,
+		DstIPHigh: daddrh,
+		DstIPLow:  daddrl,
+		DstPort:   dport,
+		Path:      path,
+	}
 }
 
 // RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
@@ -20,59 +39,104 @@ type Key struct {
 // will be between 99 and 101
 const RelativeAccuracy = 0.01
 
+// NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
+const NumStatusClasses = 5
+
 // RequestStats stores stats for HTTP requests to a particular path, organized by the class
 // of the response code (1XX, 2XX, 3XX, 4XX, 5XX)
-type RequestStats [5]struct {
+type RequestStats [NumStatusClasses]struct {
 	// Note: every time we add a latency value to the DDSketch below, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of http transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
-	count     int
-	latencies *ddsketch.DDSketch
+	Count     int
+	Latencies *ddsketch.DDSketch
+
+	// This field holds the value (in milliseconds) of the first HTTP request
+	// in this bucket. We do this as optimization to avoid creating sketches with
+	// a single value. This is quite common in the context of HTTP requests without
+	// keep-alives where a short-lived TCP connection is used for a single request.
+	FirstLatencySample float64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
+// newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats RequestStats) {
-	for i := 0; i < 5; i++ {
-		r[i].count += newStats[i].count
+	for i := 0; i < len(r); i++ {
+		statusClass := 100 * (i + 1)
 
-		if r[i].latencies == nil {
-			r[i].latencies = newStats[i].latencies
-		} else if newStats[i].latencies != nil {
-			err := r[i].latencies.MergeWith(newStats[i].latencies)
-			if err != nil {
-				log.Debugf("Error merging HTTP transactions: %v", err)
+		if newStats[i].Count == 0 {
+			// Nothing to do in this case
+			continue
+		}
+
+		if newStats[i].Count == 1 {
+			// The other bucket has a single latency sample, so we "manually" add it
+			r.AddRequest(statusClass, newStats[i].FirstLatencySample)
+			continue
+		}
+
+		// The other bucket (newStats) has multiple samples and therefore a DDSketch object
+		// We first ensure that the bucket we're merging to has a DDSketch object
+		if r[i].Latencies == nil {
+			// TODO: Consider calling Copy() on the other sketch instead
+			if err := r.initSketch(i); err != nil {
+				continue
+			}
+
+			// If we have a latency sample in this bucket we now add it to the DDSketch
+			if r[i].Count == 1 {
+				err := r[i].Latencies.Add(r[i].FirstLatencySample)
+				if err != nil {
+					log.Debugf("could not add request latency to ddsketch: %v", err)
+				}
 			}
 		}
+
+		// Finally merge both sketches
+		r[i].Count += newStats[i].Count
+		err := r[i].Latencies.MergeWith(newStats[i].Latencies)
+		if err != nil {
+			log.Debugf("error merging http transactions: %v", err)
+		}
 	}
-}
-
-// Count returns the number of requests made which received a response of status class s
-func (r *RequestStats) Count(s model.HTTPResponseStatus) int {
-	return r[s].count
-}
-
-// Latencies returns a sketch of the latencies of the requests made which received
-// a response of status class s
-func (r *RequestStats) Latencies(s model.HTTPResponseStatus) *ddsketch.DDSketch {
-	return r[s].latencies
 }
 
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 	i := statusClass/100 - 1
-	r[i].count++
+	if i >= len(r) {
+		return
+	}
 
-	if r[i].latencies == nil {
-		var err error
-		r[i].latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-		if err != nil {
-			log.Debugf("Error recording HTTP transaction latency: could not create new ddsketch: %v", err)
+	r[i].Count++
+	if r[i].Count == 1 {
+		// We postpone the creation of histograms when we have only one latency sample
+		r[i].FirstLatencySample = latency
+		return
+	}
+
+	if r[i].Latencies == nil {
+		if err := r.initSketch(i); err != nil {
 			return
+		}
+
+		// Add the defered latency sample
+		err := r[i].Latencies.Add(r[i].FirstLatencySample)
+		if err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
 
-	err := r[i].latencies.Add(latency)
+	err := r[i].Latencies.Add(latency)
 	if err != nil {
-		log.Debugf("Error recording HTTP transaction latency: could not add latency to ddsketch: %v", err)
+		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
+}
+
+func (r *RequestStats) initSketch(i int) (err error) {
+	r[i].Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
+	}
+	return
 }

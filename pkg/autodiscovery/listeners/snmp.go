@@ -397,6 +397,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(fmt.Sprintf("%d", s.config.Timeout)), nil
 	case "retries":
 		return []byte(fmt.Sprintf("%d", s.config.Retries)), nil
+	case "oid_batch_size":
+		return []byte(fmt.Sprintf("%d", s.config.OidBatchSize)), nil
 	case "community":
 		return []byte(s.config.Community), nil
 	case "user":

@@ -8,7 +8,9 @@
 
 struct str_array_ref_t {
     u32 id;
+    u8 index;
     u8 truncated;
+    const char **array;
 };
 
 struct syscall_cache_t {
@@ -102,6 +104,7 @@ struct syscall_cache_t {
             struct file_t file;
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
+            u32 next_tail;
             u8 is_parsed;
         } exec;
     };

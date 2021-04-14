@@ -31,6 +31,15 @@ func (e ErrInvalidPattern) Error() string {
 	return fmt.Sprintf("invalid pattern `%s`", e.Pattern)
 }
 
+// ErrInvalidRegexp is returned for an invalid regular expression
+type ErrInvalidRegexp struct {
+	Regexp string
+}
+
+func (e ErrInvalidRegexp) Error() string {
+	return fmt.Sprintf("invalid regexp `%s`", e.Regexp)
+}
+
 // ErrAstToEval describes an error that occurred during the conversion from the AST to an evaluator
 type ErrAstToEval struct {
 	Pos  lexer.Position

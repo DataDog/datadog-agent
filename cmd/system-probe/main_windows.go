@@ -5,13 +5,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -20,9 +18,10 @@ import (
 var elog debug.Log
 
 // ServiceName is the service name used for the process-agent
-const ServiceName = "datadog-system-probe"
+const (
+	ServiceName = "datadog-system-probe"
+)
 
-// opts are the command-line options
 var defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
 
 func init() {
@@ -53,11 +52,6 @@ func main() {
 	exit := make(chan struct{})
 	go util.HandleSignals(exit)
 	runAgent(exit)
-
-}
-
-func runCheck(cfg *config.AgentConfig) {
-	return
 }
 
 type myservice struct{}
@@ -87,7 +81,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					close(exit)
 					break
 				default:
-					elog.Warning(0xc000000A, string(c.Cmd))
+					elog.Warning(0xc000000A, fmt.Sprint(c.Cmd))
 				}
 			}
 		}

@@ -104,7 +104,7 @@ binary properly.**
 
 ## Installing dependencies
 
-From the root of `datadog-agent`, run `invoke deps`. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke install-tools` to install go tooling, then `invoke deps` to install go dependencies. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 

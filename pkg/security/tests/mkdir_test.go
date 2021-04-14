@@ -12,9 +12,9 @@ import (
 	"runtime"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"gotest.tools/assert"
 )
 
 func TestMkdir(t *testing.T) {
@@ -35,15 +35,15 @@ func TestMkdir(t *testing.T) {
 	}
 	defer test.Close()
 
-	mkdirMode := 0o707
-	expectedMode := applyUmask(mkdirMode)
+	mkdirMode := uint16(0o707)
+	expectedMode := uint16(applyUmask(int(mkdirMode)))
 
-	t.Run("mkdir", func(t *testing.T) {
+	t.Run("mkdir", ifSyscallSupported("SYS_MKDIR", func(t *testing.T, syscallNB uintptr) {
 		testFile, testFilePtr, err := test.Path("test-mkdir")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIR, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
 			t.Fatal(err)
 		}
 		defer syscall.Rmdir(testFile)
@@ -52,34 +52,17 @@ func TestMkdir(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_rule_mkdir" {
-				t.Errorf("expected triggered rule 'test_rule_mkdir', got '%s'", rule.ID)
-			}
+			assertTriggeredRule(t, rule, "test_rule_mkdir")
+			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
+			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testFile), "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 
-			if mode := event.Mkdir.Mode; mode != uint32(mkdirMode) {
-				t.Errorf("expected mkdir mode %d, got %#o (%+v)", mkdirMode, mode, event)
-			}
-
-			if inode := getInode(t, testFile); inode != event.Mkdir.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
-			}
-
-			if int(event.Mkdir.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
-			}
-
-			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
-			}
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
 
 			testContainerPath(t, event, "mkdir.file.container_path")
 		}
-	})
+	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
 		testatFile, testatFilePtr, err := test.Path("testat-mkdir")
@@ -96,30 +79,15 @@ func TestMkdir(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_rule_mkdirat" {
-				t.Errorf("expected triggered rule 'test_rule_mkdirat', got '%s'", rule.ID)
-			}
+			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 
-			if mode := event.Mkdir.Mode; mode != 0777 {
-				t.Errorf("expected mkdir mode 0777, got %#o", mode)
-			}
+			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testatFile), "wrong inode")
+			assertRights(t, uint16(event.Mkdir.Mode), 0777)
+			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testatFile), "wrong inode")
+			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 
-			if inode := getInode(t, testatFile); inode != event.Mkdir.File.Inode {
-				t.Logf("expected inode %d, got %d", event.Mkdir.File.Inode, inode)
-			}
-
-			if int(event.Mkdir.File.Mode)&expectedMode != expectedMode {
-				t.Errorf("expected initial mode %d, got %d", expectedMode, int(event.Mkdir.File.Mode)&expectedMode)
-			}
-
-			now := time.Now()
-			if event.Mkdir.File.MTime.After(now) || event.Mkdir.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.Mkdir.File.MTime)
-			}
-
-			if event.Mkdir.File.CTime.After(now) || event.Mkdir.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.Mkdir.File.CTime)
-			}
+			assertNearTime(t, event.Mkdir.File.MTime)
+			assertNearTime(t, event.Mkdir.File.CTime)
 
 			testContainerPath(t, event, "mkdir.file.container_path")
 		}
@@ -155,15 +123,15 @@ func TestMkdirError(t *testing.T) {
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-				t.Fatal(error(errno))
+				t.Error(error(errno))
 			}
 		}()
 
@@ -171,13 +139,8 @@ func TestMkdirError(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			if rule.ID != "test_rule_mkdirat_error" {
-				t.Errorf("expected triggered rule 'test_rule_mkdirat_error', got '%s'", rule.ID)
-			}
-
-			if retval := event.Mkdir.Retval; retval != -int64(syscall.EACCES) {
-				t.Errorf("expected retval != EACCES, got %d", retval)
-			}
+			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
+			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		}
 	})
 }

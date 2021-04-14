@@ -59,9 +59,8 @@ agent_rpm-x64-a6:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
-    CONDA_ENV: ddpy3
   before_script:
-    - source /root/.bashrc && conda activate $CONDA_ENV
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for rpm-x64
@@ -78,9 +77,8 @@ agent_rpm-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
-    CONDA_ENV: ddpy3
   before_script:
-    - source /root/.bashrc && conda activate $CONDA_ENV
+    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 # build Agent package for rpm-arm64

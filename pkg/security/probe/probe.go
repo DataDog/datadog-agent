@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -300,6 +301,24 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 	// no need to dispatch events
 	switch eventType {
+	case model.MountReleasedEventType:
+		if _, err := event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		// Remove all dentry entries belonging to the mountID
+		p.resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
+
+		if p.resolvers.MountResolver.IsOverlayFS(event.MountReleased.MountID) {
+			p.inodeDiscarders.setRevision(event.MountReleased.MountID, event.MountReleased.DiscarderRevision)
+		}
+
+		// Delete new mount point from cache
+		if err := p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+			log.Warnf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+		}
+		return
 	case model.InvalidateDentryEventType:
 		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -344,17 +363,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-		// Remove all dentry entries belonging to the mountID
-		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
-
-		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
-			p.inodeDiscarders.setRevision(event.Umount.MountID, event.Umount.DiscarderRevision)
-		}
-
-		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.Umount.MountID); err != nil {
-			log.Warnf("failed to delete mount point %d from cache: %s", event.Umount.MountID, err)
 		}
 	case model.FileOpenEventType:
 		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
@@ -645,13 +653,14 @@ func (p *Probe) FlushDiscarders() error {
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
+
 	var inode inodeDiscarder
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &mapValue); {
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
 		discardedInodes = append(discardedInodes, inode)
 	}
 
 	var discardedPids []uint32
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &mapValue); {
+	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, unsafe.Pointer(&mapValue[0])); {
 		discardedPids = append(discardedPids, pid)
 	}
 
@@ -668,7 +677,7 @@ func (p *Probe) FlushDiscarders() error {
 		log.Debugf("Flushing discarders")
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.Delete(&inode); err != nil {
+			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
 				log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -679,7 +688,7 @@ func (p *Probe) FlushDiscarders() error {
 		}
 
 		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.Delete(pid); err != nil {
+			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
 				log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
 			}
 
@@ -782,6 +791,9 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
+
+	// tail calls
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
 
 	resolvers, err := NewResolvers(p, client)
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
-func TestAbsolutePath(t *testing.T) {
+func TestPathValidation(t *testing.T) {
 	model := &Model{}
 	if err := model.ValidateField("open.file.path", eval.FieldValue{Value: "/var/log/*"}); err != nil {
 		t.Fatalf("shouldn't return an error: %s", err)
@@ -36,6 +36,14 @@ func TestAbsolutePath(t *testing.T) {
 	}
 	if err := model.ValidateField("open.file.path", eval.FieldValue{Value: "f59226f52267c120c1accfe3d158aa2f201ff02f45692a1c574da29c07fb985ef59226f52267c120c1accfe3d158aa2f201ff02f45692a1c574da29c07fb985e"}); err == nil {
 		t.Fatal("should return an error")
+	}
+
+	if err := model.ValidateField("open.file.path", eval.FieldValue{Value: ".*", Type: eval.RegexpValueType}); err == nil {
+		t.Fatal("should return an error")
+	}
+
+	if err := model.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/*", Type: eval.PatternValueType}); err != nil {
+		t.Fatal("shouldn't return an error")
 	}
 }
 

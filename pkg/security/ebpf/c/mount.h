@@ -10,13 +10,13 @@ struct mount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int mount_id;
-    int group_id;
+    u32 mount_id;
+    u32 group_id;
     dev_t device;
-    int parent_mount_id;
+    u32 parent_mount_id;
     unsigned long parent_ino;
     unsigned long root_ino;
-    int root_mount_id;
+    u32 root_mount_id;
     u32 padding;
     char fstype[FSTYPE_LEN];
 };

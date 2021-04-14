@@ -381,6 +381,8 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 			continue
 		}
 		switch key {
+		case "Version":
+			out.Version = string(in.String())
 		case "rules_loaded":
 			if in.IsNull() {
 				in.Skip()
@@ -458,8 +460,13 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"rules_loaded\":"
+		const prefix string = ",\"Version\":"
 		out.RawString(prefix[1:])
+		out.String(string(in.Version))
+	}
+	{
+		const prefix string = ",\"rules_loaded\":"
+		out.RawString(prefix)
 		if in.RulesLoaded == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
 			out.RawString("null")
 		} else {

@@ -51,6 +51,9 @@ const (
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 
+	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
+	DefaultBatchMaxConcurrentSend = 0
+
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
@@ -145,7 +148,6 @@ func init() {
 	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	InitConfig(Datadog)
-	detectFeatures()
 }
 
 // InitConfig initializes the config defaults on a config
@@ -351,6 +353,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
+	// Experimental and not officially supported for now.
+	// Options are: udp, uds, named_pipe
+	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
 
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
@@ -418,6 +423,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
+	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
+	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -701,6 +708,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 30) // 30s corresponds to the default value set by the Kubernetes API
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
 	config.BindEnvAndSetDefault("admission_controller.certificate.expiration_threshold", 30*24)        // how long before its expiration a certificate should be refreshed (in hours, default 1 month)
@@ -768,52 +776,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
-	// System probe
-	config.SetKnown("system_probe_config.enabled")
-	config.SetKnown("system_probe_config.log_file")
-	config.SetKnown("system_probe_config.debug_port")
-	config.SetKnown("system_probe_config.bpf_debug")
-	config.SetKnown("system_probe_config.bpf_dir")
-	config.SetKnown("system_probe_config.disable_tcp")
-	config.SetKnown("system_probe_config.disable_udp")
-	config.SetKnown("system_probe_config.disable_ipv6")
-	config.SetKnown("system_probe_config.disable_dns_inspection")
-	config.SetKnown("system_probe_config.collect_local_dns")
-	config.SetKnown("system_probe_config.use_local_system_probe")
-	config.SetKnown("system_probe_config.enable_conntrack")
-	config.SetKnown("system_probe_config.sysprobe_socket")
-	config.SetKnown("system_probe_config.conntrack_rate_limit")
-	config.SetKnown("system_probe_config.enable_conntrack_all_namespaces")
-	config.SetKnown("system_probe_config.max_conns_per_message")
-	config.SetKnown("system_probe_config.max_tracked_connections")
-	config.SetKnown("system_probe_config.max_closed_connections_buffered")
-	config.SetKnown("system_probe_config.max_connection_state_buffered")
-	config.SetKnown("system_probe_config.excluded_linux_versions")
-	config.SetKnown("system_probe_config.source_excludes")
-	config.SetKnown("system_probe_config.dest_excludes")
-	config.SetKnown("system_probe_config.closed_channel_size")
-	config.SetKnown("system_probe_config.dns_timeout_in_s")
-	config.SetKnown("system_probe_config.collect_dns_stats")
-	config.SetKnown("system_probe_config.max_dns_stats")
-	config.SetKnown("system_probe_config.collect_dns_domains")
-	config.SetKnown("system_probe_config.offset_guess_threshold")
-	config.SetKnown("system_probe_config.enable_tcp_queue_length")
-	config.SetKnown("system_probe_config.enable_oom_kill")
-	config.SetKnown("system_probe_config.enable_tracepoints")
-	config.SetKnown("system_probe_config.enable_runtime_compiler")
-	config.SetKnown("system_probe_config.kernel_header_dirs")
-	config.SetKnown("system_probe_config.runtime_compiler_output_dir")
-	config.SetKnown("system_probe_config.profiling.enabled")
-	config.SetKnown("system_probe_config.profiling.site")
-	config.SetKnown("system_probe_config.profiling.profile_dd_url")
-	config.SetKnown("system_probe_config.profiling.api_key")
-	config.SetKnown("system_probe_config.profiling.env")
-	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
-	config.SetKnown("system_probe_config.windows.driver_buffer_size")
-	config.SetKnown("network_config.enabled")
-	config.SetKnown("network_config.enable_http_monitoring")
-	config.SetKnown("network_config.ignore_conntrack_init_failure")
-	config.SetKnown("network_config.enable_gateway_lookup")
+	setupSystemProbe(config)
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -827,6 +790,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.remote_tagger", false)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1014,6 +978,9 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
+	// Environment feature detection needs to run before applying override funcs
+	// as it may provide such overrides
+	detectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)

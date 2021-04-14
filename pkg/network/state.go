@@ -30,14 +30,14 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
-	// Connections returns the list of connections for the given client when provided the latest set of active connections
-	Connections(
+	// GetDelta returns the a Delta object for  given client when provided the latest set of active connections
+	GetDelta(
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
 		dns map[DNSKey]map[string]DNSStats,
-		http map[http.Key]map[string]http.RequestStats,
-	) []ConnectionStats
+		http map[http.Key]http.RequestStats,
+	) Delta
 
 	// StoreClosedConnection stores a new closed connection
 	StoreClosedConnection(conn *ConnectionStats)
@@ -58,8 +58,13 @@ type State interface {
 	DumpState(clientID string) map[string]interface{}
 }
 
+// Delta represents a delta of network data compared to the last call to State.
+type Delta struct {
+	Connections []ConnectionStats
+	HTTP        map[http.Key]http.RequestStats
+}
+
 type telemetry struct {
-	unorderedConns     int64
 	closedConnDropped  int64
 	connDropped        int64
 	statsResets        int64
@@ -83,7 +88,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	dnsStats          map[DNSKey]map[string]DNSStats
-	httpStatsDelta    map[http.Key]map[string]http.RequestStats
+	httpStatsDelta    map[http.Key]http.RequestStats
 }
 
 type networkState struct {
@@ -134,13 +139,13 @@ func (ns *networkState) getClients() []string {
 // Connections returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
-func (ns *networkState) Connections(
+func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
 	dnsStats map[DNSKey]map[string]DNSStats,
-	httpStats map[http.Key]map[string]http.RequestStats,
-) []ConnectionStats {
+	httpStats map[http.Key]http.RequestStats,
+) Delta {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -172,12 +177,14 @@ func (ns *networkState) Connections(
 		if len(httpStats) > 0 {
 			ns.storeHTTPStats(httpStats)
 		}
-		ns.addHTTPStats(id, latestConns)
 
 		// copy to ensure return value doesn't get clobbered
 		conns := make([]ConnectionStats, len(latestConns))
 		copy(conns, latestConns)
-		return conns
+		return Delta{
+			Connections: conns,
+			HTTP:        ns.getHTTPDelta(id),
+		}
 	}
 
 	// Update all connections with relevant up-to-date stats for client
@@ -204,9 +211,11 @@ func (ns *networkState) Connections(
 	if len(httpStats) > 0 {
 		ns.storeHTTPStats(httpStats)
 	}
-	ns.addHTTPStats(id, conns)
 
-	return conns
+	return Delta{
+		Connections: conns,
+		HTTP:        ns.getHTTPDelta(id),
+	}
 }
 
 func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
@@ -268,26 +277,6 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 	ns.clients[id].dnsStats = make(map[DNSKey]map[string]DNSStats)
 }
 
-// addHTTPStats fills in the HTTP stats for each connection
-func (ns *networkState) addHTTPStats(id string, conns []ConnectionStats) {
-	for i := range conns {
-		conn := &conns[i]
-		key := http.Key{
-			SourceIP:   conn.Source,
-			DestIP:     conn.Dest,
-			SourcePort: conn.SPort,
-			DestPort:   conn.DPort,
-		}
-
-		if _, ok := ns.clients[id].httpStatsDelta[key]; ok {
-			conn.HTTPStatsByPath = ns.clients[id].httpStatsDelta[key]
-		}
-	}
-
-	// flush the HTTP stats from client state
-	ns.clients[id].httpStatsDelta = make(map[http.Key]map[string]http.RequestStats)
-}
-
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
@@ -315,14 +304,8 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 
 	for _, client := range ns.clients {
 		// If we've seen this closed connection already, lets combine the two
+		// batch ids and processed state tracking prevent double-counting
 		if prev, ok := client.closedConnections[string(key)]; ok {
-			// We received either the connections either out of order, or it's the same one we've already seen.
-			// Lets skip it for now.
-			if prev.LastUpdateEpoch >= conn.LastUpdateEpoch {
-				ns.telemetry.unorderedConns++
-				continue
-			}
-
 			prev.MonotonicSentBytes += conn.MonotonicSentBytes
 			prev.MonotonicRecvBytes += conn.MonotonicRecvBytes
 			prev.MonotonicRetransmits += conn.MonotonicRetransmits
@@ -372,33 +355,25 @@ func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]DNSStats) {
 }
 
 // storeHTTPStats stores latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(stats map[http.Key]map[string]http.RequestStats) {
-	for key, statsByPath := range stats {
+func (ns *networkState) storeHTTPStats(allStats map[http.Key]http.RequestStats) {
+	for key, stats := range allStats {
 		for _, client := range ns.clients {
-			// If we've seen HTTP stats for this key already, let's combine the two
-			if prevStatsByPath, ok := client.httpStatsDelta[key]; ok {
-				client.httpStatsDelta[key] = combineHTTPStats(prevStatsByPath, statsByPath)
-			} else if len(client.httpStatsDelta) >= ns.maxHTTPStats {
+			prevStats, ok := client.httpStatsDelta[key]
+			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
 				ns.telemetry.httpStatsDropped++
 				continue
-			} else {
-				client.httpStatsDelta[key] = statsByPath
 			}
+
+			prevStats.CombineWith(stats)
+			client.httpStatsDelta[key] = prevStats
 		}
 	}
 }
 
-// combineHTTPStats combines 2 maps of http stats by adding new stats to the old stats map
-func combineHTTPStats(prevStatsByPath map[string]http.RequestStats, newStatsByPath map[string]http.RequestStats) map[string]http.RequestStats {
-	for path, newStats := range newStatsByPath {
-		if prevStats, ok := prevStatsByPath[path]; ok {
-			prevStats.CombineWith(newStats)
-			prevStatsByPath[path] = prevStats
-		} else {
-			prevStatsByPath[path] = newStats
-		}
-	}
-	return prevStatsByPath
+func (ns *networkState) getHTTPDelta(clientID string) map[http.Key]http.RequestStats {
+	delta := ns.clients[clientID].httpStatsDelta
+	ns.clients[clientID].httpStatsDelta = make(map[http.Key]http.RequestStats)
+	return delta
 }
 
 // newClient creates a new client and returns true if the given client already exists
@@ -412,7 +387,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
 		dnsStats:          map[DNSKey]map[string]DNSStats{},
-		httpStatsDelta:    map[http.Key]map[string]http.RequestStats{},
+		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c
 	return c, false
@@ -590,9 +565,8 @@ func (ns *networkState) RemoveConnections(keys []string) {
 	}
 
 	// Flush log line if any metric is non zero
-	if ns.telemetry.unorderedConns > 0 || ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
+	if ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
 		s := "state telemetry: "
-		s += " [%d unordered conns]"
 		s += " [%d stats stats_resets]"
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
@@ -601,7 +575,6 @@ func (ns *networkState) RemoveConnections(keys []string) {
 		s += " [%d DNS pid collisions]"
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
-			ns.telemetry.unorderedConns,
 			ns.telemetry.statsResets,
 			ns.telemetry.connDropped,
 			ns.telemetry.closedConnDropped,
@@ -632,7 +605,6 @@ func (ns *networkState) GetStats() map[string]interface{} {
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
 			"stats_resets":         ns.telemetry.statsResets,
-			"unordered_conns":      ns.telemetry.unorderedConns,
 			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
 			"conn_dropped":         ns.telemetry.connDropped,
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,

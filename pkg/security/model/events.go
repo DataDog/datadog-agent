@@ -55,6 +55,8 @@ const (
 	CapsetEventType
 	// ArgsEnvsEventType args and envs event
 	ArgsEnvsEventType
+	// MountReleasedEventType sent when a mount point is released
+	MountReleasedEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -123,7 +125,9 @@ func (t EventType) String() string {
 	case CapsetEventType:
 		return "capset"
 	case ArgsEnvsEventType:
-		return "args_envs_dentry"
+		return "args_envs"
+	case MountReleasedEventType:
+		return "mount_released"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

@@ -2,6 +2,16 @@ package telemetry
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
+// PruneType represents the `prune_type` tag for the pruned_entities metric
+type PruneType string
+
+const (
+	// DeletedEntity refers to deleting entities due to a deletion event
+	DeletedEntity PruneType = "deletion_event"
+	// EmptyEntry refers to deleting entities with empty entries
+	EmptyEntry PruneType = "empty_entries"
+)
+
 var (
 	// StoredEntities tracks how many entities are stored in the tagger.
 	StoredEntities = telemetry.NewGaugeWithOpts("tagger", "stored_entities",
@@ -11,6 +21,11 @@ var (
 	// UpdatedEntities tracks the number of updates to tagger entities.
 	UpdatedEntities = telemetry.NewCounterWithOpts("tagger", "updated_entities",
 		[]string{}, "Number of updates made to entities.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// PrunedEntities tracks the number of pruned tagger entities.
+	PrunedEntities = telemetry.NewGaugeWithOpts("tagger", "pruned_entities",
+		[]string{"prune_type"}, "Number of pruned tagger entities.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// Queries tracks the number of queries made against the tagger.
