@@ -804,6 +804,7 @@ func (agg *BufferedAggregator) run() {
 			}(orchestratorMetadata)
 		case event := <-agg.eventPlatformIn:
 			state := stateOk
+			tlmProcessed.Add(1, event.eventType)
 			aggregatorEventPlatformEvents.Add(event.eventType, 1)
 			err := agg.handleEventPlatformEvent(event)
 			if err != nil {
