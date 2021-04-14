@@ -16,7 +16,8 @@ REM xcopy /q/h/e/s * %GOPATH%\src\github.com\StackVista\stackstate-agent
 mkdir c:\gopath\src\github.com\StackVista\
 mklink /J %GOPATH%\src\github.com\StackVista\stackstate-agent %WIN_CI_PROJECT_DIR%
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
-IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\venv GOTO VENV_EXIST
+IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\venv\Lib\site-packages GOTO VENV_EXIST
+if exist %GOPATH%\src\github.com\StackVista\stackstate-agent\venv rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent\venv
 call mkvirtualenv venv
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 echo cd %GOPATH%\src\github.com\StackVista\stackstate-agent
