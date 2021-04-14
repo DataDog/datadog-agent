@@ -7,10 +7,6 @@ call "%WORKON_HOME%\venv\Scripts\activate.bat"
 call ridk enable
 call "%VCINSTALLDIR%\Common7\Tools\VsDevCmd.bat"
 
-set
-
-dir
-
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 echo cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 

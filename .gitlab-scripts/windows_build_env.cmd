@@ -18,8 +18,11 @@ mklink /J %GOPATH%\src\github.com\StackVista\stackstate-agent %WIN_CI_PROJECT_DI
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\venv\Lib\site-packages GOTO VENV_EXIST
 if exist %GOPATH%\src\github.com\StackVista\stackstate-agent\venv rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent\venv
+echo ==== creating venv with mkvirtualenv venv
 call mkvirtualenv venv
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
-echo cd %GOPATH%\src\github.com\StackVista\stackstate-agent
+echo ==== installing requirements.txt from root
 pip install -r requirements.txt
 :VENV_EXIST
+dir %GOPATH%\src\github.com\StackVista\stackstate-agent\venv\Lib\site-packages
+
