@@ -348,9 +348,7 @@ func StartAgent() error {
 	}
 
 	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
-	if eventPlatformForwarder != nil {
-		eventPlatformForwarder.Start()
-	}
+	eventPlatformForwarder.Start()
 
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)

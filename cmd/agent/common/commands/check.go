@@ -132,9 +132,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
 			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
-			if eventPlatformForwarder != nil {
-				eventPlatformForwarder.Start()
-			}
+			eventPlatformForwarder.Start()
 
 			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
