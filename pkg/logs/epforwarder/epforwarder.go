@@ -20,6 +20,19 @@ const (
 	eventTypeDBMMetrics = "dbm-metrics"
 )
 
+var passthroughPipelineDescs = []passthroughPipelineDesc{
+	{
+		eventType:              eventTypeDBMSamples,
+		endpointsConfigPrefix:  "database_monitoring.samples",
+		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+	},
+	{
+		eventType:              eventTypeDBMMetrics,
+		endpointsConfigPrefix:  "database_monitoring.metrics",
+		hostnameEndpointPrefix: "dbmetrics-http-intake.logs.",
+	},
+}
+
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
@@ -165,19 +178,6 @@ func joinHosts(endpoints []config.Endpoint) string {
 		additionalHosts = append(additionalHosts, e.Host)
 	}
 	return strings.Join(additionalHosts, ",")
-}
-
-var passthroughPipelineDescs = []passthroughPipelineDesc{
-	{
-		eventType:              eventTypeDBMSamples,
-		endpointsConfigPrefix:  "database_monitoring.samples",
-		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
-	},
-	{
-		eventType:              eventTypeDBMMetrics,
-		endpointsConfigPrefix:  "database_monitoring.metrics",
-		hostnameEndpointPrefix: "dbmetrics-http-intake.logs.",
-	},
 }
 
 func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
