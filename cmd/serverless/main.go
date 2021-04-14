@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -85,7 +84,10 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
-	datadogConfigPath        = "datadog.yaml"
+	// AWS Lambda is writing the Lambda function files in /var/task, we want the
+	// configuration file to be at the root of this directory.
+	datadogConfigPath = "/var/task/datadog.yaml"
+
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
 )
@@ -124,15 +126,6 @@ func run(cmd *cobra.Command, args []string) error {
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-
-	// go_expvar server // TODO(remy): shouldn't we remove that for the serverless agent?
-	go func() {
-		port := config.Datadog.GetInt("dogstatsd_stats_port")
-		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
 
 	// if not command has been provided, run the agent
 	if len(os.Args) == 1 {
@@ -228,13 +221,13 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		}
 	}
 
-	// read configuration from the environment vars
-	// --------------------------------------------
+	// read configuration from both the environment vars and the config file
+	// if one is provided
+	// --------------------------
 
-	// note that this call is counter-intuitive: it must return an error because
-	// no files should exist, and then, the configuration is read from env vars.
-	if _, confErr := config.Load(); confErr == nil {
-		log.Warn("A configuration file has been found, which should not happen in this mode.")
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
+		log.Info("A configuration file has been found and read.")
 	}
 
 	// extra tags to append to all logs / metrics
