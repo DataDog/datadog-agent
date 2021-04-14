@@ -18,7 +18,7 @@ def genconfig(
     platformfile="platforms.json",
     platlist=None,
     fips=False,
-	arch="x86_64",
+    arch="x86_64",
 ):
     """
     Create a kitchen config
