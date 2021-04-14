@@ -5,8 +5,10 @@ Golang related tasks go here
 
 import copy
 import datetime
+import json
 import os
 import shutil
+import tempfile
 
 import yaml
 from invoke import task
@@ -349,12 +351,20 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
+
+    # local imports
+    from urllib.parse import urlparse
+
+    import requests
+    from requests.exceptions import RequestException
+
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
     deps_vendored(ctx)
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
     exceptions = []
+    additional = {}
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
         for pkg in wwhrd_conf['exceptions']:
@@ -363,6 +373,9 @@ def get_licenses_list(ctx):
                 exceptions_wildcard.append(pkg[: -len("/...")])
             else:
                 exceptions.append(pkg)
+
+        for pkg, license in wwhrd_conf.get('additional', {}).items():
+            additional[pkg] = license
 
     def is_excluded(pkg):
         if package in exceptions:
@@ -391,6 +404,35 @@ def get_licenses_list(ctx):
                         print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
                     else:
                         licenses.append("core,\"{}\",{}".format(package, license))
+
+    # Additional Licenses
+    for pkg, lic in additional.items():
+        url = urlparse(lic)
+        url = url._replace(scheme='https', netloc=url.path, path='')
+        try:
+            resp = requests.get(url.geturl())
+            resp.raise_for_status()
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                with open(os.path.join(tempdir, 'LICENSE'), 'w') as lfp:
+                    lfp.write(resp.text)
+                    lfp.flush()
+
+                    temp_path = os.path.dirname(lfp.name)
+                    result = ctx.run("license-detector -f json {}".format(temp_path))
+                    if result.stdout:
+                        results = json.loads(result.stdout)
+                        for project in results:
+                            if 'error' in project:
+                                continue
+
+                            # we get the first match
+                            license = project['matches'][0]['license']
+                            licenses.append("core,\"{}\",{}".format(pkg, license))
+        except RequestException:
+            print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
+            raise Exit(code=1)
+
     licenses.sort()
     shutil.rmtree("vendor/")
     return licenses

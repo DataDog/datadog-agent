@@ -617,6 +617,7 @@ core,"golang.org/x/text/unicode/bidi",NewBSD
 core,"golang.org/x/text/unicode/norm",NewBSD
 core,"golang.org/x/text/width",NewBSD
 core,"golang.org/x/time/rate",NewBSD
+core,"golang/go",BSD-3-Clause
 core,"gomodules.xyz/jsonpatch/v3",Apache-2.0
 core,"gomodules.xyz/orderedmap",MIT
 core,"google.golang.org/appengine",Apache-2.0
