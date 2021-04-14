@@ -106,9 +106,6 @@ var (
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
-	// MetricForkBomb is the name of the metric used to report the number of processes that crossed the fork bomb
-	// threshold. Tags: -
-	MetricForkBomb = newRuntimeMetric(".fork_bomb")
 
 	// Security Agent metrics
 
