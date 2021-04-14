@@ -10,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// VolumeComponentsToCreate is the return type for the VolumeSourceMapper, indicating all StackState topology components and relations that need to be published and the externalID of the volume component
 type VolumeComponentsToCreate struct {
 	Components       []*topology.Component
 	Relations        []*topology.Relation
