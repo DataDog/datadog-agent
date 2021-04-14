@@ -25,14 +25,14 @@
 
 build_libbcc_x64:
   extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main", "size:large"]
   variables:
     ARCH: amd64
 
 build_libbcc_arm64:
   extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_LIBBCC_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
