@@ -107,14 +107,14 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(t time.Time, bucketStar
 	if ts > now {
 		return now, true
 	}
-	return bucketStart / aggBucketSize, false
+	return ts, false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 	for _, clientBucket := range p.Stats {
 		ts, shifted := a.getAggregationBucketTime(now, clientBucket.Start)
 		if shifted {
-			clientBucket.AgentTimeShift = int64(ts) - int64(clientBucket.Start)
+			clientBucket.AgentTimeShift = int64(ts*1e9) - int64(clientBucket.Start)
 			clientBucket.Start = ts * 1e9
 		}
 		b, ok := a.buckets[ts]

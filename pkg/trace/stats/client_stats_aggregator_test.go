@@ -116,6 +116,43 @@ func TestMergeMany(t *testing.T) {
 	assert.Len(a.buckets, 0)
 }
 
+func TestTimeShifts(t *testing.T) {
+	type tt struct {
+		shift, expectedShift time.Duration
+		name                 string
+	}
+	tts := []tt{
+		{
+			shift:         100 * time.Hour,
+			expectedShift: 100 * time.Hour,
+			name:          "future",
+		},
+		{
+			shift:         -11 * time.Hour,
+			expectedShift: -11*time.Hour + oldestBucketStart,
+			name:          "past",
+		},
+	}
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			a := newTestAggregator()
+			agentTime := time.Unix(time.Now().Unix(), 0)
+			payloadTime := time.Unix(time.Now().Unix(), 0).Add(tc.shift)
+
+			stats := getTestStatsWithStart(payloadTime)
+			a.add(agentTime, deepCopy(stats))
+			a.flushOnTime(agentTime)
+			assert.Len(a.out, 0)
+			a.flushOnTime(agentTime.Add(21 * time.Second))
+			assert.Len(a.out, 1)
+			stats.Stats[0].AgentTimeShift = -tc.expectedShift.Nanoseconds()
+			stats.Stats[0].Start -= uint64(tc.expectedShift.Nanoseconds())
+			assert.Equal(wrapPayload(stats), <-a.out)
+		})
+	}
+}
+
 func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
 	new := p
 	new.Stats = deepCopyStatsBucket(p.Stats)
