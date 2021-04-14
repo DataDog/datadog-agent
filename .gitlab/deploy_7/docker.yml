@@ -109,6 +109,10 @@ deploy_google_container_registry_linux-a7:
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win2004-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-jmx-win2004
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1809-core-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-win1809-core
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1809-core-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-jmx-win1809-core
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-win1909-core-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-win1909-core
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       inv -e docker.publish-bulk ${SIGNING_ARGS} --platform windows/amd64 --src-template ${SRC_AGENT}:${SRC_TAG}-7-jmx-win1909-core-ARCH --dst-template ${REPOSITORY}-ARCH:`${VERSION}-jmx-win1909-core
@@ -245,6 +249,7 @@ deploy_google_container_registry-dogstatsd:
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
@@ -253,6 +258,7 @@ deploy_google_container_registry-dogstatsd:
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
@@ -341,6 +347,7 @@ deploy_google_container_registry_manifests-a7:
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
@@ -349,6 +356,7 @@ deploy_google_container_registry_manifests-a7:
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
@@ -357,6 +365,7 @@ deploy_google_container_registry_manifests-a7:
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
@@ -365,6 +374,7 @@ deploy_google_container_registry_manifests-a7:
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
       --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64

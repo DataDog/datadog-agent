@@ -64,6 +64,7 @@ revert_latest_7_docker_hub:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-core,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
@@ -72,6 +73,7 @@ revert_latest_7_docker_hub:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-core,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
@@ -80,6 +82,7 @@ revert_latest_7_docker_hub:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-core,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
@@ -88,6 +91,7 @@ revert_latest_7_docker_hub:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-core,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-core,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
@@ -128,6 +132,7 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-core,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
@@ -136,6 +141,7 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-core,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
@@ -144,6 +150,7 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-core,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
@@ -152,6 +159,7 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-core,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-core,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
