@@ -38,13 +38,13 @@ func (s *sctl) get(now time.Time) (string, bool, error) {
 	return strings.TrimSpace(string(content)), true, nil
 }
 
-// Int represents an int sysctl
+// Int16 represents a 16 bit int sysctl
 type Int16 struct {
 	*sctl
 	v uint16
 }
 
-// NewInt creates a new sysctl.Int16
+// NewInt16 creates a new sysctl.Int16
 //
 // `sysctl` is the path for the sysctl, e.g. net.inet.ip.portrange.first
 // `cacheFor` caches the sysctl's value for the given time duration;
