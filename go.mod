@@ -231,3 +231,6 @@ replace (
 )
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
+
+// do not merge
+replace github.com/DataDog/agent-payload => c:\src\agent-payload
