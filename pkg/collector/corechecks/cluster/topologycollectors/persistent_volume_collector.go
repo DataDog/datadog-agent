@@ -11,13 +11,15 @@ import (
 // PersistentVolumeCollector implements the ClusterTopologyCollector interface.
 type PersistentVolumeCollector struct {
 	ComponentChan chan<- *topology.Component
+	RelationChan  chan<- *topology.Relation
 	ClusterTopologyCollector
 }
 
 // NewPersistentVolumeCollector
-func NewPersistentVolumeCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+func NewPersistentVolumeCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &PersistentVolumeCollector{
 		ComponentChan:            componentChannel,
+		RelationChan:             relationChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -35,10 +37,39 @@ func (pvc *PersistentVolumeCollector) CollectorFunction() error {
 	}
 
 	for _, pv := range persistentVolumes {
-		pvc.ComponentChan <- pvc.persistentVolumeToStackStateComponent(pv)
+		component := pvc.persistentVolumeToStackStateComponent(pv)
+		pvc.ComponentChan <- component
+
+		volumeSource, err := pvc.persistentVolumeSourceToStackStateComponent(pv)
+		if err != nil {
+			return err
+		}
+
+		if volumeSource != nil {
+			pvc.ComponentChan <- volumeSource
+
+			pvc.RelationChan <- pvc.persistentVolumeToSourceStackStateRelation(component.ExternalID, volumeSource.ExternalID)
+		}
 	}
 
 	return nil
+}
+
+func (pvc *PersistentVolumeCollector) persistentVolumeSourceToStackStateComponent(pv v1.PersistentVolume) (*topology.Component, error) {
+	for _, mapper := range allPersistentVolumeSourceMappers {
+		c, err := mapper(pvc, pv)
+		if err != nil {
+			return nil, err
+		}
+
+		if c != nil {
+			return c, nil
+		}
+	}
+
+	log.Errorf("Unknown PersistentVolumeSource for PersistentVolume '%s'", pv.Name)
+
+	return nil, nil
 }
 
 // Creates a Persistent Volume StackState component from a Kubernetes / OpenShift Cluster
@@ -46,69 +77,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 	log.Tracef("Mapping PersistentVolume to StackState component: %s", persistentVolume.String())
 
 	identifiers := make([]string, 0)
-	//dataSource := make(map[string]interface{}, 0)
-	//if persistentVolume.Spec.HostPath != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.HostPath.Path))
-	//}
-	//if persistentVolume.Spec.GCEPersistentDisk != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.GCEPersistentDisk.PDName))
-	//}
-	//if persistentVolume.Spec.AWSElasticBlockStore != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.AWSElasticBlockStore.VolumeID))
-	//}
-	//if persistentVolume.Spec.NFS != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.NFS.Server))
-	//}
-	//if persistentVolume.Spec.ISCSI != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.ISCSI.IQN))
-	//}
-	//if persistentVolume.Spec.Glusterfs != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.Glusterfs.Path))
-	//}
-	//if persistentVolume.Spec.RBD != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.RBD.RadosUser, persistentVolume.Spec.RBD.RBDPool))
-	//}
-	//if persistentVolume.Spec.FlexVolume != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.FlexVolume.Driver, persistentVolume.Spec.FlexVolume.SecretRef.Name))
-	//}
-	//if persistentVolume.Spec.Cinder != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.Cinder.VolumeID ))
-	//}
-	//if persistentVolume.Spec.CephFS != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:cepfs:/%s:%s:%s", pvc.GetInstance().URL, persistentVolume.Spec.CephFS.User, persistentVolume.Spec.CephFS.Path))
-	//}
-	//if persistentVolume.Spec.Flocker != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.FC != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.AzureFile != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.VsphereVolume != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.Quobyte != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.AzureDisk != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.PhotonPersistentDisk != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.PortworxVolume != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.ScaleIO != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-	//if persistentVolume.Spec.StorageOS != nil {
-	//	identifiers = append(identifiers, fmt.Sprintf("urn:persistent-volume:/%s:%s:%s", pvc.GetInstance().URL, pod.Name, ))
-	//}
-
-	log.Tracef("Created identifiers for %s: %v", persistentVolume.Name, identifiers)
 
 	persistentVolumeExternalID := pvc.buildPersistentVolumeExternalID(persistentVolume.Name)
 
@@ -126,7 +94,6 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 			"status":            persistentVolume.Status.Phase,
 			"statusMessage":     persistentVolume.Status.Message,
 			"storageClassName":  persistentVolume.Spec.StorageClassName,
-			"source":            persistentVolume.Spec.PersistentVolumeSource,
 		},
 	}
 
@@ -136,4 +103,41 @@ func (pvc *PersistentVolumeCollector) persistentVolumeToStackStateComponent(pers
 	log.Tracef("Created StackState persistent volume component %s: %v", persistentVolumeExternalID, component.JSONString())
 
 	return component
+}
+
+func (pvc *PersistentVolumeCollector) createStackStateVolumeSourceComponent(pv v1.PersistentVolume, name, externalID string, identifiers []string, addTags map[string]string) (*topology.Component, error) {
+
+	tags := pvc.initTags(pv.ObjectMeta)
+	for k, v := range addTags {
+		tags[k] = v
+	}
+
+	data := map[string]interface{}{
+		"name":   name,
+		"source": pv.Spec.PersistentVolumeSource,
+		"tags":   tags,
+	}
+
+	if identifiers != nil {
+		data["identifiers"] = identifiers
+	}
+
+	component := &topology.Component{
+		ExternalID: externalID,
+		Type:       topology.Type{Name: "volume-source"},
+		Data:       data,
+	}
+
+	log.Tracef("Created StackState volume component %s: %v", externalID, component.JSONString())
+	return component, nil
+}
+
+func (pvc *PersistentVolumeCollector) persistentVolumeToSourceStackStateRelation(persistentVolumeExternalID, persistentVolumeSourceExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes persistent volume to persistent volume source: %s -> %s", persistentVolumeExternalID, persistentVolumeSourceExternalID)
+
+	relation := pvc.CreateRelation(persistentVolumeExternalID, persistentVolumeSourceExternalID, "exposes")
+
+	log.Tracef("Created StackState persistent volume -> persistent volume source relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
 }
