@@ -29,7 +29,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMMetrics,
 		endpointsConfigPrefix:  "database_monitoring.metrics",
-		hostnameEndpointPrefix: "dbmetrics-http-intake.logs.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
 	},
 }
 
