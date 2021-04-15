@@ -14,6 +14,7 @@ import (
 	_ "github.com/client9/misspell/cmd/misspell"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/fzipp/gocyclo"
+	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/goware/modvendor"

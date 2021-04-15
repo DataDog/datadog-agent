@@ -262,7 +262,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 							module.EventTypes[event] = true
 							delete(dejavu, fieldName)
 
-							continue FIELD
+							continue
 						}
 
 						dejavu[fieldName] = true

@@ -132,6 +132,9 @@ func load(configPath string) (*Config, error) {
 		LogLevel:  cfg.GetString(key(spNS, "log_level")),
 		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
 
+		StatsdHost: aconfig.GetBindHost(),
+		StatsdPort: cfg.GetInt("dogstatsd_port"),
+
 		ProfilingEnabled:     cfg.GetBool(key(spNS, "profiling.enabled")),
 		ProfilingSite:        cfg.GetString(key(spNS, "profiling.site")),
 		ProfilingURL:         cfg.GetString(key(spNS, "profiling.profile_dd_url")),

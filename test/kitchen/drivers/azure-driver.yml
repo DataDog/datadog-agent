@@ -19,6 +19,12 @@ provisioner:
   product_name: chef
   product_version: 14.12.9
   install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
 
 driver:
   name: azurerm

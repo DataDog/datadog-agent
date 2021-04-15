@@ -251,6 +251,15 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: ********`)
+	assertClean(t,
+		`community: password`,
+		`community: ********`)
+	assertClean(t,
+		`authentication_key: password`,
+		`authentication_key: ********`)
+	assertClean(t,
+		`privacy_key: password`,
+		`privacy_key: ********`)
 }
 
 func TestYamlConfig(t *testing.T) {

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11412
+      - image: datadog/datadog-agent-runner-circle:go11511
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -63,7 +63,7 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
+            python3 -m pip install codecov~=2.1.11 flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
       - run:
           name: grab go deps
           command: |
@@ -102,11 +102,11 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
+          command: codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
@@ -297,7 +297,7 @@ jobs:
             source ~/.build_setup
             inv -e install-tools
             inv -e deps
-            inv -e test --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+            inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
 
 workflows:
   version: 2

@@ -8,17 +8,6 @@ package packets
 import (
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-)
-
-var (
-	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
-		nil, "Count of packets buffer flush triggered by the timer")
-	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
-		nil, "Count of packets buffer flush triggered because the buffer is full")
-	tlmPacketsChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		nil, "Number of packets in the packets channel")
 )
 
 // Buffer is a buffer of packets that will automatically flush to the given
@@ -72,8 +61,12 @@ func (pb *Buffer) Append(packet *Packet) {
 
 func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
+		t1 := time.Now()
 		pb.outputChannel <- pb.packets
-		tlmPacketsChannelSize.Set(float64(len(pb.outputChannel)))
+		t2 := time.Now()
+		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()))
+
+		tlmChannelSize.Set(float64(len(pb.outputChannel)))
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
 }

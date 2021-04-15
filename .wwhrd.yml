@@ -22,4 +22,7 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
-  
+
+additional:
+  # list here paths to additional licenses
+  golang/go: "raw.githubusercontent.com/golang/go/master/LICENSE"

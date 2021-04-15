@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,15 +26,6 @@ var (
 	udsPacketReadingErrors   = expvar.Int{}
 	udsPackets               = expvar.Int{}
 	udsBytes                 = expvar.Int{}
-
-	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
-		[]string{"state"}, "Dogstatsd UDS packets count")
-
-	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
-		nil, "Dogstatsd UDS origin detection error count")
-
-	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
-		nil, "Dogstatsd UDS packets bytes")
 )
 
 func init() {
@@ -146,6 +136,8 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) Listen() {
+	t1 := time.Now()
+	var t2 time.Time
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		var n int
@@ -166,7 +158,13 @@ func (l *UDSListener) Listen() {
 			// Read datagram + credentials in ancilary data
 			oob := l.oobPoolManager.Get().([]byte)
 			var oobn int
+
+			t2 = time.Now()
+			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
+
 			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.Buffer, oob)
+
+			t1 = time.Now()
 
 			// Extract container id from credentials
 			container, taggingErr := processUDSOrigin(oob[:oobn])
@@ -189,8 +187,13 @@ func (l *UDSListener) Listen() {
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
 		} else {
+			t2 = time.Now()
+			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
+
 			// Read only datagram contents with no credentials
 			n, _, err = l.conn.ReadFromUnix(packet.Buffer)
+
+			t1 = time.Now()
 
 			if capBuff != nil {
 				capBuff.Pb.Timestamp = time.Now().Unix()
