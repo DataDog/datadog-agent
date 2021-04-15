@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +33,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 
 	var extraEnvProviders []config.ConfigurationProviders
 	var extraEnvListeners []config.Listeners
-	if config.IsAutoconfigEnabled() && flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
+	if config.IsAutoconfigEnabled() && !config.IsCLCRunner() {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 
