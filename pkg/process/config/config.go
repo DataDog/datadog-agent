@@ -142,9 +142,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint  = "https://process.datadoghq.com"
-	maxMessageBatch         = 100
-	maxCtrProcsMessageBatch = 10000
+	defaultProcessEndpoint         = "https://process.datadoghq.com"
+	maxMessageBatch                = 100
+	defaultMaxCtrProcsMessageBatch = 10000
+	maxCtrProcsMessageBatch        = 30000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -189,7 +190,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		QueueSize: 256,
 
 		MaxPerMessage:             maxMessageBatch,
-		MaxCtrProcessesPerMessage: maxCtrProcsMessageBatch,
+		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
 		MaxConnsPerMessage:        600,
 		AllowRealTime:             true,
 		HostName:                  "",
