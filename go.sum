@@ -113,6 +113,8 @@ github.com/DataDog/datadog-operator v0.3.1 h1:yazEEHlKV1pEpDG1JsyI9WOQDWnnIpJOvE
 github.com/DataDog/datadog-operator v0.3.1/go.mod h1:y1Oh/0ftUKzPdVe6IHodPD7zzmXMWnUcLK9Pv+vaeBg=
 github.com/DataDog/ebpf v0.0.0-20210407211251-e1ec0c7b627d h1:22+/AVkA8CdDrnwmtLm+mAyckN3uzOraseJfW0MuXbk=
 github.com/DataDog/ebpf v0.0.0-20210407211251-e1ec0c7b627d/go.mod h1:tSPYMUcskM0OLVEJSoydgYUVuhX8hOSmtaSLNtOQThg=
+github.com/DataDog/ebpf v0.0.0-20210413153524-9a23964443ad h1:9B7W+WkYL/PfJaR3pkjyC2l7z7rIpfc94l8D6CkkH5w=
+github.com/DataDog/ebpf v0.0.0-20210413153524-9a23964443ad/go.mod h1:tSPYMUcskM0OLVEJSoydgYUVuhX8hOSmtaSLNtOQThg=
 github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c h1:IlCUv480yLiHPGdB63f5Lw6TP8P1dEP/SjXzOVDRcWA=
 github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c/go.mod h1:WSY9Jj5RhdgC3ci1QaacvbFdQ8cbrEjrpiZbLHLt2s4=
 github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd h1:tvXbvgbfV9OkVQPwdla2Fk7SPT1ICAM6fpFsuKbOhEI=
@@ -1750,6 +1752,8 @@ golang.org/x/sys v0.0.0-20210303074136-134d130e1a04/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20210308170721-88b6017d0656/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57 h1:F5Gozwx4I1xtr/sr/8CFbb57iKi3297KFs0QDbGN60A=
 golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20210414055047-fe65e336abe0 h1:g9s1Ppvvun/fI+BptTMj909BBIcGrzQ32k9FNlcevOE=
+golang.org/x/sys v0.0.0-20210414055047-fe65e336abe0/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 h1:v+OssWQX+hTHEmOBgwxdZxK4zHq3yOs8F9J7mk0PY8E=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.0.0-20160726164857-2910a502d2bf/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
