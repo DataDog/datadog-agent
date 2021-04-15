@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+    <configuration default="false" name="agent-check-disk" type="GoApplicationRunConfiguration" factoryName="Go Application" nameIsGenerated="true">
+        <module name="stackstate-agent" />
+        <working_directory value="$PROJECT_DIR$" />
+        <useCustomBuildTags value="true" />
+        <parameters value="-c $PROJECT_DIR$/cmd/agent/dist/datadog.yaml check disk" />
+        <kind value="PACKAGE" />
+        <filePath value="$PROJECT_DIR$/cmd/agent/main.go" />
+        <package value="github.com/StackVista/stackstate-agent/cmd/agent" />
+        <directory value="$PROJECT_DIR$" />
+        <method v="2" />
+    </configuration>
+</component>
