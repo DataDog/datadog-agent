@@ -19,8 +19,16 @@
 
 **Bugfix**
 
+- Disk Integration
+  - Fixed the excluded filesystems and excluded disks failing to use the conf file.
+- Integrations:
   - Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
   - Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
+- VSphere Integration
+  - Fix out-of-box VSphere check settings to support the Vsphere StackPack. [(STAC-12360)](https://stackstate.atlassian.net/browse/STAC-12360)
+- Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
+- Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
+
 
 ## 2.10.0 (2021-02-25)
 
