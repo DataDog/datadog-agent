@@ -208,13 +208,13 @@ func TestCountAggregation(t *testing.T) {
 	aggCounts := <-a.out
 	assertAggCountsPayload(t, aggCounts)
 	assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []pb.ClientGroupedStats{
-		pb.ClientGroupedStats{
+		{
 			Synthetics: true,
 			Hits:       43,
 			Errors:     19,
 			Duration:   403,
 		},
-		pb.ClientGroupedStats{
+		{
 			Hits:     0,
 			Errors:   2,
 			Duration: 4,
