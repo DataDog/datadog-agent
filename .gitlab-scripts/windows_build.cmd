@@ -17,6 +17,7 @@ echo call %WORKON_HOME%\venv\Scripts\activate.bat
 call "%WORKON_HOME%\venv\Scripts\activate.bat"
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-set
+
+pip install -r requirements.txt
 
 inv -e agent.omnibus-build --skip-sign --log-level debug --skip-deps
