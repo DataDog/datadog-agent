@@ -11,6 +11,9 @@ type Replacer struct {
 	Repl  []byte
 }
 
+// TODO: Test TraceLevelLogWriter replacements against real GoSNMP library output
+//       (need more complex setup e.g. simulate gosnmp request/response)
+
 var replacers = []Replacer{
 	{
 		Regex: regexp.MustCompile(`(\s*SECURITY PARAMETERS\s*:).+`),
