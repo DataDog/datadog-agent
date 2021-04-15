@@ -30,7 +30,7 @@ type CheckSampler struct {
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler() *CheckSampler {
+func newCheckSampler(bucketExpiry time.Duration) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
@@ -39,7 +39,7 @@ func newCheckSampler() *CheckSampler {
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
 		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:    1 * time.Minute,
+		bucketExpiry:    bucketExpiry,
 	}
 }
 
