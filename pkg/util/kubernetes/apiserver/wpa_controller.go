@@ -12,7 +12,6 @@ import (
 	"math"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_client "k8s.io/client-go/dynamic"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 
@@ -40,11 +39,7 @@ const (
 	crdCheckMaxElapsedTime  = 0
 )
 
-var gvrWPA = &schema.GroupVersionResource{
-	Group:    "datadoghq.com",
-	Version:  "v1alpha1",
-	Resource: "watermarkpodautoscalers",
-}
+var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
 func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
@@ -107,7 +102,7 @@ func isWPACRDNotFoundError(err error) bool {
 
 func checkWPACRD(wpaClient dynamic_client.Interface) backoff.Operation {
 	check := func() error {
-		_, err := wpaClient.Resource(*gvrWPA).List(context.TODO(), v1.ListOptions{})
+		_, err := wpaClient.Resource(gvrWPA).List(context.TODO(), v1.ListOptions{})
 		return err
 	}
 	return func() error {
@@ -132,7 +127,7 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	log.Info("Enabling WPA controller")
 
-	genericInformer := wpaInformerFactory.ForResource(*gvrWPA)
+	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
 
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()

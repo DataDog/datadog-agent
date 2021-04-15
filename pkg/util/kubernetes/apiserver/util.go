@@ -52,3 +52,12 @@ func StructureIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscal
 	}
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
+
+func StructureFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut *unstructured.Unstructured) error {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
+	if err != nil {
+		return fmt.Errorf("Unable to convert WatermarkPodAutoscaler %v: %w", structIn, err)
+	}
+	unstructOut.SetUnstructuredContent(content)
+	return nil
+}

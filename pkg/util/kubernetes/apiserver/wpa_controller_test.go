@@ -22,9 +22,12 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	wpa_informers "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
@@ -181,31 +184,38 @@ func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client 
 	return autoscalerController, inf
 }
 
-func newFakeWatermarkPodAutoscaler(name, ns string, uid string, metricName string, labels map[string]interface{}) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "datadoghq.com/v1alpha1",
-			"kind":       "WatermarkPodAutoscaler",
-			"metadata": map[string]interface{}{
-				"name":      name,
-				"namespace": ns,
-				"uid":       uid,
-			},
-			"spec": map[string]interface{}{
-				"metrics": []interface{}{
-					map[string]interface{}{
-						"external": map[string]interface{}{
-							"metricName": metricName,
-							"metricSelector": map[string]interface{}{
-								"matchLabels": labels,
-							},
+func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName string, labels map[string]string) (obj *unstructured.Unstructured, wpa *v1alpha1.WatermarkPodAutoscaler) {
+	obj = &unstructured.Unstructured{}
+	wpa = &v1alpha1.WatermarkPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "WatermarkPodAutoscaler",
+			APIVersion: "datadoghq.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			UID:       uid,
+		},
+		Spec: v1alpha1.WatermarkPodAutoscalerSpec{
+			Metrics: []v1alpha1.MetricSpec{
+				{
+					Type: v1alpha1.ExternalMetricSourceType,
+					External: &v1alpha1.ExternalMetricSource{
+						MetricName: metricName,
+						MetricSelector: &metav1.LabelSelector{
+							MatchLabels: labels,
 						},
-						"type": "External",
 					},
 				},
 			},
 		},
 	}
+
+	if err := StructureFromWPA(wpa, obj); err != nil {
+		panic("Failed to construct unstructured WPA")
+	}
+
+	return
 }
 
 // TestWPAController is an integration test of the AutoscalerController
@@ -244,7 +254,16 @@ func TestWPAController(t *testing.T) {
 			return ddSeries, nil
 		},
 	}
-	wpaClient := fake.NewSimpleDynamicClient(scheme)
+
+	_, mockedWPA := newFakeWatermarkPodAutoscaler(
+		wpaName,
+		namespace,
+		"1",
+		metricName,
+		map[string]string{"foo": "bar"},
+	)
+
+	wpaClient := fake.NewSimpleDynamicClient(scheme, mockedWPA)
 
 	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, autoscalers.DatadogClient(d))
 	hctrl.poller.refreshPeriod = 600
@@ -260,15 +279,7 @@ func TestWPAController(t *testing.T) {
 
 	hctrl.RunControllerLoop(stop)
 
-	mockedWPA := newFakeWatermarkPodAutoscaler(
-		wpaName,
-		namespace,
-		"1",
-		metricName,
-		map[string]interface{}{"foo": "bar"},
-	)
-
-	res, err := wpaClient.Resource(*gvrWPA).Namespace(namespace).Create(context.TODO(), mockedWPA, v1.CreateOptions{})
+	res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
 	require.NoError(t, err)
 
 	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
@@ -315,7 +326,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resWPA, errWPA := wpaClient.Resource(*gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
+		resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
 		require.NoError(t, errWPA)
 
 		metrics, found, err := unstructured.NestedSlice(resWPA.Object, "spec", "metrics")
@@ -345,7 +356,7 @@ func TestWPAController(t *testing.T) {
 		err = unstructured.SetNestedField(resWPA.Object, annotations["kubectl.kubernetes.io/last-applied-configuration"], "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
 		require.NoError(t, err)
 
-		res, updateErr := wpaClient.Resource(*gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
+		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
 		err = StructureIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
 
@@ -411,7 +422,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	// Verify that a Delete removes the Data from the Global Store
-	err = wpaClient.Resource(*gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, v1.DeleteOptions{})
+	err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, v1.DeleteOptions{})
 	require.NoError(t, err)
 	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
@@ -433,15 +444,15 @@ func TestWPASync(t *testing.T) {
 	d := &fakeDatadogClient{}
 	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, d)
 	hctrl.enableWPA(inf)
-	obj := newFakeWatermarkPodAutoscaler(
+	obj, _ := newFakeWatermarkPodAutoscaler(
 		"wpa_1",
 		"default",
 		"1",
 		"foo",
-		map[string]interface{}{"foo": "bar"},
+		map[string]string{"foo": "bar"},
 	)
 
-	err := inf.ForResource(*gvrWPA).Informer().GetStore().Add(obj)
+	err := inf.ForResource(gvrWPA).Informer().GetStore().Add(obj)
 	require.NoError(t, err)
 	key := "default/wpa_1"
 	err = hctrl.syncWPA(key)
@@ -455,6 +466,7 @@ func TestWPASync(t *testing.T) {
 
 // TestWPAGC tests the GC process of of the controller
 func TestWPAGC(t *testing.T) {
+	wpaFoo, _ := newFakeWatermarkPodAutoscaler("foo", "default", "1111", "requests_per_s", map[string]string{"bar": "baz"})
 	testCases := []struct {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
@@ -473,7 +485,7 @@ func TestWPAGC(t *testing.T) {
 					Valid:      false,
 				},
 			},
-			wpa: newFakeWatermarkPodAutoscaler("foo", "default", "1111", "requests_per_s", map[string]interface{}{"bar": "baz"}),
+			wpa: wpaFoo,
 			expected: []custommetrics.ExternalMetricValue{ // skipped by gc
 				{
 					MetricName: "requests_per_s",
@@ -511,7 +523,7 @@ func TestWPAGC(t *testing.T) {
 					Valid:      false,
 				},
 			},
-			wpa:      newFakeWatermarkPodAutoscaler("foo", "default", "1111", "requests_per_s", map[string]interface{}{"bar": "baz"}),
+			wpa:      wpaFoo,
 			expected: []custommetrics.ExternalMetricValue{},
 		},
 	}
@@ -533,7 +545,7 @@ func TestWPAGC(t *testing.T) {
 			hctrl.store = store
 
 			if testCase.wpa != nil {
-				err := inf.ForResource(*gvrWPA).
+				err := inf.ForResource(gvrWPA).
 					Informer().
 					GetStore().
 					Add(testCase.wpa)
@@ -549,6 +561,7 @@ func TestWPAGC(t *testing.T) {
 
 // TestStructureIntoWPA test the conversion of unstructured object into WPA
 func TestStructureIntoWPA(t *testing.T) {
+	wpa1, _ := newFakeWatermarkPodAutoscaler("wpa-1", "ns", "1234-abc", "test", map[string]string{"foo": "bar"})
 	testCases := []struct {
 		caseName    string
 		obj         interface{}
@@ -563,7 +576,7 @@ func TestStructureIntoWPA(t *testing.T) {
 		},
 		{
 			caseName: "All good",
-			obj:      newFakeWatermarkPodAutoscaler("wpa-1", "ns", "1234-abc", "test", map[string]interface{}{"foo": "bar"}),
+			obj:      wpa1,
 			expectedWpa: &v1alpha1.WatermarkPodAutoscaler{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "wpa-1",
@@ -571,6 +584,7 @@ func TestStructureIntoWPA(t *testing.T) {
 					UID:       "1234-abc",
 				},
 				Spec: v1alpha1.WatermarkPodAutoscalerSpec{
+					Tolerance: resource.MustParse("0"),
 					Metrics: []v1alpha1.MetricSpec{
 						{
 							Type: v1alpha1.ExternalMetricSourceType,
