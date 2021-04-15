@@ -274,13 +274,14 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	err := s.Configure(config)
 	require.NoError(t, err)
 
+	logger := stdlog.New(ioutil.Discard, "abc", 0)
 	s.loggerEnabled = false
-	s.gosnmpInst.Logger = stdlog.New(ioutil.Discard, "", 0)
+	s.gosnmpInst.Logger = logger
 	s.Connect()
-	assert.Nil(t, s.gosnmpInst.Logger)
+	assert.NotSame(t, logger, s.gosnmpInst.Logger)
 
 	s.loggerEnabled = true
-	s.gosnmpInst.Logger = stdlog.New(ioutil.Discard, "", 0)
+	s.gosnmpInst.Logger = logger
 	s.Connect()
-	assert.NotNil(t, s.gosnmpInst.Logger)
+	assert.Same(t, logger, s.gosnmpInst.Logger)
 }
