@@ -206,6 +206,8 @@ func (r *Resolvers) Snapshot() error {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
 
+	r.ProcessResolver.SetState(snapshotted)
+
 	return nil
 }
 

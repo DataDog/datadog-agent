@@ -39,6 +39,11 @@ const (
 	doForkStructInput
 )
 
+const (
+	snapshotting = iota
+	snapshotted
+)
+
 const procResolveMaxDepth = 16
 
 // argsEnvsCacheEntry holds temporary args/envs info
@@ -111,6 +116,7 @@ type ProcessResolverOpts struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
+	state        int64
 	probe        *Probe
 	resolvers    *Resolvers
 	client       *statsd.Client
@@ -334,6 +340,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	if exists {
 		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
 		return entry
+	}
+
+	if atomic.LoadInt64(&p.state) != snapshotted {
+		return nil
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
@@ -728,6 +738,11 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
+// SetState sets the process resolver state
+func (p *ProcessResolver) SetState(state int64) {
+	atomic.StoreInt64(&p.state, state)
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU(512, nil)
@@ -742,6 +757,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,
+		state:         snapshotting,
 	}, nil
 }
 
