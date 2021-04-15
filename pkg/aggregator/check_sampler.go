@@ -96,6 +96,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		}
 		cs.lastBucketValue[contextKey] = rawValue
 		cs.lastSeenBucket[contextKey] = time.Now()
+
+		// Return early so we don't report the first raw value instead of the delta which will cause spikes
+		if !bucketFound {
+			return
+		}
 	}
 
 	if bucket.Value < 0 {
