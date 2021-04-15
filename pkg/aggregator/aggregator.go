@@ -124,9 +124,10 @@ var (
 		nil, "Count the number of dogstatsd contexts in the aggregator")
 
 	// Hold series to be added to aggregated series on each flush
-	recurrentSeries                    metrics.Series
-	recurrentSeriesLock                sync.Mutex
-	aggregatorEventPlatformLatestError error
+	recurrentSeries     metrics.Series
+	recurrentSeriesLock sync.Mutex
+	// ensures event platform errors are logged at most once per flush
+	aggregatorEventPlatformErrorLogged bool
 )
 
 func init() {
@@ -682,12 +683,6 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushEvents(start, waitForSerializer)
 }
 
-func (agg *BufferedAggregator) logPostFlushMessages() {
-	if aggregatorEventPlatformLatestError != nil {
-		log.Warnf("Failed to process some event platform events. latest-error='%s' eventCounts=%s errorCounts=%s", aggregatorEventPlatformLatestError, aggregatorEventPlatformEvents.String(), aggregatorEventPlatformEventsErrors.String())
-	}
-}
-
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
 // or closed dogstatsd buckets) will be sent to the serializer before stopping.
 func (agg *BufferedAggregator) Stop() {
@@ -730,7 +725,7 @@ func (agg *BufferedAggregator) run() {
 			agg.Flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
-			agg.logPostFlushMessages()
+			aggregatorEventPlatformErrorLogged = false
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
 			tlmProcessed.Inc("metrics")
@@ -806,11 +801,13 @@ func (agg *BufferedAggregator) run() {
 			err := agg.handleEventPlatformEvent(event)
 			if err != nil {
 				state = stateError
-				aggregatorEventPlatformLatestError = err
 				aggregatorEventPlatformEventsErrors.Add(event.eventType, 1)
 				log.Debugf("error submitting event platform event: %s", err)
+				if !aggregatorEventPlatformErrorLogged {
+					log.Warnf("Failed to process some event platform events. error='%s' eventCounts=%s errorCounts=%s", err, aggregatorEventPlatformEvents.String(), aggregatorEventPlatformEventsErrors.String())
+					aggregatorEventPlatformErrorLogged = true
+				}
 			}
-
 			tlmFlush.Add(1, event.eventType, state)
 		}
 	}
