@@ -733,13 +733,6 @@ core,"google.golang.org/protobuf/types/known/structpb",NewBSD
 core,"google.golang.org/protobuf/types/known/timestamppb",NewBSD
 core,"google.golang.org/protobuf/types/known/wrapperspb",NewBSD
 core,"google.golang.org/protobuf/types/pluginpb",NewBSD
-core,"gopkg.in/DataDog/dd-trace-go.v1/ddtrace",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/internal",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/internal/log",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/internal/version",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/profiler",Apache-2.0
-core,"gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/stackparse",Apache-2.0
 core,"gopkg.in/Knetic/govaluate.v3",MIT
 core,"gopkg.in/inf.v0",NewBSD
 core,"gopkg.in/natefinch/lumberjack.v2",MIT
