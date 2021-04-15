@@ -185,7 +185,7 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 	datadogMetricCached := &datadoghq.DatadogMetric{}
 	datadogMetricCachedObj, err := c.lister.ByNamespace(ns).Get(name)
 	if err == nil {
-		err = StructureIntoDDM(datadogMetricCachedObj, datadogMetricCached)
+		err = UnstructuredIntoDDM(datadogMetricCachedObj, datadogMetricCached)
 	}
 
 	switch {
@@ -299,7 +299,7 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 	}
 
 	datadogMetricObj := &unstructured.Unstructured{}
-	if err := StructureFromDDM(datadogMetric, datadogMetricObj); err != nil {
+	if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
 		return err
 	}
 	_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).Create(context.TODO(), datadogMetricObj, metav1.CreateOptions{})
@@ -324,7 +324,7 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 			Status: *newStatus,
 		}
 		datadogMetricObj := &unstructured.Unstructured{}
-		if err := StructureFromDDM(datadogMetric, datadogMetricObj); err != nil {
+		if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
 			return err
 		}
 		_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).UpdateStatus(context.TODO(), datadogMetricObj, metav1.UpdateOptions{})

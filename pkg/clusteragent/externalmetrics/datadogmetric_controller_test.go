@@ -132,7 +132,7 @@ func newFakeDatadogMetric(ns, name, query string, status datadoghq.DatadogMetric
 		Status: status,
 	}
 
-	if err := StructureFromDDM(ddm, obj); err != nil {
+	if err := UnstructuredFromDDM(ddm, obj); err != nil {
 		panic("Failed to construct unstructured DDM")
 	}
 

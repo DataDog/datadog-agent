@@ -23,6 +23,11 @@ import (
 
 var scheme = kscheme.Scheme
 
+func init() {
+	schemeBuilder := runtime.NewSchemeBuilder(addKnownTypes)
+	schemeBuilder.AddToScheme(scheme)
+}
+
 type MyObj struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -99,11 +104,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&MyObjList{},
 	)
 	return nil
-}
-
-func init() {
-	schemeBuilder := runtime.NewSchemeBuilder(addKnownTypes)
-	schemeBuilder.AddToScheme(scheme)
 }
 
 type kubeApiserverFixture struct {

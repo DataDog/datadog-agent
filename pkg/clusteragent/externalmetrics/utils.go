@@ -101,7 +101,7 @@ func setQueryConfigValues(aggregator string, rollup int) {
 	queryConfigRollup = rollup
 }
 
-func StructureIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error {
+func UnstructuredIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return fmt.Errorf("Could not cast Unstructured object: %v", obj)
@@ -109,7 +109,7 @@ func StructureIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
-func StructureFromDDM(structIn *v1alpha1.DatadogMetric, unstructOut *unstructured.Unstructured) error {
+func UnstructuredFromDDM(structIn *v1alpha1.DatadogMetric, unstructOut *unstructured.Unstructured) error {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {
 		return fmt.Errorf("Unable to convert DatadogMetric %v: %w", structIn, err)

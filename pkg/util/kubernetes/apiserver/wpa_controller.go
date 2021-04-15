@@ -190,7 +190,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		return err
 	}
 	wpaCached := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	err = StructureIntoWPA(wpaCachedObj, wpaCached)
+	err = UnstructuredIntoWPA(wpaCachedObj, wpaCached)
 	if err != nil {
 		log.Errorf("Could not cast wpa %s retrieved from cache to wpa structure: %v", key, err)
 		return err
@@ -225,7 +225,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 
 func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, newAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
@@ -236,12 +236,12 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, newAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
 	oldAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, oldAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, oldAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		h.enqueueWPA(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
@@ -267,7 +267,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	defer h.mu.Unlock()
 	toDelete := &custommetrics.MetricsBundle{}
 	deletedWPA := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, deletedWPA); err == nil {
+	if err := UnstructuredIntoWPA(obj, deletedWPA); err == nil {
 		toDelete.External = autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
@@ -286,7 +286,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		log.Errorf("Could not get object from tombstone %#v", obj)
 		return
 	}
-	if err := StructureIntoWPA(tombstone, deletedWPA); err != nil {
+	if err := UnstructuredIntoWPA(tombstone, deletedWPA); err != nil {
 		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
 		return
 	}

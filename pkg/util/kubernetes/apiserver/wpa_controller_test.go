@@ -211,7 +211,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := StructureFromWPA(wpa, obj); err != nil {
+	if err := UnstructuredFromWPA(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 
@@ -283,7 +283,7 @@ func TestWPAController(t *testing.T) {
 	require.NoError(t, err)
 
 	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
-	err = StructureIntoWPA(res, wpaDecoded)
+	err = UnstructuredIntoWPA(res, wpaDecoded)
 	require.NoError(t, err)
 	require.Equal(t, wpaName, wpaDecoded.Name)
 
@@ -300,7 +300,7 @@ func TestWPAController(t *testing.T) {
 	require.NoError(t, err)
 
 	storedWPA := &v1alpha1.WatermarkPodAutoscaler{}
-	err = StructureIntoWPA(storedWPAObject, storedWPA)
+	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 
 	require.Equal(t, storedWPA, wpaDecoded)
@@ -357,7 +357,7 @@ func TestWPAController(t *testing.T) {
 		require.NoError(t, err)
 
 		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
-		err = StructureIntoWPA(res, wpaDecoded)
+		err = UnstructuredIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
 
 		return updateErr
@@ -385,7 +385,7 @@ func TestWPAController(t *testing.T) {
 
 	storedWPAObject, err = hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
 	require.NoError(t, err)
-	err = StructureIntoWPA(storedWPAObject, storedWPA)
+	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 	require.Equal(t, storedWPA, wpaDecoded)
 	// Checking the local cache holds the correct Data.
@@ -559,8 +559,8 @@ func TestWPAGC(t *testing.T) {
 	}
 }
 
-// TestStructureIntoWPA test the conversion of unstructured object into WPA
-func TestStructureIntoWPA(t *testing.T) {
+// TestUnstructuredIntoWPA test the conversion of unstructured object into WPA
+func TestUnstructuredIntoWPA(t *testing.T) {
 	wpa1, _ := newFakeWatermarkPodAutoscaler("wpa-1", "ns", "1234-abc", "test", map[string]string{"foo": "bar"})
 	testCases := []struct {
 		caseName    string
@@ -602,7 +602,7 @@ func TestStructureIntoWPA(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			testWPA := &v1alpha1.WatermarkPodAutoscaler{}
-			err := StructureIntoWPA(testCase.obj, testWPA)
+			err := UnstructuredIntoWPA(testCase.obj, testWPA)
 			require.Equal(t, testCase.error, err)
 			if err == nil {
 				// because we use the fake client, the GVK is missing from the WPA object.
