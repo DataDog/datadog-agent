@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
-	"io"
 	"math"
 	"strings"
 	"sync/atomic"
@@ -17,12 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/export/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/writer"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/tinylib/msgp/msgp"
 )
 
 // pathStats is the target host API path for delivering stats.
@@ -142,7 +140,7 @@ func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
 		"Content-Type":     "application/msgpack",
 		"Content-Encoding": "gzip",
 	})
-	if err := encodePayload(req.body, p); err != nil {
+	if err := writer.EncodePayload(req.body, p); err != nil {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
@@ -154,20 +152,6 @@ func (w *StatsWriter) sendPayloads() {
 		w.SendPayload(p)
 	}
 	w.payloads = w.payloads[:0]
-}
-
-// encodePayload encodes the payload as Gzipped msgPack into w.
-func encodePayload(w io.Writer, payload pb.StatsPayload) error {
-	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := gz.Close(); err != nil {
-			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
-		}
-	}()
-	return msgp.Encode(gz, &payload)
 }
 
 // buildPayloads splits pb.ClientStatsPayload that have more than maxEntriesPerPayload
