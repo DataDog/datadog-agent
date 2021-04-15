@@ -97,3 +97,9 @@ instances:
     ##  extra_tags: "tag1:val1,tag2:val2"
     #
     extra_tags: "%%extra_tags%%"
+
+    ## @param oid_batch_size - integer - optional - default: 60
+    ## The number of OIDs handled by each batch. Increasing this number improves performance but
+    ## uses more resources.
+    #
+    oid_batch_size: "%%extra_oid_batch_size%%"

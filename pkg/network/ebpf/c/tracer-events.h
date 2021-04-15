@@ -9,17 +9,17 @@
 
 #include "bpf_helpers.h"
 
-static __always_inline int get_proto(conn_tuple_t * t) {
+static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t* tup) {
+static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
     conn_t conn = { .tup = *tup };
-    tcp_stats_t* tst = NULL;
-    conn_stats_ts_t* cst = NULL;
+    tcp_stats_t *tst = NULL;
+    conn_stats_ts_t *cst = NULL;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
 
@@ -47,7 +47,7 @@ static __always_inline void cleanup_conn(conn_tuple_t* tup) {
     conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
-    batch_t* batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
+    batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
         return;
     }
@@ -80,13 +80,17 @@ static __always_inline void cleanup_conn(conn_tuple_t* tup) {
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
     // This could result in a missed tcp_close event, so we track it using our telemetry map.
-    if (is_tcp) increment_telemetry_count(missed_tcp_close);
-    if (is_udp) increment_telemetry_count(missed_udp_close);
+    if (is_tcp) {
+        increment_telemetry_count(missed_tcp_close);
+    }
+    if (is_udp) {
+        increment_telemetry_count(missed_udp_close);
+    }
 }
 
-static __always_inline void flush_conn_close_if_full(struct pt_regs * ctx) {
+static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
-    batch_t * batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
+    batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr) {
         return;
     }

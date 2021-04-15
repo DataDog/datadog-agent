@@ -28,7 +28,7 @@ func TestClientStats(t *testing.T) {
 			}
 			defer r.KillAgent()
 
-			if err := r.PostMsgpack("/v0.5/stats", &tt.In); err != nil {
+			if err := r.PostMsgpack("/v0.6/stats", &tt.In); err != nil {
 				t.Fatal(err)
 			}
 			timeout := time.After(3 * time.Second)

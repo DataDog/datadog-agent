@@ -131,9 +131,13 @@ else
     CONF_DIR=$INSTALL_DIR/etc
     RUN_DIR=$INSTALL_DIR/run
 
+    # On Mac, the real log folder is located under /opt/datadog-agent/logs, because some MacOS versions deletes
+    # /var/log on upgrade. The old log folder now becomes a symbolic link to the new folder.
+    REAL_LOG_DIR=/opt/datadog-agent/logs
+
     # Let's log the standard outputs of this script
-    LOG_FILE="$LOG_DIR/postinstall.log"
-    mkdir -vp $LOG_DIR
+    LOG_FILE="$REAL_LOG_DIR/postinstall.log"
+    mkdir -vp $REAL_LOG_DIR
     exec > $LOG_FILE 2>&1
 
     # Let's talk to our user installing the Agent a bit
@@ -159,8 +163,8 @@ else
     echo "INSTALL_USER: $INSTALL_USER"
 
     echo "# Preparing log dir"
-    chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
-    chmod -v 755 $LOG_DIR
+    chown -vR "${INSTALL_USER}:admin" "$REAL_LOG_DIR"
+    chmod -v 755 $REAL_LOG_DIR
 
     echo "# Installing the app"
     mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"

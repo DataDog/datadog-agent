@@ -3,19 +3,15 @@
 package tracer
 
 import (
-	"fmt"
 	"net"
 	"time"
-	"unsafe"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -34,19 +30,12 @@ func gwLookupEnabled(config *config.Config) bool {
 	return config.EnableGatewayLookup && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
-func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *manager.Manager) *gatewayLookup {
+func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup {
 	if !gwLookupEnabled(config) {
 		return nil
 	}
 
-	var router network.Router
-	var err error
-	if runtimeCompilerEnabled {
-		router, err = newEbpfRouter(m)
-	} else {
-		router, err = network.NewNetlinkRouter(config.ProcRoot)
-	}
-
+	router, err := network.NewNetlinkRouter(config.ProcRoot)
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
 		return nil
@@ -68,7 +57,12 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 }
 
 func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
-	r, ok := g.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
+	dest := cs.Dest
+	if cs.IPTranslation != nil {
+		dest = cs.IPTranslation.ReplSrcIP
+	}
+
+	r, ok := g.routeCache.Get(cs.Source, dest, cs.NetNS)
 	if !ok {
 		return nil
 	}
@@ -83,12 +77,11 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	if !ok {
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
-			log.Errorf("error getting index for interface index %d: %s", r.IfIndex, err)
+			log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
 			return nil
 		}
 
-		if len(ifi.HardwareAddr) == 0 {
-			// can happen for loopback
+		if ifi.Flags&net.FlagLoopback != 0 {
 			return nil
 		}
 
@@ -112,31 +105,4 @@ func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 	}
 
 	return network.Subnet{Alias: snet.ID}, nil
-}
-
-type ebpfRouter struct {
-	gwMp *ebpf.Map
-}
-
-func newEbpfRouter(m *manager.Manager) (network.Router, error) {
-	mp, ok, err := m.GetMap(string(probes.GatewayMap))
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("ebpf router: could not find ebpf gateway map")
-	}
-	return &ebpfRouter{
-		gwMp: mp,
-	}, nil
-}
-
-func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
-	d := newIPRouteDest(source, dest, netns)
-	gw := &ipRouteGateway{}
-	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
-		return network.Route{}, false
-	}
-
-	return network.Route{Gateway: gw.gateway(), IfIndex: gw.ifIndex()}, true
 }

@@ -16,7 +16,7 @@ import (
 )
 
 func TestProbeCompile(t *testing.T) {
-	cfg := ebpf.NewDefaultConfig()
+	cfg := ebpf.NewConfig()
 	var cflags []string
 	_, err := runtime.RuntimeSecurity.Compile(cfg, cflags)
 	require.NoError(t, err)

@@ -36,7 +36,7 @@ build_system-probe-x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main", "size:large"]
-  needs: ["build_libbcc_x64", "tests_deb-x64-py3"]
+  needs: ["build_libbcc_x64", "go_mod_tidy_check"]
   extends: .system-probe_build_common
   variables:
     ARCH: amd64

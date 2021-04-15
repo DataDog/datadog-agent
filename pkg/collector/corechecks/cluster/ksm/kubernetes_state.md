@@ -53,6 +53,8 @@
 | `kubernetes_state.pod.volumes.persistentvolumeclaims_readonly` | Describes whether a persistentvolumeclaim is mounted read only.   | `kube_namespace` `pod_name` `volume` `persistentvolumeclaim` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.pod.unschedulable` | Describes the unschedulable status for the pod.   | `kube_namespace` `pod_name` (`env` `service` `version` from standard labels)   |
 | `kubernetes_state.pod.status_phase` | The pods current phase.   | `kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels)    |
+| `kubernetes_state.pod.age` | The time in seconds since the creation of the pod.   | `kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels)    |
+| `kubernetes_state.pod.uptime` | The time in seconds since the pod has been scheduled and acknowledged by the Kubelet.   | `kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels)    |
 | `kubernetes_state.persistentvolumeclaim.status` | The phase the persistent volume claim is currently in.   | `kube_namespace` `persistentvolumeclaim` `phase` `storageclass`   |
 | `kubernetes_state.persistentvolumeclaim.access_mode` | The access mode(s) specified by the persistent volume claim.   | `kube_namespace` `persistentvolumeclaim` `access_mode` `storageclass`   |
 | `kubernetes_state.persistentvolumeclaim.request_storage` | The capacity of storage requested by the persistent volume claim.   | `kube_namespace` `persistentvolumeclaim` `storageclass`   |

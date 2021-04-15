@@ -22,6 +22,11 @@ func (l DatadogAgentLogger) Debugf(format string, params ...interface{}) {
 }
 
 // Errorf is used to print an error
-func (l DatadogAgentLogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params...)
+func (l DatadogAgentLogger) Errorf(format string, params ...interface{}) {
+	_ = log.Errorf(format, params...)
+}
+
+// Infof is used to print an error
+func (l DatadogAgentLogger) Infof(format string, params ...interface{}) {
+	log.Infof(format, params...)
 }

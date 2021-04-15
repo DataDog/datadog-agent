@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -82,15 +84,20 @@ type KSMConfig struct {
 	// Telemetry enables telemetry check's metrics, default false.
 	// Metrics can be found under kubernetes_state.telemetry
 	Telemetry bool `yaml:"telemetry"`
+
+	// LeaderSkip forces ignoring the leader election when running the check
+	// Can be useful when running the check as cluster check
+	LeaderSkip bool `yaml:"skip_leader_election"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	instance  *KSMConfig
-	store     []cache.Store
-	telemetry *telemetryCache
-	cancel    context.CancelFunc
+	instance    *KSMConfig
+	store       []cache.Store
+	telemetry   *telemetryCache
+	cancel      context.CancelFunc
+	isCLCRunner bool
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -178,7 +185,7 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	builder.WithNamespaces(namespaces)
 
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
 	if err != nil {
 		return err
 	}
@@ -229,6 +236,28 @@ func (k *KSMCheck) Run() error {
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
 		return err
+	}
+
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// we also do a safety check for dedicated runners to avoid trying the leader election
+	if !k.isCLCRunner || !k.instance.LeaderSkip {
+		// Only run if Leader Election is enabled.
+		if !config.Datadog.GetBool("leader_election") {
+			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
+		}
+
+		leader, errLeader := cluster.RunLeaderElection()
+		if errLeader != nil {
+			if errLeader == apiserver.ErrNotLeader {
+				log.Debugf("Not leader (leader is %q). Skipping the kube-state-metrics core check", leader)
+				return nil
+			}
+
+			_ = k.Warn("Leader Election error. Not running the kube-state-metrics core check.")
+			return err
+		}
+
+		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
 	}
 
 	defer sender.Commit()
@@ -470,9 +499,10 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	return &KSMCheck{
-		CheckBase: base,
-		instance:  instance,
-		telemetry: newTelemetryCache(),
+		CheckBase:   base,
+		instance:    instance,
+		telemetry:   newTelemetryCache(),
+		isCLCRunner: config.IsCLCRunner(),
 	}
 }
 
@@ -503,4 +533,20 @@ func isKnownMetric(name string) bool {
 		return true
 	}
 	return false
+}
+
+// buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
+// It allows us to get kube_node_created and kube_pod_created and deny
+// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
+func buildDeniedMetricsSet(collectors []string) options.MetricSet {
+	deniedMetrics := defaultDeniedMetrics
+	for _, resource := range collectors {
+		// resource format: pods, nodes, jobs, deployments...
+		if resource == "pods" || resource == "nodes" {
+			continue
+		}
+		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
+	}
+
+	return deniedMetrics
 }

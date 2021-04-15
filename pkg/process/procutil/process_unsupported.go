@@ -18,14 +18,23 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
-// NewProcessProbe is currently not implemented in non-linux environments
-func NewProcessProbe(options ...Option) *Probe {
-	return nil
+// WithPermission configures if process collection should fetch fields
+// that require elevated permission or not
+func WithPermission(enabled bool) Option {
+	return func(p *Probe) {
+		p.withPermission = enabled
+	}
 }
 
-// Probe is an empty struct for unsupported platforms
+// NewProcessProbe returns a Probe object
+func NewProcessProbe(options ...Option) *Probe {
+	return &Probe{}
+}
+
+// Probe is an unimplemented struct for unsupported platforms
 type Probe struct {
 	returnZeroPermStats bool
+	withPermission      bool
 }
 
 // Close is currently not implemented in non-linux environments

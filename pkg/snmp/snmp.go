@@ -43,6 +43,7 @@ type Config struct {
 	Version            string          `mapstructure:"version"`
 	Timeout            int             `mapstructure:"timeout"`
 	Retries            int             `mapstructure:"retries"`
+	OidBatchSize       int             `mapstructure:"oid_batch_size"`
 	Community          string          `mapstructure:"community"`
 	User               string          `mapstructure:"user"`
 	AuthKey            string          `mapstructure:"authentication_key"`
