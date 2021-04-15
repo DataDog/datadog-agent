@@ -9,10 +9,9 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-// Same max repetition as snmp-net default value
+// Using too high max repetitions might lead to tooBig SNMP error messages.
 // - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
 // - snmp-net uses 10
-// Using too high max reptition might lead to tooBig SNMP error messages.
 const bulkMaxRepetition = 10
 
 type sessionAPI interface {
