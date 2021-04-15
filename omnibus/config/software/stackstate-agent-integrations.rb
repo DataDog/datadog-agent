@@ -6,6 +6,8 @@
 require './lib/ostools.rb'
 require 'json'
 
+command "SETX /M PATH \"%PATH%;C:\tools\msys64\mingw64\bin\""
+
 name 'stackstate-agent-integrations'
 
 dependency 'pip'
