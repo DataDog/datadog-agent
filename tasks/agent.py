@@ -355,6 +355,10 @@ def get_omnibus_env(
 ):
     env = load_release_versions(ctx, release_version)
 
+    # If the host has a GOMODCACHE set, try to reuse it
+    if not go_mod_cache and os.environ.get('GOMODCACHE'):
+        go_mod_cache = os.environ.get('GOMODCACHE')
+
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
