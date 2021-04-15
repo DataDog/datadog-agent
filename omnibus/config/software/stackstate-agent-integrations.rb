@@ -26,8 +26,6 @@ end
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
-# command "SETX /M PATH \"%PATH%;C:\\tools\\msys64\\mingw64\\bin\""
-
 source git: 'https://github.com/StackVista/stackstate-agent-integrations.git'
 
 PIPTOOLS_VERSION = "2.0.2"
