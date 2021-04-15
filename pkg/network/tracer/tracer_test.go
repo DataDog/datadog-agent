@@ -72,8 +72,8 @@ func TestTracerExpvar(t *testing.T) {
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 
 	cfg := testConfig()
-	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
-	cfg.BPFDebug = true
+	// EnableHTTPMonitoring must be true for kretprobe/tcp_sendmsg to be included
+	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
