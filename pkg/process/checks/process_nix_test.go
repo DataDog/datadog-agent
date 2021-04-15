@@ -313,6 +313,7 @@ func TestContainerProcessChunking(t *testing.T) {
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
+			networks := make(map[int32][]*model.Connection)
 			procs, ctrs := generateCtrProcs(tc.ctrProcs)
 			procsByPid := procsToHash(procs)
 
@@ -325,7 +326,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			cfg.MaxCtrProcessesPerMessage = tc.maxCtrProcSize
 			cfg.ContainerHostType = tc.containerHostType
 
-			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun)
+			processes := fmtProcesses(cfg, procsByPid, procsByPid, ctrIDForPID(ctrs), syst2, syst1, lastRun, networks)
 			containers := fmtContainers(ctrs, lastCtrRates, lastRun)
 			messages, totalProcs, totalContainers := createProcCtrMessages(processes, containers, cfg, sysInfo, int32(i), "nid")
 
