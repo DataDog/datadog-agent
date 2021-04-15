@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -650,16 +651,11 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 }
 
 // GetKubernetesAutodiscoveryErrors fetches configuration errors from the kubelet ConfigProvider
-func GetKubernetesAutodiscoveryErrors() map[string]map[string]bool {
-	cp, err := providers.NewKubeletConfigProvider(config.ConfigurationProviders{})
-	if err != nil {
-		log.Errorf("Error creating kubelet config provider: %v", err)
-		return nil
+func (ac *AutoConfig) GetKubernetesAutodiscoveryErrors() map[string]map[string]bool {
+	for _, pd := range ac.providers {
+		if pd.provider.String() == names.Kubernetes {
+			return pd.provider.(*providers.KubeletConfigProvider).Errors
+		}
 	}
-	_, err = cp.Collect()
-	if err != nil {
-		log.Errorf("Unexpected error returned when collecting configurations from provider %v: %v", cp.String(), err)
-		return nil
-	}
-	return cp.(*providers.KubeletConfigProvider).Errors
+	return nil
 }

@@ -26,9 +26,6 @@ func ValidateAnnotationsMatching(annotations map[string]string, containerIdentif
 	var errors []error
 	adAnnotation := fmt.Sprintf(`%s.+\..+`, adPrefix)
 	checkIDAnnotation := fmt.Sprintf(checkIDAnnotationFormat, ".+\\")
-	if len(containerIdentifiers) == 0 {
-		containerIdentifiers = containerNames
-	}
 
 	for annotation := range annotations {
 		if matched, _ := regexp.MatchString(checkIDAnnotation, annotation); matched {

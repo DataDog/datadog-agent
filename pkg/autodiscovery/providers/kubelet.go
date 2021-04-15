@@ -71,6 +71,7 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 
 func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 	var configs []integration.Config
+	var ADErrors = make(map[string]map[string]bool)
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
 		var adExtractFormat string
@@ -105,8 +106,8 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 			containerNames[container.Name] = true
 			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, container.Name); customIDFound {
 				adIdentifier = customADIdentifier
-				containerIdentifiers[customADIdentifier] = true
 			}
+			containerIdentifiers[adIdentifier] = true
 
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, adIdentifier))
@@ -124,13 +125,14 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 		adErrors = append(adErrors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames, adPrefix)...)
 		for _, err := range adErrors {
 			log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
-			_, found := k.Errors[pod.Metadata.Name]
+			_, found := ADErrors[pod.Metadata.Name]
 			if !found {
-				k.Errors[pod.Metadata.Name] = map[string]bool{err.Error(): true}
+				ADErrors[pod.Metadata.Name] = map[string]bool{err.Error(): true}
 			} else {
-				k.Errors[pod.Metadata.Name][err.Error()] = true
+				ADErrors[pod.Metadata.Name][err.Error()] = true
 			}
 		}
+		k.Errors = ADErrors
 	}
 	return configs, nil
 }

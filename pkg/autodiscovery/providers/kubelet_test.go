@@ -262,6 +262,62 @@ func TestParseKubeletPodlist(t *testing.T) {
 				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier":    true,
 			},
 		},
+		{
+			desc: "No errors with multiple containers and only one using check.id",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "nginx-1752f8c774-wtjql",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/nginx.check.id":            "nginx-custom",
+						"ad.datadoghq.com/nginx-custom.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/nginx-custom.init_configs": "[{}]",
+						"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"Service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+						"ad.datadoghq.com/apache.check_names":        "[\"http_check\"]",
+						"ad.datadoghq.com/apache.init_configs":       "[{}]",
+						"ad.datadoghq.com/apache.instances":          "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+				},
+			},
+			expectedCfg: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"container_id://4ac8352d70bf1"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"Service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					Source:        "kubelet:container_id://4ac8352d70bf1",
+				},
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"container_id://3b8efe0c50e8"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					Source:        "kubelet:container_id://3b8efe0c50e8",
+				},
+			},
+			expectedErr: nil,
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
 			m, err := NewKubeletConfigProvider(config.ConfigurationProviders{Name: "kubernetes"})

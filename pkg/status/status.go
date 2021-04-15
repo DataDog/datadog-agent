@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -79,8 +79,8 @@ func GetStatus() (map[string]interface{}, error) {
 		httputils.NoProxyWarningMapMutex.Unlock()
 	}
 
-	if config.IsKubernetes() {
-		stats["autodiscoveryErrors"] = autodiscovery.GetKubernetesAutodiscoveryErrors()
+	if config.IsFeaturePresent(config.Kubernetes) {
+		stats["autodiscoveryErrors"] = common.AC.GetKubernetesAutodiscoveryErrors()
 	}
 
 	return stats, nil
