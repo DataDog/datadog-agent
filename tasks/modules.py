@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import sys
 
 from invoke import task
 
@@ -67,7 +68,11 @@ class GoModule:
 
 
 DEFAULT_MODULES = {
-    ".": GoModule(".", targets=["./pkg", "./cmd"]),
+    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil"]),
+    "pkg/util/log": GoModule("pkg/util/log"),
+    "pkg/util/winutil": GoModule(
+        "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
+    ),
 }
 
 MAIN_TEMPLATE = """package main

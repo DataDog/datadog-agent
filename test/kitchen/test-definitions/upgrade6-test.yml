@@ -4,6 +4,10 @@ suites:
 # candidate
 - name: dd-agent-upgrade-agent6
   run_list:
+    <% if ENV['FIPS'] == 'true' %>
+    - "recipe[dd-agent-enable-fips::enable]"
+    - "recipe[dd-agent-enable-fips::ensure]"
+    <% end %>
     - "recipe[dd-agent-disable-system-repos]"
     - "recipe[dd-agent-rhel-workaround]"
     - "recipe[dd-agent-sles-workaround]"

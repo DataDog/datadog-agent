@@ -37,6 +37,7 @@ TOOL_LIST = [
     'github.com/client9/misspell/cmd/misspell',
     'github.com/frapposelli/wwhrd',
     'github.com/fzipp/gocyclo',
+    'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
@@ -77,6 +78,7 @@ def test(
     cache=True,
     skip_linters=False,
     save_result_json=None,
+    rerun_fails=None,
     go_mod="mod",
 ):
     """
@@ -211,7 +213,6 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-
     TMP_JSON = 'tmp.json'
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -219,8 +220,8 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
+    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
@@ -234,6 +235,7 @@ def test(
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
+        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
     }
 
     failed_modules = []
@@ -246,7 +248,7 @@ def test(
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
-                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    packages=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
                     **args
                 ),
                 env=env,

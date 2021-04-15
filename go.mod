@@ -23,6 +23,11 @@ replace (
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
 
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
+)
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
@@ -38,7 +43,9 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.63.1-0.20210405194309-efa10e842d63+incompatible
+	github.com/DataDog/agent-payload v4.65.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210407211251-e1ec0c7b627d
@@ -174,7 +181,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	gotest.tools v2.2.0+incompatible
-	honnef.co/go/tools v0.0.1-2020.1.5 // indirect
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2

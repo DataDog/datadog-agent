@@ -27,7 +27,7 @@ For pre-requisite, refer to the Agent's Getting Started section in the [README](
 
 To start working on the Cluster Agent, you can build the `master` branch:
 
-1. Checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
+1. Clone the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. Install go tools: `invoke install-tools`.
 4. Install go dependencies: `invoke deps`.

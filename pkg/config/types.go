@@ -40,6 +40,7 @@ type Config interface {
 	GetTime(key string) time.Time
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
+	GetFloat64SliceE(key string) ([]float64, error)
 	GetStringMap(key string) map[string]interface{}
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string

@@ -59,8 +59,8 @@ func init() {
 		Repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer := Replacer{
-		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
-		Hints: []string{"community_string", "authKey", "privKey"},
+		Regex: matchYAMLKey(`(community_string|authKey|privKey|community|authentication_key|privacy_key)`),
+		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
 		Repl:  []byte(`$1 ********`),
 	}
 	certReplacer := Replacer{

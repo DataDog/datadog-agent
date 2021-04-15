@@ -97,7 +97,8 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 		return nil, nil
 	}
 
-	chunkedStats := fmtProcessStats(cfg, procs, r.lastProcs, ctrList, cpuTimes[0], r.lastCPUTime, r.lastRun)
+	connsByPID := Connections.getLastConnectionsByPID()
+	chunkedStats := fmtProcessStats(cfg, procs, r.lastProcs, ctrList, cpuTimes[0], r.lastCPUTime, r.lastRun, connsByPID)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := fmtContainerStats(ctrList, r.lastCtrRates, r.lastRun, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
@@ -131,6 +132,7 @@ func fmtProcessStats(
 	ctrList []*containers.Container,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
+	connsByPID map[int32][]*model.Connection,
 ) [][]*model.ProcessStat {
 	cidByPid := make(map[int32]string, len(ctrList))
 	for _, c := range ctrList {
@@ -138,6 +140,8 @@ func fmtProcessStats(
 			cidByPid[p] = c.ID
 		}
 	}
+
+	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
@@ -148,6 +152,7 @@ func fmtProcessStats(
 		if _, ok := lastProcs[pid]; !ok {
 			continue
 		}
+
 		chunk = append(chunk, &model.ProcessStat{
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
@@ -161,6 +166,7 @@ func fmtProcessStats(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            cidByPid[pid],
+			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
 		})
 		if len(chunk) == cfg.MaxPerMessage {
 			chunked = append(chunked, chunk)
