@@ -525,6 +525,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
+	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
 
 	// GCE
