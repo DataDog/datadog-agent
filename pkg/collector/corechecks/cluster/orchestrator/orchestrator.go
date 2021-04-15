@@ -410,7 +410,7 @@ func (o *OrchestratorCheck) processJobs(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sJob), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeService)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeJob)
 }
 
 func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
@@ -437,7 +437,7 @@ func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCronJob), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeService)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeCronJob)
 }
 
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
