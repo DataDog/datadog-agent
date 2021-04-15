@@ -25,4 +25,3 @@ cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 echo ====- installing requirements.txt from repo root
 pip install -r requirements.txt
 dir %GOPATH%\src\github.com\StackVista\stackstate-agent\venv\Lib\site-packages
-
