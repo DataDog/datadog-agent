@@ -7,12 +7,26 @@ package aws
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 )
 
-const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
+const (
+	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
+	regionEnvVar           = "AWS_REGION"
+	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
+	qualifierEnvVar        = "AWS_LAMBDA_FUNCTION_VERSION"
+)
 
 type persistedState struct {
 	CurrentARN   string
@@ -20,12 +34,18 @@ type persistedState struct {
 }
 
 var currentARN struct {
-	value string
+	value     string
+	qualifier string
 	sync.Mutex
 }
 
 var currentReqID struct {
 	value string
+	sync.Mutex
+}
+
+var currentColdStart struct {
+	value bool
 	sync.Mutex
 }
 
@@ -38,6 +58,22 @@ func GetARN() string {
 	return currentARN.value
 }
 
+// GetQualifier returns the qualifier for the current running function.
+// Thread-safe
+func GetQualifier() string {
+	currentARN.Lock()
+	defer currentARN.Unlock()
+	return currentARN.qualifier
+}
+
+// GetColdStart returns whether the current invocation is a cold start
+// Thread-safe
+func GetColdStart() bool {
+	currentColdStart.Lock()
+	defer currentColdStart.Unlock()
+	return currentColdStart.value
+}
+
 // SetARN stores the given ARN.
 // Thread-safe.
 func SetARN(arn string) {
@@ -46,13 +82,15 @@ func SetARN(arn string) {
 
 	arn = strings.ToLower(arn)
 
+	qualifier := ""
 	// remove the version if any
-	// format: arn:aws:lambda:<region>:<account-id>:function:<function-name>[:<version>]
 	if parts := strings.Split(arn, ":"); len(parts) > 7 {
 		arn = strings.Join(parts[:7], ":")
+		qualifier = strings.TrimPrefix(parts[7], "$")
 	}
 
 	currentARN.value = arn
+	currentARN.qualifier = qualifier
 }
 
 // FunctionNameFromARN returns the function name from the currently set ARN.
@@ -77,6 +115,14 @@ func SetRequestID(reqID string) {
 	defer currentReqID.Unlock()
 
 	currentReqID.value = reqID
+}
+
+// SetColdStart stores the cold start state of the function
+func SetColdStart(coldstart bool) {
+	currentColdStart.Lock()
+	defer currentColdStart.Unlock()
+
+	currentColdStart.value = coldstart
 }
 
 // PersistCurrentStateToFile persists the current state (ARN and Request ID) to a file.
@@ -114,4 +160,86 @@ func RestoreCurrentStateFromFile() error {
 	SetARN(restoredState.CurrentARN)
 	SetRequestID(restoredState.CurrentReqID)
 	return nil
+}
+
+// FetchFunctionARNFromEnv reconstructs the function arn from what's available
+// in the environment.
+func FetchFunctionARNFromEnv(accountID string) (string, error) {
+	partition := "aws"
+	region := os.Getenv(regionEnvVar)
+	functionName := os.Getenv(functionNameEnvVar)
+	qualifier := os.Getenv(qualifierEnvVar)
+
+	if len(accountID) == 0 || len(region) == 0 || len(functionName) == 0 {
+		return "", log.Errorf("Couldn't construct function arn with accountID:%s, region:%s, functionName:%s", accountID, region, functionName)
+	}
+
+	if strings.HasPrefix(region, "us-gov") {
+		partition = "aws-us-gov"
+	}
+	if strings.HasPrefix(region, "cn-") {
+		partition = "aws-cn"
+	}
+
+	baseARN := fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s", partition, region, accountID, functionName)
+	if len(qualifier) > 0 && qualifier != "$LATEST" {
+		return fmt.Sprintf("%s:%s", baseARN, qualifier), nil
+	}
+	return baseARN, nil
+}
+
+// GetARNTags returns tags associated with the current ARN
+func GetARNTags() []string {
+	functionARN := GetARN()
+	qualifier := GetQualifier()
+
+	parts := strings.Split(functionARN, ":")
+	if len(parts) < 6 {
+		return []string{
+			fmt.Sprintf("function_arn:%s", strings.ToLower(functionARN)),
+		}
+	}
+	region := parts[3]
+	accountID := parts[4]
+	functionName := strings.ToLower(parts[6])
+
+	tags := []string{
+		fmt.Sprintf("region:%s", region),
+		fmt.Sprintf("aws_account:%s", accountID),
+		fmt.Sprintf("account_id:%s", accountID),
+		fmt.Sprintf("functionname:%s", functionName),
+		fmt.Sprintf("function_arn:%s", strings.ToLower(functionARN)),
+	}
+	resource := functionName
+	if len(qualifier) > 0 {
+		_, err := strconv.ParseUint(qualifier, 10, 64)
+		if err == nil {
+			tags = append(tags, fmt.Sprintf("executedversion:%s", qualifier))
+		}
+		resource = fmt.Sprintf("%s:%s", resource, qualifier)
+	}
+	tags = append(tags, fmt.Sprintf("resource:%s", resource))
+
+	return tags
+}
+
+// FetchAccountID retrieves the AWS Lambda's account id by calling STS
+func FetchAccountID(svc stsiface.STSAPI) (string, error) {
+	// sts.GetCallerIdentity returns information about the current AWS credentials,
+	// (including account ID), and is one of the only AWS API methods that can't be
+	// denied via IAM.
+
+	input := &sts.GetCallerIdentityInput{}
+
+	result, err := svc.GetCallerIdentity(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			default:
+				return "", log.Errorf("Couldn't get account ID: %s", aerr.Error())
+			}
+		}
+		return "", log.Errorf("Couldn't get account ID: %s", err.Error())
+	}
+	return *result.Account, nil
 }

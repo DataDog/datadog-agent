@@ -68,7 +68,6 @@ runtime_security_config:
   flush_discarder_window: 0
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
-    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}

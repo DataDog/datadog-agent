@@ -529,6 +529,7 @@ def build_network_ebpf_files(ctx, build_dir):
     compiled_programs = [
         "tracer",
         "offset-guess",
+        "http",
     ]
 
     network_flags = get_ebpf_build_flags()

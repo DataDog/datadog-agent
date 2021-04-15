@@ -21,3 +21,7 @@ func Fqdn(hostname string) string {
 func GetHostname() (string, error) {
 	return "", nil
 }
+
+func GetHostnameData() (HostnameData, error) {
+	return HostnameData{}, nil
+}

@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf v0.0.0-20210407211251-e1ec0c7b627d
+	github.com/DataDog/ebpf v0.0.0-20210413153524-9a23964443ad
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -167,7 +167,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20210403161142-5e06dd20ab57
+	golang.org/x/sys v0.0.0-20210414055047-fe65e336abe0
 	golang.org/x/text v0.3.5
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.0

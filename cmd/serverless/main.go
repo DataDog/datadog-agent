@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -224,6 +225,15 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// read configuration from both the environment vars and the config file
 	// if one is provided
 	// --------------------------
+	svc := sts.New(session.New())
+	accountID, _ := aws.FetchAccountID(svc)
+	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
+	if err == nil {
+		aws.SetARN(functionARN)
+	}
+	aws.SetColdStart(true)
+
+	log.Debugf("Extension found function ARN: %s", functionARN)
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
@@ -232,9 +242,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 	// extra tags to append to all logs / metrics
 	extraTags := config.Datadog.GetStringSlice("tags")
+	extraTags = append(extraTags, aws.GetARNTags()...)
+
 	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
 		extraTags = append(extraTags, dsdTags...)
 	}
+	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
