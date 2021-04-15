@@ -249,19 +249,21 @@ deploy_google_container_registry-dogstatsd:
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-servercore
       --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-servercore-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
 
 deploy_docker_hub_manifests-a7:
   extends:
@@ -347,37 +349,41 @@ deploy_google_container_registry_manifests-a7:
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-servercore
       --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-servercore-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7
       --image ${REPOSITORY}-amd64:${VERSION},linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7-servercore
       --image ${REPOSITORY}-amd64:${VERSION}-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7-servercore-jmx
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909-core,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004-core,windows/amd64
-      --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
 
 deploy_latest_manifests_docker_hub-a7:
   extends:
