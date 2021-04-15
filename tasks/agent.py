@@ -363,9 +363,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command2 = "break here for a test"
-        ctx.run(command2, env=env)
-
         command = "windmc --target pe-x86-64 -r cmd/agent cmd/agent/agentmsg.mc "
         ctx.run(command, env=env)
 

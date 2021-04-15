@@ -1,10 +1,13 @@
 REM set WIN_CI_PROJECT_DIR=%CD%
 REM set WORKON_HOME=%WIN_CI_PROJECT_DIR%
+echo ====- set paths
 set VCINSTALLDIR=C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community
+echo ====- set global paths
+setx /M PATH "%PATH%;C:\tools\msys64\mingw64\bin"
+echo ====- cleaning existing venv
 IF EXIST c:\deps GOTO C_DEPS_EXIST
 call %WIN_CI_PROJECT_DIR%\.gitlab-scripts\pkg_configs.cmd
 :C_DEPS_EXIST
-
 if exist .omnibus rd /s/q .omnibus
 mkdir .omnibus\pkg
 if exist \omnibus-ruby rd /s/q \omnibus-ruby
