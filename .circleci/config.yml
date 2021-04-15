@@ -106,7 +106,11 @@ jobs:
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
+          # env command to show if sensitive information is present in env vars
+          command: |
+            env
+            pip install codecov -r requirements.txt
+            codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
