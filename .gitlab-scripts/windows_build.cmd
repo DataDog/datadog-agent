@@ -15,7 +15,8 @@ git config --global user.name "Gitlab runner"
 
 echo call %WORKON_HOME%\venv\Scripts\activate.bat
 call "%WORKON_HOME%\venv\Scripts\activate.bat"
-
+echo ====- pip install
+pip install -r requirements.txt
 echo ====- invoke agent omnibus build
 inv -e agent.omnibus-build --skip-sign --log-level debug --skip-deps
 echo ====- invoke complete
