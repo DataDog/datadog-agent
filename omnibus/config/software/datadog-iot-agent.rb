@@ -24,7 +24,7 @@ build do
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 
-  unless ENV["OMNIBUS_GOMODCACHE"].empty?
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
     env["GOMODCACHE"] = gomodcache.to_path
   end

@@ -45,7 +45,7 @@ build do
     py_runtimes_arg = "$PY_RUNTIMES"
   end
 
-  unless ENV["OMNIBUS_GOMODCACHE"].empty?
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
     env["GOMODCACHE"] = gomodcache.to_path
   end
