@@ -183,44 +183,84 @@ func TestTimeShifts(t *testing.T) {
 
 func TestCountAggregation(t *testing.T) {
 	assert := assert.New(t)
-	a := newTestAggregator()
-	testTime := time.Unix(time.Now().Unix(), 0)
-	k := bucketAggregationKey{synthetics: true}
-	c1 := payloadWithCounts(testTime, k, 11, 7, 100)
-	c2 := payloadWithCounts(testTime, k, 27, 2, 300)
-	c3 := payloadWithCounts(testTime, k, 5, 10, 3)
-	k55 := bucketAggregationKey{synthetics: false}
-	c55 := payloadWithCounts(testTime, k55, 0, 2, 4)
-
-	assert.Len(a.out, 0)
-	a.add(testTime, deepCopy(c1))
-	a.add(testTime, deepCopy(c2))
-	a.add(testTime, deepCopy(c3))
-	a.add(testTime, deepCopy(c55))
-	assert.Len(a.out, 4)
-	a.flushOnTime(testTime.Add(21 * time.Second))
-	assert.Len(a.out, 5)
-
-	assertDistribPayload(t, wrapPayload(c1), <-a.out)
-	assertDistribPayload(t, wrapPayload(c2), <-a.out)
-	assertDistribPayload(t, wrapPayload(c3), <-a.out)
-	assertDistribPayload(t, wrapPayload(c55), <-a.out)
-	aggCounts := <-a.out
-	assertAggCountsPayload(t, aggCounts)
-	assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []pb.ClientGroupedStats{
+	type tt struct {
+		k    bucketAggregationKey
+		res  pb.ClientGroupedStats
+		name string
+	}
+	tts := []tt{
 		{
-			Synthetics: true,
-			Hits:       43,
-			Errors:     19,
-			Duration:   403,
+			bucketAggregationKey{service: "s"},
+			pb.ClientGroupedStats{Service: "s"},
+			"service",
 		},
 		{
-			Hits:     0,
-			Errors:   2,
-			Duration: 4,
+			bucketAggregationKey{name: "n"},
+			pb.ClientGroupedStats{Name: "n"},
+			"name",
 		},
-	})
-	assert.Len(a.buckets, 0)
+		{
+			bucketAggregationKey{resource: "r"},
+			pb.ClientGroupedStats{Resource: "r"},
+			"resource",
+		},
+		{
+			bucketAggregationKey{typ: "t"},
+			pb.ClientGroupedStats{Type: "t"},
+			"resource",
+		},
+		{
+			bucketAggregationKey{synthetics: true},
+			pb.ClientGroupedStats{Synthetics: true},
+			"synthetics",
+		},
+		{
+			bucketAggregationKey{statusCode: 10},
+			pb.ClientGroupedStats{HTTPStatusCode: 10},
+			"status",
+		},
+	}
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestAggregator()
+			testTime := time.Unix(time.Now().Unix(), 0)
+
+			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			kDefault := bucketAggregationKey{}
+			cDefault := payloadWithCounts(testTime, kDefault, 0, 2, 4)
+
+			assert.Len(a.out, 0)
+			a.add(testTime, deepCopy(c1))
+			a.add(testTime, deepCopy(c2))
+			a.add(testTime, deepCopy(c3))
+			a.add(testTime, deepCopy(cDefault))
+			assert.Len(a.out, 4)
+			a.flushOnTime(testTime.Add(21 * time.Second))
+			assert.Len(a.out, 5)
+
+			assertDistribPayload(t, wrapPayload(c1), <-a.out)
+			assertDistribPayload(t, wrapPayload(c2), <-a.out)
+			assertDistribPayload(t, wrapPayload(c3), <-a.out)
+			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+			aggCounts := <-a.out
+			assertAggCountsPayload(t, aggCounts)
+
+			tc.res.Hits = 43
+			tc.res.Errors = 19
+			tc.res.Duration = 403
+			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []pb.ClientGroupedStats{
+				tc.res,
+				{
+					Hits:     0,
+					Errors:   2,
+					Duration: 4,
+				},
+			})
+			assert.Len(a.buckets, 0)
+		})
+	}
 }
 
 func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
