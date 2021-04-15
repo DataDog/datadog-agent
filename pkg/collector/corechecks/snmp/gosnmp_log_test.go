@@ -72,7 +72,7 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 		},
 		{
 			name:         "scrub ContextEngineID no quote",
-			logLine:      []byte(`TEST: SecurityParameters:0xc0009f4820 ContextEngineID:�O�11fba59a65bc,� ContextName:cisco-nexus`),
+			logLine:      []byte("TEST: SecurityParameters:0xc0009f4820 ContextEngineID:\x80\x00O\xb8\x0511fba59a65bc\x00\x01,\xf8 ContextName:cisco-nexus"),
 			expectedLogs: "[TRACE] Write: TEST: SecurityParameters:0xc0009f4820 ContextEngineID:******** ContextName:cisco-nexus",
 		},
 		{
@@ -100,7 +100,7 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			w.Flush()
 			logs := b.String()
 
-			assert.Equal(t, tt.expectedLogs, logs)
+			assert.Contains(t, logs, tt.expectedLogs)
 		})
 	}
 }
