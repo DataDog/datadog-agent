@@ -137,6 +137,8 @@ docker_build_agent7_windows1809_core:
     VARIANT: 1809
     TAG_SUFFIX: -7
     WITH_JMX: "false"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
 
 docker_build_agent7_windows1809_core_jmx:
   extends:
