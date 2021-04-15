@@ -291,7 +291,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-func (a *Agent) convertStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
+func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
@@ -317,7 +317,7 @@ func (a *Agent) convertStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 
 // ProcessStats processes incoming client stats in from the given tracer.
 func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
-	a.ClientStatsAggregator.In <- a.convertStats(in, lang, tracerVersion)
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events

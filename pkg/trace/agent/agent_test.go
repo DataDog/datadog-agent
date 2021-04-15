@@ -1090,7 +1090,7 @@ func TestConvertStats(t *testing.T) {
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}
 	for _, testCase := range testCases {
-		out := a.convertStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
 		assert.Equal(t, testCase.out, out)
 	}
 }
