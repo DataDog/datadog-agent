@@ -63,7 +63,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 	assert.NoError(err)
 
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret_my_api_key", ep.APIKey)
+	assert.Equal("secret-my_api_key", ep.APIKey)
 }
 
 // TestAgentConfigYamlEnc2 tests the secrets feature on the file TestDDAgentConfigYamlEnc2
@@ -84,8 +84,8 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 	assert.NoError(err)
 
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret_encrypted_key", ep.APIKey)
-	assert.Equal("secret_burrito.com", ep.Endpoint.String())
+	assert.Equal("secret-encrypted_key", ep.APIKey)
+	assert.Equal("secret-burrito.com", ep.Endpoint.String())
 }
 
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
@@ -99,7 +99,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
 	os.Setenv("DD_API_KEY", "ENC[my_api_key]")
-	os.Setenv("DD_HOSTNAME", "ENC[my_host]")
+	os.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
 	defer os.Unsetenv("DD_API_KEY")
 	defer os.Unsetenv("DD_HOSTNAME")
 
@@ -109,8 +109,8 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	)
 	assert.NoError(err)
 
-	assert.Equal("secret_my_api_key", config.Datadog.Get("api_key"))
+	assert.Equal("secret-my_api_key", config.Datadog.Get("api_key"))
 	ep := agentConfig.APIEndpoints[0]
-	assert.Equal("secret_my_api_key", ep.APIKey)
-	assert.Equal("secret_my_host", agentConfig.HostName)
+	assert.Equal("secret-my_api_key", ep.APIKey)
+	assert.Equal("secret-my-host", agentConfig.HostName)
 }

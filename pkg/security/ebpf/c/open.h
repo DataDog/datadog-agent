@@ -36,7 +36,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
         .policy = policy,
         .open = {
             .flags = flags,
-            .mode = mode,
+            .mode = mode & S_IALLUGO,
         }
     };
 

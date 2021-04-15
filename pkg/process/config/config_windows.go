@@ -3,8 +3,6 @@
 package config
 
 import (
-	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -20,8 +18,6 @@ const (
 var (
 	defaultLogFilePath = "c:\\programdata\\datadog\\logs\\process-agent.log"
 
-	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
-
 	// Agent 6
 	defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
@@ -29,7 +25,6 @@ var (
 func init() {
 	if pd, err := winutil.GetProgramDataDir(); err == nil {
 		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
-		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	}
 	if _here, err := executable.Folder(); err == nil {
 		agentFilePath := filepath.Join(_here, "..", "..", "embedded", "agent.exe")
@@ -37,12 +32,4 @@ func init() {
 			defaultDDAgentBin = agentFilePath
 		}
 	}
-}
-
-// ValidateSysprobeSocket validates that the sysprobe socket config option is of the correct format.
-func ValidateSysprobeSocket(sockAddress string) error {
-	if _, _, err := net.SplitHostPort(sockAddress); err != nil {
-		return fmt.Errorf("socket address must be of the form 'host:port'")
-	}
-	return nil
 }

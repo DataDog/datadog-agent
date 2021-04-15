@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -307,9 +308,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// Remove all dentry entries belonging to the mountID
-		p.resolvers.DentryResolver.DelCacheEntries(event.Umount.MountID)
+		p.resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
 
-		if p.resolvers.MountResolver.IsOverlayFS(event.Umount.MountID) {
+		if p.resolvers.MountResolver.IsOverlayFS(event.MountReleased.MountID) {
 			p.inodeDiscarders.setRevision(event.MountReleased.MountID, event.MountReleased.DiscarderRevision)
 		}
 
@@ -652,13 +653,14 @@ func (p *Probe) FlushDiscarders() error {
 
 	var discardedInodes []inodeDiscarder
 	var mapValue [256]byte
+
 	var inode inodeDiscarder
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &mapValue); {
+	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
 		discardedInodes = append(discardedInodes, inode)
 	}
 
 	var discardedPids []uint32
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, &mapValue); {
+	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, unsafe.Pointer(&mapValue[0])); {
 		discardedPids = append(discardedPids, pid)
 	}
 
@@ -675,7 +677,7 @@ func (p *Probe) FlushDiscarders() error {
 		log.Debugf("Flushing discarders")
 
 		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.Delete(&inode); err != nil {
+			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
 				log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
@@ -686,7 +688,7 @@ func (p *Probe) FlushDiscarders() error {
 		}
 
 		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.Delete(pid); err != nil {
+			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
 				log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
 			}
 

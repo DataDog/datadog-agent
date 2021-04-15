@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -174,6 +175,11 @@ func (ev *Event) ResolveGroup(e *model.FileFields) string {
 	return e.Group
 }
 
+// ResolveRights resolves the rights of a file
+func (ev *Event) ResolveRights(e *model.FileFields) int {
+	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
+}
+
 // ResolveChownUID resolves the user id of a chown event to a username
 func (ev *Event) ResolveChownUID(e *model.ChownEvent) string {
 	if len(e.User) == 0 {
@@ -278,6 +284,71 @@ func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
 		ev.Exec.Args = strings.Join(ev.ProcessContext.ArgsArray, " ")
 	}
 	return ev.Exec.Args
+}
+
+// ResolveExecArgv resolves the args of the event as an array
+func (ev *Event) ResolveExecArgv(e *model.ExecEvent) []string {
+	if len(ev.Exec.Argv) == 0 && len(ev.ProcessContext.ArgsArray) > 0 {
+		ev.Exec.Argv = ev.ProcessContext.ArgsArray
+	}
+	return ev.Exec.Argv
+}
+
+// ResolveExecArgsFlags resolves the arguments flags of the event
+func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
+	for _, arg := range ev.ProcessContext.ArgsArray {
+		if len(arg) > 1 && arg[0] == '-' {
+			isFlag := true
+			name := arg[1:]
+			if len(name) >= 1 && name[0] == '-' {
+				name = name[1:]
+				isFlag = false
+			}
+
+			isOption := false
+			for _, r := range name {
+				isFlag = isFlag && model.IsAlphaNumeric(r)
+				isOption = isOption || r == '='
+			}
+
+			if len(name) > 0 {
+				if isFlag {
+					for _, r := range name {
+						flags = append(flags, string(r))
+					}
+				}
+				if !isOption && len(name) > 1 {
+					flags = append(flags, name)
+				}
+			}
+		}
+	}
+	return
+}
+
+// ResolveExecArgsOptions resolves the arguments options of the event
+func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
+	args := ev.ProcessContext.ArgsArray
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if len(arg) > 1 && arg[0] == '-' {
+			name := arg[1:]
+			if len(name) >= 1 && name[0] == '-' {
+				name = name[1:]
+			}
+			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
+				if index := strings.IndexRune(name, '='); index == -1 {
+					if i < len(args)-1 && args[i+1][0] != '-' {
+						options = append(options, name+"="+args[i+1])
+						i++
+					}
+				} else {
+					options = append(options, name)
+				}
+			}
+		}
+	}
+	return
 }
 
 // ResolveExecEnvs resolves the envs of the event

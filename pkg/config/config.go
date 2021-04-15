@@ -51,6 +51,9 @@ const (
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
 
+	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
+	DefaultBatchMaxConcurrentSend = 0
+
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
@@ -522,6 +525,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
+	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
 
 	// GCE
@@ -705,6 +709,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 30) // 30s corresponds to the default value set by the Kubernetes API
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
 	config.BindEnvAndSetDefault("admission_controller.certificate.expiration_threshold", 30*24)        // how long before its expiration a certificate should be refreshed (in hours, default 1 month)
@@ -721,6 +726,14 @@ func InitConfig(config Config) {
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.SetKnown("telemetry.checks")
+	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
+	//
+	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for the DogStatsD server to push data to the aggregator
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
@@ -772,52 +785,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
-	// System probe
-	config.SetKnown("system_probe_config.enabled")
-	config.SetKnown("system_probe_config.log_file")
-	config.SetKnown("system_probe_config.debug_port")
-	config.SetKnown("system_probe_config.bpf_debug")
-	config.SetKnown("system_probe_config.bpf_dir")
-	config.SetKnown("system_probe_config.disable_tcp")
-	config.SetKnown("system_probe_config.disable_udp")
-	config.SetKnown("system_probe_config.disable_ipv6")
-	config.SetKnown("system_probe_config.disable_dns_inspection")
-	config.SetKnown("system_probe_config.collect_local_dns")
-	config.SetKnown("system_probe_config.use_local_system_probe")
-	config.SetKnown("system_probe_config.enable_conntrack")
-	config.SetKnown("system_probe_config.sysprobe_socket")
-	config.SetKnown("system_probe_config.conntrack_rate_limit")
-	config.SetKnown("system_probe_config.enable_conntrack_all_namespaces")
-	config.SetKnown("system_probe_config.max_conns_per_message")
-	config.SetKnown("system_probe_config.max_tracked_connections")
-	config.SetKnown("system_probe_config.max_closed_connections_buffered")
-	config.SetKnown("system_probe_config.max_connection_state_buffered")
-	config.SetKnown("system_probe_config.excluded_linux_versions")
-	config.SetKnown("system_probe_config.source_excludes")
-	config.SetKnown("system_probe_config.dest_excludes")
-	config.SetKnown("system_probe_config.closed_channel_size")
-	config.SetKnown("system_probe_config.dns_timeout_in_s")
-	config.SetKnown("system_probe_config.collect_dns_stats")
-	config.SetKnown("system_probe_config.max_dns_stats")
-	config.SetKnown("system_probe_config.collect_dns_domains")
-	config.SetKnown("system_probe_config.offset_guess_threshold")
-	config.SetKnown("system_probe_config.enable_tcp_queue_length")
-	config.SetKnown("system_probe_config.enable_oom_kill")
-	config.SetKnown("system_probe_config.enable_tracepoints")
-	config.SetKnown("system_probe_config.enable_runtime_compiler")
-	config.SetKnown("system_probe_config.kernel_header_dirs")
-	config.SetKnown("system_probe_config.runtime_compiler_output_dir")
-	config.SetKnown("system_probe_config.profiling.enabled")
-	config.SetKnown("system_probe_config.profiling.site")
-	config.SetKnown("system_probe_config.profiling.profile_dd_url")
-	config.SetKnown("system_probe_config.profiling.api_key")
-	config.SetKnown("system_probe_config.profiling.env")
-	config.SetKnown("system_probe_config.windows.enable_monotonic_count")
-	config.SetKnown("system_probe_config.windows.driver_buffer_size")
-	config.SetKnown("network_config.enabled")
-	config.SetKnown("network_config.enable_http_monitoring")
-	config.SetKnown("network_config.ignore_conntrack_init_failure")
-	config.SetKnown("network_config.enable_gateway_lookup")
+	setupSystemProbe(config)
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

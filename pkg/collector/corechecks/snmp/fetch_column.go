@@ -50,10 +50,10 @@ func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultVa
 	returnValues := make(columnResultValuesType, len(oids))
 	curOids := oids
 	for {
-		log.Debugf("fetch column: request oids: %v", curOids)
 		if len(curOids) == 0 {
 			break
 		}
+		log.Debugf("fetch column: request oids: %v", curOids)
 		var columnOids, requestOids []string
 		for k, v := range curOids {
 			columnOids = append(columnOids, k)
