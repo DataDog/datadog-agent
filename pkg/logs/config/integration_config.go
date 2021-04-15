@@ -8,8 +8,6 @@ package config
 import (
 	"fmt"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 // Logs source types
@@ -57,9 +55,7 @@ type LogsConfig struct {
 
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
-	// TODO(remy): strongly typed to an AWS Lambda LogMessage, we should probably use
-	// a more generic type here.
-	Channel chan aws.LogMessage
+	Channel chan *ChannelMessage
 
 	Service         string
 	Source          string
