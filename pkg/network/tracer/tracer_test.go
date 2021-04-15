@@ -2307,7 +2307,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	}
 	defer func() {
 		testutil.RunCommands(t, []string{
-			"iptables -D POSTROUTING 1 -t nat",
+			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",
 			"ip link del br0",
@@ -2327,6 +2327,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 		return network.Subnet{Alias: "subnet"}, nil
 	}
+	tr.gwLookup.purge()
 
 	test1Ns, err := netns.GetFromName("test1")
 	require.NoError(t, err)
@@ -2368,12 +2369,12 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		util.WithNS("/proc", test2Ns, func() error {
+		err = util.WithNS("/proc", test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
-			require.NoError(t, err)
 			return err
 		})
+		require.NoError(t, err)
 		defer c.Close()
 
 		// write some data
