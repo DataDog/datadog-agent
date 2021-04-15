@@ -31,6 +31,16 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			expectedLogs: "[TRACE] Write: SECURITY PARAMETERS: ********",
 		},
 		{
+			name:         "scrub Parsed privacyParameters",
+			logLine:      []byte("Parsed privacyParameters \x01\x02abc"),
+			expectedLogs: "[TRACE] Write: Parsed privacyParameters ********",
+		},
+		{
+			name:         "scrub Parsed contextEngineID",
+			logLine:      []byte("Parsed contextEngineID \x01\x02abc"),
+			expectedLogs: "[TRACE] Write: Parsed contextEngineID ********",
+		},
+		{
 			name:         "scrub AuthenticationPassphrase",
 			logLine:      []byte(`TEST: AuthenticationPassphrase:doggiepass`),
 			expectedLogs: "[TRACE] Write: TEST: AuthenticationPassphrase: ********",
@@ -51,11 +61,6 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			expectedLogs: "[TRACE] Write: TEST: PrivacyKey: ********",
 		},
 		{
-			name:         "scrub authenticationParameters",
-			logLine:      []byte(`TEST: authenticationParameters abc`),
-			expectedLogs: "[TRACE] Write: TEST: authenticationParameters ********",
-		},
-		{
 			name:         "scrub community no quote",
 			logLine:      []byte(`TEST: ContextName:cisco-nexus Community:abcd PDUType:162`),
 			expectedLogs: "[TRACE] Write: TEST: ContextName:cisco-nexus Community:******** PDUType:162",
@@ -63,7 +68,17 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 		{
 			name:         "scrub community quote",
 			logLine:      []byte(`TEST: ContextName:"cisco-nexus", Community:"abcd", PDUType:0xa5`),
-			expectedLogs: "[TRACE] Write: TEST: ContextName:\"cisco-nexus\", Community:\"********\", PDUType:0xa5",
+			expectedLogs: "[TRACE] Write: TEST: ContextName:\"cisco-nexus\", Community:******** PDUType:0xa5",
+		},
+		{
+			name:         "scrub ContextEngineID no quote",
+			logLine:      []byte(`TEST: SecurityParameters:0xc0009f4820 ContextEngineID:�O�11fba59a65bc,� ContextName:cisco-nexus`),
+			expectedLogs: "[TRACE] Write: TEST: SecurityParameters:0xc0009f4820 ContextEngineID:******** ContextName:cisco-nexus",
+		},
+		{
+			name:         "scrub ContextEngineID quote",
+			logLine:      []byte(`TEST: SecurityParameters:(*gosnmp.UsmSecurityParameters)(0xc0004b6c30), ContextEngineID:"\x80\x00O\xb8\x0511fba59a65bc\x00\x01,\xf8", ContextName:"cisco-nexus"`),
+			expectedLogs: "[TRACE] Write: TEST: SecurityParameters:(*gosnmp.UsmSecurityParameters)(0xc0004b6c30), ContextEngineID:******** ContextName:\"cisco-nexus\"",
 		},
 	}
 	for _, tt := range tests {

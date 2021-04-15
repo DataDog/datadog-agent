@@ -17,6 +17,10 @@ var replacers = []Replacer{
 		Repl:  []byte(`$1 ********`),
 	},
 	{
+		Regex: regexp.MustCompile(`(\s*Parsed (privacyParameters|contextEngineID))\s*.+`),
+		Repl:  []byte(`$1 ********`),
+	},
+	{
 		Regex: regexp.MustCompile(`(\s*(AuthenticationPassphrase|PrivacyPassphrase|SecretKey|PrivacyKey|authenticationParameters)\s*:).+`),
 		Repl:  []byte(`$1 ********`),
 	},
@@ -25,7 +29,7 @@ var replacers = []Replacer{
 		Repl:  []byte(`$1 ********`),
 	},
 	{
-		Regex: regexp.MustCompile(`(\s*(?:Community):"?).+?("?[,} ])`),
+		Regex: regexp.MustCompile(`(\s*(?:Community|ContextEngineID):).+?(\s[\w]+:)`),
 		Repl:  []byte(`${1}********${2}`),
 	},
 }
