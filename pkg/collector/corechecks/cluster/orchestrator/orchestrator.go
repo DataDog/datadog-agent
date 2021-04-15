@@ -417,20 +417,20 @@ func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
 	if o.cronJobsLister == nil {
 		return
 	}
-	CronJobList, err := o.cronJobsLister.List(labels.Everything())
+	cronJobList, err := o.cronJobsLister.List(labels.Everything())
 	if err != nil {
-		_ = o.Warnf("Unable to list CronJobs: %s", err)
+		_ = o.Warnf("Unable to list cron jobs: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := processCronJobList(CronJobList, groupID, o.orchestratorConfig, o.clusterID)
+	messages, err := processCronJobList(cronJobList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
-		_ = o.Warnf("Unable to process CronJob list: %s", err)
+		_ = o.Warnf("Unable to process cron job list: %s", err)
 	}
 
 	stats := orchestrator.CheckStats{
-		CacheHits: len(CronJobList) - len(messages),
+		CacheHits: len(cronJobList) - len(messages),
 		CacheMiss: len(messages),
 		NodeType:  orchestrator.K8sCronJob,
 	}
