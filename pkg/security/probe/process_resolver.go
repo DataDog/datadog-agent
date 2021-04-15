@@ -39,6 +39,8 @@ const (
 	doForkStructInput
 )
 
+const procResolveMaxDepth = 16
+
 // argsEnvsCacheEntry holds temporary args/envs info
 type argsEnvsCacheEntry struct {
 	Values      []string
@@ -341,7 +343,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry = p.resolveWithProcfs(pid); entry != nil {
+	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
 		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
@@ -425,14 +427,27 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	return p.insertExecEntry(pid, entry)
 }
 
-func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry {
-	// check if the process is still alive
+func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
+	if maxDepth < 1 {
+		return nil
+	}
+
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		return nil
 	}
 
-	entry, _ := p.syncCache(proc)
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return nil
+	}
+
+	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
+	entry, inserted := p.syncCache(proc)
+	if inserted && entry != nil {
+		entry.Ancestor = parent
+	}
+
 	return entry
 }
 
