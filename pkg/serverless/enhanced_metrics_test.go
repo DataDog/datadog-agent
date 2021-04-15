@@ -88,21 +88,21 @@ func TestGenerateEnhancedMetricsFromReportLog(t *testing.T) {
 		Timestamp:  float64(reportLog.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
-		Value:      800.0,
+		Value:      0.80,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLog.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
-		Value:      1000.0,
+		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLog.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.init_duration",
-		Value:      100.0,
+		Value:      0.1,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -143,8 +143,14 @@ func TestGetTagsForEnhancedMetrics(t *testing.T) {
 	generatedTags := getTagsForEnhancedMetrics()
 
 	assert.Equal(t, generatedTags, []string{
+		"region:us-east-1",
+		"aws_account:123456789012",
+		"account_id:123456789012",
 		"functionname:my-function",
 		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		"executedversion:7",
+		"resource:my-function:7",
+		"cold_start:false",
 	})
 }
 

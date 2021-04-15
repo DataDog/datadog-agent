@@ -2,7 +2,7 @@
 #  Preparation stage: extract and cleanup  #
 ############################################
 
-FROM debian:bullseye-slim AS extract
+FROM ubuntu:20.10 AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
@@ -76,7 +76,7 @@ COPY install_info etc/datadog-agent/
 #  Actual docker image construction  #
 ######################################
 
-FROM debian:bullseye-slim AS release
+FROM ubuntu:20.10 AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
@@ -110,7 +110,7 @@ RUN apt update \
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
  && apt update \
- && mkdir /usr/share/man/man1 \
+ && mkdir -p /usr/share/man/man1 \
  && apt install --no-install-recommends -y openjdk-11-jre-headless \
  && apt clean; fi
 
@@ -132,8 +132,10 @@ COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 #   we had to change the extraction logic, see #1591
 # - The debian image is now built with merged-usr explicitly disabled,
 #   see https://github.com/debuerreotype/debuerreotype/pull/50
-RUN tar xzf s6.tgz \
- && rm s6.tgz \
+# - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
+RUN tar xzf s6.tgz -C / --exclude="./bin" \
+&& tar xzf s6.tgz -C /usr ./bin \
+&& rm s6.tgz \
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
@@ -148,7 +150,7 @@ RUN tar xzf s6.tgz \
 
 # Update links to python binaries
 
-RUN if [ ! -z "$PYTHON_VERSION" ]; then \
+RUN if [ -n "$PYTHON_VERSION" ]; then \
  ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/python \
  && ln -sfn /opt/datadog-agent/embedded/bin/python${PYTHON_VERSION}-config /opt/datadog-agent/embedded/bin/python-config \
  && ln -sfn /opt/datadog-agent/embedded/bin/pip${PYTHON_VERSION} /opt/datadog-agent/embedded/bin/pip ; \
@@ -160,7 +162,7 @@ RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
-RUN find /etc -type d,f -perm -o+w -print0 | xargs -0 chmod g-w,o-w
+RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 # Add Debian snapshot date for debugging
 RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date

@@ -106,16 +106,13 @@ var (
 	// MetricRuleSetLoaded is the name of the metric used to report that a new ruleset was loaded
 	// Tags: -
 	MetricRuleSetLoaded = newRuntimeMetric(".ruleset_loaded")
-	// MetricForkBomb is the name of the metric used to report the number of processes that crossed the fork bomb
-	// threshold. Tags: -
-	MetricForkBomb = newRuntimeMetric(".fork_bomb")
 
 	// Security Agent metrics
 
-	// MetricsSecurityAgentRuntimeRunning is reported when the security agent `Runtime` feature is enabled
-	MetricsSecurityAgentRuntimeRunning = newAgentMetric(".runtime.running")
-	// MetricsSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
-	MetricsSecurityAgentFIMRunning = newAgentMetric(".fim.running")
+	// MetricSecurityAgentRuntimeRunning is reported when the security agent `Runtime` feature is enabled
+	MetricSecurityAgentRuntimeRunning = newAgentMetric(".runtime.running")
+	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
+	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
 )
 
 func newRuntimeMetric(name string) string {

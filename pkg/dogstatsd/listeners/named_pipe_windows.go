@@ -139,8 +139,11 @@ func (l *NamedPipeListener) Listen() {
 func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 	log.Debugf("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	startWriteIndex := 0
+	var t1, t2 time.Time
 	for {
 		bytesRead, err := conn.Read(buffer[startWriteIndex:])
+
+		t1 = time.Now()
 
 		if err != nil {
 			if err == io.EOF {
@@ -177,6 +180,9 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 				copy(buffer, buffer[messageSize:endIndex])
 			}
 		}
+
+		t2 = time.Now()
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }
