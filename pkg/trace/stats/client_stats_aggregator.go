@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	bucketDuration    = uint64(1e10) // 10s
-	oldestBucketStart = 20 * time.Second
+	bucketDuration       = time.Second
+	clientBucketDuration = 10 * time.Second
+	oldestBucketStart    = 20 * time.Second
 )
 
 const (
@@ -32,10 +33,10 @@ const (
 type ClientStatsAggregator struct {
 	In      chan pb.ClientStatsPayload
 	out     chan pb.StatsPayload
-	buckets map[uint64]*bucket // buckets used to aggregate client stats
+	buckets map[time.Time]*bucket // buckets used to aggregate client stats
 
 	flushTicker   *time.Ticker
-	oldestTs      uint64
+	oldestTs      time.Time
 	agentEnv      string
 	agentHostname string
 
@@ -48,11 +49,11 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 	return &ClientStatsAggregator{
 		flushTicker:   time.NewTicker(time.Second),
 		In:            make(chan pb.ClientStatsPayload, 10),
-		buckets:       make(map[uint64]*bucket, 20),
+		buckets:       make(map[time.Time]*bucket, 20),
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
-		oldestTs:      uint64(time.Now().Add(-oldestBucketStart).Unix()),
+		oldestTs:      time.Now().Truncate(bucketDuration).Add(-oldestBucketStart),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
 	}
@@ -83,15 +84,15 @@ func (a *ClientStatsAggregator) Stop() {
 	<-a.done
 }
 
-// flushOnTime flushes all buckets up to t, except the last one.
-func (a *ClientStatsAggregator) flushOnTime(t time.Time) {
-	flushTs := uint64(t.Unix()) - uint64(oldestBucketStart.Seconds())
-	for ts := a.oldestTs; ts < flushTs; ts++ {
-		if b, ok := a.buckets[ts]; ok {
+// flushOnTime flushes all buckets up to flushTs, except the last one.
+func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
+	flushTs := now.Add(-oldestBucketStart).Truncate(bucketDuration)
+	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
+		if b, ok := a.buckets[t]; ok {
 			for _, p := range b.flush() {
 				a.flush(p)
 			}
-			delete(a.buckets, ts)
+			delete(a.buckets, t)
 		}
 	}
 	a.oldestTs = flushTs
@@ -107,30 +108,30 @@ func (a *ClientStatsAggregator) flushAll() {
 
 // getAggregationBucketTime returns unix time at which we aggregate the bucket.
 // We timeshift payloads older than a.oldestTs to a.oldestTs.
-// Payloads in the future are timeshifted to time.Now().Unix()
-func (a *ClientStatsAggregator) getAggregationBucketTime(t time.Time, bucketStart uint64) (uint64, bool) {
-	ts := bucketStart / 1e9 // conversion from nanosecond to second
-	if ts < a.oldestTs {
+// Payloads in the future are timeshifted to the latest bucket.
+func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (time.Time, bool) {
+	if bs.Before(a.oldestTs) {
 		return a.oldestTs, true
 	}
-	now := uint64(t.Unix())
-	if ts > now {
+	if bs.After(now) {
 		return now, true
 	}
-	return ts, false
+	return bs, false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 	for _, clientBucket := range p.Stats {
-		ts, shifted := a.getAggregationBucketTime(now, clientBucket.Start)
+		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
+		ts, shifted := a.getAggregationBucketTime(now, clientBucketStart)
 		if shifted {
-			clientBucket.AgentTimeShift = int64(ts*1e9) - int64(clientBucket.Start)
-			clientBucket.Start = ts * 1e9
+			clientBucket.AgentTimeShift = ts.Sub(clientBucketStart).Nanoseconds()
+			clientBucket.Start = uint64(ts.UnixNano())
 		}
-		b, ok := a.buckets[ts]
+		bucketIndex := ts.Truncate(bucketDuration)
+		b, ok := a.buckets[bucketIndex]
 		if !ok {
 			b = &bucket{ts: ts}
-			a.buckets[ts] = b
+			a.buckets[bucketIndex] = b
 		}
 		p.Stats = []pb.ClientStatsBucket{clientBucket}
 		for _, p := range b.add(p) {
@@ -153,8 +154,8 @@ type bucket struct {
 	// first is the first payload matching the bucket. If a second payload matches the bucket
 	// this field will be empty
 	first pb.ClientStatsPayload
-	// ts is the unix timestamp attached to the payload
-	ts uint64
+	// ts is the timestamp attached to the payload
+	ts time.Time
 	// n counts the number of payloads matching the bucket
 	n int
 	// agg contains the aggregated Hits/Errors/Duration counts
@@ -232,8 +233,8 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 		}
 		clientBuckets := []pb.ClientStatsBucket{
 			{
-				Start:    b.ts * 1e9, // to nanosecond
-				Duration: bucketDuration,
+				Start:    uint64(b.ts.UnixNano()),
+				Duration: uint64(clientBucketDuration.Nanoseconds()),
 				Stats:    stats,
 			}}
 		res = append(res, pb.ClientStatsPayload{
