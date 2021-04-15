@@ -24,11 +24,15 @@ func newTestAggregator() *ClientStatsAggregator {
 }
 
 func wrapPayload(p pb.ClientStatsPayload) pb.StatsPayload {
+	return wrapPayloads([]pb.ClientStatsPayload{p})
+}
+
+func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
 	return pb.StatsPayload{
 		AgentEnv:       "agentEnv",
 		AgentHostname:  "agentHostname",
 		ClientComputed: true,
-		Stats:          []pb.ClientStatsPayload{p},
+		Stats:          p,
 	}
 }
 
@@ -130,13 +134,12 @@ func TestMergeMany(t *testing.T) {
 		a.add(testTime, deepCopy(merge2))
 		a.add(testTime, deepCopy(other))
 		a.add(testTime, deepCopy(merge3))
-		assert.Len(a.out, 3)
+		assert.Len(a.out, 2)
 		a.flushOnTime(testTime.Add(19 * time.Second))
-		assert.Len(a.out, 4)
+		assert.Len(a.out, 3)
 		a.flushOnTime(testTime.Add(20 * time.Second))
-		assert.Len(a.out, 5)
-		assertDistribPayload(t, wrapPayload(merge1), <-a.out)
-		assertDistribPayload(t, wrapPayload(merge2), <-a.out)
+		assert.Len(a.out, 4)
+		assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{merge1, merge2}), <-a.out)
 		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
 		assert.Equal(wrapPayload(other), <-a.out)
 		assertAggCountsPayload(t, <-a.out)
@@ -236,12 +239,11 @@ func TestCountAggregation(t *testing.T) {
 			a.add(testTime, deepCopy(c2))
 			a.add(testTime, deepCopy(c3))
 			a.add(testTime, deepCopy(cDefault))
-			assert.Len(a.out, 4)
+			assert.Len(a.out, 3)
 			a.flushOnTime(testTime.Add(21 * time.Second))
-			assert.Len(a.out, 5)
+			assert.Len(a.out, 4)
 
-			assertDistribPayload(t, wrapPayload(c1), <-a.out)
-			assertDistribPayload(t, wrapPayload(c2), <-a.out)
+			assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{c1, c2}), <-a.out)
 			assertDistribPayload(t, wrapPayload(c3), <-a.out)
 			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
 			aggCounts := <-a.out

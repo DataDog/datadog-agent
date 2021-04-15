@@ -89,9 +89,7 @@ func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 	flushTs := now.Add(-oldestBucketStart).Truncate(bucketDuration)
 	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
 		if b, ok := a.buckets[t.Unix()]; ok {
-			for _, p := range b.flush() {
-				a.flush(p)
-			}
+			a.flush(b.flush())
 			delete(a.buckets, t.Unix())
 		}
 	}
@@ -100,9 +98,7 @@ func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 
 func (a *ClientStatsAggregator) flushAll() {
 	for _, b := range a.buckets {
-		for _, p := range b.flush() {
-			a.flush(p)
-		}
+		a.flush(b.flush())
 	}
 }
 
@@ -133,15 +129,16 @@ func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []pb.ClientStatsBucket{clientBucket}
-		for _, p := range b.add(p) {
-			a.flush(p)
-		}
+		a.flush(b.add(p))
 	}
 }
 
-func (a *ClientStatsAggregator) flush(p pb.ClientStatsPayload) {
+func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
+	if len(p) == 0 {
+		return
+	}
 	a.out <- pb.StatsPayload{
-		Stats:          []pb.ClientStatsPayload{p},
+		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,
 		AgentVersion:   info.Version,
