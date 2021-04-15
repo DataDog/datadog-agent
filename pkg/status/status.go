@@ -79,7 +79,7 @@ func GetStatus() (map[string]interface{}, error) {
 		httputils.NoProxyWarningMapMutex.Unlock()
 	}
 
-	if config.IsFeaturePresent(config.Kubernetes) {
+	if config.IsKubernetes() {
 		stats["autodiscoveryErrors"] = common.AC.GetKubernetesAutodiscoveryErrors()
 	}
 
