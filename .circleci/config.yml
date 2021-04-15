@@ -63,7 +63,7 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
+            python3 -m pip install codecov~=2.1.11 flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
       - run:
           name: grab go deps
           command: |
@@ -101,7 +101,7 @@ jobs:
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
+          command: codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
