@@ -5,8 +5,6 @@ package http
 import (
 	"fmt"
 
-	"C"
-
 	"sync"
 	"time"
 
@@ -27,7 +25,6 @@ type Monitor struct {
 
 	ebpfProgram  *ebpfProgram
 	batchManager *batchManager
-	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
 	pollRequests chan chan map[Key]RequestStats
@@ -47,13 +44,13 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
 
+	if err := mgr.Init(); err != nil {
+		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+	}
+
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
-	}
-
-	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
@@ -74,11 +71,6 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 	notificationMap, _, _ := mgr.GetMap(string(probes.HttpNotificationsMap))
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
-	pm, found := mgr.GetPerfMap(string(probes.HttpNotificationsMap))
-	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
-	}
-
 	telemetry := newTelemetry()
 	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
 
@@ -92,7 +84,6 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		handler:       handler,
 		ebpfProgram:   mgr,
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
-		perfMap:       pm,
 		perfHandler:   mgr.perfHandler,
 		telemetry:     telemetry,
 		pollRequests:  make(chan chan map[Key]RequestStats),
@@ -107,8 +98,8 @@ func (m *Monitor) Start() error {
 		return nil
 	}
 
-	if err := m.perfMap.Start(); err != nil {
-		return fmt.Errorf("error starting perf map: %s", err)
+	if err := m.ebpfProgram.Start(); err != nil {
+		return err
 	}
 
 	m.eventLoopWG.Add(1)
@@ -188,7 +179,6 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Stop(manager.CleanAll)
 	m.closeFilterFn()
-	_ = m.perfMap.Stop(manager.CleanAll)
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
