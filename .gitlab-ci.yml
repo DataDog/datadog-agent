@@ -72,7 +72,7 @@ clear_deps_win_cache:
     - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
     - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
   tags:
-    - sts_windows
+    - agent_windows_6
 
 deps_deb:
   stage: prepare
@@ -132,7 +132,7 @@ deps_win:
       - "version.txt"
     expire_in: 1 week
   tags:
-    - sts_windows
+    - agent_windows_6
 
 unit_tests:
   stage: build_and_test
@@ -146,6 +146,12 @@ unit_tests:
     - gofmt -l -w -s ./pkg ./cmd
 
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --build-exclude clusterchecks,kubelet
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   tags:
     - sts-aws
 
@@ -153,8 +159,17 @@ integration_tests:
   stage: build_and_test
   needs:
     - deps_deb
+  variables:
+    KUBERNETES: "true"
   script:
+    - echo $KUBERNETES
     - inv -e integration-tests --race --remote-docker
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   tags:
     - sts-aws
 
@@ -177,6 +192,12 @@ docker_integration_tests:
     - docker:18.09-dind
   script:
     - inv -e docker.integration-tests
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   tags:
     - sts-k8s-m-runner
 
@@ -280,6 +301,11 @@ build_deb:
         - $CI_PROJECT_DIR/version.txt
         - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
 
 build_rpm:
   stage: build_and_test
@@ -326,6 +352,11 @@ build_rpm:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
         - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
 
 build_win:
   stage: build_and_test
@@ -352,7 +383,14 @@ build_win:
       - ./*.msi
       - "version.txt"
   tags:
-    - sts_windows
+    - agent_windows_6
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+
 
 test_deb_renaming:
   stage: pre_release
@@ -393,15 +431,23 @@ pre_release_win:
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - call %WORKON_HOME%\venv\Scripts\activate.bat
-    - call ridk enable
+    - type %APPDATA%\pip\pip.ini
+    - call .gitlab-scripts/windows_build_env.cmd
+    - call "%WORKON_HOME%\venv\Scripts\activate.bat"
     - set /P VERSION=< version.txt
     - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
     - aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN%/windows/%CI_COMMIT_REF_NAME% --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install -t
-    - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET_WIN']).object('install.ps1').upload_file('./install.ps1', acl:'public-read')"
+    - cd %WIN_CI_PROJECT_DIR%/cmd/agent/ && aws.exe s3 cp . s3://%STS_AWS_TEST_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
   tags:
-    - sts_windows
+    - agent_windows_6
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+
 
 pre_release_rpm:
   stage: pre_release
@@ -481,6 +527,12 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 molecule_tests_vms:
   stage: acceptance
@@ -577,6 +629,21 @@ molecule_tests_integrations:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
     expire_in: 1 week
 
+molecule_tests_swarm:
+  stage: acceptance
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_image
+  dependencies: []
+  <<: *molecule_base
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+    expire_in: 1 week
+
 release_deb:
   stage: release
   dependencies:
@@ -618,19 +685,25 @@ release_win:
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - call %WORKON_HOME%\venv\Scripts\activate.bat
-    - call ridk enable
+    - call .gitlab-scripts/windows_build_env.cmd
+    - call "%WORKON_HOME%\venv\Scripts\activate.bat"
     - set /P VERSION=< version.txt
     - copy stackstate-agent-%VERSION%-1-x86_64.msi stackstate-agent-latest-1-x86_64.msi
     - cd %WIN_CI_PROJECT_DIR% && inv release.generate-install
     - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
   tags:
-    - sts_windows
+    - agent_windows_6
   when: manual
   only:
     - tags
     - triggers
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 release_image:
   stage: release

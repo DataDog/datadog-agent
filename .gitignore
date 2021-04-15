@@ -119,3 +119,6 @@ Dockerfiles/cluster-agent/dist/
 
 # kubernetes test deployment
 deployment/kubernetes/k8s-*/
+
+# windows ami
+.cd-builders/windows/builder/runner/roles/sa_gitlab_runner_win

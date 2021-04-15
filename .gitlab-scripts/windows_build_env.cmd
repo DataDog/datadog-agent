@@ -1,6 +1,6 @@
 REM set WIN_CI_PROJECT_DIR=%CD%
 REM set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-
+set VCINSTALLDIR=C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community
 IF EXIST c:\deps GOTO C_DEPS_EXIST
 call %WIN_CI_PROJECT_DIR%\.gitlab-scripts\pkg_configs.cmd
 :C_DEPS_EXIST

@@ -1,3 +1,29 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: agent-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  persistentVolumeReclaimPolicy: Delete
+  accessModes:
+    - ReadWriteOnce
+  local:
+    path: "/tmp"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/os
+              operator: In
+              values:
+                - linux
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -70,6 +96,12 @@ spec:
           - name: cgroups
             mountPath: /host/sys/fs/cgroup
             readOnly: true
+          # Agent Integration Sample configuration and state storage persistent volume
+          - name: config
+            mountPath: etc/stackstate-agent/conf.d/agent_integration_sample.d
+            readOnly: true
+          - name: agent-integration-sample-state-storage
+            mountPath: /etc/stackstate-agent/state.d/agent_integration_sample.d
         livenessProbe:
          httpGet:
            path: /health
@@ -95,6 +127,15 @@ spec:
         - hostPath:
             path: /sys/fs/cgroup
           name: cgroups
+        - name: config
+          configMap:
+            name: agent-integration-sample-config
+            items:
+              - key: "config"
+                path: conf.yaml
+        - name: agent-integration-sample-state-storage
+          persistentVolumeClaim:
+            claimName: agent-integration-sample-state-pv-claim
 ---
 apiVersion: v1
 kind: Service

@@ -163,7 +163,6 @@ RUN wget -qO awscli2.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.z
     ./aws/install && \
     rm awscli2.zip
 
-
 # Revert configurations that was set at top layer (for avoiding build warnings and errors).
 ENV DEBIAN_FRONTEND=dialog
 

@@ -62,6 +62,12 @@ instances:
     #
     # collect_exit_codes: true
 
+    # Collect docker container topology
+    # Collects all docker container-based topology, currently only docker containers.
+    # Defaults to true.
+    #
+    # collect_container_topology: true
+
     # Allows ad-hoc spike filtering in some rare cases when the system happen to report incorrect metrics.
     # This will drop points if the computed rate is higher than the cap value
     # capped_metrics:

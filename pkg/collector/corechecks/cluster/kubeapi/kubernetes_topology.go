@@ -74,15 +74,15 @@ func (t *TopologyCheck) SetSubmitter(submitter TopologySubmitter) {
 */
 // Run executes the check.
 func (t *TopologyCheck) Run() error {
+	// Running the event collection.
+	if !t.instance.CollectTopology {
+		return nil
+	}
+
 	// initialize kube api check
 	err := t.InitKubeApiCheck()
 	if err != nil {
 		return err
-	}
-
-	// Running the event collection.
-	if !t.instance.CollectTopology {
-		return nil
 	}
 
 	// set the check "instance id" for snapshots

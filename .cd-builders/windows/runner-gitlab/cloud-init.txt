@@ -1,0 +1,9 @@
+<powershell>
+Set-Location c:\gitlab-runner
+Import-Module ./register-runner.ps1
+# register oldschool runner with windows cmd
+gitlab-runner-register -gitRegistrationToken REDUCTED  -hostTags "sts_windows_6" -gitlab_executor "shell" -gitlab_shell "cmd"
+
+# install runner service on behalf of specific user
+gitlab-service-register -gitlab_runner_username "ieuser" -gitlab_runner_pass "Passw0rd!"
+</powershell>

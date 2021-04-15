@@ -1,0 +1,8 @@
+[windows]
+192.168.2.4
+
+[windows:vars]
+ansible_user=administrator
+ansible_password=Bionic!
+ansible_connection=winrm
+ansible_winrm_server_cert_validation=ignore

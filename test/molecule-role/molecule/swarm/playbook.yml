@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  vars_files:
+    - common_vars.yml
+  roles:
+    - role: molecule-role

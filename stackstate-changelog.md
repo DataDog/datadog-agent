@@ -2,18 +2,33 @@
 
 ## 2.11.0 (xxxx-xx-xx)
 
+**Features**
+- DynaTrace Integration
+  - Gather Dynatrace events to determine the health state of Dynatrace components in StackState [(STAC-10795)](https://stackstate.atlassian.net/browse/STAC-10795)
+
+- Docker Swarm Integration [(STAC-12057)](https://stackstate.atlassian.net/browse/STAC-12057)
+  - Produce topology for docker swarm services and their tasks.
+  - Send metric for Desired and Active replicas of a swarm service.
+
 **Improvements**
 
-  - Added support to map user defined stackstate-environment tags or config to the environments object
-  - Added support to map user defined stackstate-layer tags or config to the layer object
-  - Added support to map user defined stackstate-domain tags or config to the domain object
-  - Added support to map user defined stackstate-identifiers tags or config to the identifiers array
-  - Remove `stackstate-identifier`, `stackstate-environment`, `stackstate-layer`, `stackstate-domain` and `stackstate-identifiers` from the tags object if it has been mapped to the data object.
+- Integrations
+  - [StackState Agent Integrations 1.10.1](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1101--2020-03-11)
+  - [StackState Agent Integrations 1.10.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1100--2020-03-09)
   - Improved out-of-the-box support for Kubernetes 1.18+ by automatically falling back to using TLS without verifying CA when communicating with the secure Kubelet [(STAC-12205)](https://stackstate.atlassian.net/browse/STAC-12205)
 
 **Bugfix**
-  
+
+- Disk Integration
+  - Fixed the excluded filesystems and excluded disks failing to use the conf file.
+- Integrations:
   - Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
+  - Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
+- VSphere Integration
+  - Fix out-of-box VSphere check settings to support the Vsphere StackPack. [(STAC-12360)](https://stackstate.atlassian.net/browse/STAC-12360)
+- Kubelet check should not fail for Kubernetes 1.18+ (due to deprecated `/spec` API endpoint) [(STAC-12307)](https://stackstate.atlassian.net/browse/STAC-12307)
+- Remove the tag for process components with high I/O or CPU. [(STAC-12306)](https://stackstate.atlassian.net/browse/STAC-12306)
+
 
 ## 2.10.0 (2021-02-25)
 

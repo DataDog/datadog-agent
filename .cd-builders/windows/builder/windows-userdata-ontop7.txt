@@ -1,0 +1,16 @@
+<powershell>
+
+# Set administrator password
+net user Administrator Passw0rd!
+wmic useraccount where "name='Administrator'" set PasswordExpires=FALSE
+
+# Configure UAC to allow privilege elevation in remote shells
+$Key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+$Setting = 'LocalAccountTokenFilterPolicy'
+Set-ItemProperty -Path $Key -Name $Setting -Value 1 -Force
+
+Set-ExecutionPolicy Bypass -Scope Process -Force;
+iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/softasap/sa-win/master/ConfigureRemotingForAnsible.ps1'))
+
+New-Item c:\provisioned2.txt -type file
+</powershell>
