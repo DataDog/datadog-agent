@@ -1,5 +1,0 @@
----
-upgrade:
-  - |
-    ``system-probe`` is now started with a ``run`` command. For example: ``system-probe run``.
-    If you have custom services and/or starting scripts, they will need to be updated.

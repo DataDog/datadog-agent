@@ -39,6 +39,7 @@ func main() {
 		}
 	}
 
+	setDefaultCommandIfNonePresent()
 	if err := app.SysprobeCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

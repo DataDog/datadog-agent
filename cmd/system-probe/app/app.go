@@ -18,7 +18,6 @@ The Datadog Agent System Probe runs as superuser in order to instrument
 your machine at a deeper level. It is required for features such as Network Performance Monitoring,
 Runtime Security Monitoring, and others.`,
 		SilenceUsage: true,
-		// default to run subcommand
 	}
 	configPath  string
 	flagNoColor bool
