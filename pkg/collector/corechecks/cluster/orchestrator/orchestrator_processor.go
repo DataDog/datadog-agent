@@ -37,7 +37,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 	cronJobMsgs := make([]*model.CronJob, 0, len(cronJobList))
 
 	for _, cronJob := range cronJobList {
-		if orchestrator.SkipKubernetesResource(cronJob.UID, cronJob.ResourceVersion, orchestrator.K8sDeployment) {
+		if orchestrator.SkipKubernetesResource(cronJob.UID, cronJob.ResourceVersion, orchestrator.K8sCronJob) {
 			continue
 		}
 
@@ -183,7 +183,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 	jobMsgs := make([]*model.Job, 0, len(jobList))
 
 	for _, job := range jobList {
-		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sDeployment) {
+		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
 			continue
 		}
 
