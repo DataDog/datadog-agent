@@ -27,7 +27,7 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
-                                              __u32 segs_in, __u32 segs_out, segment_count_increment_t segs_type) {
+                                              __u32 segs_out, __u32 segs_in, segment_count_increment_t segs_type) {
     conn_stats_ts_t *val;
 
     // initialize-if-no-exist the connection stat, and load it
@@ -114,11 +114,11 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
-                                          __u32 segs_in, __u32 segs_out, segment_count_increment_t segs_type) 
+                                          __u32 segs_out, __u32 segs_in, segment_count_increment_t segs_type) 
 {
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, segs_in, segs_out, segs_type);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, segs_out, segs_in, segs_type);
 
     return 0;
 }

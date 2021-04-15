@@ -145,17 +145,20 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp, __u32* segs_in, __u32* segs_out) {
+static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* skp) {
     __u32 rtt = 0;
     __u32 rtt_var = 0;
     bpf_probe_read(&rtt, sizeof(rtt), &tcp_sk(skp)->srtt_us);
     bpf_probe_read(&rtt_var, sizeof(rtt_var), &tcp_sk(skp)->mdev_us);
 
-    bpf_probe_read(segs_out, sizeof(*segs_out), &tcp_sk(skp)->segs_out);
-    bpf_probe_read(segs_in, sizeof(*segs_in), &tcp_sk(skp)->segs_in);
-
+ 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     update_tcp_stats(t, stats);
+}
+
+static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* segs_in, __u32* segs_out) {
+    bpf_probe_read(segs_out, sizeof(*segs_out), &tcp_sk(skp)->segs_out);
+    bpf_probe_read(segs_in, sizeof(*segs_in), &tcp_sk(skp)->segs_in);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -172,8 +175,9 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, skp, &segs_in, &segs_out);
-    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, segs_in, segs_out, SEGMENT_COUNT_ABSOLUTE);
+    handle_tcp_stats(&t, skp);
+    get_tcp_segment_counts(skp, &segs_in, &segs_out);
+    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, segs_out, segs_in, SEGMENT_COUNT_ABSOLUTE);
 }
 
 SEC("kprobe/tcp_sendmsg/pre_4_1_0")
@@ -191,8 +195,9 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
         return 0;
     }
 
-    handle_tcp_stats(&t, sk, &segs_in, &segs_out);
-    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, segs_in, segs_out, SEGMENT_COUNT_ABSOLUTE);
+    handle_tcp_stats(&t, sk);
+    get_tcp_segment_counts(sk, &segs_in, &segs_out);
+    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, segs_out, segs_in, SEGMENT_COUNT_ABSOLUTE);
 }
 
 SEC("kretprobe/tcp_sendmsg")
@@ -231,7 +236,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs* ctx) {
         return 0;
     }
 
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, segs_in, segs_out, SEGMENT_COUNT_ABSOLUTE);
+    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, segs_out, segs_in, SEGMENT_COUNT_ABSOLUTE);
 }
 
 SEC("kprobe/tcp_close")
@@ -314,7 +319,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 0, SEGMENT_COUNT_NONE);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, SEGMENT_COUNT_INCREMENT);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -353,7 +358,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 1, SEGMENT_COUNT_INCREMENT);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, SEGMENT_COUNT_INCREMENT);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -442,7 +447,7 @@ int kretprobe__udp_recvmsg(struct pt_regs* ctx) {
     }
 
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %d, return: %d\n", pid_tgid, copied);
-    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 1, 0, SEGMENT_COUNT_INCREMENT);
+    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, SEGMENT_COUNT_INCREMENT);
 
     return 0;
 }
@@ -485,8 +490,6 @@ int kprobe__tcp_set_state(struct pt_regs* ctx) {
 
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
-    __u32 segs_in = 0;
-    __u32 segs_out = 0;
 
     struct sock* sk = (struct sock*)PT_REGS_RC(ctx);
     if (!sk) {
@@ -500,7 +503,7 @@ int kretprobe__inet_csk_accept(struct pt_regs* ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    handle_tcp_stats(&t, sk, &segs_in, &segs_out);
+    handle_tcp_stats(&t, sk);
     handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, SEGMENT_COUNT_NONE);
 
     port_binding_t pb = {};
