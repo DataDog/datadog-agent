@@ -51,8 +51,10 @@ func (ev *Event) ResolveFileInode(f *model.FileEvent) string {
 		path, err := ev.resolvers.resolveInode(&f.FileFields)
 		if err != nil {
 			if _, ok := err.(ErrTruncatedSegment); ok {
+				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			} else if _, ok := err.(ErrTruncatedParents); ok {
+				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			}
 		}
@@ -130,7 +132,7 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
 		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
-			e.ID = entry.ID
+			e.ID = entry.ContainerID
 		}
 	}
 	return e.ID
@@ -148,7 +150,7 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
 	entry := NewProcessCacheEntry()
-	entry.ContainerContext = ev.ContainerContext
+	entry.ContainerID = ev.ContainerContext.ID
 	entry.ProcessContext = model.ProcessContext{
 		Pid: ev.ProcessContext.Pid,
 		Tid: ev.ProcessContext.Tid,

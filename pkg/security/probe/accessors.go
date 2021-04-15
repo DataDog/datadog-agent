@@ -2217,37 +2217,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
-	case "process.ancestors.id":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []string
-
-				iterator := &model.ProcessAncestorsIterator{}
-
-				value := iterator.Front(ctx)
-				for value != nil {
-					var result string
-
-					element := (*model.ProcessCacheEntry)(value)
-
-					result = (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
-
-					results = append(results, result)
-
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -2298,37 +2267,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*model.ProcessCacheEntry)(value)
 
 					result = int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
-
-					results = append(results, result)
-
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.tags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []string
-
-				iterator := &model.ProcessAncestorsIterator{}
-
-				value := iterator.Front(ctx)
-				for value != nil {
-					var result string
-
-					element := (*model.ProcessCacheEntry)(value)
-
-					result = (*Event)(ctx.Object).ResolveContainerTags(&element.ContainerContext)
 
 					results = append(results, result)
 
@@ -4243,13 +4181,9 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.group",
 
-		"process.ancestors.id",
-
 		"process.ancestors.pid",
 
 		"process.ancestors.ppid",
-
-		"process.ancestors.tags",
 
 		"process.ancestors.tid",
 
@@ -5662,28 +5596,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
-	case "process.ancestors.id":
-
-		var values []string
-
-		ctx := eval.NewContext(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
 	case "process.ancestors.pid":
 
 		var values []int
@@ -5720,28 +5632,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.tags":
-
-		var values []string
-
-		ctx := eval.NewContext(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := (*Event)(ctx.Object).ResolveContainerTags(&element.ContainerContext)
 
 			values = append(values, result)
 
@@ -6906,16 +6796,10 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.group":
 		return "*", nil
 
-	case "process.ancestors.id":
-		return "*", nil
-
 	case "process.ancestors.pid":
 		return "*", nil
 
 	case "process.ancestors.ppid":
-		return "*", nil
-
-	case "process.ancestors.tags":
 		return "*", nil
 
 	case "process.ancestors.tid":
@@ -8013,10 +7897,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "process.ancestors.id":
-
-		return reflect.String, nil
-
 	case "process.ancestors.pid":
 
 		return reflect.Int, nil
@@ -8024,10 +7904,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.ppid":
 
 		return reflect.Int, nil
-
-	case "process.ancestors.tags":
-
-		return reflect.String, nil
 
 	case "process.ancestors.tid":
 
@@ -10392,21 +10268,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "process.ancestors.id":
-
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ContainerContext.ID"}
-		}
-		e.ProcessContext.Ancestor.ContainerContext.ID = str
-
-		return nil
-
 	case "process.ancestors.pid":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -10433,21 +10294,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PPid"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(v)
-		return nil
-
-	case "process.ancestors.tags":
-
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ContainerContext.Tags"}
-		}
-		e.ProcessContext.Ancestor.ContainerContext.Tags = append(e.ProcessContext.Ancestor.ContainerContext.Tags, str)
-
 		return nil
 
 	case "process.ancestors.tid":

@@ -133,6 +133,22 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	return 40, nil
 }
 
+// UnmarshalContainerID unmarshal container ID
+func (e *Process) UnmarshalContainerID(data []byte) (int, error) {
+	if len(data) < 64 {
+		return 0, ErrNotEnoughData
+	}
+
+	idRaw := [64]byte{}
+	SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
+	e.ContainerID = string(bytes.Trim(idRaw[:], "\x00"))
+	if len(e.ContainerID) > 1 && len(e.ContainerID) < 64 {
+		e.ContainerID = ""
+	}
+
+	return 64, nil
+}
+
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t

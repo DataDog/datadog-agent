@@ -142,7 +142,8 @@ type ProcessCacheEntrySerializer struct {
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
-	ID string `json:"id,omitempty"`
+	ID   string   `json:"id,omitempty"`
+	Tags []string `json:"tags,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -404,18 +405,12 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(pce.ContainerContext.ID) != 0 {
+	if !topLevel && len(pce.ContainerID) != 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
-			ID: pce.ContainerContext.ID,
+			ID: pce.ContainerID,
 		}
 	}
 	return pceSerializer
-}
-
-func newContainerContextSerializer(cc *model.ContainerContext, e *Event) *ContainerContextSerializer {
-	return &ContainerContextSerializer{
-		ID: e.ResolveContainerID(cc),
-	}
 }
 
 func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {

@@ -36,10 +36,8 @@ func (n *nullTagger) Tag(entity string, cardinality collectors.TagCardinality) (
 	return nil, nil
 }
 
-// MountResolver represents a cache for mountpoints and the corresponding file systems
+// TagsResolver represents a cache resolver
 type TagsResolver struct {
-	probe *Probe
-
 	tagger Tagger
 }
 
@@ -51,13 +49,13 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		t.tagger.Stop()
+		_ = t.tagger.Stop()
 	}()
 
 	return nil
 }
 
-// ResolverTags returns the tags for the given id
+// Resolve returns the tags for the given id
 func (t *TagsResolver) Resolve(id string) []string {
 	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	return tags
