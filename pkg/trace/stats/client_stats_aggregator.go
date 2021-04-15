@@ -33,7 +33,7 @@ const (
 type ClientStatsAggregator struct {
 	In      chan pb.ClientStatsPayload
 	out     chan pb.StatsPayload
-	buckets map[time.Time]*bucket // buckets used to aggregate client stats
+	buckets map[int64]*bucket // buckets used to aggregate client stats
 
 	flushTicker   *time.Ticker
 	oldestTs      time.Time
@@ -49,7 +49,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 	return &ClientStatsAggregator{
 		flushTicker:   time.NewTicker(time.Second),
 		In:            make(chan pb.ClientStatsPayload, 10),
-		buckets:       make(map[time.Time]*bucket, 20),
+		buckets:       make(map[int64]*bucket, 20),
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
@@ -88,11 +88,11 @@ func (a *ClientStatsAggregator) Stop() {
 func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 	flushTs := now.Add(-oldestBucketStart).Truncate(bucketDuration)
 	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
-		if b, ok := a.buckets[t]; ok {
+		if b, ok := a.buckets[t.Unix()]; ok {
 			for _, p := range b.flush() {
 				a.flush(p)
 			}
-			delete(a.buckets, t)
+			delete(a.buckets, t.Unix())
 		}
 	}
 	a.oldestTs = flushTs
@@ -127,11 +127,10 @@ func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 			clientBucket.AgentTimeShift = ts.Sub(clientBucketStart).Nanoseconds()
 			clientBucket.Start = uint64(ts.UnixNano())
 		}
-		bucketIndex := ts.Truncate(bucketDuration)
-		b, ok := a.buckets[bucketIndex]
+		b, ok := a.buckets[ts.Unix()]
 		if !ok {
 			b = &bucket{ts: ts}
-			a.buckets[bucketIndex] = b
+			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []pb.ClientStatsBucket{clientBucket}
 		for _, p := range b.add(p) {
