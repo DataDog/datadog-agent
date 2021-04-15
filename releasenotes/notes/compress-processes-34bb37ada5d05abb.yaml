@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Compress legacy processes metadata payload.

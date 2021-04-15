@@ -392,8 +392,8 @@ func TestSendMetadata(t *testing.T) {
 func TestSendJSONToV1Intake(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\"test\"")
-	payloads, _ := mkPayloads(payload, false)
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	payloads, _ := mkPayloads(payload, true)
+	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil)
 
@@ -401,7 +401,7 @@ func TestSendJSONToV1Intake(t *testing.T) {
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(fmt.Errorf("some error")).Times(1)
+	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
 	err = s.SendJSONToV1Intake("test")
 	require.NotNil(t, err)
 	f.AssertExpectations(t)

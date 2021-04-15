@@ -387,7 +387,11 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize v1 payload: %s", err)
 	}
-	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&payload}, jsonExtraHeaders); err != nil {
+	compressedPayload, err := compression.Compress(nil, payload)
+	if err != nil {
+		return fmt.Errorf("could not compress v1 payload: %s", err)
+	}
+	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&compressedPayload}, jsonExtraHeadersWithCompression); err != nil {
 		return err
 	}
 
