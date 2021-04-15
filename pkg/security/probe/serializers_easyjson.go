@@ -2657,29 +2657,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 		switch key {
 		case "id":
 			out.ID = string(in.String())
-		case "tags":
-			if in.IsNull() {
-				in.Skip()
-				out.Tags = nil
-			} else {
-				in.Delim('[')
-				if out.Tags == nil {
-					if !in.IsDelim(']') {
-						out.Tags = make([]string, 0, 4)
-					} else {
-						out.Tags = []string{}
-					}
-				} else {
-					out.Tags = (out.Tags)[:0]
-				}
-				for !in.IsDelim(']') {
-					var v34 string
-					v34 = string(in.String())
-					out.Tags = append(out.Tags, v34)
-					in.WantComma()
-				}
-				in.Delim(']')
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2699,25 +2676,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
-	}
-	if len(in.Tags) != 0 {
-		const prefix string = ",\"tags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		{
-			out.RawByte('[')
-			for v35, v36 := range in.Tags {
-				if v35 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v36))
-			}
-			out.RawByte(']')
-		}
 	}
 	out.RawByte('}')
 }
@@ -2780,9 +2738,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 					out.CapEffective = (out.CapEffective)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v37 string
-					v37 = string(in.String())
-					out.CapEffective = append(out.CapEffective, v37)
+					var v34 string
+					v34 = string(in.String())
+					out.CapEffective = append(out.CapEffective, v34)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2803,9 +2761,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 					out.CapPermitted = (out.CapPermitted)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v38 string
-					v38 = string(in.String())
-					out.CapPermitted = append(out.CapPermitted, v38)
+					var v35 string
+					v35 = string(in.String())
+					out.CapPermitted = append(out.CapPermitted, v35)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2830,11 +2788,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 		out.RawString(prefix[1:])
 		{
 			out.RawByte('[')
-			for v39, v40 := range in.CapEffective {
-				if v39 > 0 {
+			for v36, v37 := range in.CapEffective {
+				if v36 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v40))
+				out.String(string(v37))
 			}
 			out.RawByte(']')
 		}
@@ -2849,11 +2807,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 		}
 		{
 			out.RawByte('[')
-			for v41, v42 := range in.CapPermitted {
-				if v41 > 0 {
+			for v38, v39 := range in.CapPermitted {
+				if v38 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v42))
+				out.String(string(v39))
 			}
 			out.RawByte(']')
 		}

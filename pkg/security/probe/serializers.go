@@ -142,8 +142,7 @@ type ProcessCacheEntrySerializer struct {
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
-	ID   string   `json:"id,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	ID string `json:"id,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -480,8 +479,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 
 	if id := event.ResolveContainerID(&event.ContainerContext); id != "" {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:   id,
-			Tags: event.ResolveContainerTags(&event.ContainerContext),
+			ID: id,
 		}
 	}
 

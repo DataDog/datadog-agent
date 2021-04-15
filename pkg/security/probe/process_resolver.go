@@ -238,7 +238,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Credentials.EUID = uint32(filledProc.Uids[1])
 		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
 	}
-	if len(filledProc.Gids) > 4 {
+	if len(filledProc.Gids) >= 4 {
 		entry.Credentials.GID = uint32(filledProc.Gids[0])
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
