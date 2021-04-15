@@ -126,8 +126,6 @@ var (
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
 	recurrentSeriesLock sync.Mutex
-	// ensures event platform errors are logged at most once per flush
-	aggregatorEventPlatformErrorLogged bool
 )
 
 func init() {
@@ -713,6 +711,9 @@ func (agg *BufferedAggregator) run() {
 			log.Debugf("aggregator flushInterval set to 0: aggregator won't flush data")
 		}
 	}
+
+	// ensures event platform errors are logged at most once per flush
+	aggregatorEventPlatformErrorLogged := false
 
 	for {
 		select {
