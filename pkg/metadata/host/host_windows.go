@@ -10,8 +10,11 @@
 package host
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -176,10 +179,36 @@ func Pids() ([]int32, error) {
 // GetNetworkInfo returns host specific network configuration.
 // At this time, only information queried is the ephemeral port range
 func GetNetworkInfo() (*NetworkInfo, error) {
-	// TODO get values at runtime
+	//
+	// note that this will return the ephemeral port range for ipv4/tcp
+	// Windows allows individual configuration for ipv4/6 and udp/tcp.
+	cmd := exec.Command("netsh", "int", "ipv4", "show", "dynamicport", "tcp")
+	cmdOutput := &bytes.Buffer{}
+
+	// output should be of the format
+	/*
+		Protocol tcp Dynamic Port Range
+		---------------------------------
+		Start Port      : 49000
+		Number of Ports : 16000
+	*/
+	cmd.Stdout = cmdOutput
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
+	output := cmdOutput.Bytes()
+	var startportline = regexp.MustCompile(`Start.*: (\d+)`)
+	var numberline = regexp.MustCompile(`Number.*: (\d+)`)
+
+	startport := startportline.FindStringSubmatch(string(output))
+	rangelen := numberline.FindStringSubmatch(string(output))
+
+	portstart := strconv.Atoi(startport[1])
+	len := strconv.Atoi(rangelen[1])
 	ni := &NetworkInfo{
-		EphemeralPortStart: uint16(1025),
-		EphemeralPortEnd:   uint16(65534),
+		EphemeralPortStart: uint16(portstart),
+		EphemeralPortEnd:   uint16(portstart + len),
 	}
 	return ni, nil
 }
