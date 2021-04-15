@@ -247,18 +247,21 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 	return res
 }
 
+// payloadAggregationKey and bucketAggregationKey contain dimensions used
+// to aggregate statistics. When adding or removing fields, update accordingly
+// the Aggregation used by the concentrator.
 type payloadAggregationKey struct {
 	env, hostname, version string
-}
-
-func newPayloadAggregationKey(env, hostname, version string) payloadAggregationKey {
-	return payloadAggregationKey{env: env, hostname: hostname, version: version}
 }
 
 type bucketAggregationKey struct {
 	service, name, resource, typ string
 	synthetics                   bool
 	statusCode                   uint32
+}
+
+func newPayloadAggregationKey(env, hostname, version string) payloadAggregationKey {
+	return payloadAggregationKey{env: env, hostname: hostname, version: version}
 }
 
 func newBucketAggregationKey(b pb.ClientGroupedStats) bucketAggregationKey {
