@@ -6,6 +6,8 @@
 require './lib/ostools.rb'
 require 'json'
 
+puts "== start omnibus stackstate-agent-integrations"
+
 name 'stackstate-agent-integrations'
 
 dependency 'pip'
