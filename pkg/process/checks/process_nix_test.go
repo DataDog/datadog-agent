@@ -150,7 +150,7 @@ func TestBasicProcessMessages(t *testing.T) {
 }
 
 type ctrProc struct {
-	ctrId   string
+	ctrID   string
 	pCounts int
 }
 
@@ -399,7 +399,7 @@ func verifyBatchedMsgs(t *testing.T, cfg *config.AgentConfig, expected []map[str
 
 		// verify number of processes for each container
 		for _, proc := range payload.Processes {
-			actualCtrPIDCounts[proc.ContainerId] += 1
+			actualCtrPIDCounts[proc.ContainerId]++
 		}
 
 		assert.EqualValues(expected[i], actualCtrPIDCounts)
