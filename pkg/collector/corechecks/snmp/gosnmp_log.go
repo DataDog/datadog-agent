@@ -11,7 +11,7 @@ type Replacer struct {
 	Repl  []byte
 }
 
-// TODO: Test TraceLevelLogWriter replacements against real GoSNMP library output
+// TODO: Test traceLevelLogWriter replacements against real GoSNMP library output
 //       (need more complex setup e.g. simulate gosnmp request/response)
 
 var replacers = []Replacer{
@@ -37,9 +37,9 @@ var replacers = []Replacer{
 	},
 }
 
-type TraceLevelLogWriter struct{}
+type traceLevelLogWriter struct{}
 
-func (sw *TraceLevelLogWriter) Write(logInput []byte) (n int, err error) {
+func (sw *traceLevelLogWriter) Write(logInput []byte) (n int, err error) {
 	for _, replacer := range replacers {
 		if replacer.Regex.Match(logInput) {
 			logInput = replacer.Regex.ReplaceAll(logInput, replacer.Repl)

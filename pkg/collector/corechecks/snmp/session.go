@@ -89,7 +89,7 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 		log.Warnf("failed to get logger: %s", err)
 	} else {
 		if lvl == seelog.TraceLvl {
-			traceLevelLogWriter := TraceLevelLogWriter{}
+			traceLevelLogWriter := traceLevelLogWriter{}
 			s.gosnmpInst.Logger = stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile)
 			s.loggerEnabled = true
 		}

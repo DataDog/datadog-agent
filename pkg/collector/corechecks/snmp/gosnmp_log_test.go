@@ -89,7 +89,7 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			require.NoError(t, err)
 			log.SetupLogger(l, "trace")
 
-			sw := &TraceLevelLogWriter{}
+			sw := &traceLevelLogWriter{}
 			lineLen, err := sw.Write(tt.logLine)
 			assert.NoError(t, err)
 
