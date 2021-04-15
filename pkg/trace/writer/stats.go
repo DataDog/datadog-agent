@@ -6,7 +6,6 @@
 package writer
 
 import (
-	"compress/gzip"
 	"errors"
 	"math"
 	"strings"
