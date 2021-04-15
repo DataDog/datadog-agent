@@ -219,8 +219,7 @@ func createProcCtrMessages(
 
 // packProcCtrMessages packs container processes into messages using the next-fit bin packing algorithm. The
 // container and its processes are placed into a CollectorProc up to the provided capacity. Some containers may have
-// a large number of processes, so we break them up into separate messages which will duplicate the container data across
-// messages. This is needed as we enrich the process data with container data on the backend.
+// more processes than the supplied capacity, for these they simply get packed into its own message.
 func packProcCtrMessages(
 	capacity int,
 	procsByCtr map[string][]*model.Process,
@@ -237,21 +236,8 @@ func packProcCtrMessages(
 		procs, ok := procsByCtr[ctr.Id]
 
 		if len(procs) > capacity {
-			chunks := chunkProcesses(procs, capacity)
-
-			// Check last chunk to see if it is below the packing capacity. If it is pack it with other messages
-			if len(chunks[len(chunks)-1]) < space {
-				last := chunks[len(chunks)-1]
-				ctrs = append(ctrs, ctr)
-				ctrProcs = append(ctrProcs, last...)
-				space -= len(last)
-
-				chunks = chunks[:len(chunks)-1]
-			}
-
-			for _, chunk := range chunks {
-				msgs = append(msgs, msgFn(chunk, ctr))
-			}
+			// this container has more process then the msg capacity, so we send it separately
+			msgs = append(msgs, msgFn(procs, ctr))
 			continue
 		}
 
