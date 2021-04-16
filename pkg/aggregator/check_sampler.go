@@ -90,17 +90,18 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	if bucket.Monotonic {
 		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
 		rawValue := bucket.Value
-		if bucketFound {
-			cs.lastSeenBucket[contextKey] = time.Now()
-			bucket.Value = rawValue - lastBucketValue
-		}
-		cs.lastBucketValue[contextKey] = rawValue
+
 		cs.lastSeenBucket[contextKey] = time.Now()
+		cs.lastBucketValue[contextKey] = rawValue
 
 		// Return early so we don't report the first raw value instead of the delta which will cause spikes
 		if !bucketFound {
 			return
 		}
+
+		bucket.Value = rawValue - lastBucketValue
+		cs.lastBucketValue[contextKey] = rawValue
+		cs.lastSeenBucket[contextKey] = time.Now()
 	}
 
 	if bucket.Value < 0 {

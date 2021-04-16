@@ -216,21 +216,11 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
-	assert.Equal(t, 1, len(flushed))
+	assert.Equal(t, 0, len(flushed))
 
 	expSketch := &quantile.Sketch{}
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
-
-	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
-	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
-		Name: "my.histogram",
-		Tags: []string{"foo", "bar"},
-		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
-		},
-		ContextKey: generateContextKey(bucket1),
-	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
