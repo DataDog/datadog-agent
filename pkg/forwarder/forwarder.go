@@ -35,6 +35,10 @@ const (
 	PayloadTypeNode = "node"
 	// PayloadTypeCluster is the name of the cluster payload type
 	PayloadTypeCluster = "cluster"
+	// PayloadTypeJob is the name of the cluster payload type
+	PayloadTypeJob = "job"
+	// PayloadTypeCronJob is the name of the cluster payload type
+	PayloadTypeCronJob = "cronjob"
 )
 
 const (
@@ -558,6 +562,10 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeService.Add(1)
 	case PayloadTypeNode:
 		transactionsIntakeNode.Add(1)
+	case PayloadTypeJob:
+		transactionsIntakeJob.Add(1)
+	case PayloadTypeCronJob:
+		transactionsIntakeCronJob.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
