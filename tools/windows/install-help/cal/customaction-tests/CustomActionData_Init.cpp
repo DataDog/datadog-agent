@@ -1,13 +1,19 @@
-// ReSharper disable StringLiteralTypo
-#include "stdafx.h"
+#include "customaction-tests.h"
+
 #include "CustomActionDataTest.h"
+#include "customactiondata.h"
+#include "TargetMachineMock.h"
 
 TEST_F(CustomActionDataTest, With_DomainUser_Parse_Correctly)
 {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
     DDAGENTUSER_NAME=TEST\username
 )");
+
     EXPECT_EQ(customActionCtx.Username(), L"TEST\\username");
     EXPECT_EQ(customActionCtx.UnqualifiedUsername(), L"username");
     EXPECT_EQ(customActionCtx.Domain(), L"TEST");
@@ -24,7 +30,10 @@ void expect_string_equal(CustomActionData const &customActionData, std::wstring 
 
 TEST_F(CustomActionDataTest, With_SingleEmptyProperty_Parse_Correctly)
 {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
         TEST_PROPERTY=
 )");
@@ -33,7 +42,10 @@ TEST_F(CustomActionDataTest, With_SingleEmptyProperty_Parse_Correctly)
 
 TEST_F(CustomActionDataTest, With_SinglePropertyWithSpacea_Parse_Correctly)
 {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
         PROP_WITH_SPACE=    
 )");
@@ -42,7 +54,10 @@ TEST_F(CustomActionDataTest, With_SinglePropertyWithSpacea_Parse_Correctly)
 
 TEST_F(CustomActionDataTest, With_ManyEmptyProperties_Parse_Correctly)
 {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
         PROXY_HOST=
         PROXY_PORT=
@@ -55,7 +70,10 @@ TEST_F(CustomActionDataTest, With_ManyEmptyProperties_Parse_Correctly)
 
 TEST_F(CustomActionDataTest, With_Properties_Parse_Correctly)
 {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
     TAGS=k1:v1,k2:v2
     HOSTNAME=dd-agent-installopts

@@ -91,8 +91,12 @@ func extractService(s *corev1.Service) *model.Service {
 		Status: &model.ServiceStatus{},
 	}
 
-	if s.Spec.IPFamily != nil {
-		message.Spec.IpFamily = string(*s.Spec.IPFamily)
+	if s.Spec.IPFamilies != nil {
+		strFamilies := make([]string, len(s.Spec.IPFamilies))
+		for i, fam := range s.Spec.IPFamilies {
+			strFamilies[i] = string(fam)
+		}
+		message.Spec.IpFamily = strings.Join(strFamilies, ", ")
 	}
 	if s.Spec.SessionAffinityConfig != nil && s.Spec.SessionAffinityConfig.ClientIP != nil {
 		message.Spec.SessionAffinityConfig = &model.ServiceSessionAffinityConfig{

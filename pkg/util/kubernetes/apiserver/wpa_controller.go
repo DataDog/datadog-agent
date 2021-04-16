@@ -12,7 +12,6 @@ import (
 	"math"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamic_client "k8s.io/client-go/dynamic"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 
@@ -40,11 +39,7 @@ const (
 	crdCheckMaxElapsedTime  = 0
 )
 
-var gvr = &schema.GroupVersionResource{
-	Group:    "datadoghq.com",
-	Version:  "v1alpha1",
-	Resource: "watermarkpodautoscalers",
-}
+var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
 
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
 func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
@@ -107,7 +102,7 @@ func isWPACRDNotFoundError(err error) bool {
 
 func checkWPACRD(wpaClient dynamic_client.Interface) backoff.Operation {
 	check := func() error {
-		_, err := wpaClient.Resource(*gvr).List(context.TODO(), v1.ListOptions{})
+		_, err := wpaClient.Resource(gvrWPA).List(context.TODO(), v1.ListOptions{})
 		return err
 	}
 	return func() error {
@@ -132,7 +127,7 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	log.Info("Enabling WPA controller")
 
-	genericInformer := wpaInformerFactory.ForResource(*gvr)
+	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
 
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()
@@ -195,7 +190,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		return err
 	}
 	wpaCached := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	err = StructureIntoWPA(wpaCachedObj, wpaCached)
+	err = UnstructuredIntoWPA(wpaCachedObj, wpaCached)
 	if err != nil {
 		log.Errorf("Could not cast wpa %s retrieved from cache to wpa structure: %v", key, err)
 		return err
@@ -230,7 +225,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 
 func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, newAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
@@ -241,12 +236,12 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, newAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
 	oldAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, oldAutoscaler); err != nil {
+	if err := UnstructuredIntoWPA(obj, oldAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		h.enqueueWPA(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
@@ -272,7 +267,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	defer h.mu.Unlock()
 	toDelete := &custommetrics.MetricsBundle{}
 	deletedWPA := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := StructureIntoWPA(obj, deletedWPA); err == nil {
+	if err := UnstructuredIntoWPA(obj, deletedWPA); err == nil {
 		toDelete.External = autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
@@ -291,7 +286,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		log.Errorf("Could not get object from tombstone %#v", obj)
 		return
 	}
-	if err := StructureIntoWPA(tombstone, deletedWPA); err != nil {
+	if err := UnstructuredIntoWPA(tombstone, deletedWPA); err != nil {
 		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
 		return
 	}

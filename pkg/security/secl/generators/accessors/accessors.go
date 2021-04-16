@@ -19,7 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime/debug"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -70,6 +70,7 @@ type structField struct {
 	OrigType      string
 	IsOrigTypePtr bool
 	Iterator      *structField
+	Weight        int64
 }
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
@@ -161,6 +162,22 @@ type seclField struct {
 	handler  string
 }
 
+func parseHandler(handler string) (string, int64) {
+	els := strings.Split(handler, ":")
+	handler = els[0]
+
+	var weight int64
+	var err error
+	if len(els) > 1 {
+		weight, err = strconv.ParseInt(els[1], 10, 64)
+		if err != nil {
+			log.Panicf("unable to parse weight: %s", els[1])
+		}
+	}
+
+	return handler, weight
+}
+
 func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *structField, dejavu map[string]bool) {
 	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 
@@ -189,6 +206,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdent(field)
 
+					var weight int64
 					if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
 						for _, fieldTag := range tags.Tags() {
 							if fieldTag.Key == "field" {
@@ -199,12 +217,12 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								}
 								field := seclField{name: alias}
 								if len(splitted) > 1 {
-									field.handler = splitted[1]
+									field.handler, weight = parseHandler(splitted[1])
 								}
 								if len(splitted) > 2 {
-									debug.PrintStack()
-									field.iterator = splitted[2]
+									field.iterator, weight = parseHandler(splitted[2])
 								}
+
 								fields = append(fields, field)
 							}
 						}
@@ -236,6 +254,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								OrigType:      qualifiedType(fieldType.Name),
 								IsOrigTypePtr: isPointer,
 								IsArray:       isArray,
+								Weight:        weight,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -257,6 +276,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								OrigType:   fieldType.Name,
 								Iterator:   fieldIterator,
 								IsArray:    isArray,
+								Weight:     weight,
 							}
 
 							module.EventTypes[event] = true
@@ -545,10 +565,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				},
 			{{end -}}
 			Field: field,
-			{{if $Field.Iterator}}
+			{{- if $Field.Iterator}}
 				Weight: eval.IteratorWeight,
 			{{else if $Field.Handler}}
-				Weight: eval.HandlerWeight,
+				{{- if gt $Field.Weight 0}}
+					Weight: {{$Field.Weight}},
+				{{else}}
+					Weight: eval.HandlerWeight,
+				{{end -}}
 			{{else}}
 				Weight: eval.FunctionWeight,
 			{{end}}

@@ -206,10 +206,10 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 
 func (t *Tagger) pull() {
 	t.RLock()
-	for _, puller := range t.pullers {
+	for name, puller := range t.pullers {
 		err := puller.Pull()
 		if err != nil {
-			log.Warnf("%s", err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()

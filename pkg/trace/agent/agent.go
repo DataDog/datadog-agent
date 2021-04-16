@@ -34,17 +34,18 @@ const (
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver          *api.HTTPReceiver
-	Concentrator      *stats.Concentrator
-	Blacklister       *filters.Blacklister
-	Replacer          *filters.Replacer
-	PrioritySampler   *sampler.PrioritySampler
-	ErrorsSampler     *sampler.ErrorsSampler
-	ExceptionSampler  *sampler.ExceptionSampler
-	NoPrioritySampler *sampler.NoPrioritySampler
-	EventProcessor    *event.Processor
-	TraceWriter       *writer.TraceWriter
-	StatsWriter       *writer.StatsWriter
+	Receiver              *api.HTTPReceiver
+	Concentrator          *stats.Concentrator
+	ClientStatsAggregator *stats.ClientStatsAggregator
+	Blacklister           *filters.Blacklister
+	Replacer              *filters.Replacer
+	PrioritySampler       *sampler.PrioritySampler
+	ErrorsSampler         *sampler.ErrorsSampler
+	ExceptionSampler      *sampler.ExceptionSampler
+	NoPrioritySampler     *sampler.NoPrioritySampler
+	EventProcessor        *event.Processor
+	TraceWriter           *writer.TraceWriter
+	StatsWriter           *writer.StatsWriter
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -68,20 +69,21 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	statsChan := make(chan pb.StatsPayload, 100)
 
 	agnt := &Agent{
-		Concentrator:      stats.NewConcentrator(conf, statsChan, time.Now()),
-		Blacklister:       filters.NewBlacklister(conf.Ignore["resource"]),
-		Replacer:          filters.NewReplacer(conf.ReplaceTags),
-		PrioritySampler:   sampler.NewPrioritySampler(conf, dynConf),
-		ErrorsSampler:     sampler.NewErrorsSampler(conf),
-		ExceptionSampler:  sampler.NewExceptionSampler(),
-		NoPrioritySampler: sampler.NewNoPrioritySampler(conf),
-		EventProcessor:    newEventProcessor(conf),
-		TraceWriter:       writer.NewTraceWriter(conf),
-		StatsWriter:       writer.NewStatsWriter(conf, statsChan),
-		obfuscator:        obfuscate.NewObfuscator(conf.Obfuscation),
-		In:                in,
-		conf:              conf,
-		ctx:               ctx,
+		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan),
+		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
+		Replacer:              filters.NewReplacer(conf.ReplaceTags),
+		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf),
+		ErrorsSampler:         sampler.NewErrorsSampler(conf),
+		ExceptionSampler:      sampler.NewExceptionSampler(),
+		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
+		EventProcessor:        newEventProcessor(conf),
+		TraceWriter:           writer.NewTraceWriter(conf),
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
+		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
+		In:                    in,
+		conf:                  conf,
+		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	return agnt
@@ -92,6 +94,7 @@ func (a *Agent) Run() {
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
+		a.ClientStatsAggregator,
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
@@ -150,6 +153,7 @@ func (a *Agent) loop() {
 				log.Error(err)
 			}
 			a.Concentrator.Stop()
+			a.ClientStatsAggregator.Stop()
 			a.TraceWriter.Stop()
 			a.StatsWriter.Stop()
 			a.PrioritySampler.Stop()
@@ -287,7 +291,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-func (a *Agent) convertStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.StatsPayload {
+func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
@@ -308,18 +312,12 @@ func (a *Agent) convertStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 		}
 		in.Stats[i].Stats = group.Stats[:n]
 	}
-	return pb.StatsPayload{
-		Stats:          []pb.ClientStatsPayload{in},
-		AgentEnv:       a.conf.DefaultEnv,
-		AgentHostname:  a.conf.Hostname,
-		AgentVersion:   info.Version,
-		ClientComputed: true,
-	}
+	return in
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
 func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
-	a.StatsWriter.SendPayload(a.convertStats(in, lang, tracerVersion))
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events

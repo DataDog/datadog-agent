@@ -404,18 +404,12 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(pce.ContainerContext.ID) != 0 {
+	if !topLevel && len(pce.ContainerID) != 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
-			ID: pce.ContainerContext.ID,
+			ID: pce.ContainerID,
 		}
 	}
 	return pceSerializer
-}
-
-func newContainerContextSerializer(cc *model.ContainerContext, e *Event) *ContainerContextSerializer {
-	return &ContainerContextSerializer{
-		ID: e.ResolveContainerID(cc),
-	}
 }
 
 func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
@@ -483,8 +477,10 @@ func newEventSerializer(event *Event) *EventSerializer {
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
-	if event.ResolveContainerID(&event.ContainerContext) != "" {
-		s.ContainerContextSerializer = newContainerContextSerializer(&event.ContainerContext, event)
+	if id := event.ResolveContainerID(&event.ContainerContext); id != "" {
+		s.ContainerContextSerializer = &ContainerContextSerializer{
+			ID: id,
+		}
 	}
 
 	s.UserContextSerializer.User = s.ProcessContextSerializer.User

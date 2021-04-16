@@ -20,6 +20,7 @@ import (
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {
+	t.Skip("flaky test, investigating")
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < kernel.VersionCode(4, 1, 0) {

@@ -67,6 +67,8 @@ type Config struct {
 	FIMEnabled bool
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
+	// RemoteTaggerEnabled defines whether the remote tagger is enabled
+	RemoteTaggerEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -98,6 +100,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 	}
 
 	// if runtime is enabled then we force fim

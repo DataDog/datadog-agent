@@ -252,7 +252,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 
 		for _, wpaObj := range wpaList {
 			wpa := &v1alpha1.WatermarkPodAutoscaler{}
-			err := apiserver.StructureIntoWPA(wpaObj, wpa)
+			err := apiserver.UnstructuredIntoWPA(wpaObj, wpa)
 			if err != nil {
 				log.Errorf("Error converting wpa from the cache %v", err)
 				continue

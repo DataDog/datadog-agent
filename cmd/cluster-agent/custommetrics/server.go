@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/apiserver"
-	basecmd "github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd"
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver"
+	basecmd "github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd"
+	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider"
 	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"

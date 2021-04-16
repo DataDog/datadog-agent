@@ -24,8 +24,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
-	if len(parent.ContainerContext.ID) > 0 && len(child.ContainerContext.ID) == 0 {
-		child.ContainerContext.ID = parent.ContainerContext.ID
+	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
+		child.ContainerID = parent.ContainerID
 		child.ContainerPath = parent.ContainerPath
 	}
 }
@@ -83,7 +83,7 @@ func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool)
 	var read int
 
 	if unmarshalContext {
-		offset, err := UnmarshalBinary(data, &pc.ContainerContext)
+		offset, err := pc.UnmarshalContainerID(data)
 		if err != nil {
 			return 0, err
 		}
