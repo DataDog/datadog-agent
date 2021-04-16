@@ -141,10 +141,10 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	statusCode := ts.getNextCode(slurp)
 	w.WriteHeader(statusCode)
-	switch statusCode / 100 {
-	case 5: // 5xx
+	switch {
+	case isRetriable(statusCode):
 		atomic.AddUint64(&ts.retried, 1)
-	case 2: // 2xx
+	case statusCode/100 == 2: // 2xx
 		atomic.AddUint64(&ts.accepted, 1)
 		// for 2xx, we store the payload contents too
 		headers := make(map[string]string, len(req.Header))
