@@ -67,7 +67,7 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), false, "DD_COLLECT_DNS_DOMAINS")
-	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 10000)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 20000)
 	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack"), true)
