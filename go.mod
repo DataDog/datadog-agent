@@ -43,7 +43,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.65.0+incompatible
+	github.com/DataDog/agent-payload v4.67.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
 	github.com/DataDog/datadog-go v4.5.0+incompatible
@@ -230,5 +230,3 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
-
-replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v4.66.1-0.20210416123611-320983ef7a09+incompatible
