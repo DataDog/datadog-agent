@@ -77,6 +77,16 @@ api_key:
 #   - environment:dev
 #   - <TAG_KEY>:<TAG_VALUE>
 
+## @param extra_tags - list of key:value elements - optional
+## List of aditional host tqgs. Attached in-app to every metric, event, log,
+## trace, and service check emitted by this Agent.
+##
+## This list is combined with the `tags` setting. This setting can be used to
+## specify additional tags when `DD_TAGS` environment variable is used.
+#
+# extra_tags:
+#   - <TAG_KEY>:<TAG_VALUE>
+
 ## @param env - string - optional
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
