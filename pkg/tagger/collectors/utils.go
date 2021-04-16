@@ -7,15 +7,15 @@ import (
 
 const (
 	// LowCardinalityString is the string representation of the low cardinality
-	LowCardinalityString               = "low"
+	LowCardinalityString = "low"
 	// OrchestratorCardinalityString is the string representation of the orchestrator cardinality
-	OrchestratorCardinalityString      = "orchestrator"
+	OrchestratorCardinalityString = "orchestrator"
 	// ShortOrchestratorCardinalityString is the short string representation of the orchestrator cardinality
 	ShortOrchestratorCardinalityString = "orch"
 	// HighCardinalityString is the string representation of the high cardinality
-	HighCardinalityString              = "high"
+	HighCardinalityString = "high"
 	// UnknownCardinalityString represents an unknown level of cardinality
-	UnknownCardinalityString           = "unknown"
+	UnknownCardinalityString = "unknown"
 )
 
 // StringToTagCardinality extracts a TagCardinality from a string.

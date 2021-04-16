@@ -221,6 +221,7 @@ SEC("kprobe/dentry_resolver_erpc")
 int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     struct path_leaf_t *map_value = 0;
+    struct path_key_t iteration_key = {};
 
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
     if (state == NULL) {
@@ -232,7 +233,8 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
-        map_value = bpf_map_lookup_elem(&pathnames, &state->key);
+        iteration_key = state->key;
+        map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL)
             goto exit;
 

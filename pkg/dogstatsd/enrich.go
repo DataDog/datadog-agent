@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	hostTagPrefix        = "host:"
-	entityIDTagPrefix    = "dd.internal.entity_id:"
-	entityIDIgnoreValue  = "none"
+	hostTagPrefix       = "host:"
+	entityIDTagPrefix   = "dd.internal.entity_id:"
+	entityIDIgnoreValue = "none"
 	// CardinalityTagPrefix is used to set the dynamic cardinality
 	CardinalityTagPrefix = "dd.internal.card:"
 )

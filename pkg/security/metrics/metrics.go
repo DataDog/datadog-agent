@@ -7,9 +7,8 @@ package metrics
 
 import (
 	"fmt"
-	
+
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
 var (
@@ -132,8 +131,8 @@ var (
 )
 
 // SetTagsWithCardinality returns the array of tags and set the requested cardinality
-func SetTagsWithCardinality(cardinality collectors.TagCardinality, tags ...string) []string {
-	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, collectors.TagCardinalityToString(cardinality)))
+func SetTagsWithCardinality(cardinality string, tags ...string) []string {
+	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
 }
 
 func newRuntimeMetric(name string) string {

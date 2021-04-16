@@ -104,7 +104,7 @@ func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 type EventLostRead struct {
 	Timestamp time.Time `json:"date"`
 	Name      string    `json:"map"`
-	Lost      float64     `json:"lost"`
+	Lost      float64   `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
