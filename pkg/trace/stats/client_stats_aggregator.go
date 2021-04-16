@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	bucketDuration       = time.Second
+	bucketDuration       = 2 * time.Second
 	clientBucketDuration = 10 * time.Second
 	oldestBucketStart    = 20 * time.Second
 )
@@ -28,7 +28,7 @@ const (
 // Multiple payloads will be sent:
 // - Original payloads with their distributions will be sent with counts zeroed.
 // - A single payload with the bucket aggregated counts will be sent.
-// This ensures that all counts will have at most one point per bucketDuration per agent for a specific granularity.
+// This and the aggregator timestamp alignment ensure that all counts will have at most one point per second per agent for a specific granularity.
 // While distributions are not tied to the agent.
 type ClientStatsAggregator struct {
 	In      chan pb.ClientStatsPayload
@@ -53,7 +53,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
-		oldestTs:      time.Now().Add(bucketDuration - oldestBucketStart).Truncate(bucketDuration),
+		oldestTs:      alignAgg(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
 	}
@@ -86,7 +86,7 @@ func (a *ClientStatsAggregator) Stop() {
 
 // flushOnTime flushes all buckets up to flushTs, except the last one.
 func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
-	flushTs := now.Add(bucketDuration - oldestBucketStart).Truncate(bucketDuration)
+	flushTs := alignAgg(now.Add(bucketDuration - oldestBucketStart))
 	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
 		if b, ok := a.buckets[t.Unix()]; ok {
 			a.flush(b.flush())
@@ -110,9 +110,9 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (tim
 		return a.oldestTs, true
 	}
 	if bs.After(now) {
-		return now.Truncate(bucketDuration), true
+		return alignAgg(now), true
 	}
-	return bs.Truncate(bucketDuration), false
+	return alignAgg(bs), false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
@@ -144,6 +144,15 @@ func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
 		AgentVersion:   info.Version,
 		ClientComputed: true,
 	}
+}
+
+// alignAgg aligns time to the aggregator timestamps.
+// Timestamps from the aggregator are never aligned  with concentrator timestamps.
+// This ensures that all counts sent by a same agent host are never on the same second.
+// aggregator timestamps:   2ks+1s (1s, 3s, 5s, 7s, 9s, 11s)
+// concentrator timestamps: 10ks   (0s, 10s, 20s ..)
+func alignAgg(t time.Time) time.Time {
+	return t.Truncate(bucketDuration).Add(time.Second)
 }
 
 type bucket struct {

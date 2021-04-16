@@ -147,6 +147,18 @@ func TestMergeMany(t *testing.T) {
 	}
 }
 
+func TestConcentratorAggregatorNotAligned(t *testing.T) {
+	var ts time.Time
+	bsize := clientBucketDuration.Nanoseconds()
+	for i := 0; i < 50; i++ {
+		fuzzer.Fuzz(&ts)
+		aggTs := alignAgg(ts)
+		assert.True(t, aggTs.UnixNano()%bsize != 0)
+		concentratorTs := alignTs(ts.UnixNano(), bsize)
+		assert.True(t, concentratorTs%bsize == 0)
+	}
+}
+
 func TestTimeShifts(t *testing.T) {
 	type tt struct {
 		shift, expectedShift time.Duration
@@ -168,7 +180,7 @@ func TestTimeShifts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
-			agentTime := time.Now().Truncate(bucketDuration)
+			agentTime := alignAgg(time.Now())
 			payloadTime := agentTime.Add(tc.shift)
 
 			stats := getTestStatsWithStart(payloadTime)
