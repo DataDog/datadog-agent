@@ -71,7 +71,7 @@ func setupConfig() (*config.Config, error) {
 }
 
 func showRuntimeConfiguration(_ *cobra.Command, _ []string) error {
-	c, err := getClient()
+	c, err := getSettingsClient()
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func showRuntimeConfiguration(_ *cobra.Command, _ []string) error {
 }
 
 func listRuntimeConfigurableValue(_ *cobra.Command, _ []string) error {
-	c, err := getClient()
+	c, err := getSettingsClient()
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func listRuntimeConfigurableValue(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func getClient() (settings.Client, error) {
+func getSettingsClient() (settings.Client, error) {
 	cfg, err := setupConfig()
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func setConfigValue(_ *cobra.Command, args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("Exactly two parameters are required: the setting name and its value")
 	}
-	c, err := getClient()
+	c, err := getSettingsClient()
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func getConfigValue(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("A single setting name must be specified")
 	}
 
-	c, err := getClient()
+	c, err := getSettingsClient()
 	if err != nil {
 		return err
 	}

@@ -12,14 +12,14 @@ import (
 )
 
 type runtimeSettingsHTTPClient struct {
-	c          *http.Client
-	baseURL    string
-	serverName string
+	c                 *http.Client
+	baseURL           string
+	targetProcessName string
 }
 
 // NewClient returns a client setup to interact with the standard runtime settings HTTP API
-func NewClient(c *http.Client, baseURL string, name string) settings.Client {
-	return &runtimeSettingsHTTPClient{c, baseURL, name}
+func NewClient(c *http.Client, baseURL string, targetProcessName string) settings.Client {
+	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName}
 }
 
 func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
@@ -32,7 +32,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 			return "", fmt.Errorf(e)
 		}
 
-		return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.serverName, err, rc.serverName)
+		return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
 	}
 
 	return string(r), nil
