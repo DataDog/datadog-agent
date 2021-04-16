@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
@@ -42,7 +42,7 @@ func (s DsdStatsRuntimeSetting) Set(v interface{}) error {
 	var newValue bool
 	var err error
 
-	if newValue, err = getBool(v); err != nil {
+	if newValue, err = settings.GetBool(v); err != nil {
 		return fmt.Errorf("DsdStatsRuntimeSetting: %v", err)
 	}
 

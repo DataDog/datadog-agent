@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -42,7 +41,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 	var profile bool
 	var err error
 
-	profile, err = getBool(v)
+	profile, err = GetBool(v)
 
 	if err != nil {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)

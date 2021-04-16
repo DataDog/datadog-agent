@@ -12,10 +12,12 @@ import (
 	"html"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -238,16 +240,16 @@ func getRuntimeSettingsList(c *http.Client) (map[string]settings.RuntimeSettingR
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
 		return err
 	}
-	if err := settings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
 		return err
 	}
-	if err := settings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
 		return err
 	}
-	if err := settings.RegisterRuntimeSetting(settings.ProfilingRuntimeSetting("profiling")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("profiling")); err != nil {
 		return err
 	}
 
