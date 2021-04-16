@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 func mockAggregator() *aggregator.BufferedAggregator {
@@ -66,12 +66,12 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(agg)
 		parser := newParser(newFloat64ListPool())
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: rawPacket,
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
 
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples := make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
 			packet.Contents = rawPacket
@@ -179,11 +179,11 @@ func BenchmarkMapperControl(b *testing.B) {
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: []byte("airflow.job.duration.my_job_type.my_job_name:666|g"),
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples = s.parsePackets(batcher, parser, packets, samples)
 	}
 

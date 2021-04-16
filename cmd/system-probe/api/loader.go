@@ -1,30 +1,35 @@
-// +build linux windows
-
-package main
+package api
 
 import (
 	"net/http"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
 
-// Loader is responsible for managing the lifecyle of each api.Module, which includes:
+var l *loader
+
+func init() {
+	l = &loader{
+		modules: make(map[config.ModuleName]Module),
+	}
+}
+
+// loader is responsible for managing the lifecyle of each api.Module, which includes:
 // * Module initialization;
 // * Module termination;
 // * Module telemetry consolidation;
-type Loader struct {
+type loader struct {
 	once    sync.Once
-	modules map[config.ModuleName]api.Module
+	modules map[config.ModuleName]Module
 }
 
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func (l *Loader) Register(cfg *config.Config, httpMux *http.ServeMux, factories []api.Factory) error {
+func Register(cfg *config.Config, httpMux *http.ServeMux, factories []Factory) error {
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
@@ -58,7 +63,7 @@ func (l *Loader) Register(cfg *config.Config, httpMux *http.ServeMux, factories 
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
-func (l *Loader) GetStats() map[config.ModuleName]interface{} {
+func GetStats() map[config.ModuleName]interface{} {
 	stats := make(map[config.ModuleName]interface{})
 	for name, module := range l.modules {
 		stats[name] = module.GetStats()
@@ -67,17 +72,10 @@ func (l *Loader) GetStats() map[config.ModuleName]interface{} {
 }
 
 // Close each registered module
-func (l *Loader) Close() {
+func Close() {
 	l.once.Do(func() {
 		for _, module := range l.modules {
 			module.Close()
 		}
 	})
-}
-
-// NewLoader returns a new Loader instance
-func NewLoader() *Loader {
-	return &Loader{
-		modules: make(map[config.ModuleName]api.Module),
-	}
 }

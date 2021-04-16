@@ -26,7 +26,7 @@ pre-start script
 end script
 
 script
-  exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
+  exec <%= install_dir %>/embedded/bin/system-probe run --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid
 end script
 
 post-stop script

@@ -45,6 +45,9 @@ func InitRuntimeSettings() error {
 	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
 		return err
 	}
+	if err := registerRuntimeSetting(dsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
+		return err
+	}
 	if err := registerRuntimeSetting(profilingRuntimeSetting("profiling")); err != nil {
 		return err
 	}

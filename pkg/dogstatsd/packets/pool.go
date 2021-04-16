@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package listeners
+package packets
 
 import (
 	"sync"
@@ -11,7 +11,7 @@ import (
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
-// PacketPool wraps the sync.Pool class for *Packet type.
+// Pool wraps the sync.Pool class for *Packet type.
 // It allows to avoid allocating one object per packet.
 //
 // Caution: as objects get reused, byte slices extracted from
@@ -21,22 +21,22 @@ import (
 //
 // Strings extracted with `string(Contents[n:m]) don't share the
 // origin []byte storage, so they will be unaffected.
-type PacketPool struct {
+type Pool struct {
 	pool sync.Pool
 	// telemetry
 	tlmEnabled bool
 }
 
-// NewPacketPool creates a new pool with a specified buffer size
-func NewPacketPool(bufferSize int) *PacketPool {
-	return &PacketPool{
+// NewPool creates a new pool with a specified buffer size
+func NewPool(bufferSize int) *Pool {
+	return &Pool{
 		pool: sync.Pool{
 			New: func() interface{} {
 				packet := &Packet{
-					buffer: make([]byte, bufferSize),
+					Buffer: make([]byte, bufferSize),
 					Origin: NoOrigin,
 				}
-				packet.Contents = packet.buffer[0:0]
+				packet.Contents = packet.Buffer[0:0]
 				return packet
 			},
 		},
@@ -46,22 +46,27 @@ func NewPacketPool(bufferSize int) *PacketPool {
 }
 
 // Get gets a Packet object read for use.
-func (p *PacketPool) Get() *Packet {
+func (p *Pool) Get() interface{} {
 	if p.tlmEnabled {
-		tlmPacketPoolGet.Inc()
-		tlmPacketPool.Inc()
+		tlmPoolGet.Inc()
+		tlmPool.Inc()
 	}
-	return p.pool.Get().(*Packet)
+	return p.pool.Get()
 }
 
 // Put resets the Packet origin and puts it back in the pool.
-func (p *PacketPool) Put(packet *Packet) {
-	if packet.Origin != NoOrigin {
+func (p *Pool) Put(x interface{}) {
+	if p == nil {
+		return
+	}
+
+	packet, ok := x.(*Packet)
+	if ok && packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {
-		tlmPacketPoolPut.Inc()
-		tlmPacketPool.Dec()
+		tlmPoolPut.Inc()
+		tlmPool.Dec()
 	}
 	p.pool.Put(packet)
 }

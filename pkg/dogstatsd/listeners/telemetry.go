@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package listeners
 
 import (
@@ -7,22 +12,6 @@ import (
 )
 
 var (
-	// packet buffer
-	tlmPacketsBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
-		nil, "Count of packets buffer flush triggered by the timer")
-	tlmPacketsBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
-		nil, "Count of packets buffer flush triggered because the buffer is full")
-	tlmPacketsChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		nil, "Number of packets in the packets channel")
-
-	// packet pool
-	tlmPacketPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
-		nil, "Count of get done in the packet pool")
-	tlmPacketPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
-		nil, "Count of put done in the packet pool")
-	tlmPacketPool = telemetry.NewGauge("dogstatsd", "packet_pool",
-		nil, "Usage of the packet pool in dogstatsd")
-
 	// UDP
 	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
 		[]string{"state"}, "Dogstatsd UDP packets count")
@@ -36,9 +25,6 @@ var (
 		nil, "Dogstatsd UDS origin detection error count")
 	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
 		nil, "Dogstatsd UDS packets bytes")
-
-	tlmListenerChannel    telemetry.Histogram
-	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
 
 	tlmListener            telemetry.Histogram
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
@@ -68,11 +54,4 @@ func init() {
 		[]string{"listener_type"},
 		"Time in nanoseconds while the listener is not reading data",
 		get("telemetry.dogstatsd.listeners_latency_buckets", defaultListenerBuckets))
-
-	tlmListenerChannel = telemetry.NewHistogram(
-		"dogstatsd",
-		"listener_channel_latency",
-		nil,
-		"Time in nanoseconds to push a packets from a listeners to dogstatsd pipeline",
-		get("telemetry.dogstatsd.listeners_channel_latency_buckets", defaultChannelBuckets))
 }

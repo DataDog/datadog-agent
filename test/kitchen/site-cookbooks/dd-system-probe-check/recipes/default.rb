@@ -5,7 +5,12 @@
 # Copyright (C) 2020-present Datadog
 #
 if platform?('centos')
-  include_recipe 'yum-centos::vault'
+  include_recipe '::old_vault'
+end
+
+case node[:platform]
+  when 'ubuntu', 'debian'
+    apt_update
 end
 
 kernel_version = `uname -r`.strip
@@ -19,6 +24,11 @@ package 'kernel headers' do
 end
 
 package 'python3'
+
+case node[:platform]
+  when 'centos', 'redhat'
+    package 'iptables'
+end
 
 package 'conntrack'
 
@@ -63,6 +73,7 @@ end
 execute 'disable firewalld on redhat' do
   command "systemctl disable --now firewalld"
   user "root"
+  ignore_failure true
   case node[:platform]
   when 'redhat'
     action :run
