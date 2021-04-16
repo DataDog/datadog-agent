@@ -83,7 +83,6 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 
 	log.Debugf("Collected & enriched %d out of %d cron jobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
 	return messages, nil
-
 }
 
 // chunkCronJobs formats and chunks cronJobs into a slice of chunks using a specific number of chunks.
