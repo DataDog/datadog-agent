@@ -6,11 +6,14 @@
 package aggregator
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -108,6 +111,8 @@ var (
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
+	aggregatorEventPlatformEvents              = expvar.Map{}
+	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -155,17 +160,19 @@ func init() {
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
+	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
+	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(s serializer.MetricSerializer, hostname string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, hostname, DefaultFlushInterval)
+func InitAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(s, hostname, flushInterval)
+		aggregatorInstance = NewBufferedAggregator(s, eventPlatformForwarder, hostname, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -202,33 +209,35 @@ type BufferedAggregator struct {
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
 	orchestratorMetadataIn chan senderOrchestratorMetadata
+	eventPlatformIn        chan senderEventPlatformEvent
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
 	MetricSamplePool *metrics.MetricSamplePool
 
-	statsdSampler      TimeSampler
-	checkSamplers      map[check.ID]*CheckSampler
-	serviceChecks      metrics.ServiceChecks
-	events             metrics.Events
-	flushInterval      time.Duration
-	mu                 sync.Mutex // to protect the checkSamplers field
-	flushMutex         sync.Mutex // to start multiple flushes in parallel
-	serializer         serializer.MetricSerializer
-	hostname           string
-	hostnameUpdate     chan string
-	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
-	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
-	stopChan           chan struct{}
-	health             *health.Handle
-	agentName          string // Name of the agent for telemetry metrics
+	statsdSampler          TimeSampler
+	checkSamplers          map[check.ID]*CheckSampler
+	serviceChecks          metrics.ServiceChecks
+	events                 metrics.Events
+	flushInterval          time.Duration
+	mu                     sync.Mutex // to protect the checkSamplers field
+	flushMutex             sync.Mutex // to start multiple flushes in parallel
+	serializer             serializer.MetricSerializer
+	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	hostname               string
+	hostnameUpdate         chan string
+	hostnameUpdateDone     chan struct{}    // signals that the hostname update is finished
+	TickerChan             <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
+	stopChan               chan struct{}
+	health                 *health.Handle
+	agentName              string // Name of the agent for telemetry metrics
 
 	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
 	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -257,6 +266,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
+		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -264,6 +274,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, hostname string, flush
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
+		eventPlatformForwarder:  eventPlatformForwarder,
 		hostname:                hostname,
 		hostnameUpdate:          make(chan string),
 		hostnameUpdateDone:      make(chan struct{}),
@@ -287,7 +298,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn) == 0 {
+	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.checkHistogramBucketIn)+len(agg.eventPlatformIn) == 0 {
 		return true
 	}
 	return false
@@ -382,6 +393,15 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}
+}
+
+func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
+	if agg.eventPlatformForwarder == nil {
+		return errors.New("event platform forwarder not initialized")
+	}
+	m := &message.Message{Content: []byte(event.rawEvent)}
+	// eventPlatformForwarder is threadsafe so no locking needed here
+	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -607,6 +627,12 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	return events
 }
 
+// GetEventPlatformEvents grabs the event platform events from the queue and clears them.
+// Note that this works only if using the 'noop' event platform forwarder
+func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
+	return agg.eventPlatformForwarder.Purge()
+}
+
 func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
@@ -686,6 +712,9 @@ func (agg *BufferedAggregator) run() {
 		}
 	}
 
+	// ensures event platform errors are logged at most once per flush
+	aggregatorEventPlatformErrorLogged := false
+
 	for {
 		select {
 		case <-agg.stopChan:
@@ -697,6 +726,7 @@ func (agg *BufferedAggregator) run() {
 			agg.Flush(start, false)
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
+			aggregatorEventPlatformErrorLogged = false
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
 			tlmProcessed.Inc("metrics")
@@ -765,8 +795,22 @@ func (agg *BufferedAggregator) run() {
 					log.Errorf("Error submitting orchestrator data: %s", err)
 				}
 			}(orchestratorMetadata)
+		case event := <-agg.eventPlatformIn:
+			state := stateOk
+			tlmProcessed.Add(1, event.eventType)
+			aggregatorEventPlatformEvents.Add(event.eventType, 1)
+			err := agg.handleEventPlatformEvent(event)
+			if err != nil {
+				state = stateError
+				aggregatorEventPlatformEventsErrors.Add(event.eventType, 1)
+				log.Debugf("error submitting event platform event: %s", err)
+				if !aggregatorEventPlatformErrorLogged {
+					log.Warnf("Failed to process some event platform events. error='%s' eventCounts=%s errorCounts=%s", err, aggregatorEventPlatformEvents.String(), aggregatorEventPlatformEventsErrors.String())
+					aggregatorEventPlatformErrorLogged = true
+				}
+			}
+			tlmFlush.Add(1, event.eventType, state)
 		}
-
 	}
 }
 

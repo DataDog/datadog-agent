@@ -98,6 +98,10 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	return &network.Via{Subnet: s}
 }
 
+func (g *gatewayLookup) purge() {
+	g.subnetCache = make(map[int]network.Subnet)
+}
+
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 	snet, err := ec2.GetSubnetForHardwareAddr(hwAddr)
 	if err != nil {

@@ -1,4 +1,4 @@
-package listeners
+package packets
 
 import (
 	"fmt"
@@ -11,10 +11,11 @@ import (
 // copy of aggregator.MetricSamplePoolBatchSize to avoid cycling import
 const sampleBatchSize = 32
 
-func buildPacketAssembler() (*packetAssembler, chan Packets) {
+func buildPacketAssembler() (*Assembler, chan Packets) {
 	out := make(chan Packets, 16)
-	psb := newPacketsBuffer(1, 1*time.Hour, out)
-	pb := newPacketAssembler(100*time.Millisecond, psb, NewPacketPool(sampleBatchSize), UDP)
+	psb := NewBuffer(1, 1*time.Hour, out)
+	pp := NewPool(sampleBatchSize)
+	pb := NewAssembler(100*time.Millisecond, psb, NewPoolManager(pp), UDP)
 	return pb, out
 }
 
@@ -35,7 +36,7 @@ func TestPacketBufferTimeout(t *testing.T) {
 	pb, out := buildPacketAssembler()
 	message := []byte("test")
 
-	pb.addMessage(message)
+	pb.AddMessage(message)
 
 	packets := <-out
 	assert.Len(t, packets, 1)
@@ -47,8 +48,8 @@ func TestPacketBufferMerge(t *testing.T) {
 	message1 := []byte("test1")
 	message2 := []byte("test2")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
 
 	packets := <-out
 	assert.Len(t, packets, 1)
@@ -60,8 +61,8 @@ func TestPacketBufferMergeMaxSize(t *testing.T) {
 	message1 := []byte("12345678")
 	message2 := []byte("1234567")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
 
 	packets := <-out
 	assert.Len(t, packets, 1)
@@ -75,8 +76,8 @@ func TestPacketBufferOverflow(t *testing.T) {
 	message1 := generateRandomPacket(sampleBatchSize)
 	message2 := []byte("12345678")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
 
 	packets1 := <-out
 	packets2 := <-out
@@ -92,9 +93,9 @@ func TestPacketBufferMergePlusOverflow(t *testing.T) {
 	message2 := generateRandomPacket((sampleBatchSize / 2) - 1)
 	message3 := []byte("Z")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
-	pb.addMessage(message3)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
+	pb.AddMessage(message3)
 
 	packets1 := <-out
 	packets2 := <-out
@@ -109,8 +110,8 @@ func TestPacketBufferEmpty(t *testing.T) {
 	message1 := []byte("")
 	message2 := []byte("test2")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
 
 	packets := <-out
 	assert.Len(t, packets, 1)
@@ -121,7 +122,7 @@ func TestPacketBufferHasCorrectSource(t *testing.T) {
 	pb, out := buildPacketAssembler()
 	message1 := []byte("test")
 
-	pb.addMessage(message1)
+	pb.AddMessage(message1)
 
 	packets := <-out
 	assert.Equal(t, UDP, packets[0].Source)
@@ -132,22 +133,22 @@ func TestPacketBufferEmptySecond(t *testing.T) {
 	message1 := []byte("test1")
 	message2 := []byte("")
 
-	pb.addMessage(message1)
-	pb.addMessage(message2)
+	pb.AddMessage(message1)
+	pb.AddMessage(message2)
 
 	packets := <-out
 	assert.Len(t, packets, 1)
 	assert.Equal(t, []byte("test1\n"), packets[0].Contents)
 }
 
-func BenchmarkPacketsBufferFlush(b *testing.B) {
+func BenchmarkBufferFlush(b *testing.B) {
 	packet := generateRandomPacket(4)
 
 	for i := 0; i < b.N; i++ {
 		pb, out := buildPacketAssembler()
 
 		for i := 0; i < 100; i++ {
-			pb.addMessage(packet)
+			pb.AddMessage(packet)
 
 			// let's empty the packets channel to make sure it is not blocking
 			for len(out) > 0 {

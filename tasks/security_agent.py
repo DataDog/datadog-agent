@@ -194,7 +194,7 @@ def build_functional_tests(
 
     if static:
         ldflags += '-extldflags "-static"'
-        build_tags += ',osusergo'
+        build_tags += ',osusergo,netgo'
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'

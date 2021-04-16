@@ -2,8 +2,10 @@
 #define __HTTP_H
 
 #include "tracer.h"
-#include "bpf_helpers.h"
-#include "tracer-maps.h"
+#include "http-types.h"
+#include "http-maps.h"
+
+#include <uapi/linux/ptrace.h>
 
 static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, http_batch_state_t *batch_state) {
     __builtin_memset(key, 0, sizeof(http_batch_key_t));

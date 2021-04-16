@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package dogstatsd
 
@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -46,6 +48,10 @@ var (
 		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
 	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
 	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
+
+	tlmChannel            telemetry.Histogram
+	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
+	once                  sync.Once
 )
 
 func init() {
@@ -56,6 +62,29 @@ func init() {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
+}
+
+func initLatencyTelemetry() {
+	buckets := defaultChannelBuckets
+	option := "telemetry.dogstatsd.aggregator_channel_latency_buckets"
+
+	if !config.Datadog.IsSet(option) {
+		confBuckets, err := config.Datadog.GetFloat64SliceE(option)
+		if err != nil {
+			log.Errorf("%s, falling back to default values", err)
+		} else if len(confBuckets) == 0 {
+			log.Debugf("'%s' is empty, falling back to default values", option)
+		} else {
+			buckets = confBuckets
+		}
+	}
+
+	tlmChannel = telemetry.NewHistogram(
+		"dogstatsd",
+		"channel_latency",
+		[]string{"message_type"},
+		"Time in millisecond to push metrics to the aggregator input buffer",
+		buckets)
 }
 
 // Server represent a Dogstatsd server
@@ -69,8 +98,9 @@ type Server struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
-	packetsIn                 chan listeners.Packets
-	sharedPacketPool          *listeners.PacketPool
+	packetsIn                 chan packets.Packets
+	sharedPacketPool          *packets.Pool
+	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
 	Statistics                *util.Stats
 	Started                   bool
@@ -83,6 +113,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
+	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
 	eolTerminationUDS         bool
@@ -133,6 +164,9 @@ type metricsCountBuckets struct {
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
 func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+	// This needs to be done after the configuration is loaded
+	once.Do(initLatencyTelemetry)
+
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -150,18 +184,23 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		metricsStatsEnabled = 1
 	}
 
-	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+	capture, err := replay.NewTrafficCapture()
+	if err != nil {
+		return nil, err
+	}
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
 
 	udsListenerRunning := false
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -170,7 +209,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPool)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -180,7 +219,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -235,6 +274,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
 		sharedPacketPool:          sharedPacketPool,
+		sharedPacketPoolManager:   sharedPacketPoolManager,
 		sharedFloat64List:         newFloat64ListPool(),
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
@@ -261,6 +301,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			},
 			keyGen: ckey.NewKeyGenerator(),
 		},
+		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
 	}
 
@@ -275,7 +316,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
-			s.packetsIn = make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+			s.packetsIn = make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 			go s.forwarder(con, packetsChannel)
 		}
 	}
@@ -335,7 +376,12 @@ func (s *Server) handleMessages() {
 	}
 }
 
-func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets) {
+// Capture starts a traffic capture with the specified duration, returns an error if any
+func (s *Server) Capture(d time.Duration) error {
+	return s.TCapture.Start(d)
+}
+
+func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -410,19 +456,19 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
-func (s *Server) eolEnabled(sourceType listeners.SourceType) bool {
+func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	switch sourceType {
-	case listeners.UDS:
+	case packets.UDS:
 		return s.eolTerminationUDS
-	case listeners.UDP:
+	case packets.UDP:
 		return s.eolTerminationUDP
-	case listeners.NamedPipe:
+	case packets.NamedPipe:
 		return s.eolTerminationNamedPipe
 	}
 	return false
 }
 
-func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -476,7 +522,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 			}
 		}
-		s.sharedPacketPool.Put(packet)
+		s.sharedPacketPoolManager.Put(packet)
 	}
 	batcher.flush()
 	return samples
@@ -561,6 +607,12 @@ func (s *Server) Stop() {
 	}
 	if s.Statistics != nil {
 		s.Statistics.Stop()
+	}
+	if s.TCapture != nil {
+		err := s.TCapture.Stop()
+		if err != nil {
+			log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
+		}
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false

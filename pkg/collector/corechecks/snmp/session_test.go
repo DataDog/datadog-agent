@@ -1,7 +1,14 @@
 package snmp
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/require"
+	"io/ioutil"
+	stdlog "log"
 	"testing"
 	"time"
 
@@ -209,4 +216,72 @@ func Test_snmpSession_Configure(t *testing.T) {
 			assert.Equal(t, tt.expectedSecurityParameters, s.gosnmpInst.SecurityParameters)
 		})
 	}
+}
+
+func Test_snmpSession_traceLog_disabled(t *testing.T) {
+
+	config := snmpConfig{
+		ipAddress:       "1.2.3.4",
+		communityString: "abc",
+	}
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "info")
+
+	s := &snmpSession{}
+	err = s.Configure(config)
+	assert.Nil(t, err)
+	assert.Equal(t, false, s.loggerEnabled)
+	assert.Nil(t, s.gosnmpInst.Logger)
+
+}
+func Test_snmpSession_traceLog_enabled(t *testing.T) {
+	config := snmpConfig{
+		ipAddress:       "1.2.3.4",
+		communityString: "abc",
+	}
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "trace")
+
+	s := &snmpSession{}
+	err = s.Configure(config)
+	assert.Nil(t, err)
+	assert.Equal(t, true, s.loggerEnabled)
+	assert.NotNil(t, s.gosnmpInst.Logger)
+
+	s.gosnmpInst.Logger.Print("log line 1")
+	s.gosnmpInst.Logger.Print("log line 2")
+
+	w.Flush()
+	logs := b.String()
+
+	assert.Contains(t, logs, "log line 1")
+	assert.Contains(t, logs, "log line 2")
+
+}
+
+func Test_snmpSession_Connect_Logger(t *testing.T) {
+	config := snmpConfig{
+		ipAddress:       "1.2.3.4",
+		communityString: "abc",
+	}
+	s := &snmpSession{}
+	err := s.Configure(config)
+	require.NoError(t, err)
+
+	logger := stdlog.New(ioutil.Discard, "abc", 0)
+	s.loggerEnabled = false
+	s.gosnmpInst.Logger = logger
+	s.Connect()
+	assert.NotSame(t, logger, s.gosnmpInst.Logger)
+
+	s.loggerEnabled = true
+	s.gosnmpInst.Logger = logger
+	s.Connect()
+	assert.Same(t, logger, s.gosnmpInst.Logger)
 }

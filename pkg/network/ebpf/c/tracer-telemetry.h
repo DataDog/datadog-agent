@@ -10,7 +10,6 @@
 
 enum telemetry_counter
 {
-    tcp_sent_miscounts,
     missed_tcp_close,
     missed_udp_close,
     udp_send_processed,
@@ -27,9 +26,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 
     switch (counter_name) {
-    case tcp_sent_miscounts:
-        __sync_fetch_and_add(&val->tcp_sent_miscounts, 1);
-        break;
     case missed_tcp_close:
         __sync_fetch_and_add(&val->missed_tcp_close, 1);
         break;

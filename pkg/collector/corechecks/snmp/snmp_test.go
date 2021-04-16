@@ -81,7 +81,7 @@ func TestBasicSample(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
-	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -769,7 +769,7 @@ ip_address: 1.2.3.4
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+				aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 			}
 
 			mocksender.SetSender(sender, check.ID())

@@ -7,7 +7,6 @@
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "syscalls.h"
-#include "http.h"
 #include "ip.h"
 #include "netns.h"
 
@@ -185,23 +184,6 @@ int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
 
     handle_tcp_stats(&t, sk);
     return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN);
-}
-
-SEC("kretprobe/tcp_sendmsg")
-int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
-#if DEBUG == 1
-    int ret = PT_REGS_RC(ctx);
-
-    log_debug("kretprobe/tcp_sendmsg: return: %d\n", ret);
-    // If ret < 0 it means an error occurred but we still counted the bytes as being sent
-    // let's increment our miscount count
-    if (ret < 0) {
-        increment_telemetry_count(tcp_sent_miscounts);
-    }
-#endif
-    http_notify_batch(ctx);
-
-    return 0;
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -685,28 +667,6 @@ int socket__dns_filter(struct __sk_buff* skb) {
 #endif
 
     return -1;
-}
-
-SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
-        return 0;
-    }
-
-    if (skb_info.tup.sport != 80 && skb_info.tup.sport != 8080 && skb_info.tup.dport != 80 && skb_info.tup.dport != 8080) {
-        return 0;
-    }
-
-    if (skb_info.tup.sport == 80 || skb_info.tup.sport == 8080) {
-        // Normalize tuple
-        flip_tuple(&skb_info.tup);
-    }
-
-    http_handle_packet(skb, &skb_info);
-
-    return 0;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

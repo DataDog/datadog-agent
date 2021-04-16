@@ -81,6 +81,10 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (retval)
+        return 0;
+
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
     struct path_key_t path_key = {
         .mount_id = get_mount_mount_id(syscall->mount.dest_mnt),
@@ -88,7 +92,7 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     };
 
     struct mount_event_t event = {
-        .syscall.retval = PT_REGS_RC(ctx),
+        .syscall.retval = retval,
         .mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .device = get_mount_dev(syscall->mount.src_mnt),

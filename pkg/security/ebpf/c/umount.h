@@ -33,10 +33,14 @@ SYSCALL_KRETPROBE(umount) {
     if (!syscall)
         return 0;
 
+    int retval = PT_REGS_RC(ctx);
+    if (retval)
+        return 0;
+
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
 
     struct umount_event_t event = {
-        .syscall .retval = PT_REGS_RC(ctx),
+        .syscall .retval = retval,
         .mount_id = mount_id
     };
 
