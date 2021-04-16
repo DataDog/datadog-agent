@@ -17,7 +17,6 @@ mkdir c:\gopath\src\github.com\StackVista\
 mklink /J %GOPATH%\src\github.com\StackVista\stackstate-agent %WIN_CI_PROJECT_DIR%
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
 echo ====- cleaning existing venv
-del /f /q /s %GOPATH%\src\github.com\StackVista\stackstate-agent\venv > nul
 rmdir /q /s %GOPATH%\src\github.com\StackVista\stackstate-agent\venv
 echo ====- creating venv with mkvirtualenv venv
 call mkvirtualenv venv
