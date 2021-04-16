@@ -132,7 +132,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, nil
 	}
 
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun)
+	connsByPID := Connections.getLastConnectionsByPID()
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
@@ -254,8 +256,10 @@ func fmtProcesses(
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
+	connsByPID map[int32][]*model.Connection,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
+	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(cfg, fp, lastProcs) {
@@ -279,6 +283,7 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
+			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -354,6 +359,16 @@ func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 		ms.Dirty = fp.MemInfoEx.Dirty
 	}
 	return ms
+}
+
+func formatNetworks(conns []*model.Connection, interval int) *model.ProcessNetworks {
+	connRate := float32(len(conns)) / float32(interval)
+	totalTraffic := uint64(0)
+	for _, conn := range conns {
+		totalTraffic += conn.LastBytesSent + conn.LastBytesReceived
+	}
+	bytesRate := float32(totalTraffic) / float32(interval)
+	return &model.ProcessNetworks{ConnectionRate: connRate, BytesRate: bytesRate}
 }
 
 // skipProcess will skip a given process if it's blacklisted or hasn't existed

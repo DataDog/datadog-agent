@@ -525,6 +525,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
+	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
 
 	// GCE
@@ -708,6 +709,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 30) // 30s corresponds to the default value set by the Kubernetes API
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
 	config.BindEnvAndSetDefault("admission_controller.certificate.expiration_threshold", 30*24)        // how long before its expiration a certificate should be refreshed (in hours, default 1 month)
@@ -724,6 +726,14 @@ func InitConfig(config Config) {
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.SetKnown("telemetry.checks")
+	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
+	//
+	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for the DogStatsD server to push data to the aggregator
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
+	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
+	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.

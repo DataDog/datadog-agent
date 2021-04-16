@@ -14,6 +14,6 @@ cleanup_kitchen_functional_test:
     - when: manual
       allow_failure: true
   stage: functional_test_cleanup
-  needs: ["tests_ebpf"]
+  needs: ["tests_ebpf_x64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

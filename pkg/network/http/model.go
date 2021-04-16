@@ -7,7 +7,7 @@ import (
 )
 
 /*
-#include "../ebpf/c/tracer.h"
+#include "../ebpf/c/http-types.h"
 */
 import "C"
 

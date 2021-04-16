@@ -21,7 +21,7 @@ var (
 	defaultFlags = []string{
 		"-DCONFIG_64BIT",
 		"-D__BPF_TRACING__",
-		`-DKBUILD_MODNAME='"ddsysprobe"'`,
+		`-DKBUILD_MODNAME="ddsysprobe"`,
 		"-Wno-unused-value",
 		"-Wno-pointer-sign",
 		"-Wno-compare-distinct-pointer-types",

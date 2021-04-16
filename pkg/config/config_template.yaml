@@ -1731,6 +1731,11 @@ api_key:
 #
 # ecs_collect_resource_tags_ec2: false
 
+## @param ecs_resource_tags_replace_colon - boolean - optional - default: false
+## The Agent replaces colon `:` characters in the ECS resource tag keys by underscores `_`.
+#
+# ecs_resource_tags_replace_colon: false
+
 ## @param ecs_metadata_timeout - integer - optional - default: 500
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #

@@ -17,7 +17,7 @@ from .agent import integration_tests as agent_integration_tests
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import get_build_flags
@@ -31,6 +31,28 @@ def ensure_bytes(s):
         return s.encode('utf-8')
 
     return s
+
+
+TOOL_LIST = [
+    'github.com/client9/misspell/cmd/misspell',
+    'github.com/frapposelli/wwhrd',
+    'github.com/fzipp/gocyclo',
+    'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
+    'github.com/golangci/golangci-lint/cmd/golangci-lint',
+    'github.com/gordonklaus/ineffassign',
+    'github.com/goware/modvendor',
+    'golang.org/x/lint/golint',
+    'gotest.tools/gotestsum',
+    'honnef.co/go/tools/cmd/staticcheck',
+]
+
+
+@task
+def install_tools(ctx):
+    """Install all Go tools for testing."""
+    with ctx.cd("internal/tools"):
+        for tool in TOOL_LIST:
+            ctx.run("go install {}".format(tool))
 
 
 @task()
@@ -56,6 +78,7 @@ def test(
     cache=True,
     skip_linters=False,
     save_result_json=None,
+    rerun_fails=None,
     go_mod="mod",
 ):
     """
@@ -101,14 +124,8 @@ def test(
     generate(ctx)
 
     if skip_linters:
-        print("--- [skipping linters]")
+        print("--- [skipping Go linters]")
     else:
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
-
-        print("--- Linting filenames:")
-        lint_filenames(ctx)
-
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
@@ -203,8 +220,8 @@ def test(
         print("Removing existing '{}' file".format(save_result_json))
         os.remove(save_result_json)
 
-    cmd = 'go run gotest.tools/gotestsum {json_flag} --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
+    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
@@ -218,6 +235,7 @@ def test(
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
+        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
     }
 
     failed_modules = []
@@ -230,7 +248,7 @@ def test(
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
-                    pkg_folder=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    packages=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
                     **args
                 ),
                 env=env,

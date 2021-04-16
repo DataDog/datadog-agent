@@ -287,29 +287,39 @@ func (a *Agent) Process(p *api.Payload) {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-// ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
+func (a *Agent) convertStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.StatsPayload {
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
 	in.TracerVersion = tracerVersion
 	in.Lang = lang
-	for _, group := range in.Stats {
+	for i, group := range in.Stats {
+		n := 0
 		for _, b := range group.Stats {
 			normalizeStatsGroup(&b, lang)
+			if !a.Blacklister.AllowsStat(&b) {
+				continue
+			}
 			a.obfuscator.ObfuscateStatsGroup(&b)
 			a.Replacer.ReplaceStatsGroup(&b)
+			group.Stats[n] = b
+			n++
 		}
+		in.Stats[i].Stats = group.Stats[:n]
 	}
-	out := pb.StatsPayload{
-		ClientComputed: true,
+	return pb.StatsPayload{
 		Stats:          []pb.ClientStatsPayload{in},
 		AgentEnv:       a.conf.DefaultEnv,
 		AgentHostname:  a.conf.Hostname,
 		AgentVersion:   info.Version,
+		ClientComputed: true,
 	}
-	a.StatsWriter.SendPayload(out)
+}
+
+// ProcessStats processes incoming client stats in from the given tracer.
+func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
+	a.StatsWriter.SendPayload(a.convertStats(in, lang, tracerVersion))
 }
 
 // sample decides whether the trace will be kept and extracts any APM events
