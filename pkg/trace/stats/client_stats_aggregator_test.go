@@ -102,6 +102,29 @@ func assertAggCountsPayload(t *testing.T, aggCounts pb.StatsPayload) {
 	}
 }
 
+func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStatsPayload {
+	p.Lang = ""
+	p.TracerVersion = ""
+	p.RuntimeID = ""
+	p.Sequence = 0
+	p.AgentAggregation = "counts"
+	for i, s := range p.Stats {
+		p.Stats[i].Start = uint64(alignAgg(insertionTime).UnixNano())
+		p.Stats[i].Duration = uint64(clientBucketDuration.Nanoseconds())
+		p.Stats[i].AgentTimeShift = 0
+		for j := range s.Stats {
+			s.Stats[j].DBType = ""
+			s.Stats[j].Hits *= 2
+			s.Stats[j].Errors *= 2
+			s.Stats[j].Duration *= 2
+			s.Stats[j].TopLevelHits = 0
+			s.Stats[j].OkSummary = nil
+			s.Stats[j].ErrorSummary = nil
+		}
+	}
+	return p
+}
+
 func TestAggregatorFlushTime(t *testing.T) {
 	assert := assert.New(t)
 	a := newTestAggregator()
@@ -193,6 +216,31 @@ func TestTimeShifts(t *testing.T) {
 			stats.Stats[0].Start -= uint64(tc.expectedShift.Nanoseconds())
 			assert.Equal(wrapPayload(stats), <-a.out)
 		})
+	}
+}
+
+func TestFuzzCountFields(t *testing.T) {
+	assert := assert.New(t)
+	for i := 0; i < 30; i++ {
+		a := newTestAggregator()
+		payloadTime := time.Now().Truncate(bucketDuration)
+		merge1 := getTestStatsWithStart(payloadTime)
+
+		insertionTime := payloadTime.Add(time.Second)
+		a.add(insertionTime, deepCopy(merge1))
+		a.add(insertionTime, deepCopy(merge1))
+		assert.Len(a.out, 1)
+		a.flushOnTime(payloadTime.Add(oldestBucketStart))
+		assert.Len(a.out, 2)
+		assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), <-a.out)
+		aggCounts := <-a.out
+		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
+		// map gives random orders post aggregation
+		assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, expectedAggCounts.Stats[0].Stats[0].Stats)
+		aggCounts.Stats[0].Stats[0].Stats = nil
+		expectedAggCounts.Stats[0].Stats[0].Stats = nil
+		assert.Equal(expectedAggCounts, aggCounts)
+		assert.Len(a.buckets, 0)
 	}
 }
 
