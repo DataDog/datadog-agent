@@ -578,9 +578,9 @@ func InitConfig(config Config) {
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
 
-	// Profiling
-	config.BindEnvAndSetDefault("profiling.enabled", false)
-	config.BindEnv("profiling.profile_dd_url", "") //nolint:errcheck
+	// internal profiling
+	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
+	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
@@ -783,7 +783,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.intervals.connections")
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
-	config.SetKnown("process_config.profiling.enabled")
+	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
 	setupSystemProbe(config)
