@@ -120,7 +120,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     set_file_inode(dentry, &syscall->open.file, 0);
 
     if (filter_syscall(syscall, open_approvers)) {
-        return discard_syscall(syscall);
+        return mark_as_discarded(syscall);
     }
 
     return 0;
@@ -145,7 +145,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
     set_file_inode(dentry, &syscall->open.file, 0);
 
     if (filter_syscall(syscall, open_approvers)) {
-        return discard_syscall(syscall);
+        return mark_as_discarded(syscall);
     }
 
     return 0;
@@ -211,6 +211,11 @@ int __attribute__((always_inline)) do_sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
+    // increase mount ref
+    inc_mount_ref(syscall->open.file.path_key.mount_id);
+    if (syscall->discarded)
+        return 0;
+
     int retval = PT_REGS_RC(ctx);
     struct open_event_t event = {
         .syscall.retval = retval,
@@ -230,9 +235,6 @@ int __attribute__((always_inline)) do_sys_open_ret(struct pt_regs *ctx) {
     fill_container_context(entry, &event.container);
 
     send_event(ctx, EVENT_OPEN, event);
-
-    // increase mount ref
-    inc_mount_ref(syscall->open.file.path_key.mount_id);
 
     return 0;
 }
