@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"os/exec"
-	"os/user"
 	"path"
 	"runtime"
 	"strings"
@@ -37,11 +36,9 @@ func TestProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	currentUser, _ := user.LookupId("0")
-
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`process.user == "%s" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, currentUser.Username, path.Base(executable)),
+		Expression: fmt.Sprintf(`process.user != "" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, path.Base(executable)),
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
