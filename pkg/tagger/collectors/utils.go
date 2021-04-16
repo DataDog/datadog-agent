@@ -6,22 +6,27 @@ import (
 )
 
 const (
-	lowCardinalityString               = "low"
-	orchestratorCardinalityString      = "orchestrator"
-	shortOrchestratorCardinalityString = "orch"
-	highCardinalityString              = "high"
-	unknownCardinalityString           = "unknown"
+	// LowCardinalityString is the string representation of the low cardinality
+	LowCardinalityString               = "low"
+	// OrchestratorCardinalityString is the string representation of the orchestrator cardinality
+	OrchestratorCardinalityString      = "orchestrator"
+	// ShortOrchestratorCardinalityString is the short string representation of the orchestrator cardinality
+	ShortOrchestratorCardinalityString = "orch"
+	// HighCardinalityString is the string representation of the high cardinality
+	HighCardinalityString              = "high"
+	// UnknownCardinalityString represents an unknown level of cardinality
+	UnknownCardinalityString           = "unknown"
 )
 
 // StringToTagCardinality extracts a TagCardinality from a string.
 // In case of failure to parse, returns an error and defaults to Low.
 func StringToTagCardinality(c string) (TagCardinality, error) {
 	switch strings.ToLower(c) {
-	case highCardinalityString:
+	case HighCardinalityString:
 		return HighCardinality, nil
-	case shortOrchestratorCardinalityString, orchestratorCardinalityString:
+	case ShortOrchestratorCardinalityString, OrchestratorCardinalityString:
 		return OrchestratorCardinality, nil
-	case lowCardinalityString:
+	case LowCardinalityString:
 		return LowCardinality, nil
 	default:
 		return LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
@@ -33,12 +38,12 @@ func StringToTagCardinality(c string) (TagCardinality, error) {
 func TagCardinalityToString(c TagCardinality) string {
 	switch c {
 	case HighCardinality:
-		return highCardinalityString
+		return HighCardinalityString
 	case OrchestratorCardinality:
-		return orchestratorCardinalityString
+		return OrchestratorCardinalityString
 	case LowCardinality:
-		return lowCardinalityString
+		return LowCardinalityString
 	default:
-		return unknownCardinalityString
+		return UnknownCardinalityString
 	}
 }

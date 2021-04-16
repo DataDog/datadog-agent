@@ -11,7 +11,8 @@ var (
 	hostTagPrefix        = "host:"
 	entityIDTagPrefix    = "dd.internal.entity_id:"
 	entityIDIgnoreValue  = "none"
-	cardinalityTagPrefix = "dd.internal.card:"
+	// CardinalityTagPrefix is used to set the dynamic cardinality
+	CardinalityTagPrefix = "dd.internal.card:"
 )
 
 func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
@@ -24,8 +25,8 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 			host = tag[len(hostTagPrefix):]
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			entityIDValue = tag[len(entityIDTagPrefix):]
-		} else if strings.HasPrefix(tag, cardinalityTagPrefix) {
-			cardinality = tag[len(cardinalityTagPrefix):]
+		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
+			cardinality = tag[len(CardinalityTagPrefix):]
 		} else {
 			tags[n] = tag
 			n++
