@@ -28,9 +28,9 @@ message ClientStatsPayload {
 	string tracerVersion = 6; // informative field not used for aggregation
 	string runtimeID = 7; // used on stats payloads sent by the tracer to identify uniquely a message
 	uint64 sequence = 8; // used on stats payloads sent by the tracer to identify uniquely a message
-        // agentAggregation is set by the agent on tracer payloads modified by the agent aggregation layer
-        // characterizes counts only and distributions only payloads
-        string agentAggregation = 9;
+	// agentAggregation is set by the agent on tracer payloads modified by the agent aggregation layer
+	// characterizes counts only and distributions only payloads
+	string agentAggregation = 9;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.
