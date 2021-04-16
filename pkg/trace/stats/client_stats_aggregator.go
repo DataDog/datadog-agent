@@ -22,13 +22,13 @@ const (
 	keyCounts = "counts"
 )
 
-// ClientStatsAggregator aggregates client stats payloads on 1s buckets.
+// ClientStatsAggregator aggregates client stats payloads on buckets of bucketDuration
 // If a single payload is received on a bucket, this Aggregator is a passthrough.
 // If two or more payloads collide, their counts will be aggregated into one bucket.
 // Multiple payloads will be sent:
 // - Original payloads with their distributions will be sent with counts zeroed.
 // - A single payload with the bucket aggregated counts will be sent.
-// This ensures that all counts will have at most one point per second per agent for a specific granularity.
+// This ensures that all counts will have at most one point per bucketDuration per agent for a specific granularity.
 // While distributions are not tied to the agent.
 type ClientStatsAggregator struct {
 	In      chan pb.ClientStatsPayload
@@ -53,7 +53,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload
 		out:           out,
 		agentEnv:      conf.DefaultEnv,
 		agentHostname: conf.Hostname,
-		oldestTs:      time.Now().Truncate(bucketDuration).Add(-oldestBucketStart),
+		oldestTs:      time.Now().Add(bucketDuration - oldestBucketStart).Truncate(bucketDuration),
 		exit:          make(chan struct{}),
 		done:          make(chan struct{}),
 	}
@@ -86,7 +86,7 @@ func (a *ClientStatsAggregator) Stop() {
 
 // flushOnTime flushes all buckets up to flushTs, except the last one.
 func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
-	flushTs := now.Add(-oldestBucketStart).Truncate(bucketDuration)
+	flushTs := now.Add(bucketDuration - oldestBucketStart).Truncate(bucketDuration)
 	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
 		if b, ok := a.buckets[t.Unix()]; ok {
 			a.flush(b.flush())
@@ -110,9 +110,9 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (tim
 		return a.oldestTs, true
 	}
 	if bs.After(now) {
-		return now, true
+		return now.Truncate(bucketDuration), true
 	}
-	return bs, false
+	return bs.Truncate(bucketDuration), false
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {

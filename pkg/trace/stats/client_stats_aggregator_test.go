@@ -112,9 +112,9 @@ func TestAggregatorFlushTime(t *testing.T) {
 	a.add(testTime, deepCopy(testPayload))
 	a.flushOnTime(testTime)
 	assert.Len(a.out, 0)
-	a.flushOnTime(testTime.Add(19 * time.Second))
+	a.flushOnTime(testTime.Add(oldestBucketStart - bucketDuration))
 	assert.Len(a.out, 0)
-	a.flushOnTime(testTime.Add(21 * time.Second))
+	a.flushOnTime(testTime.Add(oldestBucketStart))
 	assert.Equal(<-a.out, wrapPayload(testPayload))
 	assert.Len(a.buckets, 0)
 }
@@ -123,21 +123,21 @@ func TestMergeMany(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 10; i++ {
 		a := newTestAggregator()
-		testTime := time.Unix(time.Now().Unix(), 0)
-		merge1 := getTestStatsWithStart(testTime)
-		merge2 := getTestStatsWithStart(testTime.Add(time.Nanosecond))
-		other := getTestStatsWithStart(testTime.Add(-time.Nanosecond))
-		merge3 := getTestStatsWithStart(testTime.Add(time.Second - time.Nanosecond))
+		payloadTime := time.Now().Truncate(bucketDuration)
+		merge1 := getTestStatsWithStart(payloadTime)
+		merge2 := getTestStatsWithStart(payloadTime.Add(time.Nanosecond))
+		other := getTestStatsWithStart(payloadTime.Add(-time.Nanosecond))
+		merge3 := getTestStatsWithStart(payloadTime.Add(time.Second - time.Nanosecond))
 
-		testTime = testTime.Add(time.Second)
-		a.add(testTime, deepCopy(merge1))
-		a.add(testTime, deepCopy(merge2))
-		a.add(testTime, deepCopy(other))
-		a.add(testTime, deepCopy(merge3))
+		insertionTime := payloadTime.Add(time.Second)
+		a.add(insertionTime, deepCopy(merge1))
+		a.add(insertionTime, deepCopy(merge2))
+		a.add(insertionTime, deepCopy(other))
+		a.add(insertionTime, deepCopy(merge3))
 		assert.Len(a.out, 2)
-		a.flushOnTime(testTime.Add(19 * time.Second))
+		a.flushOnTime(payloadTime.Add(oldestBucketStart - time.Nanosecond))
 		assert.Len(a.out, 3)
-		a.flushOnTime(testTime.Add(20 * time.Second))
+		a.flushOnTime(payloadTime.Add(oldestBucketStart))
 		assert.Len(a.out, 4)
 		assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{merge1, merge2}), <-a.out)
 		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
@@ -160,7 +160,7 @@ func TestTimeShifts(t *testing.T) {
 		},
 		{
 			shift:         -11 * time.Hour,
-			expectedShift: -11*time.Hour + oldestBucketStart,
+			expectedShift: -11*time.Hour + oldestBucketStart - bucketDuration,
 			name:          "past",
 		},
 	}
@@ -168,14 +168,14 @@ func TestTimeShifts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
-			agentTime := time.Unix(time.Now().Unix(), 0)
-			payloadTime := time.Unix(time.Now().Unix(), 0).Add(tc.shift)
+			agentTime := time.Now().Truncate(bucketDuration)
+			payloadTime := agentTime.Add(tc.shift)
 
 			stats := getTestStatsWithStart(payloadTime)
 			a.add(agentTime, deepCopy(stats))
 			a.flushOnTime(agentTime)
 			assert.Len(a.out, 0)
-			a.flushOnTime(agentTime.Add(21 * time.Second))
+			a.flushOnTime(agentTime.Add(oldestBucketStart + time.Nanosecond))
 			assert.Len(a.out, 1)
 			stats.Stats[0].AgentTimeShift = -tc.expectedShift.Nanoseconds()
 			stats.Stats[0].Start -= uint64(tc.expectedShift.Nanoseconds())
@@ -240,7 +240,7 @@ func TestCountAggregation(t *testing.T) {
 			a.add(testTime, deepCopy(c3))
 			a.add(testTime, deepCopy(cDefault))
 			assert.Len(a.out, 3)
-			a.flushOnTime(testTime.Add(21 * time.Second))
+			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
 			assert.Len(a.out, 4)
 
 			assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{c1, c2}), <-a.out)
