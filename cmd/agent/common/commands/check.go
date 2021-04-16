@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -128,9 +130,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return err
 			}
 
+			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
+			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
+			eventPlatformForwarder.Start()
+
 			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
+			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
 			common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
@@ -438,8 +444,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
-		mStats, _ := c.GetMetricStats()
-		s.Add(time.Since(t0), err, warnings, mStats)
+		sStats, _ := c.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats)
 		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
@@ -529,6 +535,19 @@ func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buf
 		fmt.Println(string(j))
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		if len(v) > 0 {
+			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
+				k = translated
+			}
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
+			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
+			j, _ := json.MarshalIndent(v, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
+	}
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
@@ -552,6 +571,30 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	} else {
 		fmt.Println("check written to:", flarePath)
 	}
+}
+
+type eventPlatformDebugEvent struct {
+	RawEvent          string `json:",omitempty"`
+	EventType         string
+	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+}
+
+// toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
+func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPlatformDebugEvent {
+	result := make(map[string][]eventPlatformDebugEvent)
+	for eventType, messages := range events {
+		var events []eventPlatformDebugEvent
+		for _, m := range messages {
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
+		}
+		result[eventType] = events
+	}
+	return result
 }
 
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
@@ -579,6 +622,10 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		aggData["events"] = events
+	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		aggData[k] = v
 	}
 
 	return aggData
