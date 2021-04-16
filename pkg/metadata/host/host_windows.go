@@ -204,8 +204,14 @@ func GetNetworkInfo() (*NetworkInfo, error) {
 	startport := startportline.FindStringSubmatch(string(output))
 	rangelen := numberline.FindStringSubmatch(string(output))
 
-	portstart := strconv.Atoi(startport[1])
-	len := strconv.Atoi(rangelen[1])
+	portstart, err := strconv.Atoi(startport[1])
+	if err != nil {
+		return nil, err
+	}
+	len, err := strconv.Atoi(rangelen[1])
+	if err != nil {
+		return nil, err
+	}
 	ni := &NetworkInfo{
 		EphemeralPortStart: uint16(portstart),
 		EphemeralPortEnd:   uint16(portstart + len),
