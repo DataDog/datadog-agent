@@ -16,6 +16,7 @@ set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--iot
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
 if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
+if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
 
 SET PATH=%PATH%;%GOPATH%/bin
 
