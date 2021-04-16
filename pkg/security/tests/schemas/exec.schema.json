@@ -1,0 +1,78 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exec.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "allOf": [
+                {
+                    "$ref": "file:///event.json"
+                },
+                {
+                    "$ref": "file:///file.json"
+                },
+                {
+                    "$ref": "file:///usr.json"
+                },
+                {
+                    "$ref": "file:///process_context.json"
+                },
+                {
+                    "$ref": "file:///container_context.json"
+                }
+            ]
+        },
+        {
+            "allOf": [
+                {
+                    "$ref": "file:///event.json"
+                },
+                {
+                    "$ref": "file:///file.json"
+                },
+                {
+                    "$ref": "file:///usr.json"
+                },
+                {
+                    "$ref": "file:///process_context.json"
+                }
+            ]
+        }
+    ],
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "container"
+                ]
+            }
+        },
+        {
+            "if": {
+                "required": [
+                    "container"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            }
+        }
+    ]
+}
