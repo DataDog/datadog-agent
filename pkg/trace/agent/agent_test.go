@@ -1013,7 +1013,7 @@ func TestConvertStats(t *testing.T) {
 		in            pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
-		out           pb.StatsPayload
+		out           pb.ClientStatsPayload
 	}{
 		{
 			in: pb.ClientStatsPayload{
@@ -1052,37 +1052,30 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
-			out: pb.StatsPayload{
-				AgentEnv:       "agent_env",
-				AgentHostname:  "agent_hostname",
-				ClientComputed: true,
-				Stats: []pb.ClientStatsPayload{
+			out: pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				Stats: []pb.ClientStatsBucket{
 					{
-						Hostname:      "tracer_hots",
-						Env:           "tracer_env",
-						Version:       "code_version",
-						Lang:          "java",
-						TracerVersion: "v1",
-						Stats: []pb.ClientStatsBucket{
+						Start:    1,
+						Duration: 2,
+						Stats: []pb.ClientGroupedStats{
 							{
-								Start:    1,
-								Duration: 2,
-								Stats: []pb.ClientGroupedStats{
-									{
-										Service:        "service",
-										Name:           "name",
-										Resource:       "resource",
-										HTTPStatusCode: 200,
-										Type:           "web",
-									},
-									{
-										Service:        "redis_service",
-										Name:           "name_2",
-										Resource:       "SET",
-										HTTPStatusCode: 200,
-										Type:           "redis",
-									},
-								},
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
 							},
 						},
 					},
@@ -1097,7 +1090,7 @@ func TestConvertStats(t *testing.T) {
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}
 	for _, testCase := range testCases {
-		out := a.convertStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
 		assert.Equal(t, testCase.out, out)
 	}
 }

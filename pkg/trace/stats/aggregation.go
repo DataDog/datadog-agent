@@ -18,8 +18,9 @@ const (
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics
-// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen and
-// WriteKey should always be updated accordingly
+// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen,
+// WriteKey and the structs payloadAggregationKey, bucketAggregationKey in the ClientStatsAggregator
+// should always be updated accordingly.
 type Aggregation struct {
 	Env        string
 	Resource   string
