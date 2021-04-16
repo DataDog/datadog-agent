@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/winutil
 
-go 1.14
+go 1.15
 
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../log
 
