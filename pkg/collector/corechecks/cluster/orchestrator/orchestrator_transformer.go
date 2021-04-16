@@ -86,9 +86,6 @@ func extractJob(j *batchv1.Job) *model.Job {
 	if j.Spec.Selector != nil {
 		job.Spec.Selectors = extractLabelSelector(j.Spec.Selector)
 	}
-	if j.Spec.TTLSecondsAfterFinished != nil {
-		job.Spec.TtlSecondsAfterFinished = *j.Spec.TTLSecondsAfterFinished
-	}
 
 	if j.Status.StartTime != nil {
 		job.Status.StartTime = j.Status.StartTime.Unix()
