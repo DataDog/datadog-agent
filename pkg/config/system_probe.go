@@ -34,11 +34,11 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.enabled"), false, "DD_SYSTEM_PROBE_PROFILING_ENABLED")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_PROFILING_SITE", "DD_SITE")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.profile_dd_url"), "", "DD_SYSTEM_PROBE_PROFILING_DD_URL", "DD_APM_PROFILING_DD_URL")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.api_key"), "", "DD_SYSTEM_PROBE_PROFILING_API_KEY", "DD_API_KEY")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.env"), "", "DD_SYSTEM_PROBE_PROFILING_ENV", "DD_ENV")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.profile_dd_url"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.api_key"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.env"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENV", "DD_ENV")
 
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)

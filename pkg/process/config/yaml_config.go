@@ -192,12 +192,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// use `profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
-	if config.Datadog.IsSet(key(ns, "profiling.enabled")) {
-		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
+	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
-		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
+		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
 	}
