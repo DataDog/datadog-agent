@@ -46,7 +46,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	// Perform a number of random requests
 	requestFn := requestGenerator(t)
 	var requests []*nethttp.Request
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 100; i++ {
 		requests = append(requests, requestFn())
 	}
 
