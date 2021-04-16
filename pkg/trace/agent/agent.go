@@ -311,8 +311,26 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 			n++
 		}
 		in.Stats[i].Stats = group.Stats[:n]
+		mergeDuplicates(in.Stats[i])
 	}
 	return in
+}
+
+func mergeDuplicates(s pb.ClientStatsBucket) {
+	indexes := make(map[stats.Aggregation]int, len(s.Stats))
+	for i, g := range s.Stats {
+		a := stats.NewAggregationFromGroup("", "", "", g)
+		if j, ok := indexes[a]; ok {
+			s.Stats[j].Hits += g.Hits
+			s.Stats[j].Errors += g.Errors
+			s.Stats[j].Duration += g.Duration
+			s.Stats[i].Hits = 0
+			s.Stats[i].Errors = 0
+			s.Stats[i].Duration = 0
+		} else {
+			indexes[a] = i
+		}
+	}
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
