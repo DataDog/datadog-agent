@@ -260,6 +260,8 @@ func packProcCtrMessages(
 		msgs = append(msgs, msgFn(ctrProcs, ctrs...))
 	}
 
+	log.Debugf("Created %d container process messages", len(msgs))
+
 	return msgs
 }
 
