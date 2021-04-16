@@ -1,6 +1,7 @@
-#include "stdafx.h"
+#include "customaction-tests.h"
+
 #include "ReplaceYamlProperties.h"
-#include <optional>
+
 
 property_retriever propertyRetriever(value_map const &values)
 {

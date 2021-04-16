@@ -1,9 +1,16 @@
-#include "stdafx.h"
+#include "customaction-tests.h"
+
 #include "CustomActionDataTest.h"
+#include "customactiondata.h"
+#include "TargetMachineMock.h"
+#include "customaction.h"
 
 // Case 2
 TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_WithPassword_ReturnsTrue) {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
+
     customActionCtx.init(LR"(
 DDAGENTUSER_NAME=different_domain\\test
 DDAGENTUSER_PASSWORD=1234
@@ -22,7 +29,9 @@ DDAGENTUSER_PASSWORD=1234
 }
 
 TEST_F(CustomActionDataTest, When_ServiceExists_And_NoUser_ReturnsFalse) {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
     bool shouldResetPass;
 
     bool result = canInstall(
@@ -37,7 +46,9 @@ TEST_F(CustomActionDataTest, When_ServiceExists_And_NoUser_ReturnsFalse) {
 }
 
 TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_ButNoPassword_ReturnsFalse) {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
     bool shouldResetPass;
 
     bool result = canInstall(
@@ -52,7 +63,9 @@ TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserExists_ButNoPassw
 }
 
 TEST_F(CustomActionDataTest, When_ServiceExists_And_UserDoesNotExists_WithUserInDifferentDomain_ReturnsFalse) {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
     customActionCtx.init(L"DDAGENTUSER_NAME=different_domain\\test");
     //ddAgentUserDomain = L"domain";
 
@@ -71,7 +84,9 @@ TEST_F(CustomActionDataTest, When_ServiceExists_And_UserDoesNotExists_WithUserIn
 
 
 TEST_F(CustomActionDataTest, When_ServiceDoesNotExists_And_UserDoesNotExists_WithUserInDotLocalDomain_ReturnsTrue) {
-    CustomActionData customActionCtx;
+    auto tm = std::make_shared<TargetMachineMock>();
+    ON_CALL(*tm, Detect).WillByDefault(testing::Return(ERROR_SUCCESS));
+    CustomActionData customActionCtx(tm);
     customActionCtx.init(LR"(
 DDAGENTUSER_NAME=TEST.LOCAL\username
 DDAGENTUSER_PASSWORD=pass

@@ -1,8 +1,11 @@
 #pragma once
-#include "SID.h"
-#include "TargetMachine.h"
+
+#include <msi.h>
 #include <map>
 #include <string>
+
+#include "SID.h"
+#include "TargetMachine.h"
 
 class ICustomActionData
 {
