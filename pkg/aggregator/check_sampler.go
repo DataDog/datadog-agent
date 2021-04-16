@@ -100,8 +100,6 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		}
 
 		bucket.Value = rawValue - lastBucketValue
-		cs.lastBucketValue[contextKey] = rawValue
-		cs.lastSeenBucket[contextKey] = time.Now()
 	}
 
 	if bucket.Value < 0 {
