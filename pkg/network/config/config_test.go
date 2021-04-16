@@ -213,6 +213,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
