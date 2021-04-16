@@ -37,7 +37,6 @@ if integrations_core_version.nil? || integrations_core_version.empty?
 end
 default_version integrations_core_version
 
-
 blacklist = [
   'stackstate_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
   'stackstate_checks_dev',            # Development package, (NOT AN INTEGRATION)
