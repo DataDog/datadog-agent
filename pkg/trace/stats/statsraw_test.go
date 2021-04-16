@@ -22,6 +22,7 @@ func TestGrain(t *testing.T) {
 		Env:      "default",
 		Hostname: "default",
 		Service:  "thing",
+		Name:     "other",
 		Resource: "yo",
 	}, aggr)
 }
@@ -34,6 +35,7 @@ func TestGrainWithExtraTags(t *testing.T) {
 		Env:        "default",
 		Service:    "thing",
 		Resource:   "yo",
+		Name:       "other",
 		Hostname:   "host-id",
 		StatusCode: 418,
 		Version:    "v0",

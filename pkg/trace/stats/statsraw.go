@@ -49,7 +49,7 @@ func round(f float64) uint64 {
 	return i
 }
 
-func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
+func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 	msg := s.okDistribution.ToProto()
 	okSummary, err := proto.Marshal(msg)
 	if err != nil {
@@ -61,18 +61,18 @@ func (s *groupedStats) export(k statsKey) (pb.ClientGroupedStats, error) {
 		return pb.ClientGroupedStats{}, err
 	}
 	return pb.ClientGroupedStats{
-		Service:        k.aggr.Service,
-		Name:           k.name,
-		Resource:       k.aggr.Resource,
-		HTTPStatusCode: k.aggr.StatusCode,
-		Type:           k.aggr.Type,
+		Service:        a.Service,
+		Name:           a.Name,
+		Resource:       a.Resource,
+		HTTPStatusCode: a.StatusCode,
+		Type:           a.Type,
 		Hits:           round(s.hits),
 		Errors:         round(s.errors),
 		Duration:       round(s.duration),
 		TopLevelHits:   round(s.topLevelHits),
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
-		Synthetics:     k.aggr.Synthetics,
+		Synthetics:     a.Synthetics,
 	}, nil
 }
 
@@ -91,11 +91,6 @@ func newGroupedStats() *groupedStats {
 	}
 }
 
-type statsKey struct {
-	name string
-	aggr Aggregation
-}
-
 // RawBucket is used to compute span data and aggregate it
 // within a time-framed bucket. This should not be used outside
 // the agent, use ClientStatsBucket for this.
@@ -106,7 +101,7 @@ type RawBucket struct {
 	duration uint64 // duration of a bucket in nanoseconds
 
 	// this should really remain private as it's subject to refactoring
-	data map[statsKey]*groupedStats
+	data map[Aggregation]*groupedStats
 
 	// internal buffer for aggregate strings - not threadsafe
 	keyBuf strings.Builder
@@ -125,7 +120,7 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 	return &RawBucket{
 		start:    ts,
 		duration: d,
-		data:     make(map[statsKey]*groupedStats),
+		data:     make(map[Aggregation]*groupedStats),
 	}
 }
 
@@ -141,9 +136,9 @@ func (sb *RawBucket) Export() map[PayloadKey]pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadKey{
-			hostname: k.aggr.Hostname,
-			version:  k.aggr.Version,
-			env:      k.aggr.Env,
+			hostname: k.Hostname,
+			version:  k.Version,
+			env:      k.Env,
 		}
 		s, ok := m[key]
 		if !ok {
@@ -171,10 +166,9 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 	var gs *groupedStats
 	var ok bool
 
-	key := statsKey{name: s.Name, aggr: aggr}
-	if gs, ok = sb.data[key]; !ok {
+	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
-		sb.data[key] = gs
+		sb.data[aggr] = gs
 	}
 	if s.TopLevel {
 		gs.topLevelHits += s.Weight

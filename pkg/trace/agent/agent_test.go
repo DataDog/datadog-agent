@@ -1094,3 +1094,88 @@ func TestConvertStats(t *testing.T) {
 		assert.Equal(t, testCase.out, out)
 	}
 }
+
+func TestMergeDuplicates(t *testing.T) {
+	in := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+		},
+	}
+	expected := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       2,
+				Duration:     246,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     246,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+		},
+	}
+	mergeDuplicates(in)
+	assert.Equal(t, expected, in)
+}
