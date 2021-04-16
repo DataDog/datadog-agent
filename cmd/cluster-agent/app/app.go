@@ -221,7 +221,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	s := serializer.NewSerializer(f, orchestratorForwarder)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()

@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -79,7 +80,8 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder *forwarder.DefaultForwarder
+	orchestratorForwarder  *forwarder.DefaultForwarder
+	eventPlatformForwarder epforwarder.EventPlatformForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -345,9 +347,12 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
+	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
+	eventPlatformForwarder.Start()
+
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
-	agg := aggregator.InitAggregator(s, hostname)
+	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -457,7 +462,9 @@ func StopAgent() {
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Stop()
 	}
-
+	if eventPlatformForwarder != nil {
+		eventPlatformForwarder.Stop()
+	}
 	logs.Stop()
 	gui.StopGUIServer()
 	profiler.Stop()

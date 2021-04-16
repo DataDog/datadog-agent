@@ -210,9 +210,9 @@ func (c *APMCheck) GetWarnings() []error {
 	return []error{}
 }
 
-// GetMetricStats returns the stats from the last run of the check, but there aren't any
-func (c *APMCheck) GetMetricStats() (map[string]int64, error) {
-	return make(map[string]int64), nil
+// GetSenderStats returns the stats from the last run of the check, but there aren't any
+func (c *APMCheck) GetSenderStats() (check.SenderStats, error) {
+	return check.NewSenderStats(), nil
 }
 
 func init() {

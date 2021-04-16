@@ -24,12 +24,15 @@
         {{- range $CheckName, $CheckInstances := .Checks}}
           {{ $version := version $CheckInstances}}
           <span class="stat_subtitle">{{$CheckName}}{{ if $version }} ({{$version}}){{ end }}</span>
-          {{- range $CheckInstances }}
+          {{- range $instance := $CheckInstances }}
             <span class="stat_subdata">
                 Instance ID: {{.CheckID}} {{status .}}<br>
                 Total Runs: {{humanize .TotalRuns}}<br>
                 Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
                 Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+                {{- range $k, $v := .TotalEventPlatformEvents }}
+                {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}<br>
+                {{- end -}}
                 Service Checks: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}<br>
                 Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}<br>
                 Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
