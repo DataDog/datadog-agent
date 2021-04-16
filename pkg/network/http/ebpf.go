@@ -94,6 +94,11 @@ func (e *ebpfProgram) Init() error {
 					Section: string(probes.SocketHTTPFilter),
 				},
 			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: string(probes.TCPSendMsgReturn),
+				},
+			},
 		},
 	})
 }

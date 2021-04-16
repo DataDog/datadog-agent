@@ -20,7 +20,6 @@ import (
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {
-	t.Skip("flaky test, investigating")
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
@@ -46,7 +45,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	// Perform a number of random requests
 	requestFn := requestGenerator(t)
 	var requests []*nethttp.Request
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 100; i++ {
 		requests = append(requests, requestFn())
 	}
 
