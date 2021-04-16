@@ -2,8 +2,11 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	stdlog "log"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 )
 
@@ -25,7 +28,8 @@ type sessionAPI interface {
 }
 
 type snmpSession struct {
-	gosnmpInst gosnmp.GoSNMP
+	gosnmpInst    gosnmp.GoSNMP
+	loggerEnabled bool
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
@@ -81,15 +85,25 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	s.gosnmpInst.Timeout = time.Duration(config.timeout) * time.Second
 	s.gosnmpInst.Retries = config.retries
 
-	// Uncomment following line for debugging
-	// s.gosnmpInst.Logger = log.New(os.Stdout, "", 0)
+	lvl, err := log.GetLogLevel()
+	if err != nil {
+		log.Warnf("failed to get logger: %s", err)
+	} else {
+		if lvl == seelog.TraceLvl {
+			traceLevelLogWriter := traceLevelLogWriter{}
+			s.gosnmpInst.Logger = stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile)
+			s.loggerEnabled = true
+		}
+	}
 	return nil
 }
 
 func (s *snmpSession) Connect() error {
-	// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
-	// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
-	s.gosnmpInst.Logger = nil
+	if s.loggerEnabled == false {
+		// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
+		// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
+		s.gosnmpInst.Logger = nil
+	}
 	return s.gosnmpInst.Connect()
 }
 
