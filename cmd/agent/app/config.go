@@ -132,7 +132,7 @@ func setConfigValue(_ *cobra.Command, args []string) error {
 		return err
 	}
 	if hidden {
-		fmt.Printf("IMPORTANT: you have modified a hidden option, this may incur in billing or other unexpected side-effects.\n")
+		fmt.Printf("IMPORTANT: you have modified a hidden option, this may incur billing charges or have other unexpected side-effects.\n")
 	}
 	fmt.Printf("Configuration setting %s is now set to: %s\n", args[0], args[1])
 	return nil
