@@ -1031,7 +1031,7 @@ func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
 	}
 
 	if err != nil {
-		log.Error("could not enable http monitoring: %s", err)
+		log.Errorf("could not enable http monitoring: %s", err)
 		return nil
 	}
 
