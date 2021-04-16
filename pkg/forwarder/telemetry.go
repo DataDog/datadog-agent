@@ -20,6 +20,7 @@ var (
 	transactionsIntakeNode       = expvar.Int{}
 	transactionsIntakeJob        = expvar.Int{}
 	transactionsIntakeCronJob    = expvar.Int{}
+	transactionsIntakeCluster    = expvar.Int{}
 
 	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
 	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
@@ -105,6 +106,7 @@ func initOrchestratorExpVars() {
 	transaction.TransactionsExpvars.Set("Nodes", &transactionsIntakeNode)
 	transaction.TransactionsExpvars.Set("Jobs", &transactionsIntakeJob)
 	transaction.TransactionsExpvars.Set("CronJobs", &transactionsIntakeCronJob)
+	transaction.TransactionsExpvars.Set("Clusters", &transactionsIntakeCluster)
 }
 
 func initTransactionsExpvars() {

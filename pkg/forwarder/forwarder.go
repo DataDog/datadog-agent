@@ -566,6 +566,8 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeJob.Add(1)
 	case PayloadTypeCronJob:
 		transactionsIntakeCronJob.Add(1)
+	case PayloadTypeCluster:
+		transactionsIntakeCluster.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
