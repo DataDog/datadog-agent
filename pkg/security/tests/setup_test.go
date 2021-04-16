@@ -62,6 +62,7 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock

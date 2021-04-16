@@ -221,7 +221,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.FileFields = *info
 		entry.Process.PathnameStr = pathnameStr
 		entry.Process.BasenameStr = path.Base(pathnameStr)
-		entry.ContainerContext.ID = string(containerID)
+		entry.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 	}
@@ -238,7 +238,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Credentials.EUID = uint32(filledProc.Uids[1])
 		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
 	}
-	if len(filledProc.Gids) > 0 {
+	if len(filledProc.Gids) >= 4 {
 		entry.Credentials.GID = uint32(filledProc.Gids[0])
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
@@ -428,7 +428,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	if err != nil {
 		return nil
 	}
-	entry.ContainerContext.ID = string(containerID)
+	entry.ContainerID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)

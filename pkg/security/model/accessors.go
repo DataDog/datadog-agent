@@ -71,8 +71,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Capset.CapEffective)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -82,8 +81,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Capset.CapPermitted)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -93,8 +91,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -104,8 +101,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -115,8 +111,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -126,8 +121,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -137,8 +131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -148,8 +141,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -159,8 +151,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -170,8 +161,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -181,8 +171,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -192,8 +181,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -203,8 +191,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -214,8 +201,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -225,8 +211,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -236,8 +221,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -247,8 +231,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chmod.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -258,8 +241,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -269,8 +251,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -280,8 +261,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -291,8 +271,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -302,8 +281,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -313,8 +291,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -324,8 +301,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -335,8 +311,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -346,8 +321,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -357,8 +331,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -368,8 +341,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -379,8 +351,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -390,8 +361,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -401,8 +371,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -412,8 +381,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -423,8 +391,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -434,8 +401,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -445,8 +411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Chown.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -456,8 +421,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -467,9 +431,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ContainerContext.ID
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "container.tags":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ContainerContext.Tags
+			},
+			Field:  field,
+			Weight: 9999,
 		}, nil
 
 	case "exec.args":
@@ -478,8 +452,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Args
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -490,8 +463,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -502,8 +474,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -513,8 +484,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.ArgsTruncated
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -525,8 +495,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -536,8 +505,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapEffective)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -547,8 +515,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapPermitted)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -558,8 +525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Comm
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -569,8 +535,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Cookie)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -580,8 +545,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.EGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -591,8 +555,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.EGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -603,8 +566,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Envs
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -614,8 +576,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.EnvsTruncated
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -625,8 +586,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.EUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -636,8 +596,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.EUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -647,8 +606,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -658,8 +616,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Filesystem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -669,8 +626,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -680,8 +636,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -691,8 +646,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -702,8 +656,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -713,8 +666,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -724,8 +676,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -735,8 +686,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -746,8 +696,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -757,8 +706,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -768,8 +716,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -779,8 +726,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -790,8 +736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.FSGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -801,8 +746,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -812,8 +756,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.FSUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -823,8 +766,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -834,8 +776,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -845,8 +786,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.PPid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -856,8 +796,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.TTYName
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -867,8 +806,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.Credentials.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -878,8 +816,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.Process.Credentials.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -889,8 +826,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -900,8 +836,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -911,8 +846,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -922,8 +856,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -933,8 +866,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -944,8 +876,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -955,8 +886,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -966,8 +896,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -977,8 +906,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -988,8 +916,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -999,8 +926,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1010,8 +936,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1021,8 +946,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1032,8 +956,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Target.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1043,8 +966,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1054,8 +976,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1065,8 +986,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1076,8 +996,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1087,8 +1006,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1098,8 +1016,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1109,8 +1026,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1120,8 +1036,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1131,8 +1046,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1142,8 +1056,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1153,8 +1066,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1164,8 +1076,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Link.Source.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1175,8 +1086,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1186,8 +1096,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1197,8 +1106,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1208,8 +1116,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1219,8 +1126,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1230,8 +1136,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1241,8 +1146,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1252,8 +1156,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1263,8 +1166,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1274,8 +1176,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1285,8 +1186,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1296,8 +1196,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1307,8 +1206,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1318,8 +1216,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1329,8 +1226,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1340,8 +1236,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Mkdir.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1351,8 +1246,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1362,8 +1256,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1373,8 +1266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1384,8 +1276,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1395,8 +1286,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1406,8 +1296,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1417,8 +1306,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1428,8 +1316,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1439,8 +1326,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1450,8 +1336,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1461,8 +1346,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1472,8 +1356,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1483,8 +1366,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1494,8 +1376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1505,8 +1386,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Open.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1516,8 +1396,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.Flags)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1527,8 +1406,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1554,7 +1432,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1580,7 +1457,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1606,7 +1482,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1632,7 +1507,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1658,7 +1532,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1684,7 +1557,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1710,7 +1582,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1736,7 +1607,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1762,7 +1632,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1788,7 +1657,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1814,7 +1682,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1840,7 +1707,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1866,7 +1732,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1892,7 +1757,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1918,7 +1782,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1944,7 +1807,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1970,7 +1832,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1996,7 +1857,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2022,7 +1882,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2048,7 +1907,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2074,7 +1932,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2100,7 +1957,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2126,7 +1982,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2152,7 +2007,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2178,7 +2032,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2204,33 +2057,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.id":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				var results []string
-
-				iterator := &ProcessAncestorsIterator{}
-
-				value := iterator.Front(ctx)
-				for value != nil {
-					var result string
-
-					element := (*ProcessCacheEntry)(value)
-
-					result = element.ContainerContext.ID
-
-					results = append(results, result)
-
-					value = iterator.Next()
-				}
-
-				return results
-			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2256,7 +2082,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2282,7 +2107,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2308,7 +2132,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2334,7 +2157,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2360,7 +2182,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2386,7 +2207,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2396,8 +2216,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapEffective)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2407,8 +2226,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapPermitted)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2418,8 +2236,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Comm
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2429,8 +2246,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Cookie)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2440,8 +2256,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2451,8 +2266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2462,8 +2276,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2473,8 +2286,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2484,8 +2296,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2495,8 +2306,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Filesystem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2506,8 +2316,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2517,8 +2326,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2528,8 +2336,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2539,8 +2346,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2550,8 +2356,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2561,8 +2366,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2572,8 +2376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2583,8 +2386,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2594,8 +2396,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2605,8 +2406,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2616,8 +2416,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2627,8 +2426,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2638,8 +2436,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2649,8 +2446,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2660,8 +2456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2671,8 +2466,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2682,8 +2476,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Pid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2693,8 +2486,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.PPid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2704,8 +2496,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Tid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2715,8 +2506,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.TTYName
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2726,8 +2516,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2737,8 +2526,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2748,8 +2536,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2759,8 +2546,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.Name
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2770,8 +2556,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.Namespace
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2781,8 +2566,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2792,8 +2576,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2803,8 +2586,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2814,8 +2596,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2825,8 +2606,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2836,8 +2616,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2847,8 +2626,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2858,8 +2636,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2869,8 +2646,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2880,8 +2656,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2891,8 +2666,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2902,8 +2676,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).RemoveXAttr.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2913,8 +2686,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2924,8 +2696,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2935,8 +2706,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2946,8 +2716,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2957,8 +2726,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2968,8 +2736,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2979,8 +2746,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2990,8 +2756,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3001,8 +2766,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3012,8 +2776,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3023,8 +2786,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3034,8 +2796,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3045,8 +2806,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3056,8 +2816,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3067,8 +2826,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.New.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3078,8 +2836,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3089,8 +2846,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3100,8 +2856,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3111,8 +2866,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3122,8 +2876,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3133,8 +2886,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3144,8 +2896,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3155,8 +2906,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3166,8 +2916,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3177,8 +2926,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3188,8 +2936,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3199,8 +2946,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rename.Old.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3210,8 +2956,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3221,8 +2966,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3232,8 +2976,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3243,8 +2986,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3254,8 +2996,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3265,8 +3006,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3276,8 +3016,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3287,8 +3026,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3298,8 +3036,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3309,8 +3046,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3320,8 +3056,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3331,8 +3066,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3342,8 +3076,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3353,8 +3086,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Rmdir.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3364,8 +3096,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3375,8 +3106,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.EGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3386,8 +3116,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetGID.EGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3397,8 +3126,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.FSGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3408,8 +3136,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetGID.FSGroup
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3419,8 +3146,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3430,8 +3156,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetGID.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3441,8 +3166,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.EUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3452,8 +3176,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetUID.EUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3463,8 +3186,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.FSUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3474,8 +3196,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetUID.FSUser
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3485,8 +3206,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3496,8 +3216,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetUID.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3507,8 +3226,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3518,8 +3236,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.Name
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3529,8 +3246,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.Namespace
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3540,8 +3256,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3551,8 +3266,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3562,8 +3276,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3573,8 +3286,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3584,8 +3296,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3595,8 +3306,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3606,8 +3316,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3617,8 +3326,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3628,8 +3336,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3639,8 +3346,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3650,8 +3356,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3661,8 +3366,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).SetXAttr.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3672,8 +3376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3683,8 +3386,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3694,8 +3396,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3705,8 +3406,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3716,8 +3416,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3727,8 +3426,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3738,8 +3436,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3749,8 +3446,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3760,8 +3456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3771,8 +3466,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3782,8 +3476,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3793,8 +3486,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3804,8 +3496,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3815,8 +3506,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Unlink.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3826,8 +3516,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3837,8 +3526,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.ContainerPath
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3848,8 +3536,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.Filesytem
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3859,8 +3546,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3870,8 +3556,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.FileFields.Group
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3881,8 +3566,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.InUpperLayer
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3892,8 +3576,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3903,8 +3586,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3914,8 +3596,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3925,8 +3606,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.BasenameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3936,8 +3616,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3947,8 +3626,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3958,8 +3636,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3969,8 +3646,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Utimes.File.FileFields.User
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3980,8 +3656,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4066,6 +3741,8 @@ func (e *Event) GetFields() []eval.Field {
 		"chown.retval",
 
 		"container.id",
+
+		"container.tags",
 
 		"exec.args",
 
@@ -4310,8 +3987,6 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.gid",
 
 		"process.ancestors.group",
-
-		"process.ancestors.id",
 
 		"process.ancestors.pid",
 
@@ -4767,6 +4442,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "container.id":
 
 		return e.ContainerContext.ID, nil
+
+	case "container.tags":
+
+		return e.ContainerContext.Tags, nil
 
 	case "exec.args":
 
@@ -5724,28 +5403,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
-	case "process.ancestors.id":
-
-		var values []string
-
-		ctx := eval.NewContext(unsafe.Pointer(e))
-
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			element := (*ProcessCacheEntry)(ptr)
-
-			result := element.ContainerContext.ID
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
 	case "process.ancestors.pid":
 
 		var values []int
@@ -6577,6 +6234,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
+	case "container.tags":
+		return "*", nil
+
 	case "exec.args":
 		return "exec", nil
 
@@ -6941,9 +6601,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.group":
-		return "*", nil
-
-	case "process.ancestors.id":
 		return "*", nil
 
 	case "process.ancestors.pid":
@@ -7555,6 +7212,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "container.tags":
+
+		return reflect.String, nil
+
 	case "exec.args":
 
 		return reflect.String, nil
@@ -8040,10 +7701,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.ancestors.group":
-
-		return reflect.String, nil
-
-	case "process.ancestors.id":
 
 		return reflect.String, nil
 
@@ -9037,6 +8694,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.ID"}
 		}
 		e.ContainerContext.ID = str
+
+		return nil
+
+	case "container.tags":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
+		}
+		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
 
 		return nil
 
@@ -10404,21 +10072,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = str
-
-		return nil
-
-	case "process.ancestors.id":
-
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ContainerContext.ID"}
-		}
-		e.ProcessContext.Ancestor.ContainerContext.ID = str
 
 		return nil
 

@@ -672,7 +672,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		if cacheEntry.Ancestor == nil {
 			return errors.New("expected a parent, got nil")
 		} else {
-			assert.Equal(t, cacheEntry.ID, cacheEntry.Ancestor.ID)
+			assert.Equal(t, cacheEntry.ContainerID, cacheEntry.Ancestor.ContainerID)
 		}
 	}
 
@@ -696,7 +696,7 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 			// copied from kernel space (those 2 information are stored in 2 different maps)
 			assert.Equal(t, newEntry.Cookie, parentEntry.Cookie, "wrong cookie")
 			assert.Equal(t, newEntry.PPid, parentEntry.Pid, "wrong ppid")
-			assert.Equal(t, newEntry.ID, parentEntry.ID, "wrong container id")
+			assert.Equal(t, newEntry.ContainerID, parentEntry.ContainerID, "wrong container id")
 
 			// We can't check that the new entry is in the list of the children of its parent because the exit event
 			// has probably already been processed (thus the parent list of children has already been updated and the

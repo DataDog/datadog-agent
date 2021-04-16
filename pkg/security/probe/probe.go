@@ -803,7 +803,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
 
-	resolvers, err := NewResolvers(p, client)
+	resolvers, err := NewResolvers(config, p, client)
 	if err != nil {
 		return nil, err
 	}
