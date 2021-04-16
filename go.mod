@@ -230,3 +230,5 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
+
+replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v4.66.1-0.20210416123611-320983ef7a09+incompatible
