@@ -167,7 +167,7 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "no containers",
 			ctrProcs: []ctrProc{
-				{ctrId: "", pCounts: 3},
+				{ctrID: "", pCounts: 3},
 			},
 			expectedBatches: []map[string]int{
 				{"": 3},
@@ -179,7 +179,7 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "non-container processes are chunked",
 			ctrProcs: []ctrProc{
-				{ctrId: "", pCounts: 8},
+				{ctrID: "", pCounts: 8},
 			},
 			expectedBatches: []map[string]int{
 				{"": 2},
@@ -195,9 +195,9 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "remaining container processes are batched",
 			ctrProcs: []ctrProc{
-				{ctrId: "1", pCounts: 100},
-				{ctrId: "2", pCounts: 20},
-				{ctrId: "3", pCounts: 30},
+				{ctrID: "1", pCounts: 100},
+				{ctrID: "2", pCounts: 20},
+				{ctrID: "3", pCounts: 30},
 			},
 			expectedBatches: []map[string]int{
 				{"1": 100},
@@ -212,8 +212,8 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "non-container and container process are batched separately",
 			ctrProcs: []ctrProc{
-				{ctrId: "", pCounts: 3},
-				{ctrId: "1", pCounts: 4},
+				{ctrID: "", pCounts: 3},
+				{ctrID: "1", pCounts: 4},
 			},
 			expectedBatches: []map[string]int{
 				{"": 3},
@@ -228,13 +228,13 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "container process batched to size",
 			ctrProcs: []ctrProc{
-				{ctrId: "1", pCounts: 5},
-				{ctrId: "2", pCounts: 4},
-				{ctrId: "3", pCounts: 1},
-				{ctrId: "4", pCounts: 1},
-				{ctrId: "5", pCounts: 4},
-				{ctrId: "6", pCounts: 2},
-				{ctrId: "7", pCounts: 9},
+				{ctrID: "1", pCounts: 5},
+				{ctrID: "2", pCounts: 4},
+				{ctrID: "3", pCounts: 1},
+				{ctrID: "4", pCounts: 1},
+				{ctrID: "5", pCounts: 4},
+				{ctrID: "6", pCounts: 2},
+				{ctrID: "7", pCounts: 9},
 			},
 			expectedBatches: []map[string]int{
 				{"1": 5, "2": 4, "3": 1},
@@ -250,8 +250,8 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "container with many processes gets chunked",
 			ctrProcs: []ctrProc{
-				{ctrId: "1", pCounts: 99},
-				{ctrId: "2", pCounts: 109},
+				{ctrID: "1", pCounts: 99},
+				{ctrID: "2", pCounts: 109},
 			},
 			expectedBatches: []map[string]int{
 				{"1": 99},
@@ -266,14 +266,14 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "container process batched with container over batch size",
 			ctrProcs: []ctrProc{
-				{ctrId: "", pCounts: 3},
-				{ctrId: "1", pCounts: 40},
-				{ctrId: "2", pCounts: 110},
-				{ctrId: "3", pCounts: 80},
-				{ctrId: "4", pCounts: 10},
-				{ctrId: "5", pCounts: 40},
-				{ctrId: "6", pCounts: 20},
-				{ctrId: "7", pCounts: 90},
+				{ctrID: "", pCounts: 3},
+				{ctrID: "1", pCounts: 40},
+				{ctrID: "2", pCounts: 110},
+				{ctrID: "3", pCounts: 80},
+				{ctrID: "4", pCounts: 10},
+				{ctrID: "5", pCounts: 40},
+				{ctrID: "6", pCounts: 20},
+				{ctrID: "7", pCounts: 90},
 			},
 			expectedBatches: []map[string]int{
 				{"": 3},
@@ -292,13 +292,13 @@ func TestContainerProcessChunking(t *testing.T) {
 		{
 			testName: "container process over batch size",
 			ctrProcs: []ctrProc{
-				{ctrId: "1", pCounts: 24},
-				{ctrId: "2", pCounts: 45},
-				{ctrId: "3", pCounts: 209},
-				{ctrId: "4", pCounts: 30},
-				{ctrId: "5", pCounts: 1},
-				{ctrId: "6", pCounts: 1},
-				{ctrId: "7", pCounts: 30},
+				{ctrID: "1", pCounts: 24},
+				{ctrID: "2", pCounts: 45},
+				{ctrID: "3", pCounts: 209},
+				{ctrID: "4", pCounts: 30},
+				{ctrID: "5", pCounts: 1},
+				{ctrID: "6", pCounts: 1},
+				{ctrID: "7", pCounts: 30},
 			},
 			expectedBatches: []map[string]int{
 				{"1": 24, "2": 45, "4": 30, "5": 1},
@@ -413,7 +413,7 @@ func generateCtrProcs(ctrProcs []ctrProc) ([]*procutil.Process, []*containers.Co
 	pid := 1
 
 	for _, ctrProc := range ctrProcs {
-		ctr := makeContainer(ctrProc.ctrId)
+		ctr := makeContainer(ctrProc.ctrID)
 		if ctr.ID != emptyCtrID {
 			ctrs = append(ctrs, ctr)
 		}
