@@ -148,19 +148,19 @@
     <VcpkgEnableManifest>True</VcpkgEnableManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(ProjectDir)\x86\Debug\</OutDir>
+    <OutDir>$(SolutionDir)\x86\Debug\</OutDir>
     <IntDir>$(ProjectDir)\x86\Debug\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(ProjectDir)\x86\Release\</OutDir>
+    <OutDir>$(SolutionDir)\x86\Release\</OutDir>
     <IntDir>$(ProjectDir)\x86\Release\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(ProjectDir)\x64\Debug\</OutDir>
+    <OutDir>$(SolutionDir)\x64\Debug\</OutDir>
     <IntDir>$(ProjectDir)\x64\Debug\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(ProjectDir)\x64\Release\</OutDir>
+    <OutDir>$(SolutionDir)\x64\Release\</OutDir>
     <IntDir>$(ProjectDir)\x64\Release\</IntDir>
   </PropertyGroup>
 </Project>
