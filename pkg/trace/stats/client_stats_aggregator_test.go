@@ -108,7 +108,7 @@ func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStats
 	p.Sequence = 0
 	p.AgentAggregation = "counts"
 	for i, s := range p.Stats {
-		p.Stats[i].Start = uint64(alignAgg(insertionTime).UnixNano())
+		p.Stats[i].Start = uint64(alignAggTs(insertionTime).UnixNano())
 		p.Stats[i].Duration = uint64(clientBucketDuration.Nanoseconds())
 		p.Stats[i].AgentTimeShift = 0
 		for j := range s.Stats {
@@ -174,7 +174,7 @@ func TestConcentratorAggregatorNotAligned(t *testing.T) {
 	bsize := clientBucketDuration.Nanoseconds()
 	for i := 0; i < 50; i++ {
 		fuzzer.Fuzz(&ts)
-		aggTs := alignAgg(ts)
+		aggTs := alignAggTs(ts)
 		assert.True(t, aggTs.UnixNano()%bsize != 0)
 		concentratorTs := alignTs(ts.UnixNano(), bsize)
 		assert.True(t, concentratorTs%bsize == 0)
@@ -202,7 +202,7 @@ func TestTimeShifts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
-			agentTime := alignAgg(time.Now())
+			agentTime := alignAggTs(time.Now())
 			payloadTime := agentTime.Add(tc.shift)
 
 			stats := getTestStatsWithStart(payloadTime)

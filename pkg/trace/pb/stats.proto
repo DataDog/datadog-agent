@@ -18,8 +18,8 @@ message StatsPayload {
 // ClientStatsPayload is the first layer of span stats aggregation. It is also
 // the payload sent by tracers to the agent when stats in tracer are enabled.
 message ClientStatsPayload {
-        // hostname is the tracer hostname. It's extracted from spans with "_dd.hostname" meta
-        // or set by tracer stats payload when hostname reporting is enabled.
+	// hostname is the tracer hostname. It's extracted from spans with "_dd.hostname" meta
+	// or set by tracer stats payload when hostname reporting is enabled.
 	string hostname = 1;
 	string env = 2; // env tag set on spans or in the tracers, used for aggregation
 	string version = 3; // version tag set on spans or in the tracers, used for aggregation
