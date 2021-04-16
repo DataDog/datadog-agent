@@ -209,7 +209,7 @@ func (t *Tagger) pull() {
 	for name, puller := range t.pullers {
 		err := puller.Pull()
 		if err != nil {
-			log.Warnf("error pulling from %s: %s", name, err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
