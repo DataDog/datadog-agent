@@ -2,6 +2,7 @@ package urn
 
 import (
 	"fmt"
+	"strings"
 )
 
 // ClusterType represents the type of K8s Cluster
@@ -34,6 +35,7 @@ type Builder interface {
 	BuildJobExternalID(namespace, jobName string) string
 	BuildIngressExternalID(namespace, ingressName string) string
 	BuildVolumeExternalID(namespace, volumeName string) string
+	BuildExternalVolumeExternalID(volumeType string, volumeComponents ...string) string
 	BuildPersistentVolumeExternalID(persistentVolumeName string) string
 	BuildComponentExternalID(component, namespace, name string) string
 	BuildEndpointExternalID(endpointID string) string
@@ -178,6 +180,10 @@ func (b *urnBuilder) BuildJobExternalID(namespace, jobName string) string {
 // BuildIngressExternalID creates the urn external identifier for a cluster ingress
 func (b *urnBuilder) BuildIngressExternalID(namespace, ingressName string) string {
 	return b.BuildComponentExternalID("ingress", namespace, ingressName)
+}
+
+func (b *urnBuilder) BuildExternalVolumeExternalID(volumeType string, volumeComponents ...string) string {
+	return fmt.Sprintf("urn:%s:external-volume:%s/%s", b.clusterType, volumeType, strings.Join(volumeComponents, "/"))
 }
 
 // BuildVolumeExternalID creates the urn external identifier for a cluster volume
