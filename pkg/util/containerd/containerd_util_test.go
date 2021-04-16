@@ -47,7 +47,7 @@ func (cs *mockContainer) Labels(context.Context) (map[string]string, error) {
 }
 
 // Info is from the containerd.Container interface
-func (cs *mockContainer) Info(context.Context) (containers.Container, error) {
+func (cs *mockContainer) Info(context.Context, ...containerd.InfoOpts) (containers.Container, error) {
 	return cs.mockInfo()
 }
 

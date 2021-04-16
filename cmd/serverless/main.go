@@ -335,7 +335,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
 
-	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
+	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
 	// initializes the DogStatsD server

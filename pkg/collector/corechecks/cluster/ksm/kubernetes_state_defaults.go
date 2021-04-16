@@ -10,7 +10,7 @@ package ksm
 import (
 	"regexp"
 
-	"k8s.io/kube-state-metrics/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 // ksmMetricPrefix defines the KSM metrics namespace

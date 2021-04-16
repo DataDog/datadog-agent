@@ -39,6 +39,13 @@ const (
 	doForkStructInput
 )
 
+const (
+	snapshotting = iota
+	snapshotted
+)
+
+const procResolveMaxDepth = 16
+
 // argsEnvsCacheEntry holds temporary args/envs info
 type argsEnvsCacheEntry struct {
 	Values      []string
@@ -109,6 +116,7 @@ type ProcessResolverOpts struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
+	state        int64
 	probe        *Probe
 	resolvers    *Resolvers
 	client       *statsd.Client
@@ -213,7 +221,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.FileFields = *info
 		entry.Process.PathnameStr = pathnameStr
 		entry.Process.BasenameStr = path.Base(pathnameStr)
-		entry.ContainerContext.ID = string(containerID)
+		entry.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 	}
@@ -230,7 +238,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Credentials.EUID = uint32(filledProc.Uids[1])
 		entry.Credentials.FSUID = uint32(filledProc.Uids[3])
 	}
-	if len(filledProc.Gids) > 0 {
+	if len(filledProc.Gids) >= 4 {
 		entry.Credentials.GID = uint32(filledProc.Gids[0])
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
@@ -334,6 +342,10 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 		return entry
 	}
 
+	if atomic.LoadInt64(&p.state) != snapshotted {
+		return nil
+	}
+
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
 		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
@@ -341,7 +353,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry = p.resolveWithProcfs(pid); entry != nil {
+	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
 		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
 		return entry
 	}
@@ -416,7 +428,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	if err != nil {
 		return nil
 	}
-	entry.ContainerContext.ID = string(containerID)
+	entry.ContainerID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)
@@ -425,14 +437,27 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	return p.insertExecEntry(pid, entry)
 }
 
-func (p *ProcessResolver) resolveWithProcfs(pid uint32) *model.ProcessCacheEntry {
-	// check if the process is still alive
+func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
+	if maxDepth < 1 {
+		return nil
+	}
+
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		return nil
 	}
 
-	entry, _ := p.syncCache(proc)
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		return nil
+	}
+
+	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
+	entry, inserted := p.syncCache(proc)
+	if inserted && entry != nil {
+		entry.Ancestor = parent
+	}
+
 	return entry
 }
 
@@ -713,6 +738,11 @@ func (p *ProcessResolver) GetEntryCacheSize() float64 {
 	return float64(atomic.LoadInt64(&p.cacheSize))
 }
 
+// SetState sets the process resolver state
+func (p *ProcessResolver) SetState(state int64) {
+	atomic.StoreInt64(&p.state, state)
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU(512, nil)
@@ -727,6 +757,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,
+		state:         snapshotting,
 	}, nil
 }
 

@@ -101,7 +101,8 @@ type ChownEvent struct {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID string `field:"id,ResolveContainerID"`
+	ID   string   `field:"id,ResolveContainerID"`
+	Tags []string `field:"tags,ResolveContainerTags:9999"`
 }
 
 // Event represents an event sent from the kernel
@@ -151,8 +152,11 @@ func (e *Event) GetEventType() EventType {
 
 // GetTags returns the list of tags specific to this event
 func (e *Event) GetTags() []string {
-	// TODO: add container tags once we collect them
-	return []string{"type:" + e.GetType()}
+	tags := []string{"type:" + e.GetType()}
+	if len(e.ContainerContext.Tags) > 0 {
+		tags = append(tags, e.ContainerContext.Tags...)
+	}
+	return tags
 }
 
 // GetPointer return an unsafe.Pointer of the Event
@@ -220,6 +224,8 @@ type Process struct {
 	// proc_cache_t
 	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
+
+	ContainerID string `field:"-"`
 
 	PathnameStr         string `field:"file.path,ResolveProcessInode"`
 	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
@@ -406,7 +412,6 @@ type OpenEvent struct {
 
 // ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
 type ProcessCacheEntry struct {
-	ContainerContext
 	ProcessContext
 }
 

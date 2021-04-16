@@ -202,9 +202,9 @@ func (c *ProcessAgentCheck) Stop() {
 // Cancel does nothing
 func (c *ProcessAgentCheck) Cancel() {}
 
-// GetMetricStats returns the stats from the last run of the check, but there aren't any yet
-func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {
-	return make(map[string]int64), nil
+// GetSenderStats returns the stats from the last run of the check, but there aren't any yet
+func (c *ProcessAgentCheck) GetSenderStats() (check.SenderStats, error) {
+	return check.NewSenderStats(), nil
 }
 
 func init() {

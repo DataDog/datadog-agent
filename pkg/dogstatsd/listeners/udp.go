@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -36,13 +37,14 @@ func init() {
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn            *net.UDPConn
-	packetsBuffer   *packetsBuffer
-	packetAssembler *packetAssembler
+	packetsBuffer   *packets.Buffer
+	packetAssembler *packets.Assembler
 	buffer          []byte
+	trafficCapture  *replay.TrafficCapture // Currently ignored
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -73,14 +75,15 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool, UDP)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
 		conn:            conn,
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
+		trafficCapture:  capture,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -111,7 +114,7 @@ func (l *UDPListener) Listen() {
 			tlmUDPPacketsBytes.Add(float64(n))
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
-			l.packetAssembler.addMessage(l.buffer[:n])
+			l.packetAssembler.AddMessage(l.buffer[:n])
 		}
 
 		t2 = time.Now()
@@ -121,7 +124,7 @@ func (l *UDPListener) Listen() {
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetAssembler.close()
-	l.packetsBuffer.close()
+	l.packetAssembler.Close()
+	l.packetsBuffer.Close()
 	l.conn.Close()
 }

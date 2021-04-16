@@ -93,7 +93,6 @@ typedef struct {
     __u8 tcp_flags;
 } skb_info_t;
 
-
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
 #define CONN_CLOSED_BATCH_SIZE 5

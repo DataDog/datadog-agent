@@ -12,7 +12,7 @@ $keyfile = "$PSScriptRoot\ssh-key"
 Write-Host -ForegroundColor Green "Generating $PSScriptRoot\ssh-key"
 & 'ssh-keygen.exe' -f $keyfile -P """" -t rsa -b 2048
 
-$AZURE_SSH_KEY_PATH=$keyfile
+$KITCHEN_SSH_KEY_PATH=$keyfile
 & 'ssh-agent.exe' -s
 & 'ssh-add' $keyfile
 

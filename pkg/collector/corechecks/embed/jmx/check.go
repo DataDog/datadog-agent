@@ -95,6 +95,6 @@ func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
 }
 
-func (c *JMXCheck) GetMetricStats() (map[string]int64, error) {
-	return make(map[string]int64), nil
+func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
+	return check.NewSenderStats(), nil
 }

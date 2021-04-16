@@ -14,7 +14,7 @@
     - when: manual
       allow_failure: true
   stage: functional_test
-  needs: ["tests_ebpf"]
+  needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -30,7 +30,7 @@
     - when: manual
       allow_failure: true
   stage: functional_test
-  needs: ["tests_ebpf"]
+  needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

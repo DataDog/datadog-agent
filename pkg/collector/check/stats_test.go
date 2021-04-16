@@ -103,3 +103,38 @@ func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
 		"checks__runs{check_name=\"checkString\",state=\"ok\"} 0",
 	)
 }
+
+func TestTranslateEventPlatformEventTypes(t *testing.T) {
+	original := map[string]interface{}{
+		"EventPlatformEvents": map[string]interface{}{
+			"dbm-samples":  12,
+			"unknown-type": 34,
+		},
+		"EventPlatformEventsErrors": map[string]interface{}{
+			"dbm-samples":  12,
+			"unknown-type": 34,
+		},
+		"SomeOtherKey": map[string]interface{}{
+			"dbm-samples":  12,
+			"unknown-type": 34,
+		},
+	}
+	expected := map[string]interface{}{
+		"EventPlatformEvents": map[string]interface{}{
+			"Database Monitoring Query Samples": 12,
+			"unknown-type":                      34,
+		},
+		"EventPlatformEventsErrors": map[string]interface{}{
+			"Database Monitoring Query Samples": 12,
+			"unknown-type":                      34,
+		},
+		"SomeOtherKey": map[string]interface{}{
+			"dbm-samples":  12,
+			"unknown-type": 34,
+		},
+	}
+	result, err := TranslateEventPlatformEventTypes(original)
+	assert.NoError(t, err)
+	assert.True(t, assert.ObjectsAreEqual(expected, result))
+	assert.EqualValues(t, expected, result)
+}
