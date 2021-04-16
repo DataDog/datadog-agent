@@ -65,11 +65,10 @@ func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
 	b := pb.ClientStatsBucket{}
 	fuzzer.Fuzz(&b)
 	b.Start = uint64(start.UnixNano())
-	stats := pb.ClientStatsPayload{
-		Stats:   []pb.ClientStatsBucket{b},
-		Version: "0.1",
-	}
-	return stats
+	p := pb.ClientStatsPayload{}
+	fuzzer.Fuzz(&p)
+	p.Stats = []pb.ClientStatsBucket{b}
+	return p
 }
 
 func assertDistribPayload(t *testing.T, withCounts, res pb.StatsPayload) {
