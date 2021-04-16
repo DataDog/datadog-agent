@@ -35,8 +35,8 @@ func GetNetworkInfo() (*NetworkInfo, error) {
 		return nil, err
 	}
 	ni := &NetworkInfo{
-		EphemeralPortStart: uint16(low),
-		EphemeralPortEnd:   uint16(hi),
+		EphemeralPortStart: low,
+		EphemeralPortEnd:   hi,
 	}
 	return ni, nil
 }

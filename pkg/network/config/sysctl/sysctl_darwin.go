@@ -4,7 +4,6 @@ package sysctl
 
 import (
 	"encoding/binary"
-	"fmt"
 
 	"strings"
 	"syscall"
@@ -35,7 +34,7 @@ func (s *sctl) get(now time.Time) (string, bool, error) {
 	}
 
 	s.lastRead = now
-	return strings.TrimSpace(string(content)), true, nil
+	return strings.TrimSpace(content), true, nil
 }
 
 // Int16 represents a 16 bit int sysctl
@@ -67,14 +66,4 @@ func (i *Int16) get(now time.Time) (uint16, error) {
 	}
 
 	return i.v, err
-}
-func main() {
-	s := NewInt16("net.inet.ip.portrange.first", 0)
-	//s := newSCtl("kern.hostname", 0)
-	v, err := s.Get()
-	if err != nil {
-		fmt.Printf("Error getting sysctl %v\n", err)
-	} else {
-		fmt.Printf("sysctl %v\n", v)
-	}
 }
