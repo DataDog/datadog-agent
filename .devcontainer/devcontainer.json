@@ -11,21 +11,28 @@
         "ms-kubernetes-tools.vscode-kubernetes-tools",
         "shardulm94.trailing-spaces", // Show trailing spaces
         "Gruntfuggly.todo-tree", // Highlights TODO comments
+        "ms-python.vscode-pylance",
     ],
+    "containerEnv": {
+        "GO111MODULE": "off",
+        "GOMOD": "",
+    },
+    "remoteEnv": {
+        "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin",
+        "VENV_BASE_PATH": "/home/vscode/.venv",
+    },
     "workspaceMount": "src=${localWorkspaceFolder},dst=/go/src/github.com/StackVista/stackstate-agent,type=bind",
+    "mounts": [
+        "type=bind,target=/home/vscode/.kube,src=${localEnv:HOME}/.kube"
+    ],
     "workspaceFolder": "/go/src/github.com/StackVista/stackstate-agent",
-    "postCreateCommand": "pip2 install -r requirements.txt",
+    "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
     "settings": {
         "go.buildTags": "kubeapiserver,cpython,kubelet,etcd,docker,zk",
         "go.testFlags": [
             "-v"
         ],
         "go.useLanguageServer": true,
-        // "gopls": {
-        //     "buildFlags": [
-        //         "-tags=kubeapiserver,cpython,kubelet,etcd,docker,zk"
-        //     ],
-        // },
         "[go]": {
             "editor.formatOnSave": true,
             "editor.codeActionsOnSave": {
@@ -61,6 +68,11 @@
             "venv": true,
             ".vendor-new": true,
             ".metals": true
-        }
+        },
+        "todo-tree.highlights.defaultHighlight": {
+            "icon": "alert",
+            "type": "text",
+            "foreground": "red",
+        },
     }
 }

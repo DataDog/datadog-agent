@@ -51,3 +51,13 @@ func (c *APIClient) GetPersistentVolumes() ([]coreV1.PersistentVolume, error) {
 
 	return pvList.Items, nil
 }
+
+// GetPersistentVolumeClaims() retrieves all the PersistentVolumeClaims in the Kubernetes / OpenShift cluster across all namespaces.
+func (c *APIClient) GetPersistentVolumeClaims() ([]coreV1.PersistentVolumeClaim, error) {
+	pvList, err := c.Cl.CoreV1().PersistentVolumeClaims(metaV1.NamespaceAll).List(metaV1.ListOptions{})
+	if err != nil {
+		return []coreV1.PersistentVolumeClaim{}, err
+	}
+
+	return pvList.Items, nil
+}
