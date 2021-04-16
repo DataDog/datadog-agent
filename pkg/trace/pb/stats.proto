@@ -23,6 +23,8 @@ message ClientStatsPayload {
 	repeated ClientStatsBucket stats = 4 [(gogoproto.nullable) = false];
 	string lang = 5;
 	string tracerVersion = 6;
+	string runtimeID = 7;
+	uint64 sequence = 8;
 }
 
 // TODO(gbbr): doc

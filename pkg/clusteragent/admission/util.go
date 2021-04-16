@@ -70,6 +70,7 @@ func getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
 	failurePolicy := admiv1beta1.Ignore
 	sideEffects := admiv1beta1.SideEffectClassNone
 	servicePort := int32(443)
+	timeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
 	return admiv1beta1.MutatingWebhook{
 		Name: strings.ReplaceAll(fmt.Sprintf("%s.%s", config.Datadog.GetString("admission_controller.webhook_name"), nameSuffix), "-", "."),
 		ClientConfig: admiv1beta1.WebhookClientConfig{
@@ -92,7 +93,8 @@ func getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
 				},
 			},
 		},
-		FailurePolicy: &failurePolicy,
-		SideEffects:   &sideEffects,
+		FailurePolicy:  &failurePolicy,
+		SideEffects:    &sideEffects,
+		TimeoutSeconds: &timeout,
 	}
 }

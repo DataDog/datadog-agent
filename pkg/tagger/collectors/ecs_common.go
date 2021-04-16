@@ -8,6 +8,7 @@ package collectors
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
@@ -17,6 +18,11 @@ func addResourceTags(t *utils.TagList, m map[string]string) {
 		if strings.HasPrefix(k, "aws:") {
 			continue
 		}
+
+		if config.Datadog.GetBool("ecs_resource_tags_replace_colon") {
+			k = strings.ReplaceAll(k, ":", "_")
+		}
+
 		t.AddLow(strings.ToLower(k), strings.ToLower(v))
 	}
 }

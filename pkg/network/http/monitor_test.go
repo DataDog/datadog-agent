@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"math/rand"
 	nethttp "net/http"
 	"regexp"
@@ -15,15 +14,9 @@ import (
 	"testing"
 	"time"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {
@@ -41,8 +34,13 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	handlerFn := func(transactions []httpTX) {
 		buffer = append(buffer, transactions...)
 	}
-	monitor, doneFn := monitorSetup(t, handlerFn)
-	defer doneFn()
+
+	monitor, err := NewMonitor(config.New())
+	require.NoError(t, err)
+	monitor.handler = handlerFn
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t)
@@ -103,80 +101,6 @@ func serverSetup(t *testing.T) func() {
 	}()
 
 	return func() { srv.Shutdown(context.Background()) }
-}
-
-func monitorSetup(t *testing.T, handlerFn func([]httpTX)) (*Monitor, func()) {
-	mgr, perfHandler := eBPFSetup(t)
-	monitor, err := NewMonitor("/proc", 10000, mgr, perfHandler)
-	require.NoError(t, err)
-	monitor.handler = handlerFn
-
-	// Start HTTP monitor
-	err = monitor.Start()
-	require.NoError(t, err)
-
-	// Start manager
-	err = mgr.Start()
-	require.NoError(t, err)
-
-	doneFn := func() {
-		monitor.Stop()
-		mgr.Stop(manager.CleanAll)
-	}
-	return monitor, doneFn
-}
-
-func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
-		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
-		return nil, nil
-	}
-
-	httpPerfHandler := ddebpf.NewPerfHandler(10)
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), httpPerfHandler, false)
-	mgrOptions := manager.Options{
-		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.HttpInFlightMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-
-			// These maps are unrelated to HTTP but need to have their `MaxEntries` set because the eBPF library loads all of them
-			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-		},
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.SocketHTTPFilter),
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.TCPSendMsgReturn),
-				},
-			},
-		},
-	}
-
-	for _, p := range mgr.Probes {
-		if p.Section != string(probes.SocketHTTPFilter) && p.Section != string(probes.TCPSendMsgReturn) {
-			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
-		}
-	}
-
-	cfg := config.New()
-	elf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
-	require.NoError(t, err)
-	err = mgr.InitWithOptions(elf, mgrOptions)
-	require.NoError(t, err)
-	return mgr, httpPerfHandler
 }
 
 func requestGenerator(t *testing.T) func() *nethttp.Request {

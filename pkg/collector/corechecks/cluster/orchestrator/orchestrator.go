@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	corecfg "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -232,13 +232,19 @@ func (o *OrchestratorCheck) Run() error {
 		if !config.Datadog.GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
 		}
-		errLeader := o.runLeaderElection()
+
+		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
+				log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
 				return nil
 			}
+
+			_ = o.Warn("Leader Election error. Not running the Orchestrator check.")
 			return err
 		}
+
+		log.Tracef("Current leader: %q, running the Orchestrator check", leader)
 	}
 
 	// We launch processing on everything but the ones with no
@@ -417,25 +423,4 @@ func (o *OrchestratorCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
 	o.CommonCancel()
-}
-
-func (o *OrchestratorCheck) runLeaderElection() error {
-	leaderEngine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		_ = o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
-		return err
-	}
-
-	err = leaderEngine.EnsureLeaderElectionRuns()
-	if err != nil {
-		_ = o.Warn("Leader Election process failed to start")
-		return err
-	}
-
-	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
-		return apiserver.ErrNotLeader
-	}
-	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
-	return nil
 }

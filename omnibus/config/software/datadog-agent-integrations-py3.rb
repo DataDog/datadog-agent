@@ -138,12 +138,26 @@ build do
     command "#{pip} install pip-tools==5.4.0"
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
+      # Specify C99 standard explicitly to avoid issues while building some
+      # wheels (eg. ddtrace)
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
+    # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
+    # wheels (eg. ddtrace).
+    # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
+    # wheel has to be manually built, as the C code in ddtrace doesn't follow the C89 standard (the default value of std).
+    # Note: We don't set this on MacOS, as on MacOS we need to build a bunch of packages & C extensions that
+    # don't have precompiled MacOS wheels. When building C extensions, the CFLAGS variable is added to
+    # the command-line parameters, even when compiling C++ code, where -std=c99 is invalid.
+    # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
+    if linux? || windows?
+      nix_build_env["CFLAGS"] += " -std=c99"
+    end
 
     #
     # Prepare the requirements file containing ALL the dependencies needed by
@@ -188,16 +202,16 @@ build do
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     if windows?
       wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
-      command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
+      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_downloader"
       command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file}"
     else
       wheel_build_dir = "#{project_dir}/.wheels"
-      command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
+      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_downloader"
       command "#{pip} install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
       command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file}", :env => nix_build_env
     end
@@ -287,10 +301,10 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        command "#{python} -m pip wheel . --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+        command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
         command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       else
-        command "#{pip} wheel . --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
         command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
       end
     end
