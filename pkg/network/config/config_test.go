@@ -213,7 +213,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		os.Unsetenv("DD_MAX_DNS_STATS")
+		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -221,7 +221,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
 
 		newConfig()
-		os.Setenv("DD_MAX_DNS_STATS", "10000")
+		os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
 		cfg = New()
