@@ -616,6 +616,7 @@ molecule_tests_compose:
     expire_in: 1 week
 
 molecule_tests_local_install:
+  <<: *agent_base
   stage: acceptance
   needs:
     - pre_release_deb
@@ -624,10 +625,13 @@ molecule_tests_local_install:
   <<: *molecule_base
   script:
    - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s localinstall
-  only:
-    - master
-    - tags
-    - STAC-10025-local-install-bis
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "STAC-10025-local-install-bis"
+      when: on_success
+    - if: $CI_COMMIT_TAG
+      when: on_success
 
 molecule_tests_kubernetes:
   stage: acceptance
@@ -646,6 +650,7 @@ molecule_tests_kubernetes:
     expire_in: 1 week
 
 molecule_tests_secrets:
+  <<: *agent_base
   stage: acceptance
   needs:
     - pre_release_deb
@@ -653,10 +658,13 @@ molecule_tests_secrets:
   <<: *molecule_base
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule.sh test -s secrets
-  only:
-    - master
-    - tags
-    - encrypted-secrets
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "encrypted-secrets"
+      when: on_success
+    - if: $CI_COMMIT_TAG
+      when: on_success
   artifacts:
     when: always
     paths:
