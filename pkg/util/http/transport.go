@@ -75,6 +75,8 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
+	// noProxyConfigured := len(config.Datadog.GetStringSlice("proxy.no_proxy")) > 0
+
 	if config.Datadog.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
@@ -126,8 +128,12 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		}(r)
 
 		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
-		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
-		if url != newURL && url != nil {
+		var newURLString string
+		if newURL, _ := proxyConfig.ProxyFunc()(r.URL); newURL != nil {
+			newURLString = newURL.String()
+		}
+
+		if url != nil && url.String() != newURLString {
 			urlString := r.URL.String()
 			NoProxyWarningMapMutex.Lock()
 			if _, ok := NoProxyWarningMap[urlString]; !ok {
