@@ -195,7 +195,7 @@ func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
 	endpoints := []apicfg.Endpoint{{Endpoint: networkDevicesEndpoint}}
 	keysPerDomain := apicfg.KeysPerDomains(endpoints)
 	networkDevicesForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	networkDevicesForwarderOpts.DisableAPIKeyChecking = true
+	networkDevicesForwarderOpts.DisableAPIKeyChecking = true  // TODO: Why this is disabled for orchestrator-intake
 
 	return forwarder.NewDefaultForwarder(networkDevicesForwarderOpts)
 }
