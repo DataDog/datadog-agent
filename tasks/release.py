@@ -512,7 +512,7 @@ def _save_release_json(
     import requests
 
     jmxfetch = requests.get(
-        "https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{0}%2Fjmxfetch-{0}-jar-with-dependencies.jar".format(
+        "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(
             _stringify_version(jmxfetch_version),
         )
     ).content
