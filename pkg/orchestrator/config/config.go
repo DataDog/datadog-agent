@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	orchestratorNS  = "orchestrator_explorer"
-	processNS       = "process_config"
-	defaultEndpoint = "https://orchestrator.datadoghq.com"
-	maxMessageBatch = 100
+	orchestratorNS                = "orchestrator_explorer"
+	processNS                     = "process_config"
+	defaultEndpoint               = "https://orchestrator.datadoghq.com"
+	defaultNetworkDevicesEndpoint = "https://network-devices.datadoghq.com"
+	maxMessageBatch               = 100
 )
 
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
@@ -178,19 +179,23 @@ func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 // NewNetworkDevicesForwarder returns an networkDevicesForwarde
 // TODO: IMPLEMENT ME
 func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
-	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		return nil
-	}
-	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
-		return nil
-	}
+	// TODO: Need a config flag to enable forwarder ?
+	//if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	//	return nil
+	//}
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	if err := orchestratorCfg.Load(); err != nil {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
-	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	orchestratorForwarderOpts.DisableAPIKeyChecking = true
+	networkDevicesEndpoint, err := url.Parse(defaultNetworkDevicesEndpoint)
+	if err != nil {
+		// This is a hardcoded URL so parsing it should not fail
+		panic(err)
+	}
+	endpoints := []apicfg.Endpoint{{Endpoint: networkDevicesEndpoint}}
+	keysPerDomain := apicfg.KeysPerDomains(endpoints)
+	networkDevicesForwarderOpts := forwarder.NewOptions(keysPerDomain)
+	networkDevicesForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(networkDevicesForwarderOpts)
 }
