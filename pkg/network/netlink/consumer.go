@@ -326,8 +326,12 @@ func (c *Consumer) Stop() {
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	var err error
-	c.socket, err = NewSocket()
+	err := util.WithRootNS(c.procRoot, func() error {
+		var err error
+		c.socket, err = NewSocket()
+		return err
+	})
+
 	if err != nil {
 		return err
 	}
