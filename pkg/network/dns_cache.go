@@ -2,7 +2,6 @@ package network
 
 import (
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,7 +26,6 @@ type reverseDNSCache struct {
 	mux  sync.Mutex
 	data map[util.Address]*dnsCacheVal
 	exit chan struct{}
-	ttl  time.Duration
 	size int
 
 	// maxDomainsPerIP is the maximum number of domains mapped to a single IP
@@ -35,11 +33,10 @@ type reverseDNSCache struct {
 	oversizedLogLimit *util.LogLimit
 }
 
-func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseDNSCache {
+func newReverseDNSCache(size int, expirationPeriod time.Duration) *reverseDNSCache {
 	cache := &reverseDNSCache{
 		data:              make(map[util.Address]*dnsCacheVal),
 		exit:              make(chan struct{}),
-		ttl:               ttl,
 		size:              size,
 		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
 		maxDomainsPerIP:   1000,
@@ -60,7 +57,7 @@ func newReverseDNSCache(size int, ttl, expirationPeriod time.Duration) *reverseD
 	return cache
 }
 
-func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
+func (c *reverseDNSCache) Add(translation *translation) bool {
 	if translation == nil {
 		return false
 	}
@@ -71,17 +68,15 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 		return false
 	}
 
-	exp := now.Add(c.ttl).UnixNano()
-	for _, addr := range translation.ips {
+	for addr, deadline := range translation.ips {
 		val, ok := c.data[addr]
 		if ok {
-			val.expiration = exp
-			if rejected := val.merge(translation.dns, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
+			if rejected := val.merge(translation.dns, deadline, c.maxDomainsPerIP); rejected && c.oversizedLogLimit.ShouldLog() {
 				log.Warnf("%s mapped to too many domains, DNS information will be dropped (this will be logged the first 10 times, and then at most every 10 minutes)", addr)
 			}
 		} else {
 			atomic.AddInt64(&c.added, 1)
-			c.data[addr] = &dnsCacheVal{names: []string{translation.dns}, expiration: exp}
+			c.data[addr] = &dnsCacheVal{names: map[string]time.Time{translation.dns: deadline}}
 		}
 	}
 
@@ -91,7 +86,7 @@ func (c *reverseDNSCache) Add(translation *translation, now time.Time) bool {
 	return true
 }
 
-func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.Address][]string {
+func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string {
 	if len(conns) == 0 {
 		return nil
 	}
@@ -100,7 +95,6 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 		resolved   = make(map[util.Address][]string)
 		unresolved = make(map[util.Address]struct{})
 		oversized  = make(map[util.Address]struct{})
-		expiration = now.Add(c.ttl).UnixNano()
 	)
 
 	collectNamesForIP := func(addr util.Address) {
@@ -116,7 +110,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats, now time.Time) map[util.A
 			return
 		}
 
-		names := c.getNamesForIP(addr, expiration)
+		names := c.getNamesForIP(addr)
 		if len(names) == 0 {
 			unresolved[addr] = struct{}{}
 		} else if len(names) == c.maxDomainsPerIP {
@@ -170,14 +164,18 @@ func (c *reverseDNSCache) Close() {
 }
 
 func (c *reverseDNSCache) Expire(now time.Time) {
-	deadline := now.UnixNano()
 	expired := 0
 	c.mux.Lock()
 	for addr, val := range c.data {
-		if val.expiration > deadline {
-			continue
+		for ip, deadline := range val.names {
+			if deadline.Before(now) {
+				delete(val.names, ip)
+			}
 		}
 
+		if len(val.names) != 0 {
+			continue
+		}
 		expired++
 		delete(c.data, addr)
 	}
@@ -192,61 +190,47 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	)
 }
 
-func (c *reverseDNSCache) getNamesForIP(ip util.Address, updatedTTL int64) []string {
+func (c *reverseDNSCache) getNamesForIP(ip util.Address) []string {
 	val, ok := c.data[ip]
 	if !ok {
 		return nil
 	}
-
-	val.expiration = updatedTTL
 	return val.copy()
 }
 
 type dnsCacheVal struct {
-	// opting for a []string instead of map[string]struct{} since common case is len(names) == 1
-	names      []string
-	expiration int64
+	names map[string]time.Time
 }
 
-func (v *dnsCacheVal) merge(name string, maxSize int) (rejected bool) {
-	normalized := strings.ToLower(name)
-	if i := sort.SearchStrings(v.names, normalized); i < len(v.names) && v.names[i] == normalized {
+func (v *dnsCacheVal) merge(name string, deadline time.Time, maxSize int) (rejected bool) {
+	if _, ok := v.names[name]; ok {
 		return false
 	}
-
 	if len(v.names) == maxSize {
 		return true
 	}
 
-	v.names = append(v.names, normalized)
-	sort.Strings(v.names)
+	v.names[name] = deadline
 	return false
 }
 
 func (v *dnsCacheVal) copy() []string {
-	cpy := make([]string, len(v.names))
-	copy(cpy, v.names)
+	cpy := make([]string, 0, len(v.names))
+	for n := range v.names {
+		cpy = append(cpy, n)
+	}
+	sort.Strings(cpy)
 	return cpy
 }
 
 type translation struct {
 	dns string
-	ips []util.Address
+	ips map[util.Address]time.Time
 }
 
-func newTranslation(domain []byte) *translation {
-	return &translation{
-		dns: string(domain),
-		ips: nil,
+func (t *translation) add(addr util.Address, ttl time.Duration) {
+	if _, ok := t.ips[addr]; ok {
+		return
 	}
-}
-
-func (t *translation) add(addr util.Address) {
-	for _, other := range t.ips {
-		if other == addr {
-			return
-		}
-	}
-
-	t.ips = append(t.ips, addr)
+	t.ips[addr] = time.Now().Add(ttl)
 }

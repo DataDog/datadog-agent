@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	dnsCacheTTL              = 3 * time.Minute
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
 )
@@ -64,7 +63,7 @@ type PacketSource interface {
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
 func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFilterSnooper, error) {
-	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
+	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
 	if cfg.CollectDNSStats {
 		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, cfg.MaxDNSStats)
@@ -103,7 +102,7 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 
 // Resolve IPs to DNS addresses
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
-	return s.cache.Get(connections, time.Now())
+	return s.cache.Get(connections)
 }
 
 // GetDNSStats gets the latest DNSStats keyed by unique DNSKey, and domain
@@ -174,7 +173,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 	}
 
 	if pktInfo.pktType == SuccessfulResponse {
-		s.cache.Add(t, time.Now())
+		s.cache.Add(t)
 		atomic.AddInt64(&s.successes, 1)
 	} else if pktInfo.pktType == FailedResponse {
 		atomic.AddInt64(&s.errors, 1)
@@ -232,9 +231,10 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 
 	// Recycle buffer if necessary
 	if t.ips == nil || len(t.ips) > maxIPBufferSize {
-		t.ips = make([]util.Address, 30)
+		t.ips = make(map[util.Address]time.Time, 30)
 	}
-	t.ips = t.ips[:0]
-
+	for k := range t.ips {
+		delete(t.ips, k)
+	}
 	return t
 }

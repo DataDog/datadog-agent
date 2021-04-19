@@ -109,19 +109,9 @@ func checkSnooping(t *testing.T, destIP string, reverseDNS *SocketFilterSnooper)
 	destAddr := util.AddressFromString(destIP)
 	srcAddr := util.AddressFromString("127.0.0.1")
 
-	timeout := time.After(1 * time.Second)
-Loop:
-	// Wait until DNS entry becomes available (with a timeout)
-	for {
-		select {
-		case <-timeout:
-			break Loop
-		default:
-			if reverseDNS.cache.Len() >= 1 {
-				break Loop
-			}
-		}
-	}
+	require.Eventually(t, func() bool {
+		return reverseDNS.cache.Len() >= 1
+	}, 1*time.Second, 10*time.Millisecond)
 
 	// Verify that the IP from the connections above maps to the right name
 	payload := []ConnectionStats{{Source: srcAddr, Dest: destAddr}}
