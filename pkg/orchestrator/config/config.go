@@ -174,3 +174,23 @@ func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
 }
+
+// NewNetworkDevicesForwarder returns an networkDevicesForwarde
+// TODO: IMPLEMENT ME
+func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
+	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+		return nil
+	}
+	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
+		return nil
+	}
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	if err := orchestratorCfg.Load(); err != nil {
+		log.Errorf("Error loading the orchestrator config: %s", err)
+	}
+	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
+	orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
+	orchestratorForwarderOpts.DisableAPIKeyChecking = true
+
+	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+}

@@ -80,8 +80,9 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder  *forwarder.DefaultForwarder
-	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	orchestratorForwarder   *forwarder.DefaultForwarder
+	networkDevicesForwarder *forwarder.DefaultForwarder
+	eventPlatformForwarder  epforwarder.EventPlatformForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -341,17 +342,23 @@ func StartAgent() error {
 	common.Forwarder.Start() //nolint:errcheck
 	log.Debugf("Forwarder started")
 
-	// setup the orchestrator forwarder (only on cluster check runners)
+	// setup the network-devices forwarder (only on cluster check runners)
 	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
+	}
+
+	// setup the orchestrator forwarder (only on cluster check runners)
+	networkDevicesForwarder = orchcfg.NewNetworkDevicesForwarder()
+	if networkDevicesForwarder != nil {
+		networkDevicesForwarder.Start() //nolint:errcheck
 	}
 
 	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	eventPlatformForwarder.Start()
 
 	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
+	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder, networkDevicesForwarder)
 	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 

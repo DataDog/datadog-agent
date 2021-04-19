@@ -22,7 +22,7 @@ import (
 
 func mockAggregator() *aggregator.BufferedAggregator {
 	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil, nil),
+		serializer.NewSerializer(nil, nil, nil),
 		nil,
 		"hostname",
 		time.Millisecond*10,
