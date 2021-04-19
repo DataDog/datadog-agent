@@ -632,10 +632,6 @@ molecule_tests_local_install:
       when: on_success
     - if: $CI_COMMIT_TAG
       when: on_success
-#  only:
-#    - master
-#    - tags
-#    - STAC-10025-local-install-bis
 
 molecule_tests_kubernetes:
   stage: acceptance
@@ -669,10 +665,6 @@ molecule_tests_secrets:
       when: on_success
     - if: $CI_COMMIT_TAG
       when: on_success
-#  only:
-#    - master
-#    - tags
-#    - encrypted-secrets
   artifacts:
     when: always
     paths:
