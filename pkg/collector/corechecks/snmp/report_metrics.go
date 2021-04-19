@@ -2,6 +2,8 @@ package snmp
 
 import (
 	"fmt"
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -160,7 +162,16 @@ func (ms *metricSender) serviceCheck(checkName string, status metrics.ServiceChe
 
 // TODO: MOVE TO BETTER LOCATION
 func (ms *metricSender) reportDeviceMetadata(metadata string, store *resultValueStore, tags []string) {
-	ms.sender.NetworkDevicesMetadata(nil, "abc")
+	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
+
+	clusterMessage := &model.CollectorCluster{
+		ClusterName: "my-cluster",
+		ClusterId:   "my-cluster-id",
+		GroupId:     99,
+		Cluster:     &model.Cluster{},
+		Tags:        tags,
+	}
+	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, "abc")
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {

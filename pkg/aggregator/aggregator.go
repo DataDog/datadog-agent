@@ -802,6 +802,7 @@ func (agg *BufferedAggregator) run() {
 				}
 			}(orchestratorMetadata)
 		case networkDevicesMetadata := <-agg.networkDevicesMetadataIn:
+			log.Debugf("[DEV] networkDevicesMetadata := <-agg.networkDevicesMetadataIn")
 			aggregatorNetworkDevicesMetadata.Add(1)
 			// each resource has its own payload so we cannot aggregate
 			// use a routine to avoid blocking the aggregator
@@ -813,7 +814,7 @@ func (agg *BufferedAggregator) run() {
 				)
 				if err != nil {
 					aggregatorNetworkDevicesMetadataErrors.Add(1)
-					log.Errorf("Error submitting orchestrator data: %s", err)
+					log.Errorf("Error submitting network-devices data: %s", err)
 				}
 			}(networkDevicesMetadata)
 		case event := <-agg.eventPlatformIn:

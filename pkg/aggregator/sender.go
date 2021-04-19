@@ -435,6 +435,7 @@ func (s *checkSender) NetworkDevicesMetadata(msgs []serializer.ProcessMessageBod
 		msgs:        msgs,
 		payloadType: payloadType,
 	}
+	log.Debugf("[DEV] s.networkDevicesOut <- om")
 	s.networkDevicesOut <- om
 }
 
