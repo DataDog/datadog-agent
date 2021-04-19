@@ -42,6 +42,8 @@ var (
 	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
 	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 
+	networkDevicesEndpoint = transaction.Endpoint{Route: "/api/v1/devices", Name: "devices"}
+
 	transactionsDroppedOnInput       = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
 	transactionsInputCountByEndpoint = expvar.Map{}
@@ -83,6 +85,7 @@ func initEndpointExpvars() {
 		processesEndpoint,
 		rtContainerEndpoint,
 		rtProcessesEndpoint,
+		networkDevicesEndpoint,
 		seriesEndpoint,
 		serviceChecksEndpoint,
 		sketchSeriesEndpoint,

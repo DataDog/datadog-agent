@@ -96,6 +96,7 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		log.Debugf("fetched valuesStore: %v", valuesStore)
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+		c.sender.reportDeviceMetadata(c.config.deviceMetadata, valuesStore, tags)
 	}
 	return tags, nil
 }

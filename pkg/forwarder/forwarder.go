@@ -91,6 +91,7 @@ type Forwarder interface {
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+	SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -620,4 +621,28 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
+}
+
+// SubmitNetworkDevicesChecks sends network-devices checks
+func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypePod:
+		transactionsIntakePod.Add(1)
+	case PayloadTypeDeployment:
+		transactionsIntakeDeployment.Add(1)
+	case PayloadTypeReplicaSet:
+		transactionsIntakeReplicaSet.Add(1)
+	case PayloadTypeService:
+		transactionsIntakeService.Add(1)
+	case PayloadTypeNode:
+		transactionsIntakeNode.Add(1)
+	case PayloadTypeJob:
+		transactionsIntakeJob.Add(1)
+	case PayloadTypeCronJob:
+		transactionsIntakeCronJob.Add(1)
+	case PayloadTypeCluster:
+		transactionsIntakeCluster.Add(1)
+	}
+
+	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

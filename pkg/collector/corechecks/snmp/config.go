@@ -58,6 +58,7 @@ type snmpConfig struct {
 	contextName       string
 	oidConfig         oidConfig
 	metrics           []metricsConfig
+	deviceMetadata    string // TODO: IMPLEMENT ME
 	metricTags        []metricTagConfig
 	oidBatchSize      int
 	profiles          profileDefinitionMap

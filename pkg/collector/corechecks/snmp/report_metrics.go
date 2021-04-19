@@ -158,6 +158,11 @@ func (ms *metricSender) serviceCheck(checkName string, status metrics.ServiceChe
 	ms.sender.ServiceCheck(checkName, status, hostname, copyStrings(tags), message)
 }
 
+// TODO: MOVE TO BETTER LOCATION
+func (ms *metricSender) reportDeviceMetadata(metadata string, store *resultValueStore, tags []string) {
+	ms.sender.NetworkDevicesMetadata(nil, "abc")
+}
+
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {
 	index := placement - 1
 	if int(index) >= len(strValue) {

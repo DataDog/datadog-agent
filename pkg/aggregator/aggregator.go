@@ -110,6 +110,8 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
+	aggregatorNetworkDevicesMetadata           = expvar.Int{}
+	aggregatorNetworkDevicesMetadataErrors     = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
@@ -159,6 +161,8 @@ func init() {
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
+	aggregatorExpvars.Set("NetworkDevicesMetadata", &aggregatorNetworkDevicesMetadata)
+	aggregatorExpvars.Set("NetworkDevicesMetadataErrors", &aggregatorNetworkDevicesMetadataErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
@@ -206,10 +210,11 @@ type BufferedAggregator struct {
 	eventIn        chan metrics.Event
 	serviceCheckIn chan metrics.ServiceCheck
 
-	checkMetricIn          chan senderMetricSample
-	checkHistogramBucketIn chan senderHistogramBucket
-	orchestratorMetadataIn chan senderOrchestratorMetadata
-	eventPlatformIn        chan senderEventPlatformEvent
+	checkMetricIn            chan senderMetricSample
+	checkHistogramBucketIn   chan senderHistogramBucket
+	orchestratorMetadataIn   chan senderOrchestratorMetadata
+	networkDevicesMetadataIn chan senderNetworkDevicesMetadata
+	eventPlatformIn          chan senderEventPlatformEvent
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -265,8 +270,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		checkMetricIn:          make(chan senderMetricSample, bufferSize),
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
 
-		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
-		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
+		orchestratorMetadataIn:   make(chan senderOrchestratorMetadata, bufferSize),
+		networkDevicesMetadataIn: make(chan senderNetworkDevicesMetadata, bufferSize),
+		eventPlatformIn:          make(chan senderEventPlatformEvent, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
@@ -795,6 +801,21 @@ func (agg *BufferedAggregator) run() {
 					log.Errorf("Error submitting orchestrator data: %s", err)
 				}
 			}(orchestratorMetadata)
+		case networkDevicesMetadata := <-agg.networkDevicesMetadataIn:
+			aggregatorNetworkDevicesMetadata.Add(1)
+			// each resource has its own payload so we cannot aggregate
+			// use a routine to avoid blocking the aggregator
+			go func(networkDevicesMetadata senderNetworkDevicesMetadata) {
+				err := agg.serializer.SendNetworkDevicesMetadata(
+					networkDevicesMetadata.msgs,
+					agg.hostname,
+					networkDevicesMetadata.payloadType,
+				)
+				if err != nil {
+					aggregatorNetworkDevicesMetadataErrors.Add(1)
+					log.Errorf("Error submitting orchestrator data: %s", err)
+				}
+			}(networkDevicesMetadata)
 		case event := <-agg.eventPlatformIn:
 			state := stateOk
 			tlmProcessed.Add(1, event.eventType)
