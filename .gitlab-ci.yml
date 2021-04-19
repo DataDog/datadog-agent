@@ -616,6 +616,7 @@ molecule_tests_compose:
     expire_in: 1 week
 
 molecule_tests_local_install:
+  <<: *agent_base
   stage: acceptance
   needs:
     - pre_release_deb
@@ -646,6 +647,7 @@ molecule_tests_kubernetes:
     expire_in: 1 week
 
 molecule_tests_secrets:
+  <<: *agent_base
   stage: acceptance
   needs:
     - pre_release_deb
