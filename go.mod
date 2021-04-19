@@ -191,7 +191,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.20.1
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/kube-state-metrics/v2 v2.0.0
+	k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a
 	k8s.io/kubernetes v1.20.5
 	k8s.io/metrics v0.20.5
 )
@@ -227,8 +227,5 @@ replace (
 )
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3
-
-// Remove once the PR kubernetes/kube-state-metrics#1455 is merged
-replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
