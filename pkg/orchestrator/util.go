@@ -27,12 +27,18 @@ const (
 	K8sNode
 	// K8sCluster represents a Kubernetes Cluster
 	K8sCluster
+	// K8sJob represents a Kubernetes Job
+	K8sJob
+	// K8sCronJob represents a Kubernetes CronJob
+	K8sCronJob
 )
 
 var (
 	telemetryTags = map[NodeType][]string{
 		K8sCluster:    getTelemetryTags(K8sCluster),
+		K8sCronJob:    getTelemetryTags(K8sCronJob),
 		K8sDeployment: getTelemetryTags(K8sDeployment),
+		K8sJob:        getTelemetryTags(K8sJob),
 		K8sNode:       getTelemetryTags(K8sNode),
 		K8sPod:        getTelemetryTags(K8sPod),
 		K8sReplicaSet: getTelemetryTags(K8sReplicaSet),
@@ -44,7 +50,9 @@ var (
 func NodeTypes() []NodeType {
 	return []NodeType{
 		K8sCluster,
+		K8sCronJob,
 		K8sDeployment,
+		K8sJob,
 		K8sNode,
 		K8sPod,
 		K8sReplicaSet,
@@ -56,8 +64,12 @@ func (n NodeType) String() string {
 	switch n {
 	case K8sCluster:
 		return "Cluster"
+	case K8sCronJob:
+		return "CronJob"
 	case K8sDeployment:
 		return "Deployment"
+	case K8sJob:
+		return "Job"
 	case K8sNode:
 		return "Node"
 	case K8sPod:
@@ -75,7 +87,8 @@ func (n NodeType) String() string {
 // Orchestrator returns the orchestrator name for a node type.
 func (n NodeType) Orchestrator() string {
 	switch n {
-	case K8sCluster, K8sDeployment, K8sNode, K8sPod, K8sReplicaSet, K8sService:
+	case K8sCluster, K8sCronJob, K8sDeployment, K8sJob,
+		K8sNode, K8sPod, K8sReplicaSet, K8sService:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)

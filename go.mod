@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.14
+go 1.15
 
 // Internal deps fix version
 replace (
@@ -43,9 +43,9 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.65.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0
+	github.com/DataDog/agent-payload v4.67.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/util/log v0.28.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.1
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210413153524-9a23964443ad
@@ -100,6 +100,7 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.17
 	github.com/google/pprof v0.0.0-20210125172800-10e9aeb4a998
 	github.com/gorilla/mux v1.8.0
@@ -163,6 +164,7 @@ require (
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
+	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
 	go.uber.org/automaxprocs v1.2.0
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect

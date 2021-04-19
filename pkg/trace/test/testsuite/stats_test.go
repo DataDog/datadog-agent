@@ -1,13 +1,13 @@
 package testsuite
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testsuite/testdata"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestClientStats(t *testing.T) {
@@ -33,6 +33,7 @@ func TestClientStats(t *testing.T) {
 			}
 			timeout := time.After(3 * time.Second)
 			out := r.Out()
+			res := make([]pb.StatsPayload, 0, len(tt.Out))
 			for {
 				select {
 				case p := <-out:
@@ -40,16 +41,30 @@ func TestClientStats(t *testing.T) {
 					if !ok {
 						continue
 					}
-					if reflect.DeepEqual(got, tt.Out) {
-						return
+					got = normalizeTimeFields(t, got)
+					res = append(res, got)
+					if len(res) < len(tt.Out) {
+						continue
 					}
-					t.Logf("got: %#v", got)
-					t.Logf("expected: %#v", tt.Out)
-					t.Fatal("did not match")
+					assert.ElementsMatch(t, res, tt.Out)
+					return
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())
 				}
 			}
 		})
 	}
+}
+
+func normalizeTimeFields(t *testing.T, p pb.StatsPayload) pb.StatsPayload {
+	now := time.Now().UnixNano()
+	for _, s := range p.Stats {
+		for i := range s.Stats {
+			assert.True(t, s.Stats[i].AgentTimeShift > now-100*1e9)
+			s.Stats[i].AgentTimeShift = 0
+			assert.True(t, s.Stats[i].Start >= uint64(now-40*1e9))
+			s.Stats[i].Start = 0
+		}
+	}
+	return p
 }

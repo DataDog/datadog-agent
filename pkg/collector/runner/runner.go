@@ -35,13 +35,20 @@ const (
 
 var (
 	// TestWg is used for testing the number of check workers
-	TestWg      sync.WaitGroup
-	runnerStats *expvar.Map
-	checkStats  *runnerCheckStats
+	TestWg             sync.WaitGroup
+	runnerStats        *expvar.Map
+	runningChecksStats *expvar.Map
+	checkStats         *runnerCheckStats
 )
+
+type timeVar time.Time
+
+func (tv timeVar) String() string { return fmt.Sprintf("\"%s\"", time.Time(tv).Format(time.RFC3339)) }
 
 func init() {
 	runnerStats = expvar.NewMap("runner")
+	runningChecksStats = &expvar.Map{}
+	runnerStats.Set("running", runningChecksStats)
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
 	checkStats = &runnerCheckStats{
 		Stats: make(map[string]map[check.ID]*check.Stats),
@@ -267,7 +274,9 @@ func (r *Runner) work() {
 		var err error
 		t0 := time.Now()
 
+		runningChecksStats.Set(string(check.ID()), timeVar(t0))
 		err = check.Run()
+		runningChecksStats.Delete(string(check.ID()))
 		longRunning := check.Interval() == 0
 
 		warnings := check.GetWarnings()

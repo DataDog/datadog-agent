@@ -192,23 +192,23 @@ type CapsetEvent struct {
 
 // Credentials represents the kernel credentials of a process
 type Credentials struct {
-	UID   uint32 `field:"uid,ResolveCredentialsUID"`
-	GID   uint32 `field:"gid,ResolveCredentialsGID"`
-	User  string `field:"user,ResolveCredentialsUser"`
-	Group string `field:"group,ResolveCredentialsGroup"`
+	UID   uint32 `field:"uid"`
+	GID   uint32 `field:"gid"`
+	User  string `field:"user"`
+	Group string `field:"group"`
 
-	EUID   uint32 `field:"euid,ResolveCredentialsEUID"`
-	EGID   uint32 `field:"egid,ResolveCredentialsEGID"`
-	EUser  string `field:"euser,ResolveCredentialsEUser"`
-	EGroup string `field:"egroup,ResolveCredentialsEGroup"`
+	EUID   uint32 `field:"euid"`
+	EGID   uint32 `field:"egid"`
+	EUser  string `field:"euser"`
+	EGroup string `field:"egroup"`
 
-	FSUID   uint32 `field:"fsuid,ResolveCredentialsFSUID"`
-	FSGID   uint32 `field:"fsgid,ResolveCredentialsFSGID"`
-	FSUser  string `field:"fsuser,ResolveCredentialsFSUser"`
-	FSGroup string `field:"fsgroup,ResolveCredentialsFSGroup"`
+	FSUID   uint32 `field:"fsuid"`
+	FSGID   uint32 `field:"fsgid"`
+	FSUser  string `field:"fsuser"`
+	FSGroup string `field:"fsgroup"`
 
-	CapEffective uint64 `field:"cap_effective,ResolveCredentialsCapEffective"`
-	CapPermitted uint64 `field:"cap_permitted,ResolveCredentialsCapPermitted"`
+	CapEffective uint64 `field:"cap_effective"`
+	CapPermitted uint64 `field:"cap_permitted"`
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -222,22 +222,24 @@ func (e *Process) GetPathResolutionError() string {
 // Process represents a process
 type Process struct {
 	// proc_cache_t
-	// (container context is parsed in Event.Container)
 	FileFields FileFields `field:"file"`
 
-	ContainerID string `field:"-"`
+	Pid uint32 `field:"pid"`
+	Tid uint32 `field:"tid"`
 
-	PathnameStr         string `field:"file.path,ResolveProcessInode"`
-	ContainerPath       string `field:"file.container_path,ResolveProcessContainerPath"`
-	BasenameStr         string `field:"file.name,ResolveProcessBasename"`
-	Filesystem          string `field:"file.filesystem,ResolveProcessFilesystem"`
+	PathnameStr         string `field:"file.path"`
+	ContainerPath       string `field:"file.container_path"`
+	BasenameStr         string `field:"file.name"`
+	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
+
+	ContainerID string `field:"container.id"`
 
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
-	TTYName string `field:"tty_name,ResolveProcessTTY"`
-	Comm    string `field:"comm,ResolveProcessComm"`
+	TTYName string `field:"tty_name"`
+	Comm    string `field:"comm"`
 
 	// pid_cache_t
 	ForkTimestamp uint64    `field:"-"`
@@ -246,8 +248,8 @@ type Process struct {
 	ExitTimestamp uint64    `field:"-"`
 	ExitTime      time.Time `field:"-"`
 
-	Cookie uint32 `field:"cookie,ResolveProcessCookie"`
-	PPid   uint32 `field:"ppid,ResolveProcessPPID"`
+	Cookie uint32 `field:"cookie"`
+	PPid   uint32 `field:"ppid"`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -275,9 +277,9 @@ type ExecEvent struct {
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32    `field:"uid"`
-	User  string    `field:"user,ResolveUser"`
+	User  string    `field:"user,ResolveFileFieldsUser"`
 	GID   uint32    `field:"gid"`
-	Group string    `field:"group,ResolveGroup"`
+	Group string    `field:"group,ResolveFileFieldsGroup"`
 	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
@@ -301,7 +303,7 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFileInode"`
+	PathnameStr   string `field:"path,ResolveFilePath"`
 	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
 	BasenameStr   string `field:"name,ResolveFileBasename"`
 	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
@@ -410,7 +412,7 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
-// ProcessCacheEntry this structure holds the container context that we keep in kernel for each process
+// ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
 }
@@ -444,9 +446,6 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
-	Pid uint32 `field:"pid"`
-	Tid uint32 `field:"tid"`
-
 	Ancestor *ProcessCacheEntry `field:"ancestors,,ProcessAncestorsIterator"`
 }
 
@@ -469,8 +468,8 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,GetXAttrNamespace"`
-	Name      string    `field:"file.destination.name,GetXAttrName"`
+	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"`
+	Name      string    `field:"file.destination.name,ResolveXAttrName"`
 
 	NameRaw [200]byte
 }
