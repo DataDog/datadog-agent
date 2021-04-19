@@ -75,8 +75,6 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
-	// noProxyConfigured := len(config.Datadog.GetStringSlice("proxy.no_proxy")) > 0
-
 	if config.Datadog.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
