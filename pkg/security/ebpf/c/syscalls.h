@@ -145,7 +145,10 @@ struct syscall_cache_t * __attribute__((always_inline)) peek_syscall(u64 type) {
 struct syscall_cache_t * __attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *) bpf_map_lookup_elem(&syscalls, &key);
-    if (syscall && (syscall->type & type) > 0) {
+    if (!syscall) {
+        return NULL;
+    }
+    if (!type || (syscall->type & type) > 0) {
         bpf_map_delete_elem(&syscalls, &key);
         return syscall;
     }

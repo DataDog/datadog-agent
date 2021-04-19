@@ -434,10 +434,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if rhel7 {
-			t.Skip()
-		}
-
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
 			t.Fatal(err)

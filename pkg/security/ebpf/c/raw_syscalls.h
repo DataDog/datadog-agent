@@ -88,16 +88,40 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     return 0;
 }
 
+int __attribute__((always_inline)) handle_sys_exit(struct _tracepoint_raw_syscalls_sys_exit *args) {
+    struct syscall_cache_t *syscall = pop_syscall(0);
+    if (!syscall) {
+        return 0;
+    }
+
+    switch(syscall->type) {
+        case SYSCALL_OPEN:
+            return _do_sys_open_ret(syscall, args, args->ret);
+    }
+
+    return 0;
+}
+
 SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct _tracepoint_raw_syscalls_sys_exit *args) {
-    u32 key = CONCURRENT_SYSCALLS_COUNTER;
-    long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
-    if (concurrent_syscalls_counter == NULL)
-        return 0;
+    u64 fallback;
+    LOAD_CONSTANT("kretprobe_fallback", fallback);
+    if (fallback) {
+        handle_sys_exit(args);
+    }
 
-    __sync_fetch_and_add(concurrent_syscalls_counter, -1);
-    if (*concurrent_syscalls_counter < 0) {
-        __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+    u64 enabled;
+    LOAD_CONSTANT("syscall_monitor", enabled);
+    if (enabled) {
+        u32 key = CONCURRENT_SYSCALLS_COUNTER;
+        long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
+        if (concurrent_syscalls_counter == NULL)
+            return 0;
+
+        __sync_fetch_and_add(concurrent_syscalls_counter, -1);
+        if (*concurrent_syscalls_counter < 0) {
+            __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+        }
     }
 
     return 0;

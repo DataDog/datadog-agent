@@ -820,6 +820,22 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 
+	// kretprobe fallback for kernel < 4.12
+	if p.kernelVersion < kernel4_12 {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "kretprobe_fallback",
+			Value: uint64(1),
+		})
+	}
+
+	// constants syscall monitor
+	if p.config.SyscallMonitor {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "syscall_monitor",
+			Value: uint64(1),
+		})
+	}
+
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
 
