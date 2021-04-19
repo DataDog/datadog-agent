@@ -66,6 +66,28 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
+func TestScanDollarQuotedString(t *testing.T) {
+	for _, tt := range []struct {
+		in  string
+		out string
+		err bool
+	}{
+		{`$tag$abc$tag$`, `abc`, false},
+		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `textwith\n\rnewlinesand\r\\\`, false},
+		{`$tag$ab$tactac$tx$tag$`, `ab$tactac$tx`, false},
+		{`$$abc$$`, `abc`, false},
+		{`$$abc`, `abc`, true},
+		{`$$abc$`, `abc`, true},
+	} {
+		tok := NewSQLTokenizer(tt.in, false)
+		kind, str := tok.Scan()
+		if tt.err && kind != LexError {
+			t.Fatalf("Expected error, got %s", kind)
+		}
+		assert.Equal(t, string(str), tt.out)
+	}
+}
+
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
 	testCases := []struct {

@@ -440,9 +440,12 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		got int
 		buf bytes.Buffer
 	)
-	delim := string(tag)
-	if delim != "$$" {
-		delim = "$" + delim + "$"
+	delim := tag
+	// on empty strings, tkn.scanString returns the delimiters
+	if string(delim) != "$$" {
+		// on non-empty strings, the delimiter is $tag$
+		delim = append([]byte{'$'}, delim...)
+		delim = append(delim, '$')
 	}
 	for {
 		ch := tkn.lastChar
@@ -459,6 +462,11 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 			continue
 		}
 		if got > 0 {
+			_, err := buf.Write(delim[:got])
+			if err != nil {
+				tkn.setErr("error reading dollar-quoted string: %v", err)
+				return LexError, buf.Bytes()
+			}
 			got = 0
 		}
 		buf.WriteRune(ch)
