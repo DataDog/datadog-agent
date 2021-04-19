@@ -1,3 +1,5 @@
+// +build kubeapiserver
+
 package topologycollectors
 
 import (
