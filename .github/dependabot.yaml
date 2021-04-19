@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+    milestone: 22
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/util/log
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+    milestone: 22
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/util/winutil
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+    milestone: 22
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /internal/tools
+    labels:
+      - dependencies
+      - dev/tooling
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+    milestone: 22
+    schedule:
+      interval: monthly
