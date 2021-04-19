@@ -9,7 +9,7 @@ updates:
       - qa/skip-qa
     milestone: 22
     ignore:
-      - dependency-name: k8s.io/*'
+      - dependency-name: k8s.io/*
       - dependency-name: github.com/grpc-ecosystem/grpc-gateway
       - dependency-name: google.golang.org/grpc
       - dependency-name: github.com/cihub/seelog
