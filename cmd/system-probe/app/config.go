@@ -8,18 +8,17 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	AgentCmd.AddCommand(configCommand)
+	SysprobeCmd.AddCommand(configCommand)
 	configCommand.AddCommand(listRuntimeCommand)
 	configCommand.AddCommand(setCommand)
 	configCommand.AddCommand(getCommand)
@@ -28,7 +27,7 @@ func init() {
 var (
 	configCommand = &cobra.Command{
 		Use:   "config",
-		Short: "Print the runtime configuration of a running agent",
+		Short: "Print the runtime configuration of a running system-probe",
 		Long:  ``,
 		RunE:  showRuntimeConfiguration,
 	}
@@ -52,36 +51,23 @@ var (
 	}
 )
 
-func setupConfig() error {
+func setupConfig() (*config.Config, error) {
 	if flagNoColor {
 		color.NoColor = true
 	}
 
-	err := common.SetupConfigWithoutSecrets(confFilePath, "")
+	cfg, err := config.New(configPath)
 	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		return nil, fmt.Errorf("unable to set up system-probe configuration: %v", err)
 	}
 
-	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = ddconfig.SetupLogger(loggerName, ddconfig.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-		return err
-	}
-
-	return util.SetAuthToken()
-}
-
-func getSettingsClient() (commonsettings.Client, error) {
-	err := setupConfig()
-	if err != nil {
 		return nil, err
 	}
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return nil, err
-	}
-	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "datadog-agent"), nil
+
+	return cfg, nil
 }
 
 func showRuntimeConfiguration(_ *cobra.Command, _ []string) error {
@@ -116,6 +102,15 @@ func listRuntimeConfigurableValue(_ *cobra.Command, _ []string) error {
 		}
 	}
 	return nil
+}
+
+func getSettingsClient() (settings.Client, error) {
+	cfg, err := setupConfig()
+	if err != nil {
+		return nil, err
+	}
+	hc := api.GetClient(cfg.SocketAddress)
+	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
 }
 
 func setConfigValue(_ *cobra.Command, args []string) error {
@@ -159,18 +154,8 @@ func getConfigValue(_ *cobra.Command, args []string) error {
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+	if err := settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{ConfigKey: config.Namespace + ".log_level"}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
-		return err
-	}
-	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
-		return err
-	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("profiling")); err != nil {
-		return err
-	}
-
 	return nil
 }
