@@ -22,7 +22,7 @@ int __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *sysc
 int __attribute__((always_inline)) trace__sys_rename() {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
-        .type = SYSCALL_RENAME,
+        .type = EVENT_RENAME,
     };
 
     cache_syscall(&syscall);
@@ -44,7 +44,7 @@ SYSCALL_KPROBE0(renameat2) {
 
 SEC("kprobe/vfs_rename")
 int kprobe__vfs_rename(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RENAME);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall)
         return 0;
 
@@ -93,13 +93,8 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RENAME);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval)) {
+int __attribute__((always_inline)) do_sys_rename_ret(void *ctx, struct syscall_cache_t *syscall) {
+    if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
 
@@ -115,7 +110,7 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
 
     if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
         struct rename_event_t event = {
-            .syscall.retval = retval,
+            .syscall.retval = syscall->retval,
             .old = syscall->rename.src_file,
             .new = syscall->rename.target_file,
             .discarder_revision = bump_discarder_revision(syscall->rename.target_file.path_key.mount_id),
@@ -131,6 +126,24 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     }
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_rename_exit")
+int handle_sys_rename_exit(void *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
+
+    return do_sys_rename_ret(ctx, syscall);
+}
+
+int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
+
+    syscall->retval = PT_REGS_RC(ctx);
+    return do_sys_rename_ret(ctx, syscall);
 }
 
 SYSCALL_KRETPROBE(rename) {

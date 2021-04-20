@@ -32,11 +32,11 @@
 #include "mount.h"
 #include "umount.h"
 #include "link.h"
-#include "raw_syscalls.h"
 #include "procfs.h"
 #include "setxattr.h"
 #include "erpc.h"
 #include "ioctl.h"
+#include "raw_syscalls.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

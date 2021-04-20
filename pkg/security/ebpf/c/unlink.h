@@ -20,7 +20,7 @@ int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *sysc
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_UNLINK,
+        .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
         .unlink = {
             .flags = flags,
@@ -42,7 +42,7 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 
 SEC("kprobe/vfs_unlink")
 int kprobe__vfs_unlink(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UNLINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
 
@@ -73,13 +73,8 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UNLINK);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval)) {
+int __attribute__((always_inline)) do_sys_unlink_ret(void *ctx, struct syscall_cache_t *syscall) {
+    if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
 
@@ -93,7 +88,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
                              mask_has_event(enabled_events, EVENT_RMDIR));
     if (pass_to_userspace) {
         struct unlink_event_t event = {
-            .syscall.retval = retval,
+            .syscall.retval = syscall->retval,
             .file = syscall->unlink.file,
             .flags = syscall->unlink.flags,
             .discarder_revision = bump_discarder_revision(syscall->unlink.file.path_key.mount_id),
@@ -108,6 +103,24 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_unlink_exit")
+int handle_sys_unlink_exit(void *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
+    if (!syscall)
+        return 0;
+
+    return do_sys_unlink_ret(ctx, syscall);
+}
+
+int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
+    if (!syscall)
+        return 0;
+
+    syscall->retval = PT_REGS_RC(ctx);
+    return do_sys_unlink_ret(ctx, syscall);
 }
 
 SYSCALL_KRETPROBE(unlink) {

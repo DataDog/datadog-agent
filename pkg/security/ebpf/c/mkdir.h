@@ -24,7 +24,7 @@ long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_MKDIR,
+        .type = EVENT_MKDIR,
         .policy = policy,
         .mkdir = {
             .mode = mode
@@ -48,7 +48,7 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 
 SEC("kprobe/vfs_mkdir")
 int kprobe__vfs_mkdir(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall)
         return 0;
 
@@ -66,13 +66,8 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MKDIR);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
+int __attribute__((always_inline)) do_sys_mkdir_ret(void *ctx, struct syscall_cache_t *syscall) {
+    if (IS_UNHANDLED_ERROR(syscall->retval))
         return 0;
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
@@ -84,7 +79,7 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     }
 
     struct mkdir_event_t event = {
-        .syscall.retval = retval,
+        .syscall.retval = syscall->retval,
         .file = syscall->mkdir.file,
         .mode = syscall->mkdir.mode,
     };
@@ -96,6 +91,24 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     send_event(ctx, EVENT_MKDIR, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_mkdir_exit")
+int handle_sys_mkdir_exit(void *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+    if (!syscall)
+        return 0;
+
+    return do_sys_mkdir_ret(ctx, syscall);
+}
+
+int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+    if (!syscall)
+        return 0;
+
+    syscall->retval = PT_REGS_RC(ctx);
+    return do_sys_mkdir_ret(ctx, syscall);
 }
 
 SYSCALL_KRETPROBE(mkdir)

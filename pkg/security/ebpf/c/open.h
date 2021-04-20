@@ -32,7 +32,7 @@ int __attribute__((always_inline)) trace__sys_openat(int flags, umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_OPEN,
+        .type = EVENT_OPEN,
         .policy = policy,
         .open = {
             .flags = flags,
@@ -128,7 +128,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
 
 SEC("kprobe/vfs_truncate")
 int kprobe__vfs_truncate(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
@@ -153,7 +153,7 @@ int kprobe__vfs_truncate(struct pt_regs *ctx) {
 
 SEC("kprobe/vfs_open")
 int kprobe__vfs_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
@@ -167,7 +167,7 @@ int kprobe__vfs_open(struct pt_regs *ctx) {
 
 SEC("kprobe/do_dentry_open")
 int kprobe__do_dentry_open(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_EXEC);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall)
         return 0;
 
@@ -197,7 +197,7 @@ int kprobe__io_openat2(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_OPEN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
@@ -206,14 +206,17 @@ int kprobe__io_openat2(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) _do_sys_open_ret(struct syscall_cache_t *syscall, void *ctx, int retval) {
+int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+    if (IS_UNHANDLED_ERROR(syscall->retval))
+        return 0;
+
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
     if (syscall->discarded)
         return 0;
 
     struct open_event_t event = {
-        .syscall.retval = retval,
+        .syscall.retval = syscall->retval,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
@@ -222,7 +225,7 @@ int __attribute__((always_inline)) _do_sys_open_ret(struct syscall_cache_t *sysc
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
 
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
+    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(syscall->retval)))) {
        return 0;
     }
 
@@ -234,20 +237,22 @@ int __attribute__((always_inline)) _do_sys_open_ret(struct syscall_cache_t *sysc
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_open_ret(struct pt_regs *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_OPEN);
+SEC("tracepoint/handle_sys_open_exit")
+int handle_sys_open_exit(void *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
-    return _do_sys_open_ret(syscall, ctx, retval);
+    return do_sys_open_ret(ctx, syscall);
 }
 
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall)
         return 0;
 
-    return do_sys_open_ret(ctx, retval);
+    syscall->retval = PT_REGS_RC(ctx);
+    return do_sys_open_ret(ctx, syscall);
 }
 
 SYSCALL_KRETPROBE(creat) {
@@ -280,7 +285,11 @@ int kretprobe__io_openat2(struct pt_regs *ctx) {
     if (IS_ERR(f))
         return 0;
 
-    return do_sys_open_ret(ctx, 0);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall)
+        return 0;
+
+    return do_sys_open_ret(ctx, syscall);
 }
 
 SEC("kprobe/filp_close")
