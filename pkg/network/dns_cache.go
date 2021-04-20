@@ -76,7 +76,8 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 			}
 		} else {
 			atomic.AddInt64(&c.added, 1)
-			c.data[addr] = &dnsCacheVal{names: map[string]time.Time{translation.dns: deadline}}
+			// flag as in use, so mapping survives until next time connections are queried, in case TTL is shorter
+			c.data[addr] = &dnsCacheVal{names: map[string]time.Time{translation.dns: deadline}, inUse: true}
 		}
 	}
 
@@ -87,6 +88,13 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 }
 
 func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	for _, val := range c.data {
+		val.inUse = false
+	}
+
 	if len(conns) == 0 {
 		return nil
 	}
@@ -120,12 +128,10 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string
 		}
 	}
 
-	c.mux.Lock()
 	for _, conn := range conns {
 		collectNamesForIP(conn.Source)
 		collectNamesForIP(conn.Dest)
 	}
-	c.mux.Unlock()
 
 	// Update stats for telemetry
 	atomic.AddInt64(&c.lookups, int64(len(resolved)+len(unresolved)))
@@ -167,6 +173,10 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	expired := 0
 	c.mux.Lock()
 	for addr, val := range c.data {
+		if val.inUse {
+			continue
+		}
+
 		for ip, deadline := range val.names {
 			if deadline.Before(now) {
 				delete(val.names, ip)
@@ -195,11 +205,13 @@ func (c *reverseDNSCache) getNamesForIP(ip util.Address) []string {
 	if !ok {
 		return nil
 	}
+	val.inUse = true
 	return val.copy()
 }
 
 type dnsCacheVal struct {
 	names map[string]time.Time
+	inUse bool
 }
 
 func (v *dnsCacheVal) merge(name string, deadline time.Time, maxSize int) (rejected bool) {

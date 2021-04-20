@@ -88,7 +88,7 @@ func TestDNSCacheExpiration(t *testing.T) {
 	cache.Expire(t2)
 	assert.Equal(t, 3, cache.Len())
 
-	// Bump host-a and host-b expiration
+	// Bump host-a and host-b in-use flag
 	stats := []ConnectionStats{
 		{Source: laddr1, Dest: raddr1},
 		{Source: laddr2, Dest: raddr2},
@@ -110,8 +110,13 @@ func TestDNSCacheExpiration(t *testing.T) {
 	assert.Contains(t, names[raddr2], "host-b")
 	assert.Nil(t, names[raddr3])
 
-	// All entries should have expired by now
+	// entries should still be around after expiration that are referenced
 	t4 := t3.Add(ttl)
+	cache.Expire(t4)
+	assert.Equal(t, 2, cache.Len())
+
+	// All entries should be allowed to expire now
+	cache.Get([]ConnectionStats{})
 	cache.Expire(t4)
 	assert.Equal(t, 0, cache.Len())
 }
@@ -160,6 +165,7 @@ func TestDNSCacheTelemetry(t *testing.T) {
 
 	// Expire IP
 	t2 := t1.Add(ttl + 1*time.Millisecond)
+	cache.Get([]ConnectionStats{})
 	cache.Expire(t2)
 	expected = map[string]int64{
 		"lookups":   3,
