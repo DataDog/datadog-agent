@@ -73,7 +73,7 @@ new file mode 100644
 index 0000000..c01fbe2
 --- /dev/null
 +++ b/src/cc/wrapper.c
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,53 @@
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"
 +#elif defined(__aarch64__)
@@ -81,6 +81,8 @@ index 0000000..c01fbe2
 +#else
 +#error Unknown architecture
 +#endif
++
++#include <stddef.h>
 +
 +#define define_wrapper1_for(func)                               \
 +double __ ## func ## _prior_glibc(double x);                    \
@@ -114,7 +116,7 @@ index 0000000..c01fbe2
 +                                                                               \
 +asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);                 \
 +                                                                               \
-+FILE *__wrap_## func ## (void *buf, size_t size, const char *mode) {           \
++FILE *__wrap_## func (void *buf, size_t size, const char *mode) {           \
 + return __ ## func ## _prior_glibc(buf, size, mode);                           \
 +}                                                                              \
 +
