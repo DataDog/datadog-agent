@@ -39,7 +39,7 @@ func TestSerialization(t *testing.T) {
 					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 					ReplDstIP:   util.AddressFromString("20.1.1.1"),
 					ReplSrcPort: 40,
-					ReplDstPort: 70,
+					ReplDstPort: 80,
 				},
 
 				Type:      network.UDP,
@@ -67,10 +67,10 @@ func TestSerialization(t *testing.T) {
 		},
 		HTTP: map[http.Key]http.RequestStats{
 			http.NewKey(
-				util.AddressFromString("10.1.1.1"),
-				util.AddressFromString("10.2.2.2"),
-				1000,
-				9000,
+				util.AddressFromString("20.1.1.1"),
+				util.AddressFromString("20.1.1.1"),
+				40,
+				80,
 				"/testpath",
 			): httpReqStats,
 		},
@@ -124,7 +124,7 @@ func TestSerialization(t *testing.T) {
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
 					ReplSrcPort: int32(40),
-					ReplDstPort: int32(70),
+					ReplDstPort: int32(80),
 				},
 
 				Type:      model.ConnectionType_udp,

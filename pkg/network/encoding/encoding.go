@@ -5,7 +5,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -54,7 +53,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	httpIndex := FormatHTTPStats(conns.HTTP)
 
 	for i, conn := range conns.Conns {
-		httpKey := http.NewKey(conn.Source, conn.Dest, conn.SPort, conn.DPort, "")
+		httpKey := httpKeyFromConn(conn)
 		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpIndex[httpKey])
 		delete(httpIndex, httpKey)
 	}
