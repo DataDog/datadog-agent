@@ -6,6 +6,7 @@
 package redact
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,5 +52,18 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	}
 	if len(c.Args) > 0 {
 		c.Args = scrubbedMergedCommand[words:]
+	}
+}
+
+// TODO: we need to access the env for this
+// Alternative idea: unmarshal to pod spec
+// lets try the log scrubber
+func ScrubAnnotations(o *metav1.ObjectMeta, scrubber *DataScrubber) {
+	annotations := o.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	msgScrubbed, err := log.CredentialsCleanerBytes([]byte(annotations))
+	if err == nil {
+		log.Errorf("%v", string(msgScrubbed))
+	} else {
+		log.Errorf("failure: %v", err)
 	}
 }

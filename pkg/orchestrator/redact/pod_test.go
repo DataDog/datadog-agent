@@ -6,11 +6,81 @@
 package redact
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 )
+
+func TestScrubAnnotations(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	old := `{
+  "apiVersion": "apps/v1",
+  "kind": "ReplicaSet",
+  "metadata": {
+    "annotations": {},
+    "name": "gitlab-password-all",
+    "namespace": "datadog-agent"
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "tier": "frontend"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "tier": "frontend"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "GITLAB_TOKEN",
+                "value": "test"
+              },
+              {
+                "name": "TOKEN",
+                "value": "test"
+              },
+              {
+                "name": "password",
+                "value": "test"
+              },
+              {
+                "name": "secret",
+                "value": "test"
+              },
+              {
+                "name": "pwd",
+                "value": "test"
+              },
+              {
+                "name": "api_key",
+                "value": "test"
+              }
+            ],
+            "image": "gcr.io/google_samples/gb-frontend:v3",
+            "name": "php-redis"
+          }
+        ]
+      }
+    }
+  }
+}`
+	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
+		"kubectl.kubernetes.io/last-applied-configuration": old,
+	}}
+	//// TODO: best if we could only parse the spec container part (PodTemplateSpec) (by parsing object.spec.spec)
+	//var a apps.ReplicaSet // if replica
+	//json.Unmarshal([]byte(old), &a)
+	ScrubAnnotations(&objectMeta, scrubber)
+}
 
 func TestScrubContainer(t *testing.T) {
 	scrubber := NewDefaultDataScrubber()
@@ -22,6 +92,11 @@ func TestScrubContainer(t *testing.T) {
 		})
 	}
 }
+
+// TODO: add a test for this
+//   annotations:
+//    kubectl.kubernetes.io/last-applied-configuration: |
+//      {"apiVersion":"apps/v1","kind":"ReplicaSet","metadata":{"annotations":{},"name":"gitlab-password-all","namespace":"datadog-agent"},"spec":{"replicas":1,"selector":{"matchLabels":{"tier":"frontend"}},"template":{"metadata":{"labels":{"tier":"frontend"}},"spec":{"containers":[{"env":[{"name":"GITLAB_TOKEN","value":"test"},{"name":"TOKEN","value":"test"},{"name":"password","value":"test"},{"name":"secret","value":"test"},{"name":"pwd","value":"test"},{"name":"consul","value":"test"}],"image":"gcr.io/google_samples/gb-frontend:v3","name":"php-redis"}]}}}}
 
 func getScrubCases() map[string]struct {
 	input    v1.Container

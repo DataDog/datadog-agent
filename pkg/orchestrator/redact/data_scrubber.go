@@ -80,7 +80,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 
 	// preprocess, without the preprocessing we would need to strip until whitespaces.
 	// the first index can be skipped because it should be the program name.
-	for index := 1; index < len(newCmdline); index++ {
+	for index := 0; index < len(newCmdline); index++ {
 		cmd := newCmdline[index]
 		for _, pattern := range ds.LiteralSensitivePatterns {
 			// if we found a word from the list,

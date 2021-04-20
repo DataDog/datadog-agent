@@ -9,6 +9,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -262,8 +263,22 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		// extract replica set info
 		rsModel := extractReplicaSet(r)
 
+		// TODO: scrub objectMeta.Annotation["kubectl.kubernetes.io/last-applied-configuration"]: as well
 		// scrub & generate YAML
 		if cfg.IsScrubbingEnabled {
+			annotations := r.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+			if annotations != "" {
+				var a v1.ReplicaSet
+				json.Unmarshal([]byte(annotations), &a)
+				for c := 0; c < len(a.Spec.Template.Spec.InitContainers); c++ {
+					redact.ScrubContainer(&a.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
+				}
+				scrubbedValue, err := json.Marshal(a)
+				if err != nil {
+					return nil, err
+				}
+				r.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = string(scrubbedValue)
+			}
 			for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
 				redact.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
 			}
