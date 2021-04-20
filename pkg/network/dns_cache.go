@@ -215,7 +215,10 @@ type dnsCacheVal struct {
 }
 
 func (v *dnsCacheVal) merge(name string, deadline time.Time, maxSize int) (rejected bool) {
-	if _, ok := v.names[name]; ok {
+	if exp, ok := v.names[name]; ok {
+		if deadline.After(exp) {
+			v.names[name] = deadline
+		}
 		return false
 	}
 	if len(v.names) == maxSize {
