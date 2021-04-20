@@ -117,6 +117,10 @@ jobs:
       - run:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
+      - run:
+          name: upload code coverage results
+          # Never fail on coverage upload
+          command: codecov -f profile.cov -F linux || true
 
   release_note:
     <<: *job_template
@@ -240,7 +244,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "68f7e123fea89b2b9c06a5251b26249ee76e3877" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "aa0a9b99830e937e32986359794361aeb95940f5" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
