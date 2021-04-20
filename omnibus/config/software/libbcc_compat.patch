@@ -73,7 +73,7 @@ new file mode 100644
 index 0000000..c01fbe2
 --- /dev/null
 +++ b/src/cc/wrapper.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,54 @@
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"
 +#elif defined(__aarch64__)
@@ -83,6 +83,7 @@ index 0000000..c01fbe2
 +#endif
 +
 +#include <stddef.h>
++#include <stdio.h>
 +
 +#define define_wrapper1_for(func)                               \
 +double __ ## func ## _prior_glibc(double x);                    \
