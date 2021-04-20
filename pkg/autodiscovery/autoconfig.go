@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build kubelet
-
 package autodiscovery
 
 import (
@@ -18,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -648,14 +645,4 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
-}
-
-// GetKubernetesAutodiscoveryErrors fetches configuration errors from the kubelet ConfigProvider
-func (ac *AutoConfig) GetKubernetesAutodiscoveryErrors() map[string]map[string]bool {
-	for _, pd := range ac.providers {
-		if pd.provider.String() == names.Kubernetes {
-			return pd.provider.(*providers.KubeletConfigProvider).Errors
-		}
-	}
-	return nil
 }
