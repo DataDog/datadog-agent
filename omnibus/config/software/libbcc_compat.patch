@@ -64,7 +64,7 @@ index 931de2d9..1cd1212f 100644
  
  # Link against LLVM libraries
 -target_link_libraries(bcc-shared ${bcc_common_libs_for_s})
-+target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2 -Wl,--wrap=log2f)
++target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2 -Wl,--wrap=log2f -Wl,--wrap=fmemopen)
  target_link_libraries(bcc-static ${bcc_common_libs_for_a} bcc-loader-static)
  set(bcc-lua-static ${bcc-lua-static} ${bcc_common_libs_for_lua})
  
@@ -73,7 +73,7 @@ new file mode 100644
 index 0000000..c01fbe2
 --- /dev/null
 +++ b/src/cc/wrapper.c
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,54 @@
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"
 +#elif defined(__aarch64__)
@@ -81,6 +81,9 @@ index 0000000..c01fbe2
 +#else
 +#error Unknown architecture
 +#endif
++
++#include <stddef.h>
++#include <stdio.h>
 +
 +#define define_wrapper1_for(func)                               \
 +double __ ## func ## _prior_glibc(double x);                    \
@@ -109,9 +112,19 @@ index 0000000..c01fbe2
 +  return __ ## func ## _prior_glibc(x);                         \
 +}
 +
++#define define_fmemopen_wrapper_for(func)                                      \
++FILE *__ ## func ## _prior_glibc(void *buf, size_t size, const char *mode);    \
++                                                                               \
++asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);                 \
++                                                                               \
++FILE *__wrap_## func (void *buf, size_t size, const char *mode) {           \
++ return __ ## func ## _prior_glibc(buf, size, mode);                           \
++}                                                                              \
++
 +define_wrapper1_for(exp)
 +define_wrapper1_for(log)
 +define_wrapper2_for(pow)
 +define_wrapper1_for(exp2)
 +define_wrapper1_for(log2)
 +define_wrapper3_for(log2f)
++define_fmemopen_wrapper_for(fmemopen)

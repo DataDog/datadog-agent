@@ -10,27 +10,32 @@ import (
 	"time"
 )
 
-// dsdCaptureDurationRuntimeSetting wraps operations to change the duration, in seconds, of traffic captures
-type dsdCaptureDurationRuntimeSetting string
+// DsdCaptureDurationRuntimeSetting wraps operations to change the duration, in seconds, of traffic captures
+type DsdCaptureDurationRuntimeSetting string
 
-func (l dsdCaptureDurationRuntimeSetting) Description() string {
+// Description returns the runtime setting's description
+func (l DsdCaptureDurationRuntimeSetting) Description() string {
 	return "Enable/disable dogstatsd traffic captures. Possible values are: start, stop"
 }
 
-func (l dsdCaptureDurationRuntimeSetting) Hidden() bool {
+// Hidden returns whether or not this setting is hidden from the list of runtime settings
+func (l DsdCaptureDurationRuntimeSetting) Hidden() bool {
 	return false
 }
 
-func (l dsdCaptureDurationRuntimeSetting) Name() string {
+// Name returns the name of the runtime setting
+func (l DsdCaptureDurationRuntimeSetting) Name() string {
 	return string(l)
 }
 
-func (l dsdCaptureDurationRuntimeSetting) Get() (interface{}, error) {
+// Get returns the current value of the runtime setting
+func (l DsdCaptureDurationRuntimeSetting) Get() (interface{}, error) {
 	// TODO
 	return 0, nil
 }
 
-func (l dsdCaptureDurationRuntimeSetting) Set(v interface{}) error {
+// Set changes the value of the runtime setting
+func (l DsdCaptureDurationRuntimeSetting) Set(v interface{}) error {
 	var err error
 
 	s, ok := v.(string)

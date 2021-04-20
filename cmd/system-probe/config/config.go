@@ -17,7 +17,9 @@ import (
 type ModuleName string
 
 const (
-	spNS                  = "system_probe_config"
+	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
+	Namespace             = "system_probe_config"
+	spNS                  = Namespace
 	defaultConfigFileName = "system-probe.yaml"
 
 	defaultConnsMessageBatchSize = 600
