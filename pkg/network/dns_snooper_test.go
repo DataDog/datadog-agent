@@ -131,25 +131,23 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	// skipping for now as test seems to be flaky.  Should be reinserted when cause
 	// is discovered
 	t.Skip()
-	cfg := testConfig()
-	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
-	require.NoError(t, err)
-	defer buf.Close()
-
-	m, reverseDNS := getSnooper(t, buf, false, false, 15*time.Second, false)
+	m, reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
 
 	// Connect to golang.org. This will result in a DNS lookup which will be captured by SocketFilterSnooper
-	conn, err := net.DialTimeout("tcp", "golang.org:80", 1*time.Second)
-	require.NoError(t, err)
+	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, validDNSServerIP, UDP)
+	rep := reps[0]
+	require.NotNil(t, rep)
+	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 
-	// Get destination IP to compare against snooped DNS
-	destIP, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	conn.Close()
-	require.NoError(t, err)
-
-	checkSnooping(t, destIP, reverseDNS)
+	for _, r := range rep.Answer {
+		aRecord, ok := r.(*mdns.A)
+		require.True(t, ok)
+		require.True(t, mdns.NumField(aRecord) >= 1)
+		destIP := mdns.Field(aRecord, 1)
+		checkSnooping(t, destIP, reverseDNS)
+	}
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {
