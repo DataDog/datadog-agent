@@ -506,6 +506,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
+	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
