@@ -177,6 +177,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 	return aggregationsByKey
 }
 
+// Build the key for the http map based on whether the local or remote side is http.
 func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	// Retrieve translated addresses
 	laddr, lport := nat.GetLocalAddress(c)
