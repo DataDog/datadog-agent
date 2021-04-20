@@ -239,6 +239,9 @@ def omnibus_build(
         )
         env['MAJOR_VERSION'] = major_version
 
+        if 'INTEGRATIONS_CORE_VERSION' in os.environ:
+            env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
+
         # If the host has a GOMODCACHE set, try to reuse it
         if not go_mod_cache and os.environ.get('GOMODCACHE'):
             go_mod_cache = os.environ.get('GOMODCACHE')
