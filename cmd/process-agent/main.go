@@ -4,8 +4,9 @@ package main
 
 import (
 	"flag"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	_ "net/http/pprof"
+
+	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 )
 
 func main() {
