@@ -9,7 +9,6 @@ package orchestrator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -41,6 +40,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		if orchestrator.SkipKubernetesResource(cronJob.UID, cronJob.ResourceVersion, orchestrator.K8sCronJob) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(cronJob.Annotations)
 
 		// extract cronJob info
 		cronJobModel := extractCronJob(cronJob)
@@ -114,6 +114,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(depl.Annotations)
 
 		// extract deployment info
 		deployModel := extractDeployment(depl)
@@ -186,6 +187,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(job.Annotations)
 
 		// extract job info
 		jobModel := extractJob(job)
@@ -259,26 +261,13 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion, orchestrator.K8sReplicaSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 
 		// extract replica set info
 		rsModel := extractReplicaSet(r)
 
-		// TODO: scrub objectMeta.Annotation["kubectl.kubernetes.io/last-applied-configuration"]: as well
 		// scrub & generate YAML
 		if cfg.IsScrubbingEnabled {
-			annotations := r.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
-			if annotations != "" {
-				var a v1.ReplicaSet
-				json.Unmarshal([]byte(annotations), &a)
-				for c := 0; c < len(a.Spec.Template.Spec.InitContainers); c++ {
-					redact.ScrubContainer(&a.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
-				}
-				scrubbedValue, err := json.Marshal(a)
-				if err != nil {
-					return nil, err
-				}
-				r.Annotations["kubectl.kubernetes.io/last-applied-configuration"] = string(scrubbedValue)
-			}
 			for c := 0; c < len(r.Spec.Template.Spec.InitContainers); c++ {
 				redact.ScrubContainer(&r.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
 			}

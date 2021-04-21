@@ -6,10 +6,10 @@
 package redact
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -55,15 +55,10 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	}
 }
 
-// TODO: we need to access the env for this
-// Alternative idea: unmarshal to pod spec
-// lets try the log scrubber
-func ScrubAnnotations(o *metav1.ObjectMeta, scrubber *DataScrubber) {
-	annotations := o.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
-	msgScrubbed, err := log.CredentialsCleanerBytes([]byte(annotations))
-	if err == nil {
-		log.Errorf("%v", string(msgScrubbed))
-	} else {
-		log.Errorf("failure: %v", err)
+// RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
+func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
+	a := annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	if a != "" {
+		annotations["kubectl.kubernetes.io/last-applied-configuration"] = redactedValue
 	}
 }
