@@ -106,7 +106,7 @@ func (p *PerfBatchManager) GetIdleConns() []network.ConnectionStats {
 			start = bState.offset
 		}
 
-		idle = p.extractBatchInto(idle, b, start, batchLen)
+		idle = append(idle, p.extractBatchInto(idle, b, start, batchLen)...)
 		// update timestamp regardless since this partial batch still exists
 		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
