@@ -618,7 +618,7 @@ api_key:
     #
     # loader: core
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
 ## Uncomment this parameter and the one below to enable profiling.
@@ -926,7 +926,7 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
   ## Uncomment this parameter and the one below to enable profiling.
@@ -995,7 +995,7 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
   ## Uncomment this parameter and the one below to enable profiling.
