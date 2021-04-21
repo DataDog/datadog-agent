@@ -84,7 +84,7 @@ func (s *batchStrategy) syncFlush(inputChan chan *message.Message, outputChan ch
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
 func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	flushTimer := time.NewTimer(s.batchWait)
+	flushTimer := time.NewTicker(s.batchWait)
 	defer func() {
 		s.flushBuffer(outputChan, send)
 		flushTimer.Stop()
