@@ -2405,7 +2405,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 			var ok bool
 			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 			return ok && conn.Direction == network.OUTGOING
-		}, 10*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 500*time.Millisecond)
 
 		require.NotNil(t, conn.Via)
 		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
