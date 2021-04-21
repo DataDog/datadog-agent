@@ -97,15 +97,15 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_rmdir_ret(void *ctx, struct syscall_cache_t *syscall) {
-    if (IS_UNHANDLED_ERROR(syscall->retval)) {
+int __attribute__((always_inline)) do_sys_rmdir_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
 
     int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RMDIR);
     if (pass_to_userspace) {
         struct rmdir_event_t event = {
-            .syscall.retval = syscall->retval,
+            .syscall.retval = retval,
             .file = syscall->rmdir.file,
             .discarder_revision = bump_discarder_revision(syscall->rmdir.file.path_key.mount_id),
         };
@@ -122,12 +122,12 @@ int __attribute__((always_inline)) do_sys_rmdir_ret(void *ctx, struct syscall_ca
 }
 
 SEC("tracepoint/handle_sys_rmdir_exit")
-int handle_sys_rmdir_exit(void *ctx) {
+int handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RMDIR);
     if (!syscall)
         return 0;
 
-    return do_sys_rmdir_ret(ctx, syscall);
+    return do_sys_rmdir_ret(args, syscall, args->ret);
 }
 
 int __attribute__((always_inline)) rmdir_predicate(u64 type) {
@@ -139,8 +139,8 @@ SYSCALL_KRETPROBE(rmdir) {
     if (!syscall)
         return 0;
 
-    syscall->retval = PT_REGS_RC(ctx);
-    return do_sys_rmdir_ret(ctx, syscall);
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_rmdir_ret(ctx, syscall, retval);
 }
 
 #endif

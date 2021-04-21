@@ -17,7 +17,6 @@ struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
     u32 discarded;
-    u64 retval;
 
     union {
         struct {

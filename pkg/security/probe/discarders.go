@@ -342,13 +342,13 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					log.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
+					log.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 					// not able to discard the parent then only discard the filename
 					err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true)
 				}
 			} else {
-				log.Tracef("Apply `%s.file.path` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
+				log.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
 			}
 
 			if err != nil {

@@ -107,12 +107,12 @@ int kprobe__vfs_removexattr(struct pt_regs *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
-int __attribute__((always_inline)) _do_sys_setxattr_ret(void *ctx, struct syscall_cache_t *syscall, u64 event_type) {
-    if (IS_UNHANDLED_ERROR(syscall->retval))
+int __attribute__((always_inline)) _do_sys_setxattr_ret(void *ctx, struct syscall_cache_t *syscall, int retval, u64 event_type) {
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct setxattr_event_t event = {
-        .syscall.retval = syscall->retval,
+        .syscall.retval = retval,
         .file = syscall->xattr.file,
     };
 
@@ -128,30 +128,30 @@ int __attribute__((always_inline)) _do_sys_setxattr_ret(void *ctx, struct syscal
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_setxattr_ret(void *ctx, struct syscall_cache_t *syscall) {
-    return _do_sys_setxattr_ret(ctx, syscall, EVENT_SETXATTR);
+int __attribute__((always_inline)) do_sys_setxattr_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    return _do_sys_setxattr_ret(ctx, syscall, retval, EVENT_SETXATTR);
 }
 
 SEC("tracepoint/handle_sys_setxattr_exit")
-int handle_sys_setxattr_exit(void *ctx) {
+int handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETXATTR);
     if (!syscall)
         return 0;
 
-    return do_sys_setxattr_ret(ctx, syscall);
+    return do_sys_setxattr_ret(args, syscall, args->ret);
 }
 
-int __attribute__((always_inline)) do_sys_removexattr_ret(void *ctx, struct syscall_cache_t *syscall) {
-    return _do_sys_setxattr_ret(ctx, syscall, EVENT_REMOVEXATTR);
+int __attribute__((always_inline)) do_sys_removexattr_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    return _do_sys_setxattr_ret(ctx, syscall, retval, EVENT_REMOVEXATTR);
 }
 
 SEC("tracepoint/handle_sys_removexattr_exit")
-int handle_sys_removexattr_exit(void *ctx) {
+int handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_REMOVEXATTR);
     if (!syscall)
         return 0;
 
-    return do_sys_removexattr_ret(ctx, syscall);
+    return do_sys_removexattr_ret(args, syscall, args->ret);
 }
 
 int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx) {
@@ -159,8 +159,8 @@ int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx) 
     if (!syscall)
         return 0;
 
-    syscall->retval = PT_REGS_RC(ctx);
-    return do_sys_setxattr_ret(ctx, syscall);
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_setxattr_ret(ctx, syscall, retval);
 }
 
 int __attribute__((always_inline)) trace__sys_removexattr_ret(struct pt_regs *ctx) {
@@ -168,8 +168,8 @@ int __attribute__((always_inline)) trace__sys_removexattr_ret(struct pt_regs *ct
     if (!syscall)
         return 0;
 
-    syscall->retval = PT_REGS_RC(ctx);
-    return do_sys_setxattr_ret(ctx, syscall);
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_removexattr_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(setxattr) {

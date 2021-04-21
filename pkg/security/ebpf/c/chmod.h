@@ -48,12 +48,12 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-int __attribute__((always_inline)) do_sys_chmod_ret(void *ctx, struct syscall_cache_t *syscall) {
-    if (IS_UNHANDLED_ERROR(syscall->retval))
+int __attribute__((always_inline)) do_sys_chmod_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct chmod_event_t event = {
-        .syscall.retval = syscall->retval,
+        .syscall.retval = retval,
         .file = syscall->setattr.file,
         .padding = 0,
         .mode = syscall->setattr.mode,
@@ -70,12 +70,12 @@ int __attribute__((always_inline)) do_sys_chmod_ret(void *ctx, struct syscall_ca
 }
 
 SEC("tracepoint/handle_sys_chmod_exit")
-int handle_sys_chmod_exit(void *ctx) {
+int handle_sys_chmod_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
     if (!syscall)
         return 0;
 
-    return do_sys_chmod_ret(ctx, syscall);
+    return do_sys_chmod_ret(args, syscall, args->ret);
 }
 
 int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
@@ -83,8 +83,8 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->retval = PT_REGS_RC(ctx);
-    return do_sys_chmod_ret(ctx, syscall);
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_chmod_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(chmod) {

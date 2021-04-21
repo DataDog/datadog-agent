@@ -206,8 +206,8 @@ int kprobe__io_openat2(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
-    if (IS_UNHANDLED_ERROR(syscall->retval))
+int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     // increase mount ref
@@ -216,7 +216,7 @@ int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cac
         return 0;
 
     struct open_event_t event = {
-        .syscall.retval = syscall->retval,
+        .syscall.retval = retval,
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,
@@ -225,7 +225,7 @@ int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cac
     fill_file_metadata(syscall->open.dentry, &event.file.metadata);
 
     int ret = resolve_dentry(syscall->open.dentry, syscall->open.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(syscall->retval)))) {
+    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
        return 0;
     }
 
@@ -238,12 +238,12 @@ int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cac
 }
 
 SEC("tracepoint/handle_sys_open_exit")
-int handle_sys_open_exit(void *ctx) {
+int handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall)
         return 0;
 
-    return do_sys_open_ret(ctx, syscall);
+    return do_sys_open_ret(args, syscall, args->ret);
 }
 
 int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
@@ -251,8 +251,8 @@ int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    syscall->retval = PT_REGS_RC(ctx);
-    return do_sys_open_ret(ctx, syscall);
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_open_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(creat) {
@@ -289,7 +289,7 @@ int kretprobe__io_openat2(struct pt_regs *ctx) {
     if (!syscall)
         return 0;
 
-    return do_sys_open_ret(ctx, syscall);
+    return do_sys_open_ret(ctx, syscall, 0);
 }
 
 SEC("kprobe/filp_close")

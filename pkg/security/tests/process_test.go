@@ -391,6 +391,12 @@ func TestProcessContext(t *testing.T) {
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "process.file.container_path")
 			}
+
+			str := event.String()
+
+			if !strings.Contains(str, "pts") {
+				t.Error("tty not serialized")
+			}
 		}
 	})
 

@@ -11,7 +11,7 @@
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_PER_TAIL 28
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARGS_ELEMENTS 160
+#define MAX_ARGS_ELEMENTS 140
 
 struct args_envs_event_t {
     struct kevent_t event;
