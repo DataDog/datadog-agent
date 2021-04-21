@@ -77,7 +77,7 @@ func TestScrubAnnotations(t *testing.T) {
 	}}
 	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
 	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
-	expected := redactedValue
+	expected := replacedValue
 	assert.Equal(t, expected, actual)
 }
 

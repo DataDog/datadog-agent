@@ -15,6 +15,7 @@ import (
 
 const (
 	redactedValue = "********"
+	replacedValue = "-"
 )
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
@@ -59,6 +60,6 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
 	a := annotations["kubectl.kubernetes.io/last-applied-configuration"]
 	if a != "" {
-		annotations["kubectl.kubernetes.io/last-applied-configuration"] = redactedValue
+		annotations["kubectl.kubernetes.io/last-applied-configuration"] = replacedValue
 	}
 }
