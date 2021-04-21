@@ -10,6 +10,7 @@ import (
 
 func main() {
 	setDefaultCommandIfNonePresent()
+	checkForDeprecatedFlags()
 	if err := app.SysprobeCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
