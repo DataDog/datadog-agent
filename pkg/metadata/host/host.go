@@ -122,6 +122,12 @@ func getHostAliases() []string {
 		aliases = append(aliases, azureAlias)
 	}
 
+	if gceHostname, err := gce.GetHostname(); err != nil {
+		log.Debugf("no GCE hostname to use as Host Alias: %s", err)
+	} else {
+		aliases = append(aliases, gceHostname)
+	}
+
 	gceAlias, err := gce.GetHostAlias()
 	if err != nil {
 		log.Debugf("no GCE Host Alias: %s", err)

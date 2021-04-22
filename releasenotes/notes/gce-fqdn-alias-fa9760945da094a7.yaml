@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Always send GCE hostname as a host alias
