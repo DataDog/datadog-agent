@@ -95,3 +95,7 @@ message UnixDogstatsdMsg {
     int32 ancillarySize = 4;
     bytes ancillary = 5;
 }
+
+message TaggerState {
+    map<string, Entity> state = 1;
+}

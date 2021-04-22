@@ -9,15 +9,17 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
 	"time"
 
+	// Refactor relevant bits
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/proto/utils"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/golang/protobuf/proto"
@@ -30,9 +32,10 @@ const (
 // CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
 // message used for serialization.
 type CaptureBuffer struct {
-	Pb   pb.UnixDogstatsdMsg
-	Oob  *[]byte
-	Buff *packets.Packet
+	Pb          pb.UnixDogstatsdMsg
+	Oob         *[]byte
+	ContainerID string
+	Buff        *packets.Packet
 }
 
 // CapPool is a pool of CaptureBuffer
@@ -53,6 +56,8 @@ type TrafficCaptureWriter struct {
 
 	sharedPacketPoolManager *packets.PoolManager
 	oobPacketPoolManager    *packets.PoolManager
+
+	taggerState map[string]string
 
 	sync.RWMutex
 }
@@ -141,6 +146,10 @@ process:
 				if err != nil {
 					log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
 				}
+			}
+
+			if msg.ContainerID != "" {
+				tc.taggerState[string(*msg.Oob)] = msg.ContainerID
 			}
 
 			if tc.sharedPacketPoolManager != nil {
@@ -246,6 +255,64 @@ func (tc *TrafficCaptureWriter) WriteHeader() error {
 	return WriteHeader(tc.writer)
 }
 
+// WriteState writes the tagger state to the capture file.
+func (tc *TrafficCaptureWriter) WriteState() (int, error) {
+
+	pbState := pb.TaggerState{
+		State: make(map[string]*pb.Entity),
+	}
+
+	// iterate entities
+	tc.RLock()
+	for _, id := range tc.taggerState {
+		entity, err := tagger.GetEntity(id)
+		if err != nil {
+			log.Warnf("There was no entity for container id: %v present in the tagger", entity)
+			continue
+		}
+
+		entityID, err := utils.Tagger2PbEntityID(entity.ID)
+		if err != nil {
+			log.Warnf("unable to compute valid EntityID for %v", id)
+			continue
+		}
+
+		entry := pb.Entity{
+			// TODO: Hash:               entity.Hash,
+			Id:                          entityID,
+			HighCardinalityTags:         entity.HighCardinalityTags,
+			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
+			LowCardinalityTags:          entity.LowCardinalityTags,
+			StandardTags:                entity.StandardTags,
+		}
+		pbState.State[id] = &entry
+	}
+	tc.RUnlock()
+
+	s, err := proto.Marshal(&pbState)
+	if err != nil {
+		return 0, err
+	}
+
+	// Record State Separator
+	if n, err := tc.writer.Write([]byte{0, 0, 0, 0}); err != nil {
+		return n, err
+	}
+
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, uint32(len(s)))
+
+	// Record size
+	if n, err := tc.writer.Write(buf); err != nil {
+		return n, err
+	}
+
+	// Record
+	n, err := tc.writer.Write(s)
+
+	return n + 4, err
+}
+
 // WriteNext writes the next CaptureBuffer after serializing it to a protobuf format.
 // Continuing writes after an error calling this function would result in a corrupted file
 func (tc *TrafficCaptureWriter) WriteNext(msg *CaptureBuffer) error {
@@ -272,23 +339,4 @@ func (tc *TrafficCaptureWriter) Write(p []byte) (int, error) {
 	n, err := tc.writer.Write(p)
 
 	return n + 4, err
-}
-
-// Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.
-func Read(r io.Reader) ([]byte, error) {
-	buf := make([]byte, 4)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, err
-	}
-
-	size := binary.LittleEndian.Uint32(buf)
-
-	msg := make([]byte, size)
-
-	_, err := io.ReadFull(r, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return msg, err
 }

@@ -152,6 +152,7 @@ func (l *UDSListener) Listen() {
 			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
 			capBuff.Pb.Ancillary = nil
 			capBuff.Pb.Payload = nil
+			capBuff.ContainerID = ""
 		}
 
 		if l.OriginDetection {
@@ -183,6 +184,9 @@ func (l *UDSListener) Listen() {
 				tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
+				if capBuff != nil {
+					capBuff.ContainerID = container
+				}
 			}
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
