@@ -12,5 +12,5 @@ Anything else we should know when reviewing?
 
 ### Describe how to test your change
 
-Write here any instructions on how you have tested your changes
-and details that should be tested during the QA.
+Write here in detail how you have tested your changes
+and instructions on how this should be tested in QA.
