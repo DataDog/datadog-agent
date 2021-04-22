@@ -121,10 +121,10 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
-	ddOrchestratorUrl := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	ddOrchestratorURL := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
 	expectedValue := "123.datadoghq.com"
-	os.Setenv(ddOrchestratorUrl, expectedValue)
-	defer os.Unsetenv(ddOrchestratorUrl)
+	os.Setenv(ddOrchestratorURL, expectedValue)
+	defer os.Unsetenv(ddOrchestratorURL)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
