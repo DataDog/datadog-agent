@@ -5,6 +5,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gogo/protobuf/jsonpb"
 )
 
@@ -56,6 +57,13 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		httpKey := httpKeyFromConn(conn)
 		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpIndex[httpKey])
 		delete(httpIndex, httpKey)
+	}
+
+	if len(httpIndex) > 0 {
+		log.Debugf(
+			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
+			len(httpIndex),
+		)
 	}
 
 	domains := make([]string, len(domainSet))
