@@ -58,6 +58,16 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param host_aliases - list of strings - optional
+## List of host aliases to report in addition to any aliases collected
+## automatically from cloud providers.
+## More information at
+## https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#host-aliases
+#
+# host_aliases:
+#   - <ALIAS-1>
+#   - <ALIAS-2>
+
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##

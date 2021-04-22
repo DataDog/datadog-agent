@@ -106,7 +106,7 @@ func GetPythonVersion() string {
 // getHostAliases returns the hostname aliases from different provider
 // This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
-	aliases := []string{}
+	aliases := config.Datadog.GetStringSlice("host_aliases")
 
 	alibabaAlias, err := alibaba.GetHostAlias()
 	if err != nil {

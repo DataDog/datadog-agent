@@ -199,6 +199,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
+	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
