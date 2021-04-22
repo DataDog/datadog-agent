@@ -171,7 +171,17 @@ func (ms *metricSender) reportDeviceMetadata(metadata string, store *resultValue
 		Cluster:     &model.Cluster{},
 		Tags:        tags,
 	}
+	ms.sendDeviceMetadata(clusterMessage)
+}
+
+func (ms *metricSender) sendDeviceMetadata(clusterMessage model.MessageBody) {
 	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, "abc")
+	//stats := orchestrator.CheckStats{
+	//	CacheHits: 0,
+	//	CacheMiss: 1,
+	//	NodeType:  orchestrator.K8sCluster,
+	//}
+	//orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {
