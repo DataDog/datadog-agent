@@ -147,8 +147,9 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname()
-	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-		o.orchestratorConfig.KubeClusterName = clusterName
+	o.orchestratorConfig.KubeClusterName = clustername.GetClusterName(hostname)
+	if o.orchestratorConfig.KubeClusterName == "" {
+		return errors.New("orchestrator check is configured but the cluster name is empty")
 	}
 
 	// load instance level config
