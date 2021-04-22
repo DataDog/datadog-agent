@@ -10,7 +10,7 @@ What inspired you to submit this pull request?
 
 Anything else we should know when reviewing?
 
-### Describe how to test your change
+### Describe how to test your changes
 
 Write here in detail how you have tested your changes
 and instructions on how this should be tested in QA.
