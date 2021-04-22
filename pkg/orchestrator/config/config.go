@@ -21,11 +21,10 @@ import (
 )
 
 const (
-	orchestratorNS                = "orchestrator_explorer"
-	processNS                     = "process_config"
-	defaultEndpoint               = "https://orchestrator.datadoghq.com"
-	defaultNetworkDevicesEndpoint = "https://network-devices.datadoghq.com"
-	maxMessageBatch               = 100
+	orchestratorNS  = "orchestrator_explorer"
+	processNS       = "process_config"
+	defaultEndpoint = "https://orchestrator.datadoghq.com"
+	maxMessageBatch = 100
 )
 
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
@@ -174,24 +173,4 @@ func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
-}
-
-// NewNetworkDevicesForwarder returns an networkDevicesForwarde
-// TODO: IMPLEMENT ME
-func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
-	// TODO: Need a config flag to enable forwarder ?
-	//if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
-	//	return nil
-	//}
-	networkDevicesEndpoint, err := url.Parse(defaultNetworkDevicesEndpoint)
-	if err != nil {
-		// This is a hardcoded URL so parsing it should not fail
-		panic(err)
-	}
-	endpoints := []apicfg.Endpoint{{Endpoint: networkDevicesEndpoint}}
-	keysPerDomain := apicfg.KeysPerDomains(endpoints)
-	networkDevicesForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	networkDevicesForwarderOpts.DisableAPIKeyChecking = true  // TODO: Why this is disabled for orchestrator-intake
-
-	return forwarder.NewDefaultForwarder(networkDevicesForwarderOpts)
 }

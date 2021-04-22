@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	ndcfg "github.com/DataDog/datadog-agent/pkg/network-devices/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -349,7 +350,7 @@ func StartAgent() error {
 	}
 
 	// setup the orchestrator forwarder (only on cluster check runners)
-	networkDevicesForwarder = orchcfg.NewNetworkDevicesForwarder()
+	networkDevicesForwarder = ndcfg.NewNetworkDevicesForwarder()
 	if networkDevicesForwarder != nil {
 		networkDevicesForwarder.Start() //nolint:errcheck
 	}
