@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -137,9 +136,9 @@ func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
 	if !config.Datadog.GetBool("network_devices.enabled") {
 		return nil
 	}
-	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
-		return nil
-	}
+	//if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
+	//	return nil
+	//}
 	netorkDevicesCfg := NewDefaultNetworkDevicesConfig()
 	if err := netorkDevicesCfg.Load(); err != nil {
 		log.Errorf("Error loading the network-devices config: %s", err)
