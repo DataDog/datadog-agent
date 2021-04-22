@@ -151,15 +151,16 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
-	expectedValue := "150"
-	os.Setenv(ddMaxMessage, expectedValue)
+	expectedDefaultValue := 100
+
+	os.Setenv(ddMaxMessage, "150")
 	defer os.Unsetenv(ddMaxMessage)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	suite.Equal(100, orchestratorCfg.MaxPerMessage)
+	suite.Equal(expectedDefaultValue, orchestratorCfg.MaxPerMessage)
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
