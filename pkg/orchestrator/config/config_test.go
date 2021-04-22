@@ -7,6 +7,8 @@ package config
 
 import (
 	"net/url"
+	"os"
+	"strconv"
 	"testing"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -116,6 +118,47 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
 	}
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
+	ddOrchestratorUrl := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	expectedValue := "123.datadoghq.com"
+	os.Setenv(ddOrchestratorUrl, expectedValue)
+	defer os.Unsetenv(ddOrchestratorUrl)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
+	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
+	expectedValue := "50"
+	os.Setenv(ddMaxMessage, expectedValue)
+	defer os.Unsetenv(ddMaxMessage)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	i, err := strconv.Atoi(expectedValue)
+	suite.NoError(err)
+	suite.Equal(i, orchestratorCfg.MaxPerMessage)
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
+	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
+	expectedValue := "123.datadoghq.com"
+	os.Setenv(ddSensitiveWords, expectedValue)
+	defer os.Unsetenv(ddSensitiveWords)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, expectedValue)
 }
 
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
