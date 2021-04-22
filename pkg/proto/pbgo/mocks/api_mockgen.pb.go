@@ -138,26 +138,6 @@ func (mr *MockAgentSecureClientMockRecorder) DogstatsdCaptureTrigger(ctx, in int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdCaptureTrigger", reflect.TypeOf((*MockAgentSecureClient)(nil).DogstatsdCaptureTrigger), varargs...)
 }
 
-// DogstatsdSetTaggerState mocks base method.
-func (m *MockAgentSecureClient) DogstatsdSetTaggerState(ctx context.Context, in *pbgo.TaggerState, opts ...grpc.CallOption) (*pbgo.TaggerStateResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, in}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DogstatsdSetTaggerState", varargs...)
-	ret0, _ := ret[0].(*pbgo.TaggerStateResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DogstatsdSetTaggerState indicates an expected call of DogstatsdSetTaggerState.
-func (mr *MockAgentSecureClientMockRecorder) DogstatsdSetTaggerState(ctx, in interface{}, opts ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureClient)(nil).DogstatsdSetTaggerState), varargs...)
-}
-
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *pbgo.FetchEntityRequest, opts ...grpc.CallOption) (*pbgo.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -357,21 +337,6 @@ func (m *MockAgentSecureServer) DogstatsdCaptureTrigger(arg0 context.Context, ar
 func (mr *MockAgentSecureServerMockRecorder) DogstatsdCaptureTrigger(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdCaptureTrigger", reflect.TypeOf((*MockAgentSecureServer)(nil).DogstatsdCaptureTrigger), arg0, arg1)
-}
-
-// DogstatsdSetTaggerState mocks base method.
-func (m *MockAgentSecureServer) DogstatsdSetTaggerState(arg0 context.Context, arg1 *pbgo.TaggerState) (*pbgo.TaggerStateResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DogstatsdSetTaggerState", arg0, arg1)
-	ret0, _ := ret[0].(*pbgo.TaggerStateResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DogstatsdSetTaggerState indicates an expected call of DogstatsdSetTaggerState.
-func (mr *MockAgentSecureServerMockRecorder) DogstatsdSetTaggerState(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureServer)(nil).DogstatsdSetTaggerState), arg0, arg1)
 }
 
 // TaggerFetchEntity mocks base method.

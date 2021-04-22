@@ -7,13 +7,20 @@ require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/fzipp/gocyclo v0.3.1
 	github.com/go-enry/go-license-detector/v4 v4.2.0
+	github.com/golang/mock v1.4.4
+	github.com/golang/protobuf v1.4.2
 	github.com/golangci/golangci-lint v1.40.1
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 	github.com/goware/modvendor v0.3.0
+	github.com/grpc-ecosystem/grpc-gateway v1.12.1
 	github.com/mgechev/revive v1.0.6
+	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
+	github.com/stretchr/testify v1.7.0
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
+	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
 	golang.org/x/tools v0.1.2-0.20210512205948-8287d5da45e4
+	google.golang.org/grpc v1.29.1
 	gotest.tools/gotestsum v1.6.4
 	honnef.co/go/tools v0.1.4
 )

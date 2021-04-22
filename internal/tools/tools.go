@@ -19,6 +19,12 @@ import (
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/goware/modvendor"
 	_ "github.com/mgechev/revive"
+	_ "github.com/stormcat24/protodep"
+        _ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
+	_ "github.com/golang/protobuf/protoc-gen-go"
+	_ "google.golang.org/grpc"
+	_ "github.com/stretchr/testify"
+	_ "golang.org/x/lint/golint"
 	_ "golang.org/x/mobile/bind"
 	_ "golang.org/x/mobile/bind/java"
 	_ "golang.org/x/mobile/cmd/gobind"
@@ -28,4 +34,5 @@ import (
 	_ "golang.org/x/tools/go/gcexportdata"
 	_ "gotest.tools/gotestsum"
 	_ "honnef.co/go/tools/cmd/staticcheck"
+	_ "github.com/golang/mock/mockgen"
 )

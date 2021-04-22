@@ -12,7 +12,7 @@ import (
 	"sync" // might be unnecessary
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
