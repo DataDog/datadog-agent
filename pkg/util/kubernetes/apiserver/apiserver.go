@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 	"sync"
 	"time"
@@ -171,6 +170,8 @@ func getClientConfig() (*rest.Config, error) {
 }
 
 func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
+	rest.SetDefaultWarningHandler(CustomWarningLogger{})
 	clientConfig, err := getClientConfig()
 	if err != nil {
 		return nil, err
