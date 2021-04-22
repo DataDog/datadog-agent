@@ -183,10 +183,6 @@ func NewNetworkDevicesForwarder() *forwarder.DefaultForwarder {
 	//if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 	//	return nil
 	//}
-	orchestratorCfg := NewDefaultOrchestratorConfig()
-	if err := orchestratorCfg.Load(); err != nil {
-		log.Errorf("Error loading the orchestrator config: %s", err)
-	}
 	networkDevicesEndpoint, err := url.Parse(defaultNetworkDevicesEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail

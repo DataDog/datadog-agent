@@ -644,5 +644,5 @@ func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra ht
 		transactionsIntakeCluster.Add(1)
 	}
 
-	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(networkDevicesEndpoint, payload, extra, true)
 }
