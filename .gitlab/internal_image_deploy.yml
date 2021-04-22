@@ -1,13 +1,15 @@
 ---
+# internal_image_deploy stage
+# Contains jobs to trigger a pipeline in the images repo to create internal Agent images.
+
 .if_deploy_on_tag_7: &if_deploy_on_tag_7
   # no RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
 
 docker_trigger_internal_amd64:
-  stage: image_deploy
+  stage: internal_image_deploy
   rules:
     - <<: *if_deploy_on_tag_7
-      when: manual
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
