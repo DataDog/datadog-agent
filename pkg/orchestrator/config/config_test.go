@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -148,9 +149,22 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 	suite.Equal(i, orchestratorCfg.MaxPerMessage)
 }
 
+func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
+	ddMaxMessage := "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE"
+	expectedValue := "150"
+	os.Setenv(ddMaxMessage, expectedValue)
+	defer os.Unsetenv(ddMaxMessage)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(100, orchestratorCfg.MaxPerMessage)
+}
+
 func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	ddSensitiveWords := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_WORDS"
-	expectedValue := "123.datadoghq.com"
+	expectedValue := "token consul"
 	os.Setenv(ddSensitiveWords, expectedValue)
 	defer os.Unsetenv(ddSensitiveWords)
 
@@ -158,7 +172,9 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, expectedValue)
+	for _, val := range strings.Split(expectedValue, " ") {
+		suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, val)
+	}
 }
 
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
