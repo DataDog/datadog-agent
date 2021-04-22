@@ -21,12 +21,27 @@ import (
 )
 
 var (
-	// NoProxyWarningMap map containing URL's whos proxy behavior will change in the future.
-	NoProxyWarningMap = make(map[string]bool)
+	// NoProxyIgnoredWarningMap map containing URL's who will ignore the proxy in the future
+	NoProxyIgnoredWarningMap = make(map[string]bool)
 
-	// NoProxyWarningMapMutex Lock for NoProxyWarningMap
+	// NoProxyUsedInFuture map containing URL's that will use a proxy in the future
+	NoProxyUsedInFuture = make(map[string]bool)
+
+	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
+	NoProxyChanged = make(map[string]bool)
+
+	// NoProxyIgnoredWarningMapMutex Lock for NoProxyIgnoredWarningMap
 	NoProxyWarningMapMutex = sync.Mutex{}
 )
+
+func warnOnce(warnMap map[string]bool, key string, format string, params ...interface{}) {
+	NoProxyWarningMapMutex.Lock()
+	defer NoProxyWarningMapMutex.Unlock()
+	if _, ok := warnMap[key]; !ok {
+		warnMap[key] = true
+		log.Warnf(format, params...)
+	}
+}
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
@@ -125,21 +140,36 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			return nil, nil
 		}(r)
 
-		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
+		// Test the new proxy function to see if the behavior will change in the future
+		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
+
+		if url == nil && newURL == nil {
+			return url, err
+		}
+
+		logSafeURL := r.URL.Scheme + "://" + r.URL.Host
+
+		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
+		if url != nil && newURL == nil {
+			warnOnce(NoProxyIgnoredWarningMap, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
+			return url, err
+		}
+
 		var newURLString string
-		if newURL, _ := proxyConfig.ProxyFunc()(r.URL); newURL != nil {
+		if newURL != nil {
 			newURLString = newURL.String()
 		}
 
-		if url != nil && url.String() != newURLString {
-			urlString := r.URL.String()
-			NoProxyWarningMapMutex.Lock()
-			if _, ok := NoProxyWarningMap[urlString]; !ok {
-				NoProxyWarningMap[log.SanitizeURL(r.URL.String())] = true
-				logSafeURL := r.URL.Scheme + "://" + r.URL.Host
-				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
-			}
-			NoProxyWarningMapMutex.Unlock()
+		// Print a warning if the url does not use the proxy - but will for some reason in the future
+		if url == nil && newURL != nil {
+			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s did not use the proxy proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, newURLString)
+			return url, err
+		}
+
+		// Print a warning if the url uses the proxy and still will in the future but for some reason is different
+		if url.String() != newURLString {
+			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), newURLString)
+			return url, err
 		}
 
 		return url, err
