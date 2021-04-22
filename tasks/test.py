@@ -39,6 +39,14 @@ def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
+    os.environ = original_environ
+
+
+@contextmanager
+def environ(env):
+    original_environ = os.environ.copy()
+    os.environ.update(env)
+    yield
     for var in env.keys():
         if var in original_environ:
             os.environ[var] = original_environ[var]
