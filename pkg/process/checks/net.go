@@ -145,6 +145,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
 		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
+		DnsStatsDropped:           tel.DnsStatsDropped,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -163,6 +164,7 @@ func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
 	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
 	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
+	c.lastTelemetry.DnsStatsDropped = tel.DnsStatsDropped
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
