@@ -95,8 +95,8 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	// ensure that all the previous discarder are removed or the retention periode is over
-	time.Sleep(probe.DiscardRetention * 2)
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
@@ -136,8 +136,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	// ensure that all the previous discarder are removed or the retention periode is over
-	time.Sleep(probe.DiscardRetention * 2)
+	// ensure that all the previous discarder are removed
 	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
@@ -222,8 +221,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	}
 	defer test.Close()
 
-	// ensure that all the previous discarder are removed or the retention periode is over
-	time.Sleep(probe.DiscardRetention * 2)
+	// ensure that all the previous discarder are removed
 	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
@@ -267,8 +265,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	}
 	defer test.Close()
 
-	// ensure that all the previous discarder are removed or the retention periode is over
-	time.Sleep(probe.DiscardRetention * 2)
+	// ensure that all the previous discarder are removed
 	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)

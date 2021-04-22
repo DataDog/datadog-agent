@@ -651,7 +651,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
-	log.Debugf("Freezing discarders")
+	log.Debug("Freezing discarders")
 
 	flushingMap, err := p.Map("flushing_discarders")
 	if err != nil {

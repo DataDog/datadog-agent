@@ -352,20 +352,16 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, err
 	}
 
-	confDir, err := ioutil.TempDir(st.root, "conf")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(confDir)
-
-	sysprobeConfig, err := setTestConfig(confDir, opts)
+	sysprobeConfig, err := setTestConfig(st.root, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := setTestPolicy(confDir, macros, rules); err != nil {
+	cfgFilename, err := setTestPolicy(st.root, macros, rules)
+	if err != nil {
 		return nil, err
 	}
+	defer os.Remove(cfgFilename)
 
 	var cmdWrapper cmdWrapper
 	if testEnvironment == DockerEnvironment {
