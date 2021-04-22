@@ -30,7 +30,7 @@ var (
 	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
 	NoProxyChanged = make(map[string]bool)
 
-	// NoProxyIgnoredWarningMapMutex Lock for NoProxyIgnoredWarningMap
+	// NoProxyWarningMapMutex Lock for NoProxyIgnoredWarningMap
 	NoProxyWarningMapMutex = sync.Mutex{}
 )
 
