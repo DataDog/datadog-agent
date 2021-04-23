@@ -72,10 +72,10 @@ platforms:
       # KITCHEN_PLATFORM_SUFFIX is set for non-standard Agent tests (eg. IoT Agent, FIPS)
       # that use the same test suites as the standard Agent.
       # This is needed because the resource group name used by the driver is computed as:
-      # <test suite name>-<platform name>-<azure_resource_group_suffix>
+      # <test suite name>-<platform name>-<timestamp>-<azure_resource_group_suffix>
       # which means that, without that KITCHEN_PLATFORM_SUFFIX, two types of tests
-      # running at the same time can conflict with each other, as they try
-      # to use the same resource group name, leading to provisioning errors.
+      # running at the same time can conflict with each other if they start at the same time,
+      # as they try to use the same resource group name, leading to provisioning errors.
       if ENV['KITCHEN_PLATFORM_SUFFIX']
         platform_name = platform[0] + "-" + ENV['KITCHEN_PLATFORM_SUFFIX'] + "-#{host}"
       else
