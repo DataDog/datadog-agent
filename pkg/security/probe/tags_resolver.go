@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tagger defines a Tagger for the Tags Resolver
@@ -43,9 +44,11 @@ type TagsResolver struct {
 
 // Start the resolver
 func (t *TagsResolver) Start(ctx context.Context) error {
-	if err := t.tagger.Init(); err != nil {
-		return err
-	}
+	go func() {
+		if err := t.tagger.Init(); err != nil {
+			log.Debugf("failed to init Tagger: %s", err)
+		}
+	}()
 
 	go func() {
 		<-ctx.Done()
