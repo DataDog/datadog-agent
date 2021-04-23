@@ -2,9 +2,6 @@ package snmp
 
 import (
 	"fmt"
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -159,30 +156,6 @@ func (ms *metricSender) monotonicCount(metric string, value float64, hostname st
 func (ms *metricSender) serviceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.ServiceCheck(checkName, status, hostname, copyStrings(tags), message)
-}
-
-// TODO: MOVE TO BETTER LOCATION
-func (ms *metricSender) reportDeviceMetadata(metadata string, store *resultValueStore, tags []string) {
-	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
-
-	clusterMessage := &model.CollectorCluster{
-		ClusterName: "my-cluster",
-		ClusterId:   "my-cluster-id",
-		GroupId:     99,
-		Cluster:     &model.Cluster{},
-		Tags:        tags,
-	}
-	ms.sendDeviceMetadata(clusterMessage)
-}
-
-func (ms *metricSender) sendDeviceMetadata(clusterMessage model.MessageBody) {
-	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, forwarder.PayloadTypeDevice)
-	//stats := orchestrator.CheckStats{
-	//	CacheHits: 0,
-	//	CacheMiss: 1,
-	//	NodeType:  orchestrator.K8sCluster,
-	//}
-	//orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {
