@@ -39,6 +39,8 @@ const (
 	PayloadTypeJob = "job"
 	// PayloadTypeCronJob is the name of the cluster payload type
 	PayloadTypeCronJob = "cronjob"
+	// PayloadTypeDevice is the name of the network device payload type
+	PayloadTypeDevice = "network-device"
 )
 
 const (
@@ -626,22 +628,8 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 // SubmitNetworkDevicesChecks sends network-devices checks
 func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	case PayloadTypeJob:
-		transactionsIntakeJob.Add(1)
-	case PayloadTypeCronJob:
-		transactionsIntakeCronJob.Add(1)
-	case PayloadTypeCluster:
-		transactionsIntakeCluster.Add(1)
+	case PayloadTypeDevice:
+		transactionsIntakeDevice.Add(1)
 	}
 
 	return f.submitProcessLikePayload(networkDevicesEndpoint, payload, extra, true)

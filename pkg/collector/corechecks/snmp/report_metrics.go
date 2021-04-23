@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"regexp"
 
@@ -175,7 +176,7 @@ func (ms *metricSender) reportDeviceMetadata(metadata string, store *resultValue
 }
 
 func (ms *metricSender) sendDeviceMetadata(clusterMessage model.MessageBody) {
-	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, "abc")
+	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, forwarder.PayloadTypeDevice)
 	//stats := orchestrator.CheckStats{
 	//	CacheHits: 0,
 	//	CacheMiss: 1,

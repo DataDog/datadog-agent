@@ -22,6 +22,8 @@ var (
 	transactionsIntakeCronJob    = expvar.Int{}
 	transactionsIntakeCluster    = expvar.Int{}
 
+	transactionsIntakeDevice = expvar.Int{}
+
 	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
 	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
 	v1IntakeEndpoint       = transaction.Endpoint{Route: "/intake/", Name: "intake"}
@@ -68,6 +70,7 @@ var (
 )
 
 func init() {
+	initNetworkDevicesExpVars()
 	initOrchestratorExpVars()
 	initTransactionsExpvars()
 	initForwarderHealthExpvars()
@@ -110,6 +113,10 @@ func initOrchestratorExpVars() {
 	transaction.TransactionsExpvars.Set("Jobs", &transactionsIntakeJob)
 	transaction.TransactionsExpvars.Set("CronJobs", &transactionsIntakeCronJob)
 	transaction.TransactionsExpvars.Set("Clusters", &transactionsIntakeCluster)
+}
+
+func initNetworkDevicesExpVars() {
+	transaction.TransactionsExpvars.Set("Devices", &transactionsIntakeDevice)
 }
 
 func initTransactionsExpvars() {
