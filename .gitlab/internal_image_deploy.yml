@@ -6,7 +6,7 @@
   # no RELEASE_VERSION means a nightly build for omnibus
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
 
-docker_trigger_internal_amd64:
+docker_trigger_internal:
   stage: internal_image_deploy
   rules:
     - <<: *if_deploy_on_tag_7
@@ -18,10 +18,10 @@ docker_trigger_internal_amd64:
     branch: master
     strategy: depend
   variables:
-    IMAGE_VERSION: tmpl-v2
+    IMAGE_VERSION: tmpl-v3
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
-    TMPL_AGENT_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+    TMPL_AGENT_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"
