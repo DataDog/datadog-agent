@@ -67,6 +67,7 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
+	aconfig.InitSystemProbeConfig(aconfig.Datadog)
 	aconfig.Datadog.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -94,6 +95,7 @@ func New(configPath string) (*Config, error) {
 
 // Merge will merge the system-probe configuration into the existing datadog configuration
 func Merge(configPath string) (*Config, error) {
+	aconfig.InitSystemProbeConfig(aconfig.Datadog)
 	if configPath != "" {
 		if !strings.HasSuffix(configPath, ".yaml") {
 			configPath = path.Join(configPath, defaultConfigFileName)

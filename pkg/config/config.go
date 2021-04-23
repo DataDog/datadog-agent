@@ -784,8 +784,6 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
-	setupSystemProbe(config)
-
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
 

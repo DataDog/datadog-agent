@@ -19,7 +19,11 @@ const (
 	defaultOffsetThreshold = 400
 )
 
-func setupSystemProbe(cfg Config) {
+// InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
+// This function should not be called before ResolveSecrets,
+// unless you call `cmd/system-probe/config.New` or `cmd/system-probe/config.Merge` in-between.
+// This is to prevent the in-memory values from being fixed before the file-based values have had a chance to be read.
+func InitSystemProbeConfig(cfg Config) {
 	// settings for system-probe in general
 	cfg.BindEnvAndSetDefault(join(spNS, "enabled"), false, "DD_SYSTEM_PROBE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
