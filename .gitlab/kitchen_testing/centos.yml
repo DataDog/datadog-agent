@@ -38,6 +38,7 @@
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="centos"
+    - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
     # for now, we only test FIPS on 8.1
     - export KITCHEN_OSVERS="rhel-81"
     - cd $DD_AGENT_TESTING_DIR
