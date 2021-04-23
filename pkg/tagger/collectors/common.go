@@ -16,7 +16,7 @@ import (
 
 const (
 	// OrchestratorScopeEntityID defines the orchestrator scope entity ID
-	OrchestratorScopeEntityID = "internal:orchestrator-scope-entity-id"
+	OrchestratorScopeEntityID = "internal://orchestrator-scope-entity-id"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
 )
