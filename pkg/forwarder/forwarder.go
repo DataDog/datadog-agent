@@ -576,6 +576,16 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }
 
+// SubmitNetworkDevicesChecks sends network-devices checks
+func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	switch payloadType {
+	case PayloadTypeDevice:
+		transactionsIntakeDevice.Add(1)
+	}
+
+	return f.submitProcessLikePayload(networkDevicesEndpoint, payload, extra, true)
+}
+
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
 	transactions := f.createHTTPTransactions(ep, payload, false, extra)
 	results := make(chan Response, len(transactions))
@@ -623,14 +633,4 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
-}
-
-// SubmitNetworkDevicesChecks sends network-devices checks
-func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypeDevice:
-		transactionsIntakeDevice.Add(1)
-	}
-
-	return f.submitProcessLikePayload(networkDevicesEndpoint, payload, extra, true)
 }
