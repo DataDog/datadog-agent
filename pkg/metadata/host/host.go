@@ -150,7 +150,7 @@ func getHostAliases() []string {
 		aliases = append(aliases, tencentAlias)
 	}
 
-	return aliases
+	return util.SortUniqInPlace(aliases)
 }
 
 func getPublicIPv4() (string, error) {
