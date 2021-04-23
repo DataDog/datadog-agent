@@ -507,7 +507,7 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 }
 
 /*
- * topology API
+ * [sts] topology API
  */
 void set_submit_component_cb(rtloader_t *rtloader, cb_submit_component_t cb)
 {
@@ -524,4 +524,12 @@ void set_submit_start_snapshot_cb(rtloader_t *rtloader, cb_submit_start_snapshot
 void set_submit_stop_snapshot_cb(rtloader_t *rtloader, cb_submit_stop_snapshot_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitStopSnapshotCb(cb);
+}
+
+/*
+ * [sts] telemetry API
+ */
+void set_submit_topology_event_cb(rtloader_t *rtloader, cb_submit_topology_event_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitTopologyEventCb(cb);
 }

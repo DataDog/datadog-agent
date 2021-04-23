@@ -1,6 +1,5 @@
 package testtopology
 
-import "C"
 import (
 	"fmt"
 	"io/ioutil"

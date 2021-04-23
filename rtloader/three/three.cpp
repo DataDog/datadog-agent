@@ -18,6 +18,7 @@
 #include "tagger.h"
 #include "util.h"
 #include "topology.h"
+#include "telemetry.h"
 
 #include <algorithm>
 #include <sstream>
@@ -83,6 +84,7 @@ bool Three::init()
     PyImport_AppendInittab(KUBEUTIL_MODULE_NAME, PyInit_kubeutil);
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
     PyImport_AppendInittab(TOPOLOGY_MODULE_NAME, PyInit_topology);
+    PyImport_AppendInittab(TELEMETRY_MODULE_NAME, PyInit_telemetry);
 
     Py_Initialize();
 
@@ -904,7 +906,7 @@ void Three::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 }
 
 
-// topology
+// [sts] topology
 void Three::setSubmitComponentCb(cb_submit_component_t cb)
 {
     _set_submit_component_cb(cb);
@@ -924,7 +926,13 @@ void Three::setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t cb)
 {
     _set_submit_stop_snapshot_cb(cb);
 }
-//
+
+
+// [sts] telemetry
+void Three::setSubmitTopologyEventCb(cb_submit_topology_event_t cb)
+{
+    _set_submit_topology_event_cb(cb);
+}
 
 
 // Python Helpers
