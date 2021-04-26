@@ -11,15 +11,23 @@ type restartLimiter struct {
 }
 
 func newRestartLimiter(maxRestarts int, interval float64) restartLimiter {
+	var stopTimes []time.Time
+	if maxRestarts > 0 {
+		stopTimes = make([]time.Time, maxRestarts)
+	}
 	return restartLimiter{
 		maxRestarts: maxRestarts,
 		interval:    interval,
-		stopTimes:   make([]time.Time, maxRestarts),
+		stopTimes:   stopTimes,
 		idx:         0,
 	}
 }
 
 func (r *restartLimiter) canRestart(now time.Time) bool {
+	if r.maxRestarts < 1 {
+		return false
+	}
+
 	r.stopTimes[r.idx] = now
 	oldestIdx := (r.idx + r.maxRestarts + 1) % r.maxRestarts
 

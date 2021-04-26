@@ -16,6 +16,8 @@ func TestCanRestart(t *testing.T) {
 		interval    float64
 		checks      []check
 	}{
+		{-1, 10.0, []check{{0 * time.Second, false}}},
+		{0, 10.0, []check{{0 * time.Second, false}}},
 		{1, 10.0, []check{{0 * time.Second, false}}},
 		{2, 10.0, []check{{0 * time.Second, true}, {1 * time.Second, false}}},
 		{3, 10.0, []check{{0 * time.Second, true}, {1 * time.Second, true},
