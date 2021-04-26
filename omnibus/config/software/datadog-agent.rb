@@ -88,12 +88,14 @@ build do
     debug_customaction = ""
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
+
+      ## Don't build test executables on 32bit Windows & in release builds
+      unless windows_arch_i386?
+        command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+        command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
+      end
     end
     command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
-    unless windows_arch_i386?
-      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
-      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
-    end
   end
 
   # move around bin and config files
@@ -102,7 +104,13 @@ build do
       move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-  copy 'bin/agent', "#{install_dir}/bin/"
+
+  unless windows?
+    copy 'bin/agent', "#{install_dir}/bin/"
+  else
+    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+  end
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
