@@ -122,17 +122,11 @@ func getHostAliases() []string {
 		aliases = append(aliases, azureAlias)
 	}
 
-	if gceHostname, err := gce.GetHostname(); err != nil {
-		log.Debugf("no GCE hostname to use as Host Alias: %s", err)
-	} else {
-		aliases = append(aliases, gceHostname)
-	}
-
-	gceAlias, err := gce.GetHostAlias()
+	gceAliases, err := gce.GetHostAliases()
 	if err != nil {
 		log.Debugf("no GCE Host Alias: %s", err)
 	} else {
-		aliases = append(aliases, gceAlias)
+		aliases = append(aliases, gceAliases...)
 	}
 
 	cfAliases, err := cloudfoundry.GetHostAliases()
