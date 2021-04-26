@@ -46,7 +46,7 @@ type TagsResolver struct {
 func (t *TagsResolver) Start(ctx context.Context) error {
 	go func() {
 		if err := t.tagger.Init(); err != nil {
-			log.Debugf("failed to init Tagger: %s", err)
+			log.Errorf("failed to init tagger: %s", err)
 		}
 	}()
 

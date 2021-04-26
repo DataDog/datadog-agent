@@ -391,14 +391,16 @@ func TestProcessContext(t *testing.T) {
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "process.file.container_path")
 			}
+
+			str := event.String()
+
+			if !strings.Contains(str, "pts") {
+				t.Error("tty not serialized")
+			}
 		}
 	})
 
 	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if rhel7 {
-			t.Skip()
-		}
-
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -434,10 +436,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if rhel7 {
-			t.Skip()
-		}
-
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
 			t.Fatal(err)

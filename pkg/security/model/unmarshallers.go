@@ -141,7 +141,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
 	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
-	if IsPrintable(ttyName) {
+	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64

@@ -621,6 +621,9 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("invalidate-discarder", func(t *testing.T) {
+		// ensure that all the previous discarder are removed
+		test.probe.FlushDiscarders()
+
 		testFile, _, err := test.Path("bind/discarded.txt")
 		if err != nil {
 			t.Fatal(err)
