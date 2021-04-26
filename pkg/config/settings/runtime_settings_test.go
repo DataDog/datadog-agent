@@ -107,8 +107,8 @@ func TestProfiling(t *testing.T) {
 	cleanRuntimeSetting()
 	setupConf()
 
-	ll := ProfilingRuntimeSetting("profiling")
-	assert.Equal(t, "profiling", ll.Name())
+	ll := ProfilingRuntimeSetting("internal_profiling")
+	assert.Equal(t, "internal_profiling", ll.Name())
 
 	err := ll.Set("false")
 	assert.Nil(t, err)

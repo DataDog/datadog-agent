@@ -139,11 +139,11 @@ func load(configPath string) (*Config, error) {
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
-		ProfilingEnabled:     cfg.GetBool(key(spNS, "profiling.enabled")),
-		ProfilingSite:        cfg.GetString(key(spNS, "profiling.site")),
+		ProfilingEnabled:     cfg.GetBool(key(spNS, "internal_profiling.enabled")),
+		ProfilingSite:        cfg.GetString(key(spNS, "internal_profiling.site")),
 		ProfilingURL:         cfg.GetString(key(spNS, "profiling.profile_dd_url")),
-		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "profiling.api_key"))),
-		ProfilingEnvironment: cfg.GetString(key(spNS, "profiling.env")),
+		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
+		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
 	}
 
 	if err := ValidateSocketAddress(c.SocketAddress); err != nil {

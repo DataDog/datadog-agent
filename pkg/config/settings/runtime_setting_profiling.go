@@ -33,7 +33,7 @@ func (l ProfilingRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
-	return config.Datadog.GetBool("profiling.enabled"), nil
+	return config.Datadog.GetBool("internal_profiling.enabled"), nil
 }
 
 // Set changes the value of the runtime setting
@@ -56,8 +56,8 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-		if config.Datadog.IsSet("profiling.profile_dd_url") {
-			site = config.Datadog.GetString("profiling.profile_dd_url")
+		if config.Datadog.IsSet("internal_profiling.profile_dd_url") {
+			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		}
 
 		v, _ := version.Agent()
@@ -69,11 +69,11 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {
-			config.Datadog.Set("profiling.enabled", true)
+			config.Datadog.Set("internal_profiling.enabled", true)
 		}
 	} else {
 		profiling.Stop()
-		config.Datadog.Set("profiling.enabled", false)
+		config.Datadog.Set("internal_profiling.enabled", false)
 	}
 
 	return nil
