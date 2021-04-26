@@ -84,7 +84,7 @@ func New(configPath string) (*Config, error) {
 	_, err := aconfig.LoadWithoutSecret()
 	var e viper.ConfigFileNotFoundError
 	if err != nil {
-		if errors.As(err, &e) {
+		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			log.Infof("no config exists at %s, ignoring...", configPath)
 		} else {
 			return nil, err
