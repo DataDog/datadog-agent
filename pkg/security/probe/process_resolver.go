@@ -457,7 +457,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 }
 
 func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
-	if maxDepth < 1 {
+	if maxDepth < 1 || pid == 0 {
 		return nil
 	}
 
