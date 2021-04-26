@@ -88,14 +88,12 @@ build do
     debug_customaction = ""
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
-
-      ## Don't build test executables on 32bit Windows & in release builds
-      unless windows_arch_i386?
-        command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
-        command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
-      end
     end
     command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
+    unless windows_arch_i386?
+      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
+      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
+    end
   end
 
   # move around bin and config files
