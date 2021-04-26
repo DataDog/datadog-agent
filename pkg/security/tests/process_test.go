@@ -458,7 +458,7 @@ func TestProcessContext(t *testing.T) {
 		} else {
 			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
 
-			if !rhel7 && !validateExecSchema(t, event) {
+			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
 
