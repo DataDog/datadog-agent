@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
@@ -150,7 +151,16 @@ func getHostAliases() []string {
 		aliases = append(aliases, tencentAlias)
 	}
 
-	return util.SortUniqInPlace(aliases)
+	validatedAliases := []string{}
+	for _, alias := range util.SortUniqInPlace(aliases) {
+		if err := validate.ValidHostname(alias); err == nil {
+			validatedAliases = append(validatedAliases, alias)
+		} else {
+			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
+		}
+	}
+
+	return validatedAliases
 }
 
 func getPublicIPv4() (string, error) {
