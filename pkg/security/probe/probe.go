@@ -506,6 +506,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
 }
 
+// OnRuleMatch is called when a rule matches just before sending
+func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
+	// ensure that all the fields are resolved before sending
+	event.ResolveContainerTags(&event.ContainerContext)
+}
+
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
 	// discarders disabled
