@@ -60,6 +60,23 @@ func getDoForkInput(probe *Probe) uint64 {
 	return doForkListInput
 }
 
+// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
+// space
+func getCGroupWriteConstants() manager.ConstantEditor {
+	cgroupWriteConst := uint64(1)
+	kv, err := NewKernelVersion()
+	if err == nil {
+		if kv.IsRH7Kernel() {
+			cgroupWriteConst = 2
+		}
+	}
+
+	return manager.ConstantEditor{
+		Name:  "cgroup_write_type",
+		Value: cgroupWriteConst,
+	}
+}
+
 // TTYConstants returns the tty constants
 func TTYConstants(probe *Probe) []manager.ConstantEditor {
 	ttyOffset, nameOffset := uint64(400), uint64(368)
