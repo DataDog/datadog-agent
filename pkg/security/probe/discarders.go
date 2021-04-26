@@ -206,6 +206,10 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 	}
 }
 
+var (
+	discarderEvent = NewEvent(nil, nil)
+)
+
 // Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
 // parent discarder
 func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
@@ -218,7 +222,11 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 
 	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 
-	event := NewEvent(nil, nil)
+	event := discarderEvent
+	defer func() {
+		*discarderEvent = eventZero
+	}()
+
 	if _, err := event.GetFieldType(filenameField); err != nil {
 		return false, nil
 	}

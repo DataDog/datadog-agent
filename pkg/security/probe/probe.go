@@ -256,8 +256,6 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 	p.monitor.perfBufferMonitor.CountLostEvent(count, perfMap, CPU)
 }
 
-var eventZero Event
-
 func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
 	return p.event
