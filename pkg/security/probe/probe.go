@@ -256,8 +256,6 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 	p.monitor.perfBufferMonitor.CountLostEvent(count, perfMap, CPU)
 }
 
-var eventZero Event
-
 func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
 	return p.event
@@ -508,6 +506,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
 }
 
+// OnRuleMatch is called when a rule matches just before sending
+func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
+	// ensure that all the fields are resolved before sending
+	event.ResolveContainerTags(&event.ContainerContext)
+}
+
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
 	// discarders disabled
@@ -651,7 +655,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
-	log.Debugf("Freezing discarders")
+	log.Debug("Freezing discarders")
 
 	flushingMap, err := p.Map("flushing_discarders")
 	if err != nil {
@@ -819,6 +823,22 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
+
+	// kretprobe fallback for kernel < 4.12
+	if p.kernelVersion < kernel4_12 {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "kretprobe_fallback",
+			Value: uint64(1),
+		})
+	}
+
+	// constants syscall monitor
+	if p.config.SyscallMonitor {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "syscall_monitor",
+			Value: uint64(1),
+		})
+	}
 
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()

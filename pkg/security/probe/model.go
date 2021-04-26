@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+var eventZero Event
+
 // Model describes the data model for the runtime security agent probe events
 type Model struct {
 	model.Model

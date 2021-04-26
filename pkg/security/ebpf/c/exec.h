@@ -11,7 +11,7 @@
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_PER_TAIL 28
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARGS_ELEMENTS 160
+#define MAX_ARGS_ELEMENTS 140
 
 struct args_envs_event_t {
     struct kevent_t event;
@@ -147,7 +147,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
 SEC("kprobe/parse_args_envs")
 int parse_args_envs(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_EXEC);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
@@ -167,7 +167,7 @@ int parse_args_envs(struct pt_regs *ctx) {
 
 int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_EXEC,
+        .type = EVENT_EXEC,
         .exec = {
             .args = {
                 .id = bpf_get_prandom_u32(),
@@ -280,7 +280,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_FORK,
+        .type = EVENT_FORK,
         .clone = {
             .is_thread = 1,
         }
@@ -308,7 +308,7 @@ int kprobe__do_fork(struct pt_regs *ctx) {
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // check if this is a thread first
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_FORK);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_FORK);
     if (syscall) {
         return 0;
     }
@@ -408,7 +408,7 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_EXEC);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
@@ -436,7 +436,7 @@ void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, s
 
 SEC("kprobe/security_bprm_committed_creds")
 int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_EXEC);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
