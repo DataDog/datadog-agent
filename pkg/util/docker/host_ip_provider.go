@@ -64,7 +64,16 @@ func tryProviders(providers []hostIPProvider) []string {
 }
 
 func getHostIPsFromConfig() ([]string, error) {
-	hostIPs := config.Datadog.GetStringSlice("process_agent_config.host_ips")
+	hostIPs := []string{}
+
+	if config.Datadog.IsSet("process_agent_config.host_ips") {
+		log.Warn(`"process_agent_config.host_ips" is deprecated, use "process_config.docker_host_ips" instead`)
+		hostIPs = config.Datadog.GetStringSlice("process_agent_config.host_ips")
+	}
+
+	if dockerHostIps := config.Datadog.GetStringSlice("process_config.docker_host_ips"); len(dockerHostIps) > 0 {
+		hostIPs = dockerHostIps
+	}
 
 	if len(hostIPs) == 0 {
 		return nil, fmt.Errorf("no hostIPs were configured")

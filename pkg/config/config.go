@@ -595,6 +595,7 @@ func InitConfig(config Config) {
 	}
 
 	config.BindEnv("process_config.process_dd_url", "") //nolint:errcheck
+	config.BindEnvAndSetDefault("process_config.docker_host_ips", []string{})
 
 	// Logs Agent
 
@@ -783,6 +784,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
+	config.SetKnown("process_config.docker_host_ips")
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck

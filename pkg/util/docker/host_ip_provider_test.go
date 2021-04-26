@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,4 +47,35 @@ func TestProvider(t *testing.T) {
 	assert.True(t, providersCalled[0])
 	assert.True(t, providersCalled[1])
 	assert.False(t, providersCalled[2])
+}
+
+func TestGetHostIPsFromConfig(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("process_agent_config.host_ips", "10.0.0.3")
+	mockConfig.Set("process_config.docker_host_ips", "10.0.0.1 10.0.0.2")
+
+	ips, err := getHostIPsFromConfig()
+
+	assert.ElementsMatch(t, []string{"10.0.0.1", "10.0.0.2"}, ips)
+	assert.NoError(t, err)
+}
+
+func TestGetHostIPsFromConfigFallback(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("process_agent_config.host_ips", "10.0.0.1 10.0.0.2")
+
+	ips, err := getHostIPsFromConfig()
+
+	assert.ElementsMatch(t, []string{"10.0.0.1", "10.0.0.2"}, ips)
+	assert.NoError(t, err)
+}
+
+func TestGetHostIPsInvalidIp(t *testing.T) {
+	mockConfig := config.Mock()
+	mockConfig.Set("process_config.docker_host_ips", "invalid_ip")
+
+	ips, err := getHostIPsFromConfig()
+
+	assert.Empty(t, ips)
+	assert.Error(t, err)
 }
