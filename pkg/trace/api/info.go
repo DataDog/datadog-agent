@@ -8,7 +8,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+
+	"github.com/DataDog/obfuscate"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.

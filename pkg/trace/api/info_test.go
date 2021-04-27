@@ -9,8 +9,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+
+	"github.com/DataDog/obfuscate"
 )
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
