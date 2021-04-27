@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxInvocationsStored = 10
@@ -55,7 +56,12 @@ func (d *Daemon) InvocationInterval() time.Duration {
 // This function doesn't mind if the flush strategy has been overridden through
 // configuration / environment var, the caller is responsible of that.
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
+	flushInterval := 10 * time.Second
 	freq := d.InvocationInterval()
+
+	if !d.clientLibReady {
+		return flush.NewPeriodically(flushInterval)
+	}
 
 	// when not enough data is available, fallback on flush.AtTheEnd strategy
 	if freq == time.Duration(0) {
@@ -66,8 +72,19 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	// flushing at least every 10 seconds (at the start of the invocation)
 	// TODO(remy): compute a proper interval instead of hard-coding 10 seconds
 	if freq.Seconds() < 60*5 {
-		return flush.NewPeriodically(10 * time.Second)
+		return flush.NewPeriodically(flushInterval)
 	}
 
 	return &flush.AtTheEnd{}
+}
+
+// UpdateStrategy will update the current flushing strategy
+func (d *Daemon) UpdateStrategy() {
+	if d.useAdaptiveFlush {
+		newStrat := d.AutoSelectStrategy()
+		if newStrat.String() != d.flushStrategy.String() {
+			log.Debug("Switching to flush strategy:", newStrat)
+			d.flushStrategy = newStrat
+		}
+	}
 }

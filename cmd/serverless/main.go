@@ -297,7 +297,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			}
 		}
 	} else {
-		logsType = append(logsType, "platform", "function")
+		logsType = append(logsType, "platform", "function", "extension")
 	}
 
 	log.Debug("Enabling logs collection HTTP route")
@@ -372,10 +372,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
+		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
+			coldstart = false
 		}
 	}()
 
