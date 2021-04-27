@@ -8,29 +8,31 @@
 package winutil
 
 import (
-	"bytes"
+	"unicode/utf16"
+	"unsafe"
 )
 
 // ConvertWindowsStringList Converts a windows-style C list of strings
 // (single null terminated elements
 // double-null indicates the end of the list) to an array of Go strings
 func ConvertWindowsStringList(winput []uint16) []string {
-	var retstrings []string
-	var buffer bytes.Buffer
 
-	for i := 0; i < (len(winput) - 1); i++ {
-		if winput[i] == 0 {
-			retstrings = append(retstrings, buffer.String())
-			buffer.Reset()
-
-			if winput[i+1] == 0 {
-				return retstrings
-			}
-			continue
-		}
-		buffer.WriteString(string(rune(winput[i])))
+	if len(winput) < 2 {
+		return []string{}
 	}
-	return retstrings
+	if winput[len(winput)-1] == 0 {
+		winput = winput[:len(winput)-1] // remove terminating null
+	}
+	val := make([]string, 0, 5)
+	from := 0
+	for i, c := range winput {
+		if c == 0 {
+			val = append(val, string(utf16.Decode(winput[from:i])))
+			from = i + 1
+		}
+	}
+	return val
+
 }
 
 // ConvertWindowsString converts a windows c-string
@@ -38,15 +40,13 @@ func ConvertWindowsStringList(winput []uint16) []string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString(winput []uint8) string {
-	var retstring string
-	for i := 0; i < len(winput); i += 2 {
-		dbyte := (uint16(winput[i+1]) << 8) + uint16(winput[i])
-		if dbyte == 0 {
-			break
-		}
-		retstring += string(rune(dbyte))
+
+	if len(winput) < 2 {
+		return ""
 	}
-	return retstring
+	p := (*[1 << 29]uint16)(unsafe.Pointer(&winput[0]))[: len(winput)/2 : len(winput)/2]
+	return string(utf16.Decode(p))
+
 }
 
 // ConvertWindowsString16 converts a windows c-string
@@ -54,23 +54,15 @@ func ConvertWindowsString(winput []uint8) string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
-	var retstring string
-	for i := 0; i < len(winput); i++ {
-		dbyte := winput[i]
-		if dbyte == 0 {
-			break
-		}
-		retstring += string(rune(dbyte))
+	if len(winput) < 2 {
+		return ""
 	}
-	return retstring
+	return string(utf16.Decode(winput))
 }
 
 // ConvertASCIIString converts a c-string into
 // a go string
 func ConvertASCIIString(input []byte) string {
-	var retstring string
-	for _, b := range input {
-		retstring += string(b)
-	}
-	return retstring
+
+	return string(input)
 }
