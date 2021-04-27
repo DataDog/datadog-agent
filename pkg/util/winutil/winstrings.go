@@ -8,8 +8,9 @@
 package winutil
 
 import (
-	"unicode/utf16"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // ConvertWindowsStringList Converts a windows-style C list of strings
@@ -20,14 +21,11 @@ func ConvertWindowsStringList(winput []uint16) []string {
 	if len(winput) < 2 {
 		return []string{}
 	}
-	if winput[len(winput)-1] == 0 {
-		winput = winput[:len(winput)-1] // remove terminating null
-	}
 	val := make([]string, 0, 5)
 	from := 0
 	for i, c := range winput {
 		if c == 0 {
-			val = append(val, string(utf16.Decode(winput[from:i])))
+			val = append(val, windows.UTF16ToString(winput[from:i]))
 			from = i + 1
 		}
 	}
@@ -41,15 +39,8 @@ func ConvertWindowsStringList(winput []uint16) []string {
 // uint16 (unicode)
 func ConvertWindowsString(winput []uint8) string {
 
-	if len(winput) < 2 {
-		return ""
-	}
-	if winput[len(winput)-1] == 0 {
-		winput = winput[:len(winput)-1] // remove terminating null
-	}
-
 	p := (*[1 << 29]uint16)(unsafe.Pointer(&winput[0]))[: len(winput)/2 : len(winput)/2]
-	return string(utf16.Decode(p))
+	return windows.UTF16ToString(p)
 
 }
 
@@ -58,14 +49,7 @@ func ConvertWindowsString(winput []uint8) string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
-	if len(winput) < 2 {
-		return ""
-	}
-	if winput[len(winput)-1] == 0 {
-		winput = winput[:len(winput)-1] // remove terminating null
-	}
-
-	return string(utf16.Decode(winput))
+	return windows.UTF16ToString(winput)
 }
 
 // ConvertASCIIString converts a c-string into
