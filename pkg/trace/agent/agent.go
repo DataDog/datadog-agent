@@ -198,7 +198,7 @@ func (a *Agent) Process(p *api.Payload) {
 		root := traceutil.GetRoot(t)
 
 		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			log.Debugf("Trace rejected by the APM ignore resources rule(s). root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
