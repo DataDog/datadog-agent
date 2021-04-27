@@ -6,8 +6,8 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/tracepb/pb"
 )
 
 // WeightedSpan extends Span to contain weights required by the Concentrator.

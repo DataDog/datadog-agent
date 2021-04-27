@@ -8,7 +8,7 @@ package obfuscate
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/tracepb/pb"
 )
 
 func (*Obfuscator) obfuscateMemcached(span *pb.Span) {

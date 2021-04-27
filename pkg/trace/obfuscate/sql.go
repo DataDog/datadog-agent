@@ -14,9 +14,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/tracepb/pb"
 )
 
 const sqlQueryTag = "sql.query"

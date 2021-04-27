@@ -8,8 +8,8 @@ package traceutil
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/tracepb/pb"
 )
 
 // GetEnv returns the first "env" tag found in trace t.

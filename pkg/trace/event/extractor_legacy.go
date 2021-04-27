@@ -8,9 +8,9 @@ package event
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/tracepb/pb"
 )
 
 // legacyExtractor is an event extractor that decides whether to extract APM events from spans based on

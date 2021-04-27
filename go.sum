@@ -111,6 +111,8 @@ github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3 h1:/5yFoDTV29OSm
 github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3/go.mod h1:Z3jEpdZkf9cxInbZuDA2LkQzvG4Lg5q1f5R8h60IQUo=
 github.com/DataDog/sketches-go v1.0.0 h1:chm5KSXO7kO+ywGWJ0Zs6tdmWU8PBXSbywFVciL6BG4=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
+github.com/DataDog/tracepb v1.0.0 h1:Yt7bASWMLyvSkDApSMyS09iGbVY/vwiKOYihiItkhWw=
+github.com/DataDog/tracepb v1.0.0/go.mod h1:BttHLd6qSWddlzClF8rCW80SyPbJH9NrIGbhDtC78mg=
 github.com/DataDog/viper v1.8.0 h1:+0s6jzOzQEpMCW+c4bkirz+4vNoWm4jmiQNmKfO2p38=
 github.com/DataDog/viper v1.8.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f h1:MESPSq9d/7I0plUd8M4e4jD8DQ/aMA2sc634hZAsKGQ=
