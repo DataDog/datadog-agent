@@ -2299,10 +2299,14 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"ip -n test1 r add default via 2.2.2.1",
 		"ip -n test2 r add default via 2.2.2.1",
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+		"iptables -I FORWARD -i br0 -j ACCEPT",
+		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
 	defer func() {
 		testutil.RunCommands(t, []string{
+			"iptables -D FORWARD -o br0 -j ACCEPT",
+			"iptables -D FORWARD -i br0 -j ACCEPT",
 			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",
