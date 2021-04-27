@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -61,12 +62,31 @@ type Agent struct {
 	ctx context.Context
 }
 
+var _ obfuscate.Logger = (*strippedLogger)(nil)
+
+type strippedLogger struct{}
+
+func (strippedLogger) Errorf(format string, params ...interface{}) error {
+	return log.Errorf(format, params...)
+}
+
+func (strippedLogger) Debugf(format string, params ...interface{}) {
+	log.Debugf(format, params...)
+}
+
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
+
+	oc := conf.Obfuscation
+	oc.SQL.Cache = config.HasFeature("sql_cache")
+	oc.SQL.TableNames = config.HasFeature("table_names")
+	oc.SQL.QuantizeTables = config.HasFeature("quantize_sql_tables")
+	oc.Statsd = metrics.Client
+	oc.Log = &strippedLogger{}
 
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
@@ -80,7 +100,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		EventProcessor:        newEventProcessor(conf),
 		TraceWriter:           writer.NewTraceWriter(conf),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
-		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
+		obfuscator:            obfuscate.NewObfuscator(oc),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,

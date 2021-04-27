@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/tracepb/pb"
 )
 
@@ -42,7 +40,7 @@ type jsonObfuscator struct {
 	keepDepth         int  // the depth at which we've stopped obfuscating
 }
 
-func newJSONObfuscator(cfg *config.JSONObfuscationConfig, o *Obfuscator) *jsonObfuscator {
+func newJSONObfuscator(cfg *JSONConfig, o *Obfuscator) *jsonObfuscator {
 	keepValue := make(map[string]bool, len(cfg.KeepValues))
 	for _, v := range cfg.KeepValues {
 		keepValue[v] = true
@@ -71,7 +69,7 @@ func sqlObfuscationTransformer(o *Obfuscator) func(string) string {
 	return func(s string) string {
 		result, err := o.ObfuscateSQLString(s)
 		if err != nil {
-			log.Debugf("Failed to obfuscate SQL string '%s': %s", s, err.Error())
+			o.opts.Log.Debugf("Failed to obfuscate SQL string '%s': %s", s, err.Error())
 			// instead of returning an empty string we explicitly return an error string here within the result in order
 			// to surface the problem clearly to the user
 			return "Datadog-agent failed to obfuscate SQL string. Enable agent debug logs for more info."

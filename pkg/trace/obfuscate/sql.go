@@ -13,14 +13,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/tracepb/pb"
 )
 
-const sqlQueryTag = "sql.query"
-const nonParsableResource = "Non-parsable SQL query"
+const (
+	sqlQueryTag         = "sql.query"
+	nonParsableResource = "Non-parsable SQL query"
+)
 
 var questionMark = []byte("?")
 
@@ -216,12 +215,12 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 
 func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
-	tok := NewSQLTokenizer(in, lesc)
+	tok := NewSQLTokenizer(in, lesc, o.opts.SQL)
 	out, err := attemptObfuscation(tok)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
-		tok = NewSQLTokenizer(in, !lesc)
+		tok = NewSQLTokenizer(in, !lesc, o.opts.SQL)
 		if out, err2 := attemptObfuscation(tok); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
@@ -307,10 +306,9 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-
 	var (
-		storeTableNames    = config.HasFeature("table_names")
-		quantizeTableNames = config.HasFeature("quantize_sql_tables")
+		storeTableNames    = tokenizer.cfg.TableNames
+		quantizeTableNames = tokenizer.cfg.QuantizeTables
 		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err                error
 		lastToken          TokenKind
@@ -380,7 +378,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	oq, err := o.ObfuscateSQLString(span.Resource)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
-		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+		o.opts.Log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
 		if span.Meta == nil {
 			span.Meta = make(map[string]string, 1)
 		}
@@ -394,13 +392,20 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	span.Resource = oq.Query
 
 	if len(oq.TablesCSV) > 0 {
-		traceutil.SetMeta(span, "sql.tables", oq.TablesCSV)
+		setMeta(span, "sql.tables", oq.TablesCSV)
 	}
 	if span.Meta != nil && span.Meta[sqlQueryTag] != "" {
 		// "sql.query" tag already set by user, do not change it.
 		return
 	}
-	traceutil.SetMeta(span, sqlQueryTag, oq.Query)
+	setMeta(span, sqlQueryTag, oq.Query)
+}
+
+func setMeta(s *pb.Span, key, val string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
+	s.Meta[key] = val
 }
 
 // ObfuscateSQLExecPlan obfuscates query conditions in the provided JSON encoded execution plan. If normalize=True,

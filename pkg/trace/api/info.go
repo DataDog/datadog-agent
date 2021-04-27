@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -19,14 +20,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                         `json:"elastic_search"`
-		Mongo                bool                         `json:"mongo"`
-		SQLExecPlan          bool                         `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                         `json:"sql_exec_plan_normalize"`
-		HTTP                 config.HTTPObfuscationConfig `json:"http"`
-		RemoveStackTraces    bool                         `json:"remove_stack_traces"`
-		Redis                bool                         `json:"redis"`
-		Memcached            bool                         `json:"memcached"`
+		ElasticSearch        bool                 `json:"elastic_search"`
+		Mongo                bool                 `json:"mongo"`
+		SQLExecPlan          bool                 `json:"sql_exec_plan"`
+		SQLExecPlanNormalize bool                 `json:"sql_exec_plan_normalize"`
+		HTTP                 obfuscate.HTTPConfig `json:"http"`
+		RemoveStackTraces    bool                 `json:"remove_stack_traces"`
+		Redis                bool                 `json:"redis"`
+		Memcached            bool                 `json:"memcached"`
 	}
 	type reducedConfig struct {
 		DefaultEnv             string                        `json:"default_env"`

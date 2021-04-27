@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -119,7 +120,7 @@ type AgentConfig struct {
 	DDAgentBin string
 
 	// Obfuscation holds sensitive data obufscator's configuration.
-	Obfuscation *ObfuscationConfig
+	Obfuscation *obfuscate.Config
 
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
@@ -149,6 +150,7 @@ func New() *AgentConfig {
 		ReceiverHost:    "localhost",
 		ReceiverPort:    8126,
 		MaxRequestBytes: 50 * 1024 * 1024, // 50MB
+		Obfuscation:     &obfuscate.Config{},
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),

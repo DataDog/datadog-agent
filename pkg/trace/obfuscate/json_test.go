@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -101,7 +100,7 @@ func TestObfuscateJSON(t *testing.T) {
 	runTest := func(s *xmlObfuscateTest) func(*testing.T) {
 		return func(t *testing.T) {
 			assert := assert.New(t)
-			cfg := &config.JSONObfuscationConfig{
+			cfg := &JSONConfig{
 				KeepValues:         s.KeepValues,
 				ObfuscateSQLValues: s.ObfuscateSQLValues,
 			}
@@ -123,7 +122,7 @@ func TestObfuscateJSON(t *testing.T) {
 }
 
 func BenchmarkObfuscateJSON(b *testing.B) {
-	cfg := &config.JSONObfuscationConfig{KeepValues: []string{"highlight"}}
+	cfg := &JSONConfig{KeepValues: []string{"highlight"}}
 	if len(jsonSuite) == 0 {
 		b.Fatal("no test suite loaded")
 	}

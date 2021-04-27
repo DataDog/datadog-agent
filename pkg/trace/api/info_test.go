@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
@@ -24,23 +25,23 @@ func TestInfoHandler(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	jsonObfCfg := config.JSONObfuscationConfig{
+	jsonObfCfg := obfuscate.JSONConfig{
 		Enabled:            true,
 		KeepValues:         []string{"a", "b", "c"},
 		ObfuscateSQLValues: []string{"x", "y"},
 	}
-	obfCfg := &config.ObfuscationConfig{
+	obfCfg := &obfuscate.Config{
 		ES:                   jsonObfCfg,
 		Mongo:                jsonObfCfg,
 		SQLExecPlan:          jsonObfCfg,
 		SQLExecPlanNormalize: jsonObfCfg,
-		HTTP: config.HTTPObfuscationConfig{
+		HTTP: obfuscate.HTTPConfig{
 			RemoveQueryString: true,
 			RemovePathDigits:  true,
 		},
 		RemoveStackTraces: false,
-		Redis:             config.Enablable{Enabled: true},
-		Memcached:         config.Enablable{Enabled: false},
+		Redis:             obfuscate.Enablable{Enabled: true},
+		Memcached:         obfuscate.Enablable{Enabled: false},
 	}
 	rcv := newTestReceiverFromConfig(&config.AgentConfig{
 		Enabled:    true,

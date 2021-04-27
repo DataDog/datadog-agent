@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/tracepb/pb"
 	"github.com/stretchr/testify/assert"
 )
@@ -148,13 +147,11 @@ func TestSQLUTF8(t *testing.T) {
 
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names")()
-
 		span := &pb.Span{
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		NewObfuscator(nil).Obfuscate(span)
+		NewObfuscator(&Config{SQL: SQLConfig{TableNames: true}}).Obfuscate(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
 
 	})
@@ -164,15 +161,13 @@ func TestSQLTableNames(t *testing.T) {
 			Resource: "SELECT * FROM users WHERE id = 42",
 			Type:     "sql",
 		}
-		NewObfuscator(nil).Obfuscate(span)
+		NewObfuscator(&Config{SQL: SQLConfig{TableNames: false}}).Obfuscate(span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
 }
 
 func TestSQLQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("quantize_sql_tables")()
-
 		for _, tt := range []struct {
 			query      string
 			obfuscated string
@@ -184,7 +179,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(&Config{SQL: SQLConfig{QuantizeTables: true}}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -204,7 +199,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(&Config{SQL: SQLConfig{QuantizeTables: false}}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -215,8 +210,6 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 
 func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		defer testutil.WithFeatures("table_names,quantize_sql_tables")()
-
 		for _, tt := range []struct {
 			query      string
 			tables     string
@@ -295,7 +288,12 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
+				oq, err := NewObfuscator(&Config{
+					SQL: SQLConfig{
+						TableNames:     true,
+						QuantizeTables: true,
+					},
+				}).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -838,7 +836,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, false)
+			tokenizer := NewSQLTokenizer(c.str, false, SQLConfig{})
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)
 			assert.Equal(t, c.expected, string(buffer))
@@ -967,7 +965,7 @@ in the middle'`,
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("tokenize_%s", c.str), func(t *testing.T) {
-			tokenizer := NewSQLTokenizer(c.str, true)
+			tokenizer := NewSQLTokenizer(c.str, true, SQLConfig{})
 			tokenizer.literalEscapes = true
 			kind, buffer := tokenizer.Scan()
 			assert.Equal(t, c.expectedKind, kind)

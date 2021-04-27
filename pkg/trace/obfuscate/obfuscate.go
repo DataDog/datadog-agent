@@ -11,16 +11,14 @@ import (
 	"bytes"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/DataDog/tracepb/pb"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
-	opts                 *config.ObfuscationConfig
+	opts                 *Config
 	es                   *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
 	sqlExecPlan          *jsonObfuscator // nil if disabled
@@ -32,6 +30,7 @@ type Obfuscator struct {
 	sqlLiteralEscapes int32
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
+	log        Logger
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -49,13 +48,16 @@ func (o *Obfuscator) SQLLiteralEscapes() bool {
 }
 
 // NewObfuscator creates a new obfuscator
-func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
+func NewObfuscator(cfg *Config) *Obfuscator {
 	if cfg == nil {
-		cfg = new(config.ObfuscationConfig)
+		cfg = &Config{
+			Statsd: &statsd.NoOpClient{},
+			Log:    noOpLogger{},
+		}
 	}
 	cache := new(measuredCache) // no-op as is
-	if config.HasFeature("sql_cache") {
-		cache = newMeasuredCache(metrics.Client)
+	if cfg.SQL.Cache {
+		cache = newMeasuredCache(cfg.Statsd)
 	}
 	o := Obfuscator{
 		opts:       cfg,
@@ -109,7 +111,7 @@ func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLString(b.Resource)
 		if err != nil {
-			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			o.opts.Log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
 			b.Resource = nonParsableResource
 		} else {
 			b.Resource = oq.Query
