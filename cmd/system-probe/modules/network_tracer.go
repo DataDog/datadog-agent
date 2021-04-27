@@ -24,7 +24,8 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
-var inactivityLogDuration = 10 * time.Minute
+const inactivityLogDuration = 10 * time.Minute
+const inactivityRestartDuration = 20 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = module.Factory{
@@ -47,7 +48,8 @@ var NetworkTracer = module.Factory{
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
-	tracer *tracer.Tracer
+	tracer       *tracer.Tracer
+	restartTimer *time.Timer
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -72,6 +74,9 @@ func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
+		if nt.restartTimer != nil {
+			nt.restartTimer.Reset(inactivityRestartDuration)
+		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
 	})
@@ -106,6 +111,12 @@ func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 		if run := atomic.LoadUint64(&runCounter); run == 0 {
 			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
 		}
+	})
+
+	nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
+		log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
+		nt.Close()
+		os.Exit(1)
 	})
 
 	return nil
