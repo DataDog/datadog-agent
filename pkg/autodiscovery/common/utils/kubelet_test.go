@@ -78,9 +78,9 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 			name: "No match",
 			args: args{
 				annotations: map[string]string{
-					"ad.datadoghq.com/nginx.check_names":  "[\"http_check\"]",
-					"ad.datadoghq.com/nginx.init_configs": "[{}]",
-					"ad.datadoghq.com/nginx.instances":    "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+					"ad.datadoghq.com/nginx.check_names":                "[\"http_check\"]",
+					"ad.datadoghq.com/not-nginx.not-nginx.init_configs": "[{}]",
+					"ad.datadoghq.com/nginx.instances":                  "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
 				},
 				validIDs: map[string]bool{
 					"not-nginx": true,
@@ -92,7 +92,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 			},
 			want: []error{
 				fmt.Errorf("annotation ad.datadoghq.com/nginx.check_names is invalid: nginx doesn't match a container identifier"),
-				fmt.Errorf("annotation ad.datadoghq.com/nginx.init_configs is invalid: nginx doesn't match a container identifier"),
+				fmt.Errorf("annotation ad.datadoghq.com/not-nginx.not-nginx.init_configs is invalid: not-nginx.not-nginx doesn't match a container identifier"),
 				fmt.Errorf("annotation ad.datadoghq.com/nginx.instances is invalid: nginx doesn't match a container identifier"),
 			},
 		},
@@ -236,6 +236,25 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				fmt.Errorf("annotation ad.datadoghq.com/nginx.init_configs is invalid: nginx doesn't match a container identifier"),
 				fmt.Errorf("annotation ad.datadoghq.com/nginx.instances is invalid: nginx doesn't match a container identifier"),
 			},
+		},
+		{
+			name: "Incorrect autodiscovery annotation prefixes",
+			args: args{
+				annotations: map[string]string{
+					"ads.datadoghq.com/not-nginx.check.id":     "nginx-custom",
+					"ad.datadoghq.com/.check_names":            "[\"http_check\"]",
+					"test.ad.datadoghq.com/nginx.init_configs": "[{}]",
+					"ad.datadoghq..com/nginx.instances":        "[{\"name\": \"My service\", \"url\": \"http://%%host%%\", \"timeout\": 1}]",
+				},
+				validIDs: map[string]bool{
+					"nginx-custom": true,
+				},
+				containerNames: map[string]bool{
+					"nginx": true,
+				},
+				adPrefix: "ad.datadoghq.com/",
+			},
+			want: []error{},
 		},
 	}
 	for _, tt := range tests {
