@@ -6,7 +6,6 @@ updates:
       - dependencies
       - team/agent-platform
       - changelog/no-changelog
-      - qa/skip-qa
     milestone: 22
     ignore:
       - dependency-name: k8s.io/*
@@ -33,7 +32,6 @@ updates:
       - dependencies
       - team/agent-platform
       - changelog/no-changelog
-      - qa/skip-qa
     milestone: 22
     ignore: 
       - dependency-name: github.com/cihub/seelog
@@ -45,7 +43,6 @@ updates:
       - dependencies
       - team/agent-platform
       - changelog/no-changelog
-      - qa/skip-qa
     milestone: 22
     schedule:
       interval: weekly
