@@ -201,17 +201,22 @@ type LogsConfigKeys struct {
 }
 
 // logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
-var logsConfigDefaultKeys = LogsConfigKeys{
-	UseCompression:          "logs_config.use_compression",
-	CompressionLevel:        "logs_config.compression_level",
-	ConnectionResetInterval: "logs_config.connection_reset_interval",
-	LogsDDURL:               "logs_config.logs_dd_url",
-	LogsNoSSL:               "logs_config.logs_no_ssl",
-	DDURL:                   "logs_config.dd_url",
-	DevModeNoSSL:            "logs_config.dev_mode_no_ssl",
-	AdditionalEndpoints:     "logs_config.additional_endpoints",
-	BatchWait:               "logs_config.batch_wait",
-	BatchMaxConcurrentSend:  "logs_config.batch_max_concurrent_send",
+var logsConfigDefaultKeys = NewLogsConfigKeys("logs_config.")
+
+// NewLogsConfigKeys returns a new logs configuration keys set
+func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
+	return LogsConfigKeys{
+		UseCompression:          configPrefix + "use_compression",
+		CompressionLevel:        configPrefix + "compression_level",
+		ConnectionResetInterval: configPrefix + "connection_reset_interval",
+		LogsDDURL:               configPrefix + "logs_dd_url",
+		LogsNoSSL:               configPrefix + "logs_no_ssl",
+		DDURL:                   configPrefix + "dd_url",
+		DevModeNoSSL:            configPrefix + "dev_mode_no_ssl",
+		AdditionalEndpoints:     configPrefix + "additional_endpoints",
+		BatchWait:               configPrefix + "batch_wait",
+		BatchMaxConcurrentSend:  configPrefix + "batch_max_concurrent_send",
+	}
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.

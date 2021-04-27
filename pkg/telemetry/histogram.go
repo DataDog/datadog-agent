@@ -19,6 +19,16 @@ type Histogram interface {
 	Delete(tagsValue ...string)
 }
 
+type histogramNoOp struct{}
+
+func (h histogramNoOp) Observe(_ float64, _ ...string) {}
+func (h histogramNoOp) Delete(_ ...string)             {}
+
+// NewHistogramNoOp creates a dummy Histogram
+func NewHistogramNoOp() Histogram {
+	return histogramNoOp{}
+}
+
 // NewHistogram creates a Histogram with default options for telemetry purpose.
 // Current implementation used: Prometheus Histogram
 func NewHistogram(subsystem, name string, tags []string, help string, buckets []float64) Histogram {

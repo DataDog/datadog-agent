@@ -32,11 +32,11 @@
 #include "mount.h"
 #include "umount.h"
 #include "link.h"
-#include "raw_syscalls.h"
 #include "procfs.h"
 #include "setxattr.h"
 #include "erpc.h"
 #include "ioctl.h"
+#include "raw_syscalls.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;
@@ -51,8 +51,7 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
 
     if (!is_flushing_discarders()) {
         // remove both regular and parent discarders
-        remove_inode_discarder(mount_id, inode, 1);
-        remove_inode_discarder(mount_id, inode, 0);
+        remove_inode_discarders(mount_id, inode);
     }
 
     if (send_invalidate_event) {

@@ -22,7 +22,7 @@ int __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *sysc
 int __attribute__((always_inline)) trace__sys_rename() {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
-        .type = SYSCALL_RENAME,
+        .type = EVENT_RENAME,
     };
 
     cache_syscall(&syscall);
@@ -44,7 +44,7 @@ SYSCALL_KPROBE0(renameat2) {
 
 SEC("kprobe/vfs_rename")
 int kprobe__vfs_rename(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RENAME);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall)
         return 0;
 
@@ -93,12 +93,7 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RENAME);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) do_sys_rename_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
@@ -131,6 +126,24 @@ int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
     }
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_rename_exit")
+int handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
+
+    return do_sys_rename_ret(args, syscall, args->ret);
+}
+
+int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_rename_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(rename) {

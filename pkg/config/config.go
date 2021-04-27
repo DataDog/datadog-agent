@@ -507,6 +507,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
+	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -603,11 +606,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.container_collect_all", false)
 	// add a socks5 proxy:
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
-	// send the logs to a proxy:
-	config.BindEnv("logs_config.logs_dd_url") //nolint:errcheck // must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
-	config.BindEnvAndSetDefault("logs_config.logs_no_ssl", false)
 
 	// Duration during which the host tags will be submitted with log events.
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // duration-formatted string (parsed by `time.ParseDuration`)
@@ -638,13 +638,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_client_read_timeout", 30)
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
 	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	config.BindEnv("logs_config.dd_url") //nolint:errcheck
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.use_compression", true)
-	config.BindEnvAndSetDefault("logs_config.compression_level", 6) // Default level for the gzip/deflate algorithm
-	config.BindEnvAndSetDefault("logs_config.batch_wait", DefaultBatchWait)
-	config.BindEnvAndSetDefault("logs_config.connection_reset_interval", 0) // in seconds, 0 means disabled
+
+	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
+
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
@@ -656,7 +654,6 @@ func InitConfig(config Config) {
 	// It may be useful to increase it when logs writing is slowed down, that
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
-	config.BindEnv("logs_config.additional_endpoints") //nolint:errcheck
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -752,11 +749,12 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnv("orchestrator_explorer.max_per_message")     //nolint:errcheck
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url") //nolint:errcheck
 
 	// Orchestrator Explorer - process agent
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
-	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	config.BindEnv("process_config.orchestrator_dd_url") //nolint:errcheck
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
@@ -786,8 +784,6 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
-	setupSystemProbe(config)
-
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
 
@@ -807,6 +803,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
+	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -829,6 +826,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1059,6 +1057,18 @@ func GetMainEndpoint(prefix string, ddURLKey string) string {
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
+}
+
+func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
+	config.BindEnv(prefix + "logs_dd_url")          //nolint:errcheck // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnv(prefix + "dd_url")               //nolint:errcheck
+	config.BindEnv(prefix + "additional_endpoints") //nolint:errcheck
+	config.BindEnvAndSetDefault(prefix+"use_compression", true)
+	config.BindEnvAndSetDefault(prefix+"compression_level", 6) // Default level for the gzip/deflate algorithm
+	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
+	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
+	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
+	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

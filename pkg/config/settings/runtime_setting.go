@@ -36,27 +36,8 @@ type RuntimeSetting interface {
 	Hidden() bool
 }
 
-// InitRuntimeSettings builds the map of runtime settings configurable at runtime.
-func InitRuntimeSettings() error {
-	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := registerRuntimeSetting(logLevelRuntimeSetting("log_level")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(dsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(dsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
-		return err
-	}
-	if err := registerRuntimeSetting(profilingRuntimeSetting("profiling")); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// RegisterRuntimeSettings keeps track of configurable settings
-func registerRuntimeSetting(setting RuntimeSetting) error {
+// RegisterRuntimeSetting keeps track of configurable settings
+func RegisterRuntimeSetting(setting RuntimeSetting) error {
 	if _, ok := runtimeSettings[setting.Name()]; ok {
 		return errors.New("duplicated settings detected")
 	}
@@ -92,11 +73,11 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 	return value, nil
 }
 
-// getBool returns the bool value contained in value.
+// GetBool returns the bool value contained in value.
 // If value is a bool, returns its value
 // If value is a string, it converts "true" to true and "false" to false.
 // Else, returns an error.
-func getBool(v interface{}) (bool, error) {
+func GetBool(v interface{}) (bool, error) {
 	// to be cautious, take care of both calls with a string (cli) or a bool (programmaticaly)
 	str, ok := v.(string)
 	if ok {
@@ -107,13 +88,13 @@ func getBool(v interface{}) (bool, error) {
 		case "false":
 			return false, nil
 		default:
-			return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
+			return false, fmt.Errorf("GetBool: bad parameter value provided: %v", str)
 		}
 
 	}
 	b, ok := v.(bool)
 	if !ok {
-		return false, fmt.Errorf("getBool: bad parameter value provided")
+		return false, fmt.Errorf("GetBool: bad parameter value provided")
 	}
 	return b, nil
 }

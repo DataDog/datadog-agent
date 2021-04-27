@@ -484,23 +484,23 @@
           <ComponentRef Id="system_probe.yaml.example" />
       <?endif ?>
       <Condition Level="1"><![CDATA[1]]></Condition>
+
+      <?if $(var.IncludeSysprobe) = true ?>
+        <!-- don't install by default (indicated by level 100)  Only things with level
+        <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
+        <Feature  Id="NPM" 
+                  Level="100"  
+                  Title="Network Performance Monitoring" 
+                  ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
+                  Absent="allow"
+                  AllowAdvertise="no"
+        >
+          <MergeRef Id="ddnpminstall"/>
+          <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
+        </Feature>
+      <?endif ?>
     </Feature>
-     <?if $(var.IncludeSysprobe) = true ?>
-      <!-- don't install by default (indicated by level 100)  Only things with level
-           <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
-      <Feature Id="NPM" 
-               Level="100"  
-               Title="Network Performance Monitoring" 
-               ConfigurableDirectory="APPLICATIONROOTDIRECTORY"
-               Absent="allow"
-               AllowAdvertise="no"
-               >
-        <MergeRef Id="ddnpminstall"/>
-        
-        <Condition Level="1"><![CDATA[NPM OR (DD_FILTER_INSTALLED and (not WixUI_InstallMode = "Change"))]]></Condition>
-        
-      </Feature>
-    <?endif ?>
+  
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />

@@ -80,7 +80,7 @@ func TestSetFieldValue(t *testing.T) {
 func TestExecArgsFlags(t *testing.T) {
 	e := Event{
 		Event: model.Event{
-			ProcessContext: model.ProcessContext{
+			Exec: model.ExecEvent{
 				Process: model.Process{
 					ArgsArray: []string{
 						"-abc", "--verbose", "test",
@@ -89,7 +89,6 @@ func TestExecArgsFlags(t *testing.T) {
 					},
 				},
 			},
-			Exec: model.ExecEvent{},
 		},
 	}
 
@@ -133,7 +132,7 @@ func TestExecArgsFlags(t *testing.T) {
 func TestExecArgsOptions(t *testing.T) {
 	e := Event{
 		Event: model.Event{
-			ProcessContext: model.ProcessContext{
+			Exec: model.ExecEvent{
 				Process: model.Process{
 					ArgsArray: []string{
 						"--config", "/etc/myfile", "--host=myhost", "--verbose",
@@ -142,7 +141,6 @@ func TestExecArgsOptions(t *testing.T) {
 					},
 				},
 			},
-			Exec: model.ExecEvent{},
 		},
 	}
 

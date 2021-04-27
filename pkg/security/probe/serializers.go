@@ -10,6 +10,7 @@
 package probe
 
 import (
+	"encoding/json"
 	"syscall"
 	"time"
 
@@ -35,8 +36,8 @@ type FileSerializer struct {
 	InUpperLayer        *bool      `json:"in_upper_layer,omitempty"`
 	MountID             *uint32    `json:"mount_id,omitempty"`
 	Filesystem          string     `json:"filesystem,omitempty"`
-	UID                 uint32     `json:"uid,omitempty"`
-	GID                 uint32     `json:"gid,omitempty"`
+	UID                 uint32     `json:"uid"`
+	GID                 uint32     `json:"gid"`
 	User                string     `json:"user,omitempty"`
 	Group               string     `json:"group,omitempty"`
 	XAttrName           string     `json:"attribute_name,omitempty"`
@@ -57,20 +58,20 @@ type UserContextSerializer struct {
 // CredentialsSerializer serializes a set credentials to JSON
 // easyjson:json
 type CredentialsSerializer struct {
-	UID          int      `json:"uid"`
-	User         string   `json:"user,omitempty"`
-	GID          int      `json:"gid"`
-	Group        string   `json:"group,omitempty"`
-	EUID         int      `json:"euid"`
-	EUser        string   `json:"euser,omitempty"`
-	EGID         int      `json:"egid"`
-	EGroup       string   `json:"egroup,omitempty"`
-	FSUID        int      `json:"fsuid"`
-	FSUser       string   `json:"fsuser,omitempty"`
-	FSGID        int      `json:"fsgid"`
-	FSGroup      string   `json:"fsgroup,omitempty"`
-	CapEffective []string `json:"cap_effective,omitempty"`
-	CapPermitted []string `json:"cap_permitted,omitempty"`
+	UID          int          `json:"uid"`
+	User         string       `json:"user,omitempty"`
+	GID          int          `json:"gid"`
+	Group        string       `json:"group,omitempty"`
+	EUID         int          `json:"euid"`
+	EUser        string       `json:"euser,omitempty"`
+	EGID         int          `json:"egid"`
+	EGroup       string       `json:"egroup,omitempty"`
+	FSUID        int          `json:"fsuid"`
+	FSUser       string       `json:"fsuser,omitempty"`
+	FSGID        int          `json:"fsgid"`
+	FSGroup      string       `json:"fsgroup,omitempty"`
+	CapEffective JStringArray `json:"cap_effective"`
+	CapPermitted JStringArray `json:"cap_permitted"`
 }
 
 // SetuidSerializer serializes a setuid event
@@ -95,11 +96,22 @@ type SetgidSerializer struct {
 	FSGroup string `json:"fsgroup,omitempty"`
 }
 
+// JStringArray handles empty array properly not generating null output but []
+type JStringArray []string
+
+// MarshalJSON custom marshaller to handle empty array
+func (j *JStringArray) MarshalJSON() ([]byte, error) {
+	if len(*j) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(*j))
+}
+
 // CapsetSerializer serializes a capset event
 // easyjson:json
 type CapsetSerializer struct {
-	CapEffective []string `json:"cap_effective,omitempty"`
-	CapPermitted []string `json:"cap_permitted,omitempty"`
+	CapEffective JStringArray `json:"cap_effective"`
+	CapPermitted JStringArray `json:"cap_permitted"`
 }
 
 // ProcessCredentialsSerializer serializes the process credentials to JSON
@@ -197,7 +209,7 @@ func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
 func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
-		Path:                e.ResolveFileInode(fe),
+		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
 		ContainerPath:       e.ResolveFileContainerPath(fe),
@@ -207,32 +219,11 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		Mode:                getUint32Pointer(&mode),
 		UID:                 fe.UID,
 		GID:                 fe.GID,
-		User:                e.ResolveUser(&fe.FileFields),
-		Group:               e.ResolveGroup(&fe.FileFields),
+		User:                e.ResolveFileFieldsUser(&fe.FileFields),
+		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
 		Mtime:               &fe.MTime,
 		Ctime:               &fe.CTime,
 		InUpperLayer:        getInUpperLayer(e.resolvers, &fe.FileFields),
-	}
-}
-
-func newProcessFileSerializer(process *model.Process, e *Event) *FileSerializer {
-	mode := uint32(process.FileFields.Mode)
-	return &FileSerializer{
-		Path:                e.ResolveProcessInode(process),
-		PathResolutionError: process.GetPathResolutionError(),
-		Name:                e.ResolveProcessBasename(process),
-		ContainerPath:       e.ResolveProcessContainerPath(process),
-		Inode:               getUint64Pointer(&process.FileFields.Inode),
-		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          e.ResolveProcessFilesystem(process),
-		InUpperLayer:        getInUpperLayer(e.resolvers, &process.FileFields),
-		Mode:                getUint32Pointer(&mode),
-		UID:                 process.FileFields.UID,
-		GID:                 process.FileFields.GID,
-		User:                e.ResolveUser(&process.FileFields),
-		Group:               e.ResolveGroup(&process.FileFields),
-		Mtime:               &process.FileFields.MTime,
-		Ctime:               &process.FileFields.CTime,
 	}
 }
 
@@ -245,13 +236,13 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
-		Filesystem:          r.MountResolver.GetFilesystem(process.FileFields.MountID),
+		Filesystem:          process.Filesystem,
 		InUpperLayer:        getInUpperLayer(r, &process.FileFields),
 		Mode:                getUint32Pointer(&mode),
 		UID:                 process.FileFields.UID,
 		GID:                 process.FileFields.GID,
-		User:                r.ResolveUser(&process.FileFields),
-		Group:               r.ResolveGroup(&process.FileFields),
+		User:                r.ResolveFileFieldsUser(&process.FileFields),
+		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
 		Mtime:               &process.FileFields.MTime,
 		Ctime:               &process.FileFields.CTime,
 	}
@@ -278,41 +269,22 @@ func getTimeIfNotZero(t time.Time) *time.Time {
 	return &t
 }
 
-func newCredentialsSerializer(ce *model.Credentials, e *Event) *CredentialsSerializer {
-	return &CredentialsSerializer{
-		UID:          e.ResolveCredentialsUID(ce),
-		User:         e.ResolveCredentialsUser(ce),
-		EUID:         e.ResolveCredentialsEUID(ce),
-		EUser:        e.ResolveCredentialsEUser(ce),
-		FSUID:        e.ResolveCredentialsFSUID(ce),
-		FSUser:       e.ResolveCredentialsFSUser(ce),
-		GID:          e.ResolveCredentialsGID(ce),
-		Group:        e.ResolveCredentialsGroup(ce),
-		EGID:         e.ResolveCredentialsEGID(ce),
-		EGroup:       e.ResolveCredentialsEGroup(ce),
-		FSGID:        e.ResolveCredentialsFSGID(ce),
-		FSGroup:      e.ResolveCredentialsFSGroup(ce),
-		CapEffective: model.KernelCapability(e.ResolveCredentialsCapEffective(ce)).StringArray(),
-		CapPermitted: model.KernelCapability(e.ResolveCredentialsCapPermitted(ce)).StringArray(),
-	}
-}
-
-func newCredentialsSerializerWithResolvers(ce *model.Credentials, r *Resolvers) *CredentialsSerializer {
+func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	return &CredentialsSerializer{
 		UID:          int(ce.UID),
-		User:         r.ResolveCredentialsUser(ce),
+		User:         ce.User,
 		EUID:         int(ce.EUID),
-		EUser:        r.ResolveCredentialsEUser(ce),
+		EUser:        ce.EUser,
 		FSUID:        int(ce.FSUID),
-		FSUser:       r.ResolveCredentialsFSUser(ce),
+		FSUser:       ce.FSUser,
 		GID:          int(ce.GID),
-		Group:        r.ResolveCredentialsGroup(ce),
+		Group:        ce.Group,
 		EGID:         int(ce.EGID),
-		EGroup:       r.ResolveCredentialsEGroup(ce),
+		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
-		FSGroup:      r.ResolveCredentialsFSGroup(ce),
-		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
-		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
+		FSGroup:      ce.FSGroup,
+		CapEffective: JStringArray(model.KernelCapability(ce.CapEffective).StringArray()),
+		CapPermitted: JStringArray(model.KernelCapability(ce.CapPermitted).StringArray()),
 	}
 }
 
@@ -332,7 +304,7 @@ func scrubArgs(process *model.Process, e *Event) []string {
 	return args
 }
 
-func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topLevel bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
 	args := scrubArgs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
@@ -344,20 +316,20 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 
 		Pid:           e.ProcessContext.Pid,
-		PPid:          e.ProcessContext.PPid,
 		Tid:           e.ProcessContext.Tid,
-		Path:          e.ResolveProcessInode(&pce.Process),
-		ContainerPath: e.ResolveProcessContainerPath(&pce.Process),
-		Comm:          e.ResolveProcessComm(&pce.Process),
-		TTY:           e.ResolveProcessTTY(&pce.Process),
-		Executable:    newProcessFileSerializer(&pce.Process, e),
+		PPid:          pce.Process.PPid,
+		Path:          pce.Process.PathnameStr,
+		ContainerPath: pce.Process.ContainerPath,
+		Comm:          pce.Process.Comm,
+		TTY:           pce.Process.TTYName,
+		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
 		Args:          args,
 		ArgsTruncated: pce.Process.ArgsTruncated,
 		Envs:          pce.EnvsArray,
 		EnvsTruncated: pce.Process.EnvsTruncated,
 	}
 
-	credsSerializer := newCredentialsSerializer(&pce.Credentials, e)
+	credsSerializer := newCredentialsSerializer(&pce.Credentials)
 	// Populate legacy user / group fields
 	pceSerializer.UID = credsSerializer.UID
 	pceSerializer.User = credsSerializer.User
@@ -367,7 +339,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
+	if len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
 			ID: e.ResolveContainerID(&e.ContainerContext),
 		}
@@ -375,7 +347,7 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event, topL
 	return pceSerializer
 }
 
-func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r *Resolvers, topLevel bool) *ProcessCacheEntrySerializer {
+func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r *Resolvers) *ProcessCacheEntrySerializer {
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
 		MountID:             pce.FileFields.MountID,
@@ -394,7 +366,7 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, r),
 	}
 
-	credsSerializer := newCredentialsSerializerWithResolvers(&pce.Credentials, r)
+	credsSerializer := newCredentialsSerializer(&pce.Credentials)
 	// Populate legacy user / group fields
 	pceSerializer.UID = credsSerializer.UID
 	pceSerializer.User = credsSerializer.User
@@ -404,7 +376,7 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if !topLevel && len(pce.ContainerID) != 0 {
+	if len(pce.ContainerID) != 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
 			ID: pce.ContainerID,
 		}
@@ -417,11 +389,11 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 
 	if e != nil {
 		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e, true),
+			ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
 		}
 	} else {
 		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializerWithResolvers(entry, r, true),
+			ProcessCacheEntrySerializer: newProcessCacheEntrySerializerWithResolvers(entry, r),
 		}
 	}
 
@@ -441,8 +413,8 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	first := true
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
-		// pass nil instead of e to prevent mixing values with the ancestors
-		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r, false)
+
+		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -552,8 +524,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
 			Destination: &FileSerializer{
-				XAttrName:      event.GetXAttrName(&event.RemoveXAttr),
-				XAttrNamespace: event.GetXAttrNamespace(&event.RemoveXAttr),
+				XAttrName:      event.ResolveXAttrName(&event.RemoveXAttr),
+				XAttrNamespace: event.ResolveXAttrNamespace(&event.RemoveXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.RemoveXAttr.Retval)
@@ -561,8 +533,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event),
 			Destination: &FileSerializer{
-				XAttrName:      event.GetXAttrName(&event.SetXAttr),
-				XAttrNamespace: event.GetXAttrNamespace(&event.SetXAttr),
+				XAttrName:      event.ResolveXAttrName(&event.SetXAttr),
+				XAttrNamespace: event.ResolveXAttrNamespace(&event.SetXAttr),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
@@ -624,8 +596,8 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.CapsetEventType:
 		s.ProcessContextSerializer.Credentials.Destination = &CapsetSerializer{
-			CapEffective: model.KernelCapability(event.Capset.CapEffective).StringArray(),
-			CapPermitted: model.KernelCapability(event.Capset.CapPermitted).StringArray(),
+			CapEffective: JStringArray(model.KernelCapability(event.Capset.CapEffective).StringArray()),
+			CapPermitted: JStringArray(model.KernelCapability(event.Capset.CapPermitted).StringArray()),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
@@ -637,7 +609,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.Category = ProcessActivity
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newProcessFileSerializer(&event.processCacheEntry.Process, event),
+			FileSerializer: *newProcessFileSerializerWithResolvers(&event.processCacheEntry.Process, event.resolvers),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity

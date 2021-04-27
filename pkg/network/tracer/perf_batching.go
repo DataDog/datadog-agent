@@ -129,7 +129,7 @@ type batchState struct {
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
 func (p *PerfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b *batch, start, end uint16) []network.ConnectionStats {
 	if start >= end || end > ConnCloseBatchSize {
-		return nil
+		return buffer
 	}
 
 	current := uintptr(unsafe.Pointer(b)) + uintptr(start)*C.sizeof_conn_t

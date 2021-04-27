@@ -8,7 +8,6 @@
 package model
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -58,14 +57,16 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.FileFields = pc.FileFields
 	childEntry.PathnameStr = pc.PathnameStr
 	childEntry.BasenameStr = pc.BasenameStr
+	childEntry.Filesystem = pc.Filesystem
 	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTimestamp = pc.ExecTimestamp
+	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
 	copyProcessContext(pc, childEntry)
 }
 
-func (pc *ProcessCacheEntry) String() string {
+/*func (pc *ProcessCacheEntry) String() string {
 	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {
@@ -76,24 +77,4 @@ func (pc *ProcessCacheEntry) String() string {
 		ancestor = ancestor.Ancestor
 	}
 	return s
-}
-
-// UnmarshalBinary reads the binary representation of itself
-func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool) (int, error) {
-	var read int
-
-	if unmarshalContext {
-		offset, err := pc.UnmarshalContainerID(data)
-		if err != nil {
-			return 0, err
-		}
-		read += offset
-	}
-
-	offset, err := pc.Process.UnmarshalBinary(data[read:])
-	if err != nil {
-		return 0, err
-	}
-
-	return read + offset, nil
-}
+}*/

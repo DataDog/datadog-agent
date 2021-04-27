@@ -60,7 +60,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 
-			testContainerPath(t, event, "rmdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rmdir.file.container_path")
+			}
 		}
 	}))
 
@@ -92,7 +94,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 
-			testContainerPath(t, event, "rmdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rmdir.file.container_path")
+			}
 		}
 	})
 }

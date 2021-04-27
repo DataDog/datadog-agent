@@ -13,30 +13,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// profilingRuntimeSetting wraps operations to change log level at runtime
-type profilingRuntimeSetting string
+// ProfilingRuntimeSetting wraps operations to change log level at runtime
+type ProfilingRuntimeSetting string
 
-func (l profilingRuntimeSetting) Description() string {
+// Description returns the runtime setting's description
+func (l ProfilingRuntimeSetting) Description() string {
 	return "Enable/disable profiling on the agent, valid values are: true, false"
 }
 
-func (l profilingRuntimeSetting) Hidden() bool {
+// Hidden returns whether or not this setting is hidden from the list of runtime settings
+func (l ProfilingRuntimeSetting) Hidden() bool {
 	return true
 }
 
-func (l profilingRuntimeSetting) Name() string {
+// Name returns the name of the runtime setting
+func (l ProfilingRuntimeSetting) Name() string {
 	return string(l)
 }
 
-func (l profilingRuntimeSetting) Get() (interface{}, error) {
-	return config.Datadog.GetBool("profiling.enabled"), nil
+// Get returns the current value of the runtime setting
+func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
+	return config.Datadog.GetBool("internal_profiling.enabled"), nil
 }
 
-func (l profilingRuntimeSetting) Set(v interface{}) error {
+// Set changes the value of the runtime setting
+func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 	var profile bool
 	var err error
 
-	profile, err = getBool(v)
+	profile, err = GetBool(v)
 
 	if err != nil {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
@@ -51,8 +56,8 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-		if config.Datadog.IsSet("profiling.profile_dd_url") {
-			site = config.Datadog.GetString("profiling.profile_dd_url")
+		if config.Datadog.IsSet("internal_profiling.profile_dd_url") {
+			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		}
 
 		v, _ := version.Agent()
@@ -64,11 +69,11 @@ func (l profilingRuntimeSetting) Set(v interface{}) error {
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {
-			config.Datadog.Set("profiling.enabled", true)
+			config.Datadog.Set("internal_profiling.enabled", true)
 		}
 	} else {
 		profiling.Stop()
-		config.Datadog.Set("profiling.enabled", false)
+		config.Datadog.Set("internal_profiling.enabled", false)
 	}
 
 	return nil

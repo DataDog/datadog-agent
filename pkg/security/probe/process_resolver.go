@@ -60,6 +60,23 @@ func getDoForkInput(probe *Probe) uint64 {
 	return doForkListInput
 }
 
+// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
+// space
+func getCGroupWriteConstants() manager.ConstantEditor {
+	cgroupWriteConst := uint64(1)
+	kv, err := NewKernelVersion()
+	if err == nil {
+		if kv.IsRH7Kernel() {
+			cgroupWriteConst = 2
+		}
+	}
+
+	return manager.ConstantEditor{
+		Name:  "cgroup_write_type",
+		Value: cgroupWriteConst,
+	}
+}
+
 // TTYConstants returns the tty constants
 func TTYConstants(probe *Probe) []manager.ConstantEditor {
 	ttyOffset, nameOffset := uint64(400), uint64(368)
@@ -221,9 +238,10 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.FileFields = *info
 		entry.Process.PathnameStr = pathnameStr
 		entry.Process.BasenameStr = path.Base(pathnameStr)
-		entry.ContainerID = string(containerID)
+		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
 		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
+		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileFields.MountID)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -248,8 +266,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if err != nil {
 		return errors.Wrapf(err, "snapshot failed for %d: couldn't parse kernel capabilities", proc.Pid)
 	}
-	_ = p.resolvers.ResolveProcessContextUser(&entry.ProcessContext)
-	_ = p.resolvers.ResolveProcessContextGroup(&entry.ProcessContext)
+	p.SetProcessUsersGroups(entry)
+
 	return nil
 }
 
@@ -367,10 +385,21 @@ func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string
 	var err error
 
 	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		entry.PathnameStr, err = p.resolvers.resolveInode(&entry.FileFields)
+		if entry.PathnameStr, err = p.resolvers.resolveFileFieldsPath(&entry.FileFields); err == nil {
+			entry.BasenameStr = path.Base(entry.PathnameStr)
+		}
 	}
 
 	return entry.PathnameStr, err
+}
+
+// SetProcessFilesystem resolves process file system
+func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
+	if entry.FileFields.MountID != 0 {
+		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileFields.MountID)
+	}
+
+	return entry.Filesystem
 }
 
 // SetProcessContainerPath resolves container path
@@ -381,17 +410,24 @@ func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry
 	return entry.ContainerPath
 }
 
-func (p *ProcessResolver) unmarshalProcessCacheEntry(entry *model.ProcessCacheEntry, data []byte, unmarshalContext bool) (int, error) {
-	read, err := entry.UnmarshalBinary(data, unmarshalContext)
+func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
+	// unmarshal container ID first
+	id, err := model.UnmarshalString(data, 64)
 	if err != nil {
-		return read, err
+		return 0, err
+	}
+	entry.ContainerID = id
+
+	read, err := entry.UnmarshalBinary(data[64:])
+	if err != nil {
+		return read + 64, err
 	}
 
 	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
 	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
 	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
 
-	return read, err
+	return read + 64, err
 }
 
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
@@ -412,8 +448,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	entry := NewProcessCacheEntry()
 	data := append(entryb, cookieb...)
 
-	_, err = p.unmarshalProcessCacheEntry(entry, data, true)
-	if err != nil {
+	if _, err = p.unmarshalFromKernelMaps(entry, data); err != nil {
 		return nil
 	}
 	entry.Pid = pid
@@ -424,11 +459,12 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
-	containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
-	if err != nil {
-		return nil
+	if entry.ContainerID == "" {
+		containerID, err := p.resolvers.ContainerResolver.GetContainerID(pid)
+		if err == nil {
+			entry.ContainerID = string(containerID)
+		}
 	}
-	entry.ContainerID = string(containerID)
 
 	if entry.ExecTime.IsZero() {
 		return p.insertForkEntry(pid, entry)
@@ -438,7 +474,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 }
 
 func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
-	if maxDepth < 1 {
+	if maxDepth < 1 || pid == 0 {
 		return nil
 	}
 
@@ -494,8 +530,8 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	}
 }
 
-// SetTTY resolves TTY and cache the result
-func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
+// SetProcessTTY resolves TTY and cache the result
+func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
 		if tty == "" {
@@ -504,6 +540,17 @@ func (p *ProcessResolver) SetTTY(pce *model.ProcessCacheEntry) string {
 		pce.TTYName = tty
 	}
 	return pce.TTYName
+}
+
+// SetProcessUsersGroups resolves and set users and groups
+func (p *ProcessResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
+	pce.User, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.UID))
+	pce.EUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.EUID))
+	pce.FSUser, _ = p.resolvers.UserGroupResolver.ResolveUser(int(pce.Credentials.FSUID))
+
+	pce.Group, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.GID))
+	pce.EGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.EGID))
+	pce.FSGroup, _ = p.resolvers.UserGroupResolver.ResolveGroup(int(pce.Credentials.FSGID))
 }
 
 // Get returns the cache entry for a specified pid

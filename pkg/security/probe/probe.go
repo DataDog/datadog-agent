@@ -256,8 +256,6 @@ func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap
 	p.monitor.perfBufferMonitor.CountLostEvent(count, perfMap, CPU)
 }
 
-var eventZero Event
-
 func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
 	return p.event
@@ -354,9 +352,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// Resolve mount point
-		event.ResolveMountPoint(&event.Mount)
+		event.SetMountPoint(&event.Mount)
 		// Resolve root
-		event.ResolveMountRoot(&event.Mount)
+		event.SetMountRoot(&event.Mount)
 		// Insert new mount point in cache
 		p.resolvers.MountResolver.Insert(event.Mount)
 
@@ -440,8 +438,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry))
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
+		// unmarshal and fill event.processCacheEntry
 		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -452,9 +451,18 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err := p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
 			log.Debugf("failed to resolve exec path: %s", err)
 		}
+		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessContainerPath(event.processCacheEntry)
 
-		event.updateProcessCachePointer(p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry))
+		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
+
+		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
+
+		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
+
+		// copy some of the field from the entry
+		event.Exec.Process = event.processCacheEntry.Process
+		event.Exec.FileFields = event.processCacheEntry.Process.FileFields
 	case model.ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	case model.SetuidEventType:
@@ -483,9 +491,25 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// resolve event context
 	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
+
+		// in case of exec event we take the parent a process context as this
+		// the parent which generated the exec
+		if eventType == model.ExecEventType {
+			if ancestor := event.processCacheEntry.ProcessContext.Ancestor; ancestor != nil {
+				event.ProcessContext = ancestor.ProcessContext
+			}
+		} else {
+			event.ProcessContext = event.processCacheEntry.ProcessContext
+		}
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+}
+
+// OnRuleMatch is called when a rule matches just before sending
+func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
+	// ensure that all the fields are resolved before sending
+	event.ResolveContainerTags(&event.ContainerContext)
 }
 
 // OnNewDiscarder is called when a new discarder is found
@@ -631,7 +655,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
-	log.Debugf("Freezing discarders")
+	log.Debug("Freezing discarders")
 
 	flushingMap, err := p.Map("flushing_discarders")
 	if err != nil {
@@ -799,6 +823,23 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+
+	// kretprobe fallback for kernel < 4.12
+	if p.kernelVersion < kernel4_12 {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "kretprobe_fallback",
+			Value: uint64(1),
+		})
+	}
+
+	// constants syscall monitor
+	if p.config.SyscallMonitor {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "syscall_monitor",
+			Value: uint64(1),
+		})
+	}
 
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()

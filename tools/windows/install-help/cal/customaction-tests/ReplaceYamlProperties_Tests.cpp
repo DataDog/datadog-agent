@@ -16,6 +16,21 @@ property_retriever propertyRetriever(value_map const &values)
     };
 }
 
+std::wstring random_string(size_t length)
+{
+    srand(_time32(nullptr));
+    auto randchar = []() -> wchar_t {
+        const wchar_t charset[] = L"0123456789"
+                               L"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                               L"abcdefghijklmnopqrstuvwxyz";
+        const size_t max_index = sizeof(charset) / sizeof(wchar_t) - 1;
+        return charset[rand() % max_index];
+    };
+    std::wstring str(length, 0);
+    std::generate_n(str.begin(), length, randchar);
+    return str;
+}
+
 TEST_F(ReplaceYamlPropertiesTests, When_APIKEY_Present_Replace_It)
 {
     value_map values = {{L"APIKEY", L"1234567890"}};
@@ -39,20 +54,38 @@ api_key: 1234567890)");
 
 TEST_F(ReplaceYamlPropertiesTests, When_Property_Specified_But_Not_Replaced_Warn_Once)
 {
-    value_map values = {{L"APIKEY", L"1234567890"}};
+    value_map values;
+
+    // EC2_USE_WINDOWS_PREFIX_DETECTION always succeeds in being replaced since it's inserted in the file.
+    std::vector<std::wstring> properties = {
+        L"APIKEY",          L"SITE",           L"HOSTNAME",    L"LOGS_ENABLED",          L"LOGS_DD_URL",
+        L"PROCESS_ENABLED", L"PROCESS_DD_URL", L"APM_ENABLED", L"TRACE_DD_URL",          L"CMD_PORT",
+        L"DD_URL",          L"PYVER",          L"PROXY_HOST",  L"HOSTNAME_FQDN_ENABLED", L"TAGS",
+    };
+
+    for (auto propName : properties)
+    {
+        values[propName] = random_string(8);
+    }
     std::vector<std::wstring> failedToReplace;
     std::wstring result = replace_yaml_properties(LR"(
-# There is no api_key in this snippet
+# This is some random text
 random_prop: true
 )",
                                                   propertyRetriever(values), &failedToReplace);
 
     EXPECT_EQ(result, LR"(
-# There is no api_key in this snippet
+# This is some random text
 random_prop: true
 )");
-    EXPECT_EQ(failedToReplace.size(), 1);
-    EXPECT_STREQ(failedToReplace[0].c_str(), L"APIKEY");
+    std::vector<std::wstring> duplicates;
+    std::sort(properties.begin(), properties.end());
+    std::sort(failedToReplace.begin(), failedToReplace.end());
+    std::set_difference(failedToReplace.begin(), failedToReplace.end(),
+                        properties.begin(), properties.end(),
+                        std::back_inserter(duplicates));
+    // This will print the properties that are in duplicates if any
+    EXPECT_EQ(duplicates, std::vector<std::wstring>());
 }
 
 TEST_F(ReplaceYamlPropertiesTests, When_EC2_USE_WINDOWS_PREFIX_DETECTION_Add_It)

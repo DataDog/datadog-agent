@@ -19,7 +19,21 @@ const (
 	defaultOffsetThreshold = 400
 )
 
-func setupSystemProbe(cfg Config) {
+func isSystemProbeConfigInit(cfg Config) bool {
+	keys := cfg.GetKnownKeys()
+	_, ok := keys[join(spNS, "enabled")]
+	return ok
+}
+
+// InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
+// This function should not be called before ResolveSecrets,
+// unless you call `cmd/system-probe/config.New` or `cmd/system-probe/config.Merge` in-between.
+// This is to prevent the in-memory values from being fixed before the file-based values have had a chance to be read.
+func InitSystemProbeConfig(cfg Config) {
+	if isSystemProbeConfigInit(cfg) {
+		return
+	}
+
 	// settings for system-probe in general
 	cfg.BindEnvAndSetDefault(join(spNS, "enabled"), false, "DD_SYSTEM_PROBE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
@@ -67,7 +81,7 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), false, "DD_COLLECT_DNS_DOMAINS")
-	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 10000)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 20000)
 	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack"), true)
