@@ -19,14 +19,19 @@ import (
 func ConvertWindowsStringList(winput []uint16) []string {
 
 	if len(winput) < 2 {
-		return []string{}
+		return nil
 	}
 	val := make([]string, 0, 5)
 	from := 0
-	for i, c := range winput {
-		if c == 0 {
+
+	for i := 0; i < (len(winput) - 1); i++ {
+		if winput[i] == 0 {
 			val = append(val, windows.UTF16ToString(winput[from:i]))
 			from = i + 1
+
+			if winput[i+1] == 0 {
+				return val
+			}
 		}
 	}
 	return val
@@ -50,11 +55,4 @@ func ConvertWindowsString(winput []uint8) string {
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
 	return windows.UTF16ToString(winput)
-}
-
-// ConvertASCIIString converts a c-string into
-// a go string
-func ConvertASCIIString(input []byte) string {
-
-	return string(input)
 }
