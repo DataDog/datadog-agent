@@ -2,6 +2,14 @@ module github.com/DataDog/datadog-agent
 
 go 1.15
 
+// NOTE: Dependencies on the left-hand side of `replace` directives are not 
+// automatically updated with Dependabot, since the version stated in the asssociated 
+// `require` directive is ignored.
+// 
+// Prefer using simple `require` directives instead of using `replace` if possible.
+// If you need to `replace` a dependency, add it to the ignore list on .github/dependabot.yaml
+
+
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
