@@ -44,6 +44,10 @@ func ConvertWindowsString(winput []uint8) string {
 	if len(winput) < 2 {
 		return ""
 	}
+	if winput[len(winput)-1] == 0 {
+		winput = winput[:len(winput)-1] // remove terminating null
+	}
+
 	p := (*[1 << 29]uint16)(unsafe.Pointer(&winput[0]))[: len(winput)/2 : len(winput)/2]
 	return string(utf16.Decode(p))
 
@@ -57,6 +61,10 @@ func ConvertWindowsString16(winput []uint16) string {
 	if len(winput) < 2 {
 		return ""
 	}
+	if winput[len(winput)-1] == 0 {
+		winput = winput[:len(winput)-1] // remove terminating null
+	}
+
 	return string(utf16.Decode(winput))
 }
 
