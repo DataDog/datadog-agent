@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -24,7 +26,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	e.ID = id
+	e.ID = utils.FindContainerID(id)
 
 	return 64, nil
 }
