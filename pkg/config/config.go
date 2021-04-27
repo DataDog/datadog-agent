@@ -391,8 +391,7 @@ func InitConfig(config Config) {
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
 	// Location to store dogstatsd captures by default
-	defaultDogstatsdCapturePath := path.Join(config.GetString("run_path"), "dsd_capture")
-	config.BindEnvAndSetDefault("dogstatsd_capture_path", defaultDogstatsdCapturePath)
+	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
 
 	_ = config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
