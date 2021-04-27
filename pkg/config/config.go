@@ -751,6 +751,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnv("orchestrator_explorer.max_per_message")     //nolint:errcheck
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url") //nolint:errcheck
+	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints") //nolint:errcheck
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
