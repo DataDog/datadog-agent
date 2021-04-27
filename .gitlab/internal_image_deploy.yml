@@ -13,6 +13,8 @@ docker_trigger_internal:
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: false
   trigger:
     project: DataDog/images
     branch: master
