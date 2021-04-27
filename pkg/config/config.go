@@ -825,6 +825,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	config.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)

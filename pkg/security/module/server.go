@@ -27,10 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultSendEventDelay = 5 * time.Second
-)
-
 type pendingMsg struct {
 	ruleID    string
 	data      []byte
@@ -49,6 +45,7 @@ type APIServer struct {
 	statsdClient  *statsd.Client
 	probe         *sprobe.Probe
 	queue         []*pendingMsg
+	retention     time.Duration
 }
 
 // GetEvents waits for security events
@@ -131,7 +128,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
 		i++
 	}
 
-	if i > len(a.queue) {
+	if i >= len(a.queue) {
 		a.queue = a.queue[0:0]
 	} else if i > 0 {
 		a.queue = a.queue[i:]
@@ -229,7 +226,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		data:      data,
 		extTagsCb: extTagsCb,
 		tags:      make(map[string]bool),
-		sendAfter: time.Now().Add(defaultSendEventDelay),
+		sendAfter: time.Now().Add(a.retention),
 	}
 
 	msg.tags["rule_id:"+rule.Definition.ID] = true
@@ -303,6 +300,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
+		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
 	}
 	return es
 }
