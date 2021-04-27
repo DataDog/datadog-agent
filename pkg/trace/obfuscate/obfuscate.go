@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,9 +53,13 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 	if cfg == nil {
 		cfg = new(config.ObfuscationConfig)
 	}
+	cache := new(measuredCache) // no-op as is
+	if config.HasFeature("sql_cache") {
+		cache = newMeasuredCache(metrics.Client)
+	}
 	o := Obfuscator{
 		opts:       cfg,
-		queryCache: newMeasuredCache(),
+		queryCache: cache,
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)

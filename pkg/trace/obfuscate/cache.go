@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/dgraph-io/ristretto"
 )
 
 // measuredCache is a wrapper on top of *ristretto.Cache which additionally
 // sends metrics (hits and misses) every 10 seconds.
+//
+// An uninitialized measuredCache is a no-op cache.
 type measuredCache struct {
 	*ristretto.Cache
+
+	// Statsd specifies the client to use to report stats.
+	Statsd statsd.ClientInterface
 
 	// close allows sending shutdown notification.
 	close chan struct{}
@@ -38,8 +41,8 @@ func (c *measuredCache) statsLoop() {
 	for {
 		select {
 		case <-tick.C:
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
-			metrics.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
+			c.Statsd.Gauge("datadog.trace_agent.ofuscation.sql_cache.hits", float64(mx.Hits()), nil, 1)
+			c.Statsd.Gauge("datadog.trace_agent.ofuscation.sql_cache.misses", float64(mx.Misses()), nil, 1)
 		case <-c.close:
 			c.Cache.Close()
 			return
@@ -48,11 +51,7 @@ func (c *measuredCache) statsLoop() {
 }
 
 // newMeasuredCache returns a new measuredCache.
-func newMeasuredCache() *measuredCache {
-	if !config.HasFeature("sql_cache") {
-		// a nil *ristretto.Cache is a no-op cache
-		return &measuredCache{}
-	}
+func newMeasuredCache(statsClient statsd.ClientInterface) *measuredCache {
 	cfg := &ristretto.Config{
 		// We know that the maximum allowed resource length is 5K. This means that
 		// in 5MB we can store a minimum of 1000 queries.
@@ -73,8 +72,9 @@ func newMeasuredCache() *measuredCache {
 		panic(fmt.Errorf("Error starting obfuscator query cache: %v", err))
 	}
 	c := measuredCache{
-		close: make(chan struct{}),
-		Cache: cache,
+		close:  make(chan struct{}),
+		Cache:  cache,
+		Statsd: statsClient,
 	}
 	go c.statsLoop()
 	return &c
