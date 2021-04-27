@@ -9,7 +9,6 @@ package probe
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,7 +24,6 @@ import (
 type eventCounterLRUKey struct {
 	Pid    uint32
 	Cookie uint32
-	Event  model.EventType
 }
 
 // LoadController is used to monitor and control the pressure put on the host
@@ -65,7 +63,9 @@ func NewLoadController(probe *Probe, statsdClient *statsd.Client) (*LoadControll
 // Count processes the provided events and ensures the load of the provided event type is within the configured limits
 func (lc *LoadController) Count(event *Event) {
 	switch event.GetEventType() {
-	case model.ExitEventType, model.ExecEventType, model.InvalidateDentryEventType:
+	case model.ExecEventType, model.InvalidateDentryEventType, model.ForkEventType:
+	case model.ExitEventType:
+		lc.cleanupCounter(event.ProcessContext.Pid, event.ProcessContext.Cookie)
 	default:
 		lc.GenericCount(event)
 	}
@@ -76,13 +76,13 @@ func (lc *LoadController) GenericCount(event *Event) {
 	lc.Lock()
 	defer lc.Unlock()
 
-	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()})
+	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie})
 	if ok {
 		counter := entry.(*uint64)
 		atomic.AddUint64(counter, 1)
 	} else {
 		counter := uint64(1)
-		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie, Event: event.GetEventType()}, &counter)
+		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie}, &counter)
 	}
 	newTotal := atomic.AddInt64(&lc.eventsTotal, 1)
 
@@ -116,8 +116,8 @@ func (lc *LoadController) discardNoisiestProcess() {
 	}
 
 	// push a temporary discarder on the noisiest process & event type tuple
-	log.Tracef("discarding %s events from pid %d for %s seconds", maxKey.Event, maxKey.Pid, lc.DiscarderTimeout)
-	if err := lc.probe.pidDiscarders.discardWithTimeout(maxKey.Event, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
+	log.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)
+	if err := lc.probe.pidDiscarders.discardWithTimeout(0xffffffffffffffff, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
@@ -128,10 +128,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	if lc.statsdClient != nil {
 		// send load_controller.pids_discarder metric
-		tags := []string{
-			fmt.Sprintf("event_type:%s", maxKey.Event),
-		}
-		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, 1, tags, 1.0); err != nil {
+		if err := lc.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, 1, []string{}, 1.0); err != nil {
 			log.Warnf("couldn't send load_controller.pids_discarder metric: %v", err)
 			return
 		}
@@ -146,7 +143,6 @@ func (lc *LoadController) discardNoisiestProcess() {
 		ts := time.Now()
 		lc.probe.DispatchCustomEvent(
 			NewNoisyProcessEvent(
-				maxKey.Event,
 				oldMaxCount,
 				lc.EventsCountThreshold,
 				lc.ControllerPeriod,
@@ -159,21 +155,27 @@ func (lc *LoadController) discardNoisiestProcess() {
 	}
 }
 
+// cleanupCounter resets the internal counter of the provided pid
+func (lc *LoadController) cleanupCounter(pid uint32, cookie uint32) {
+	lc.Lock()
+	defer lc.Unlock()
+
+	key := eventCounterLRUKey{Pid: pid, Cookie: cookie}
+	entry, ok := lc.eventsCounters.Get(key)
+	if ok {
+		counter := int64(*entry.(*uint64))
+		atomic.AddInt64(&lc.eventsTotal, -counter)
+		lc.eventsCounters.Remove(key)
+	}
+}
+
 // cleanup resets the internal counters
 func (lc *LoadController) cleanup() {
-	// Only a read lock is required: we're not adding / removing any entry in the LRUs, just updating their counters.
-	lc.RLock()
-	defer lc.RUnlock()
+	lc.Lock()
+	defer lc.Unlock()
 
-	// reset counts
-	for _, key := range lc.eventsCounters.Keys() {
-		val, ok := lc.eventsCounters.Peek(key)
-		if !ok || val == nil {
-			continue
-		}
-		counter := val.(*uint64)
-		atomic.SwapUint64(counter, 0)
-	}
+	// purge counters
+	lc.eventsCounters.Purge()
 	atomic.SwapInt64(&lc.eventsTotal, 0)
 }
 
