@@ -117,8 +117,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	log.Tracef("discarding %s events from pid %d for %s seconds", maxKey.Event, maxKey.Pid, lc.DiscarderTimeout)
-	timeout := lc.probe.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now().Add(lc.DiscarderTimeout))
-	if err := lc.probe.pidDiscarders.discardWithTimeout(maxKey.Event, maxKey.Pid, timeout); err != nil {
+	if err := lc.probe.pidDiscarders.discardWithTimeout(maxKey.Event, maxKey.Pid, lc.DiscarderTimeout.Nanoseconds()); err != nil {
 		log.Warnf("couldn't insert temporary discarder: %v", err)
 		return
 	}
@@ -140,7 +139,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 		// fetch noisy process metadata
 		process := lc.probe.resolvers.ProcessResolver.Resolve(maxKey.Pid, maxKey.Pid)
 		if process == nil {
-			log.Warnf("Unable to resolver process with pid: %d", maxKey.Pid)
+			log.Warnf("Unable to resolve process with pid: %d", maxKey.Pid)
 			return
 		}
 

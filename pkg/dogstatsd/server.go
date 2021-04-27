@@ -49,7 +49,7 @@ var (
 	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
 	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
 
-	tlmChannel            telemetry.Histogram
+	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
 )
@@ -65,18 +65,26 @@ func init() {
 }
 
 func initLatencyTelemetry() {
-	buckets := defaultChannelBuckets
-	option := "telemetry.dogstatsd.aggregator_channel_latency_buckets"
+	get := func(option string) []float64 {
+		if !config.Datadog.IsSet(option) {
+			return nil
+		}
 
-	if !config.Datadog.IsSet(option) {
-		confBuckets, err := config.Datadog.GetFloat64SliceE(option)
+		buckets, err := config.Datadog.GetFloat64SliceE(option)
 		if err != nil {
 			log.Errorf("%s, falling back to default values", err)
-		} else if len(confBuckets) == 0 {
-			log.Debugf("'%s' is empty, falling back to default values", option)
-		} else {
-			buckets = confBuckets
+			return nil
 		}
+		if len(buckets) == 0 {
+			log.Debugf("'%s' is empty, falling back to default values", option)
+			return nil
+		}
+		return buckets
+	}
+
+	buckets := get("telemetry.dogstatsd.aggregator_channel_latency_buckets")
+	if buckets == nil {
+		buckets = defaultChannelBuckets
 	}
 
 	tlmChannel = telemetry.NewHistogram(
@@ -85,6 +93,9 @@ func initLatencyTelemetry() {
 		[]string{"message_type"},
 		"Time in millisecond to push metrics to the aggregator input buffer",
 		buckets)
+
+	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
+	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
 // Server represent a Dogstatsd server

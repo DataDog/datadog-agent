@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	"k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,18 +41,18 @@ func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]cus
 	return store, client
 }
 
-func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
-	return &v2beta1.HorizontalPodAutoscaler{
+func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName string, labels map[string]string) *autoscalingv2.HorizontalPodAutoscaler {
+	return &autoscalingv2.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 			UID:       types.UID(uid),
 		},
-		Spec: v2beta1.HorizontalPodAutoscalerSpec{
-			Metrics: []v2beta1.MetricSpec{
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			Metrics: []autoscalingv2.MetricSpec{
 				{
-					Type: v2beta1.ExternalMetricSourceType,
-					External: &v2beta1.ExternalMetricSource{
+					Type: autoscalingv2.ExternalMetricSourceType,
+					External: &autoscalingv2.ExternalMetricSource{
 						MetricName: metricName,
 						MetricSelector: &metav1.LabelSelector{
 							MatchLabels: labels,
@@ -361,10 +360,10 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	// Update the Metrics
-	mockedHPA.Spec.Metrics = []v2beta1.MetricSpec{
+	mockedHPA.Spec.Metrics = []autoscalingv2.MetricSpec{
 		{
-			Type: v2beta1.ExternalMetricSourceType,
-			External: &v2beta1.ExternalMetricSource{
+			Type: autoscalingv2.ExternalMetricSourceType,
+			External: &autoscalingv2.ExternalMetricSource{
 				MetricName: "foo",
 				MetricSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -502,7 +501,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
-		hpa      *v2beta1.HorizontalPodAutoscaler
+		hpa      *autoscalingv2.HorizontalPodAutoscaler
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -517,7 +516,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Valid:      false,
 				},
 			},
-			hpa: &v2beta1.HorizontalPodAutoscaler{
+			hpa: &autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "default",

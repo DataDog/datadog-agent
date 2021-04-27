@@ -63,7 +63,9 @@
 
 /.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/internal_deploy.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/internal_deploy.yml                         @DataDog/processes @DataDog/networks @DataDog/agent-platform
+
+/.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
 

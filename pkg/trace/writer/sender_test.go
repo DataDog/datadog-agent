@@ -32,6 +32,24 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestIsRetriable(t *testing.T) {
+	for code, want := range map[int]bool{
+		400: false,
+		404: false,
+		408: true,
+		409: false,
+		500: true,
+		503: true,
+		505: true,
+		200: false,
+		204: false,
+		306: false,
+		101: false,
+	} {
+		assert.Equal(t, isRetriable(code), want)
+	}
+}
+
 func TestSender(t *testing.T) {
 	const climit = 100
 	testSenderConfig := func(serverURL string) *senderConfig {
@@ -143,7 +161,7 @@ func TestSender(t *testing.T) {
 		}
 
 		s := newSender(testSenderConfig(server.URL))
-		s.Push(expectResponses(503, 503, 200))
+		s.Push(expectResponses(503, 408, 200))
 		s.Stop()
 
 		assert.Equal([]int{0, 1, 2}, backoffCalls)

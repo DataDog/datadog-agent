@@ -16,8 +16,8 @@
     - cd /tmp/bcc/build
     - cmake .. -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF -DENABLE_MAN=OFF -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
     - make -j 4 # "$(nproc)"
-    # Check that libbcc has no references to glibc >= 2.23
-    - objdump -p src/cc/libbcc.so | egrep 'GLIBC_2\.(2[3-9]|[3-9][0-9])' && exit 1
+    # Check that libbcc has no references to glibc >= 2.18
+    - objdump -p src/cc/libbcc.so | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
     - make install
     - cd /opt/libbcc
     - chmod go-rwx lib/libbcc*

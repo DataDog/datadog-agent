@@ -1,8 +1,11 @@
 #pragma once
-#include "SID.h"
-#include "TargetMachine.h"
+
+#include <msi.h>
 #include <map>
 #include <string>
+
+#include "SID.h"
+#include "TargetMachine.h"
 
 class ICustomActionData
 {
@@ -17,7 +20,7 @@ class ICustomActionData
     virtual void Sid(sid_ptr &sid) = 0;
     virtual bool installSysprobe() const = 0;
     virtual bool UserParamMismatch() const = 0;
-    virtual const ITargetMachine &GetTargetMachine() const = 0;
+    virtual std::shared_ptr<ITargetMachine> GetTargetMachine() const = 0;
 
   protected:
     virtual ~ICustomActionData()
@@ -28,6 +31,7 @@ class ICustomActionData
 class CustomActionData : ICustomActionData
 {
   public:
+    CustomActionData(std::shared_ptr<ITargetMachine> targetMachine);
     CustomActionData();
     ~CustomActionData();
 
@@ -48,14 +52,13 @@ class CustomActionData : ICustomActionData
     void Sid(sid_ptr &sid) override;
     bool installSysprobe() const override;
     bool UserParamMismatch() const override;
-    const TargetMachine &GetTargetMachine() const override;
+    std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
     bool npmPresent() const;
   private:
-    MSIHANDLE hInstall;
-    TargetMachine machine;
-    bool domainUser;
-    bool userParamMismatch;
+    MSIHANDLE _hInstall;
+    bool _domainUser;
+    bool _userParamMismatch;
     std::map<std::wstring, std::wstring> values;
     std::wstring _unqualifiedUsername;
     std::wstring _domain;
@@ -63,9 +66,10 @@ class CustomActionData : ICustomActionData
     std::wstring pvsUser;   // previously installed user, read from registry
     std::wstring pvsDomain; // previously installed domain for user, read from registry
     sid_ptr _sid;
-    bool doInstallSysprobe;
-    bool ddnpmPresent;
+    bool _doInstallSysprobe;
+    bool _ddnpmPresent;
     bool _ddUserExists;
+    std::shared_ptr<ITargetMachine> _targetMachine;
     bool findPreviousUserInfo();
     void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring &computed_domain,
                               std::wstring &computed_user);

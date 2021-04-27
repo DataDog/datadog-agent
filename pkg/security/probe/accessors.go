@@ -72,8 +72,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Capset.CapEffective)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -83,8 +82,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Capset.CapPermitted)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -94,8 +92,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chmod.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -105,8 +102,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -116,8 +112,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -127,8 +122,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Chmod.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -138,8 +132,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -147,10 +140,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Chmod.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chmod.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -160,8 +152,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Chmod.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -171,8 +162,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -182,8 +172,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -193,8 +182,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -204,8 +192,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chmod.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -213,10 +200,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chmod.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Chmod.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -226,8 +212,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Chmod.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -237,8 +222,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -246,10 +230,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Chmod.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Chmod.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -259,8 +242,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chmod.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -270,8 +252,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chown.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -281,8 +262,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -292,8 +272,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveChownGID(&(*Event)(ctx.Object).Chown)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -303,8 +282,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -314,8 +292,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveChownUID(&(*Event)(ctx.Object).Chown)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -325,8 +302,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Chown.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -336,8 +312,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -345,10 +320,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Chown.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Chown.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -358,8 +332,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Chown.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -369,8 +342,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -380,8 +352,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -391,8 +362,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -402,8 +372,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Chown.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -411,10 +380,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Chown.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Chown.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -424,8 +392,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Chown.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -435,8 +402,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -444,10 +410,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Chown.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Chown.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -457,8 +422,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Chown.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -468,9 +432,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveContainerID(&(*Event)(ctx.Object).ContainerContext)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "container.tags":
+		return &eval.StringArrayEvaluator{
+
+			EvalFnc: func(ctx *eval.Context) []string {
+
+				return (*Event)(ctx.Object).ResolveContainerTags(&(*Event)(ctx.Object).ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999,
 		}, nil
 
 	case "exec.args":
@@ -479,8 +453,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveExecArgs(&(*Event)(ctx.Object).Exec)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -491,8 +464,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveExecArgsFlags(&(*Event)(ctx.Object).Exec)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -503,8 +475,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveExecArgsOptions(&(*Event)(ctx.Object).Exec)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -514,8 +485,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.ArgsTruncated
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -526,8 +496,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveExecArgv(&(*Event)(ctx.Object).Exec)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -535,66 +504,70 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapEffective)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.cap_permitted":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.CapPermitted)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessComm(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.Comm
 			},
-			Field: field,
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 
-			Weight: eval.HandlerWeight,
+	case "exec.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).Exec.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.cookie":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveProcessCookie(&(*Event)(ctx.Object).Exec.Process))
+				return int((*Event)(ctx.Object).Exec.Process.Cookie)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.EGID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.egroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.EGroup
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.envs":
@@ -604,8 +577,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveExecEnvs(&(*Event)(ctx.Object).Exec)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -615,8 +587,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).Exec.EnvsTruncated
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -624,44 +595,40 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.EUID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.euser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.EUser
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessContainerPath(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.ContainerPath
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessFilesystem(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.Filesystem
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.gid":
@@ -670,8 +637,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -679,10 +645,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Exec.Process.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exec.Process.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -692,8 +657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -703,8 +667,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -714,8 +677,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -723,22 +685,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessBasename(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.BasenameStr
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessInode(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.PathnameStr
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.file.rights":
@@ -747,8 +707,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Exec.Process.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -758,8 +717,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -767,10 +725,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Exec.Process.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Exec.Process.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -778,110 +735,120 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSGID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsgroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.FSGroup
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsuid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.FSUID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.fsuser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.FSUser
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsGID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.GID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsGroup(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
 			},
-			Field: field,
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 
-			Weight: eval.HandlerWeight,
+	case "exec.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.ppid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveProcessPPID(&(*Event)(ctx.Object).Exec.Process))
+				return int((*Event)(ctx.Object).Exec.Process.PPid)
 			},
-			Field: field,
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 
-			Weight: eval.HandlerWeight,
+	case "exec.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.tty_name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessTTY(&(*Event)(ctx.Object).Exec.Process)
+				return (*Event)(ctx.Object).Exec.Process.TTYName
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsUID(&(*Event)(ctx.Object).Exec.Process.Credentials))
+				return int((*Event)(ctx.Object).Exec.Process.Credentials.UID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "exec.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsUser(&(*Event)(ctx.Object).Exec.Process.Credentials)
+				return (*Event)(ctx.Object).Exec.Process.Credentials.User
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "link.file.container_path":
@@ -890,8 +857,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Source)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -901,8 +867,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Target)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -912,8 +877,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Link.Target)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -923,8 +887,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -932,10 +895,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Link.Target.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Target.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -945,8 +907,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Link.Target)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -956,8 +917,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -967,8 +927,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -978,8 +937,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -989,8 +947,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Target)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -998,10 +955,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Target)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Link.Target)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1011,8 +967,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Link.Target.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1022,8 +977,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1031,10 +985,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Link.Target.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Link.Target.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1044,8 +997,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Link.Source)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1055,8 +1007,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1064,10 +1015,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Link.Source.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Link.Source.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1077,8 +1027,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Link.Source)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1088,8 +1037,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1099,8 +1047,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1110,8 +1057,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1121,8 +1067,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Link.Source)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1130,10 +1075,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Link.Source)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Link.Source)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1143,8 +1087,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Link.Source.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1154,8 +1097,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.Source.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1163,10 +1105,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Link.Source.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Link.Source.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1176,8 +1117,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Link.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1187,8 +1127,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Mkdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1198,8 +1137,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1209,8 +1147,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1220,8 +1157,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Mkdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1231,8 +1167,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1240,10 +1175,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Mkdir.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Mkdir.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1253,8 +1187,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Mkdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1264,8 +1197,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1275,8 +1207,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1286,8 +1217,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1297,8 +1227,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Mkdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1306,10 +1235,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Mkdir.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Mkdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1319,8 +1247,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Mkdir.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1330,8 +1257,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1339,10 +1265,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Mkdir.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Mkdir.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1352,8 +1277,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Mkdir.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1363,8 +1287,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Open.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1374,8 +1297,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1385,8 +1307,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Open.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1396,8 +1317,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1405,10 +1325,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Open.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Open.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1418,8 +1337,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Open.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1429,8 +1347,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1440,8 +1357,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1451,8 +1367,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1462,8 +1377,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Open.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1471,10 +1385,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Open.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Open.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1484,8 +1397,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Open.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1495,8 +1407,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1504,10 +1415,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Open.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Open.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -1517,8 +1427,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.Flags)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1528,8 +1437,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Open.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -1551,7 +1459,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.CapEffective)
 
 					results = append(results, result)
 
@@ -1561,7 +1469,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1583,7 +1490,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 					results = append(results, result)
 
@@ -1593,7 +1500,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1615,7 +1521,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
+					result = element.ProcessContext.Process.Comm
 
 					results = append(results, result)
 
@@ -1625,7 +1531,37 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 
+	case "process.ancestors.container.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]string)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []string
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result string
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = element.ProcessContext.Process.ContainerID
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1647,7 +1583,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveProcessCookie(&element.Process))
+					result = int(element.ProcessContext.Process.Cookie)
 
 					results = append(results, result)
 
@@ -1657,7 +1593,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1679,7 +1614,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.EGID)
 
 					results = append(results, result)
 
@@ -1689,7 +1624,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1711,7 +1645,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.EGroup
 
 					results = append(results, result)
 
@@ -1721,7 +1655,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1743,7 +1676,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.EUID)
 
 					results = append(results, result)
 
@@ -1753,7 +1686,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1775,7 +1707,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.EUser
 
 					results = append(results, result)
 
@@ -1785,7 +1717,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1807,7 +1738,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessContainerPath(&element.Process)
+					result = element.ProcessContext.Process.ContainerPath
 
 					results = append(results, result)
 
@@ -1817,7 +1748,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1839,7 +1769,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessFilesystem(&element.Process)
+					result = element.ProcessContext.Process.Filesystem
 
 					results = append(results, result)
 
@@ -1849,7 +1779,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1881,7 +1810,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1903,7 +1831,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveGroup(&element.FileFields)
+					result = (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.FileFields)
 
 					results = append(results, result)
 
@@ -1913,7 +1841,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1945,7 +1872,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -1977,7 +1903,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2009,7 +1934,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2031,7 +1955,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessBasename(&element.Process)
+					result = element.ProcessContext.Process.BasenameStr
 
 					results = append(results, result)
 
@@ -2041,7 +1965,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2063,7 +1986,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessInode(&element.Process)
+					result = element.ProcessContext.Process.PathnameStr
 
 					results = append(results, result)
 
@@ -2073,7 +1996,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2105,7 +2027,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2137,7 +2058,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2159,7 +2079,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveUser(&element.FileFields)
+					result = (*Event)(ctx.Object).ResolveFileFieldsUser(&element.FileFields)
 
 					results = append(results, result)
 
@@ -2169,7 +2089,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2191,7 +2110,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.FSGID)
 
 					results = append(results, result)
 
@@ -2201,7 +2120,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2223,7 +2141,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.FSGroup
 
 					results = append(results, result)
 
@@ -2233,7 +2151,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2255,7 +2172,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.FSUID)
 
 					results = append(results, result)
 
@@ -2265,7 +2182,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2287,7 +2203,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.FSUser
 
 					results = append(results, result)
 
@@ -2297,7 +2213,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2319,7 +2234,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.GID)
 
 					results = append(results, result)
 
@@ -2329,7 +2244,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2351,7 +2265,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.Group
 
 					results = append(results, result)
 
@@ -2361,39 +2275,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.id":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []string
-
-				iterator := &model.ProcessAncestorsIterator{}
-
-				value := iterator.Front(ctx)
-				for value != nil {
-					var result string
-
-					element := (*model.ProcessCacheEntry)(value)
-
-					result = (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
-
-					results = append(results, result)
-
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
-				return results
-			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2415,7 +2296,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int(element.ProcessContext.Pid)
+					result = int(element.ProcessContext.Process.Pid)
 
 					results = append(results, result)
 
@@ -2425,7 +2306,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2447,7 +2327,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
+					result = int(element.ProcessContext.Process.PPid)
 
 					results = append(results, result)
 
@@ -2457,7 +2337,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2479,7 +2358,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int(element.ProcessContext.Tid)
+					result = int(element.ProcessContext.Process.Tid)
 
 					results = append(results, result)
 
@@ -2489,7 +2368,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2511,7 +2389,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveProcessTTY(&element.Process)
+					result = element.ProcessContext.Process.TTYName
 
 					results = append(results, result)
 
@@ -2521,7 +2399,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2543,7 +2420,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
+					result = int(element.ProcessContext.Process.Credentials.UID)
 
 					results = append(results, result)
 
@@ -2553,7 +2430,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2575,7 +2451,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 					element := (*model.ProcessCacheEntry)(value)
 
-					result = (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+					result = element.ProcessContext.Process.Credentials.User
 
 					results = append(results, result)
 
@@ -2585,7 +2461,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return results
 			}, Field: field,
-
 			Weight: eval.IteratorWeight,
 		}, nil
 
@@ -2593,110 +2468,110 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapEffective)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.cap_permitted":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.CapPermitted)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessComm(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.Comm
 			},
-			Field: field,
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 
-			Weight: eval.HandlerWeight,
+	case "process.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ProcessContext.Process.ContainerID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.cookie":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveProcessCookie(&(*Event)(ctx.Object).ProcessContext.Process))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Cookie)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EGID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.egroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EGroup
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsEUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.EUID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.euser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsEUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.EUser
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessContainerPath(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessFilesystem(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.Filesystem
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.gid":
@@ -2705,8 +2580,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2714,10 +2588,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2727,8 +2600,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2738,8 +2610,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2749,8 +2620,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2758,22 +2628,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessBasename(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.BasenameStr
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessInode(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.file.rights":
@@ -2782,8 +2650,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).ProcessContext.Process.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2793,8 +2660,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2802,10 +2668,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2813,76 +2678,69 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsgroup":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSGroup
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsuid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsFSUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.fsuser":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsFSUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.FSUser
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsGID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.GID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsGroup(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.Pid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Pid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2890,21 +2748,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveProcessPPID(&(*Event)(ctx.Object).ProcessContext.Process))
+				return int((*Event)(ctx.Object).ProcessContext.Process.PPid)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ProcessContext.Tid)
+				return int((*Event)(ctx.Object).ProcessContext.Process.Tid)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -2912,33 +2768,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveProcessTTY(&(*Event)(ctx.Object).ProcessContext.Process)
+				return (*Event)(ctx.Object).ProcessContext.Process.TTYName
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 
-				return int((*Event)(ctx.Object).ResolveCredentialsUID(&(*Event)(ctx.Object).ProcessContext.Process.Credentials))
+				return int((*Event)(ctx.Object).ProcessContext.Process.Credentials.UID)
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "process.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveCredentialsUser(&(*Event)(ctx.Object).ProcessContext.Process.Credentials)
+				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.User
 			},
-			Field: field,
-
-			Weight: eval.HandlerWeight,
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "removexattr.file.container_path":
@@ -2947,8 +2800,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).RemoveXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2956,10 +2808,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).GetXAttrName(&(*Event)(ctx.Object).RemoveXAttr)
+				return (*Event)(ctx.Object).ResolveXAttrName(&(*Event)(ctx.Object).RemoveXAttr)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2967,10 +2818,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).GetXAttrNamespace(&(*Event)(ctx.Object).RemoveXAttr)
+				return (*Event)(ctx.Object).ResolveXAttrNamespace(&(*Event)(ctx.Object).RemoveXAttr)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2980,8 +2830,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).RemoveXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -2991,8 +2840,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3000,10 +2848,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3013,8 +2860,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).RemoveXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3024,8 +2870,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3035,8 +2880,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3046,8 +2890,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3057,8 +2900,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).RemoveXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3066,10 +2908,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).RemoveXAttr.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).RemoveXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3079,8 +2920,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3090,8 +2930,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3099,10 +2938,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3112,8 +2950,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).RemoveXAttr.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3123,8 +2960,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.Old)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3134,8 +2970,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.New)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3145,8 +2980,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rename.New)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3156,8 +2990,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3165,10 +2998,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Rename.New.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.New.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3178,8 +3010,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rename.New)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3189,8 +3020,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3200,8 +3030,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3211,8 +3040,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3222,8 +3050,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.New)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3231,10 +3058,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.New)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rename.New)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3244,8 +3070,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Rename.New.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3255,8 +3080,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3264,10 +3088,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Rename.New.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rename.New.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3277,8 +3100,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rename.Old)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3288,8 +3110,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3297,10 +3118,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Rename.Old.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rename.Old.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3310,8 +3130,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rename.Old)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3321,8 +3140,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3332,8 +3150,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3343,8 +3160,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3354,8 +3170,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rename.Old)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3363,10 +3178,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rename.Old)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rename.Old)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3376,8 +3190,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Rename.Old.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3387,8 +3200,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.Old.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3396,10 +3208,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Rename.Old.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rename.Old.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3409,8 +3220,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rename.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3420,8 +3230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rmdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3431,8 +3240,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Rmdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3442,8 +3250,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3451,10 +3258,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Rmdir.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Rmdir.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3464,8 +3270,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rmdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3475,8 +3280,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3486,8 +3290,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3497,8 +3300,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3508,8 +3310,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Rmdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3517,10 +3318,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Rmdir.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rmdir.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3530,8 +3330,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Rmdir.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3541,8 +3340,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3550,10 +3348,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Rmdir.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Rmdir.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3563,8 +3360,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Rmdir.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3574,8 +3370,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.EGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3585,8 +3380,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetgidEGroup(&(*Event)(ctx.Object).SetGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3596,8 +3390,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.FSGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3607,8 +3400,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetgidFSGroup(&(*Event)(ctx.Object).SetGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3618,8 +3410,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetGID.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3629,8 +3420,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetgidGroup(&(*Event)(ctx.Object).SetGID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3640,8 +3430,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.EUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3651,8 +3440,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetuidEUser(&(*Event)(ctx.Object).SetUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3662,8 +3450,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.FSUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3673,8 +3460,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetuidFSUser(&(*Event)(ctx.Object).SetUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3684,8 +3470,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetUID.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3695,8 +3480,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveSetuidUser(&(*Event)(ctx.Object).SetUID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3706,8 +3490,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).SetXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3715,10 +3498,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).GetXAttrName(&(*Event)(ctx.Object).SetXAttr)
+				return (*Event)(ctx.Object).ResolveXAttrName(&(*Event)(ctx.Object).SetXAttr)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3726,10 +3508,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).GetXAttrNamespace(&(*Event)(ctx.Object).SetXAttr)
+				return (*Event)(ctx.Object).ResolveXAttrNamespace(&(*Event)(ctx.Object).SetXAttr)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3739,8 +3520,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).SetXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3750,8 +3530,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3759,10 +3538,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3772,8 +3550,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).SetXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3783,8 +3560,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3794,8 +3570,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3805,8 +3580,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3816,8 +3590,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).SetXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3825,10 +3598,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).SetXAttr.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).SetXAttr.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3838,8 +3610,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).SetXAttr.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3849,8 +3620,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3858,10 +3628,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3871,8 +3640,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).SetXAttr.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3882,8 +3650,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Unlink.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3893,8 +3660,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Unlink.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3904,8 +3670,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3913,10 +3678,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Unlink.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Unlink.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3926,8 +3690,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Unlink.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3937,8 +3700,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3948,8 +3710,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3959,8 +3720,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -3970,8 +3730,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Unlink.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3979,10 +3738,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Unlink.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Unlink.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -3992,8 +3750,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Unlink.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4003,8 +3760,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4012,10 +3768,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Unlink.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Unlink.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4025,8 +3780,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Unlink.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4036,8 +3790,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Utimes.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4047,8 +3800,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).Utimes.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4058,8 +3810,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.GID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4067,10 +3818,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveGroup(&(*Event)(ctx.Object).Utimes.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Utimes.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4080,8 +3830,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Utimes.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4091,8 +3840,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Inode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4102,8 +3850,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4113,8 +3860,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.MountID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4124,8 +3870,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).Utimes.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4133,10 +3878,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveFileInode(&(*Event)(ctx.Object).Utimes.File)
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Utimes.File)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4146,8 +3890,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).Utimes.File.FileFields))
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4157,8 +3900,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.UID)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4166,10 +3908,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveUser(&(*Event)(ctx.Object).Utimes.File.FileFields)
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).Utimes.File.FileFields)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
 
@@ -4179,8 +3920,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 				return int((*Event)(ctx.Object).Utimes.SyscallEvent.Retval)
 			},
-			Field: field,
-
+			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
 
@@ -4266,6 +4006,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.id",
 
+		"container.tags",
+
 		"exec.args",
 
 		"exec.args_flags",
@@ -4281,6 +4023,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.cap_permitted",
 
 		"exec.comm",
+
+		"exec.container.id",
 
 		"exec.cookie",
 
@@ -4332,7 +4076,11 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.group",
 
+		"exec.pid",
+
 		"exec.ppid",
+
+		"exec.tid",
 
 		"exec.tty_name",
 
@@ -4464,6 +4212,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.comm",
 
+		"process.ancestors.container.id",
+
 		"process.ancestors.cookie",
 
 		"process.ancestors.egid",
@@ -4510,8 +4260,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.group",
 
-		"process.ancestors.id",
-
 		"process.ancestors.pid",
 
 		"process.ancestors.ppid",
@@ -4529,6 +4277,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.cap_permitted",
 
 		"process.comm",
+
+		"process.container.id",
 
 		"process.cookie",
 
@@ -4849,7 +4599,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chmod.file.group":
 
-		return e.ResolveGroup(&e.Chmod.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Chmod.File.FileFields), nil
 
 	case "chmod.file.in_upper_layer":
 
@@ -4873,7 +4623,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chmod.file.path":
 
-		return e.ResolveFileInode(&e.Chmod.File), nil
+		return e.ResolveFilePath(&e.Chmod.File), nil
 
 	case "chmod.file.rights":
 
@@ -4885,7 +4635,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chmod.file.user":
 
-		return e.ResolveUser(&e.Chmod.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Chmod.File.FileFields), nil
 
 	case "chmod.retval":
 
@@ -4921,7 +4671,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chown.file.group":
 
-		return e.ResolveGroup(&e.Chown.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Chown.File.FileFields), nil
 
 	case "chown.file.in_upper_layer":
 
@@ -4945,7 +4695,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chown.file.path":
 
-		return e.ResolveFileInode(&e.Chown.File), nil
+		return e.ResolveFilePath(&e.Chown.File), nil
 
 	case "chown.file.rights":
 
@@ -4957,7 +4707,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chown.file.user":
 
-		return e.ResolveUser(&e.Chown.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Chown.File.FileFields), nil
 
 	case "chown.retval":
 
@@ -4966,6 +4716,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "container.id":
 
 		return e.ResolveContainerID(&e.ContainerContext), nil
+
+	case "container.tags":
+
+		return e.ResolveContainerTags(&e.ContainerContext), nil
 
 	case "exec.args":
 
@@ -4989,27 +4743,31 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.cap_effective":
 
-		return int(e.ResolveCredentialsCapEffective(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.CapEffective), nil
 
 	case "exec.cap_permitted":
 
-		return int(e.ResolveCredentialsCapPermitted(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.CapPermitted), nil
 
 	case "exec.comm":
 
-		return e.ResolveProcessComm(&e.Exec.Process), nil
+		return e.Exec.Process.Comm, nil
+
+	case "exec.container.id":
+
+		return e.Exec.Process.ContainerID, nil
 
 	case "exec.cookie":
 
-		return int(e.ResolveProcessCookie(&e.Exec.Process)), nil
+		return int(e.Exec.Process.Cookie), nil
 
 	case "exec.egid":
 
-		return int(e.ResolveCredentialsEGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.EGID), nil
 
 	case "exec.egroup":
 
-		return e.ResolveCredentialsEGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.EGroup, nil
 
 	case "exec.envs":
 
@@ -5021,19 +4779,19 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.euid":
 
-		return int(e.ResolveCredentialsEUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.EUID), nil
 
 	case "exec.euser":
 
-		return e.ResolveCredentialsEUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.EUser, nil
 
 	case "exec.file.container_path":
 
-		return e.ResolveProcessContainerPath(&e.Exec.Process), nil
+		return e.Exec.Process.ContainerPath, nil
 
 	case "exec.file.filesystem":
 
-		return e.ResolveProcessFilesystem(&e.Exec.Process), nil
+		return e.Exec.Process.Filesystem, nil
 
 	case "exec.file.gid":
 
@@ -5041,7 +4799,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.group":
 
-		return e.ResolveGroup(&e.Exec.Process.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Exec.Process.FileFields), nil
 
 	case "exec.file.inode":
 
@@ -5057,11 +4815,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.name":
 
-		return e.ResolveProcessBasename(&e.Exec.Process), nil
+		return e.Exec.Process.BasenameStr, nil
 
 	case "exec.file.path":
 
-		return e.ResolveProcessInode(&e.Exec.Process), nil
+		return e.Exec.Process.PathnameStr, nil
 
 	case "exec.file.rights":
 
@@ -5073,47 +4831,55 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.file.user":
 
-		return e.ResolveUser(&e.Exec.Process.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Exec.Process.FileFields), nil
 
 	case "exec.fsgid":
 
-		return int(e.ResolveCredentialsFSGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.FSGID), nil
 
 	case "exec.fsgroup":
 
-		return e.ResolveCredentialsFSGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.FSGroup, nil
 
 	case "exec.fsuid":
 
-		return int(e.ResolveCredentialsFSUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.FSUID), nil
 
 	case "exec.fsuser":
 
-		return e.ResolveCredentialsFSUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.FSUser, nil
 
 	case "exec.gid":
 
-		return int(e.ResolveCredentialsGID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.GID), nil
 
 	case "exec.group":
 
-		return e.ResolveCredentialsGroup(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.Group, nil
+
+	case "exec.pid":
+
+		return int(e.Exec.Process.Pid), nil
 
 	case "exec.ppid":
 
-		return int(e.ResolveProcessPPID(&e.Exec.Process)), nil
+		return int(e.Exec.Process.PPid), nil
+
+	case "exec.tid":
+
+		return int(e.Exec.Process.Tid), nil
 
 	case "exec.tty_name":
 
-		return e.ResolveProcessTTY(&e.Exec.Process), nil
+		return e.Exec.Process.TTYName, nil
 
 	case "exec.uid":
 
-		return int(e.ResolveCredentialsUID(&e.Exec.Process.Credentials)), nil
+		return int(e.Exec.Process.Credentials.UID), nil
 
 	case "exec.user":
 
-		return e.ResolveCredentialsUser(&e.Exec.Process.Credentials), nil
+		return e.Exec.Process.Credentials.User, nil
 
 	case "link.file.container_path":
 
@@ -5133,7 +4899,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.destination.group":
 
-		return e.ResolveGroup(&e.Link.Target.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Link.Target.FileFields), nil
 
 	case "link.file.destination.in_upper_layer":
 
@@ -5157,7 +4923,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.destination.path":
 
-		return e.ResolveFileInode(&e.Link.Target), nil
+		return e.ResolveFilePath(&e.Link.Target), nil
 
 	case "link.file.destination.rights":
 
@@ -5169,7 +4935,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.destination.user":
 
-		return e.ResolveUser(&e.Link.Target.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Link.Target.FileFields), nil
 
 	case "link.file.filesystem":
 
@@ -5181,7 +4947,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.group":
 
-		return e.ResolveGroup(&e.Link.Source.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Link.Source.FileFields), nil
 
 	case "link.file.in_upper_layer":
 
@@ -5205,7 +4971,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.path":
 
-		return e.ResolveFileInode(&e.Link.Source), nil
+		return e.ResolveFilePath(&e.Link.Source), nil
 
 	case "link.file.rights":
 
@@ -5217,7 +4983,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.user":
 
-		return e.ResolveUser(&e.Link.Source.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Link.Source.FileFields), nil
 
 	case "link.retval":
 
@@ -5245,7 +5011,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "mkdir.file.group":
 
-		return e.ResolveGroup(&e.Mkdir.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Mkdir.File.FileFields), nil
 
 	case "mkdir.file.in_upper_layer":
 
@@ -5269,7 +5035,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "mkdir.file.path":
 
-		return e.ResolveFileInode(&e.Mkdir.File), nil
+		return e.ResolveFilePath(&e.Mkdir.File), nil
 
 	case "mkdir.file.rights":
 
@@ -5281,7 +5047,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "mkdir.file.user":
 
-		return e.ResolveUser(&e.Mkdir.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Mkdir.File.FileFields), nil
 
 	case "mkdir.retval":
 
@@ -5305,7 +5071,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "open.file.group":
 
-		return e.ResolveGroup(&e.Open.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Open.File.FileFields), nil
 
 	case "open.file.in_upper_layer":
 
@@ -5329,7 +5095,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "open.file.path":
 
-		return e.ResolveFileInode(&e.Open.File), nil
+		return e.ResolveFilePath(&e.Open.File), nil
 
 	case "open.file.rights":
 
@@ -5341,7 +5107,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "open.file.user":
 
-		return e.ResolveUser(&e.Open.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Open.File.FileFields), nil
 
 	case "open.flags":
 
@@ -5364,7 +5130,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsCapEffective(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.CapEffective)
 
 			values = append(values, result)
 
@@ -5386,7 +5152,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsCapPermitted(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
 
 			values = append(values, result)
 
@@ -5408,7 +5174,29 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessComm(&element.Process)
+			result := element.ProcessContext.Process.Comm
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.container.id":
+
+		var values []string
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := element.ProcessContext.Process.ContainerID
 
 			values = append(values, result)
 
@@ -5430,7 +5218,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveProcessCookie(&element.Process))
+			result := int(element.ProcessContext.Process.Cookie)
 
 			values = append(values, result)
 
@@ -5452,7 +5240,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsEGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.EGID)
 
 			values = append(values, result)
 
@@ -5474,7 +5262,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsEGroup(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.EGroup
 
 			values = append(values, result)
 
@@ -5496,7 +5284,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsEUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.EUID)
 
 			values = append(values, result)
 
@@ -5518,7 +5306,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsEUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.EUser
 
 			values = append(values, result)
 
@@ -5540,7 +5328,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessContainerPath(&element.Process)
+			result := element.ProcessContext.Process.ContainerPath
 
 			values = append(values, result)
 
@@ -5562,7 +5350,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessFilesystem(&element.Process)
+			result := element.ProcessContext.Process.Filesystem
 
 			values = append(values, result)
 
@@ -5606,7 +5394,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveGroup(&element.FileFields)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.FileFields)
 
 			values = append(values, result)
 
@@ -5694,7 +5482,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessBasename(&element.Process)
+			result := element.ProcessContext.Process.BasenameStr
 
 			values = append(values, result)
 
@@ -5716,7 +5504,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessInode(&element.Process)
+			result := element.ProcessContext.Process.PathnameStr
 
 			values = append(values, result)
 
@@ -5782,7 +5570,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveUser(&element.FileFields)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.FileFields)
 
 			values = append(values, result)
 
@@ -5804,7 +5592,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsFSGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.FSGID)
 
 			values = append(values, result)
 
@@ -5826,7 +5614,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsFSGroup(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.FSGroup
 
 			values = append(values, result)
 
@@ -5848,7 +5636,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsFSUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.FSUID)
 
 			values = append(values, result)
 
@@ -5870,7 +5658,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsFSUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.FSUser
 
 			values = append(values, result)
 
@@ -5892,7 +5680,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsGID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.GID)
 
 			values = append(values, result)
 
@@ -5914,29 +5702,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsGroup(&element.Credentials)
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.id":
-
-		var values []string
-
-		ctx := eval.NewContext(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := (*Event)(ctx.Object).ResolveContainerID(&element.ContainerContext)
+			result := element.ProcessContext.Process.Credentials.Group
 
 			values = append(values, result)
 
@@ -5958,7 +5724,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.Pid)
+			result := int(element.ProcessContext.Process.Pid)
 
 			values = append(values, result)
 
@@ -5980,7 +5746,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveProcessPPID(&element.Process))
+			result := int(element.ProcessContext.Process.PPid)
 
 			values = append(values, result)
 
@@ -6002,7 +5768,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int(element.ProcessContext.Tid)
+			result := int(element.ProcessContext.Process.Tid)
 
 			values = append(values, result)
 
@@ -6024,7 +5790,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveProcessTTY(&element.Process)
+			result := element.ProcessContext.Process.TTYName
 
 			values = append(values, result)
 
@@ -6046,7 +5812,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := int((*Event)(ctx.Object).ResolveCredentialsUID(&element.Credentials))
+			result := int(element.ProcessContext.Process.Credentials.UID)
 
 			values = append(values, result)
 
@@ -6068,7 +5834,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			element := (*model.ProcessCacheEntry)(ptr)
 
-			result := (*Event)(ctx.Object).ResolveCredentialsUser(&element.Credentials)
+			result := element.ProcessContext.Process.Credentials.User
 
 			values = append(values, result)
 
@@ -6079,43 +5845,47 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.cap_effective":
 
-		return int(e.ResolveCredentialsCapEffective(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.CapEffective), nil
 
 	case "process.cap_permitted":
 
-		return int(e.ResolveCredentialsCapPermitted(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.CapPermitted), nil
 
 	case "process.comm":
 
-		return e.ResolveProcessComm(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.Comm, nil
+
+	case "process.container.id":
+
+		return e.ProcessContext.Process.ContainerID, nil
 
 	case "process.cookie":
 
-		return int(e.ResolveProcessCookie(&e.ProcessContext.Process)), nil
+		return int(e.ProcessContext.Process.Cookie), nil
 
 	case "process.egid":
 
-		return int(e.ResolveCredentialsEGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.EGID), nil
 
 	case "process.egroup":
 
-		return e.ResolveCredentialsEGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.EGroup, nil
 
 	case "process.euid":
 
-		return int(e.ResolveCredentialsEUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.EUID), nil
 
 	case "process.euser":
 
-		return e.ResolveCredentialsEUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.EUser, nil
 
 	case "process.file.container_path":
 
-		return e.ResolveProcessContainerPath(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.ContainerPath, nil
 
 	case "process.file.filesystem":
 
-		return e.ResolveProcessFilesystem(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.Filesystem, nil
 
 	case "process.file.gid":
 
@@ -6123,7 +5893,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.group":
 
-		return e.ResolveGroup(&e.ProcessContext.Process.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.ProcessContext.Process.FileFields), nil
 
 	case "process.file.inode":
 
@@ -6139,11 +5909,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.name":
 
-		return e.ResolveProcessBasename(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.BasenameStr, nil
 
 	case "process.file.path":
 
-		return e.ResolveProcessInode(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.PathnameStr, nil
 
 	case "process.file.rights":
 
@@ -6155,55 +5925,55 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "process.file.user":
 
-		return e.ResolveUser(&e.ProcessContext.Process.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.ProcessContext.Process.FileFields), nil
 
 	case "process.fsgid":
 
-		return int(e.ResolveCredentialsFSGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.FSGID), nil
 
 	case "process.fsgroup":
 
-		return e.ResolveCredentialsFSGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.FSGroup, nil
 
 	case "process.fsuid":
 
-		return int(e.ResolveCredentialsFSUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.FSUID), nil
 
 	case "process.fsuser":
 
-		return e.ResolveCredentialsFSUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.FSUser, nil
 
 	case "process.gid":
 
-		return int(e.ResolveCredentialsGID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.GID), nil
 
 	case "process.group":
 
-		return e.ResolveCredentialsGroup(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.Group, nil
 
 	case "process.pid":
 
-		return int(e.ProcessContext.Pid), nil
+		return int(e.ProcessContext.Process.Pid), nil
 
 	case "process.ppid":
 
-		return int(e.ResolveProcessPPID(&e.ProcessContext.Process)), nil
+		return int(e.ProcessContext.Process.PPid), nil
 
 	case "process.tid":
 
-		return int(e.ProcessContext.Tid), nil
+		return int(e.ProcessContext.Process.Tid), nil
 
 	case "process.tty_name":
 
-		return e.ResolveProcessTTY(&e.ProcessContext.Process), nil
+		return e.ProcessContext.Process.TTYName, nil
 
 	case "process.uid":
 
-		return int(e.ResolveCredentialsUID(&e.ProcessContext.Process.Credentials)), nil
+		return int(e.ProcessContext.Process.Credentials.UID), nil
 
 	case "process.user":
 
-		return e.ResolveCredentialsUser(&e.ProcessContext.Process.Credentials), nil
+		return e.ProcessContext.Process.Credentials.User, nil
 
 	case "removexattr.file.container_path":
 
@@ -6211,11 +5981,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "removexattr.file.destination.name":
 
-		return e.GetXAttrName(&e.RemoveXAttr), nil
+		return e.ResolveXAttrName(&e.RemoveXAttr), nil
 
 	case "removexattr.file.destination.namespace":
 
-		return e.GetXAttrNamespace(&e.RemoveXAttr), nil
+		return e.ResolveXAttrNamespace(&e.RemoveXAttr), nil
 
 	case "removexattr.file.filesystem":
 
@@ -6227,7 +5997,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "removexattr.file.group":
 
-		return e.ResolveGroup(&e.RemoveXAttr.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.RemoveXAttr.File.FileFields), nil
 
 	case "removexattr.file.in_upper_layer":
 
@@ -6251,7 +6021,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "removexattr.file.path":
 
-		return e.ResolveFileInode(&e.RemoveXAttr.File), nil
+		return e.ResolveFilePath(&e.RemoveXAttr.File), nil
 
 	case "removexattr.file.rights":
 
@@ -6263,7 +6033,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "removexattr.file.user":
 
-		return e.ResolveUser(&e.RemoveXAttr.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.RemoveXAttr.File.FileFields), nil
 
 	case "removexattr.retval":
 
@@ -6287,7 +6057,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.destination.group":
 
-		return e.ResolveGroup(&e.Rename.New.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Rename.New.FileFields), nil
 
 	case "rename.file.destination.in_upper_layer":
 
@@ -6311,7 +6081,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.destination.path":
 
-		return e.ResolveFileInode(&e.Rename.New), nil
+		return e.ResolveFilePath(&e.Rename.New), nil
 
 	case "rename.file.destination.rights":
 
@@ -6323,7 +6093,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.destination.user":
 
-		return e.ResolveUser(&e.Rename.New.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Rename.New.FileFields), nil
 
 	case "rename.file.filesystem":
 
@@ -6335,7 +6105,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.group":
 
-		return e.ResolveGroup(&e.Rename.Old.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Rename.Old.FileFields), nil
 
 	case "rename.file.in_upper_layer":
 
@@ -6359,7 +6129,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.path":
 
-		return e.ResolveFileInode(&e.Rename.Old), nil
+		return e.ResolveFilePath(&e.Rename.Old), nil
 
 	case "rename.file.rights":
 
@@ -6371,7 +6141,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.user":
 
-		return e.ResolveUser(&e.Rename.Old.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Rename.Old.FileFields), nil
 
 	case "rename.retval":
 
@@ -6391,7 +6161,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rmdir.file.group":
 
-		return e.ResolveGroup(&e.Rmdir.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Rmdir.File.FileFields), nil
 
 	case "rmdir.file.in_upper_layer":
 
@@ -6415,7 +6185,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rmdir.file.path":
 
-		return e.ResolveFileInode(&e.Rmdir.File), nil
+		return e.ResolveFilePath(&e.Rmdir.File), nil
 
 	case "rmdir.file.rights":
 
@@ -6427,7 +6197,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rmdir.file.user":
 
-		return e.ResolveUser(&e.Rmdir.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Rmdir.File.FileFields), nil
 
 	case "rmdir.retval":
 
@@ -6487,11 +6257,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "setxattr.file.destination.name":
 
-		return e.GetXAttrName(&e.SetXAttr), nil
+		return e.ResolveXAttrName(&e.SetXAttr), nil
 
 	case "setxattr.file.destination.namespace":
 
-		return e.GetXAttrNamespace(&e.SetXAttr), nil
+		return e.ResolveXAttrNamespace(&e.SetXAttr), nil
 
 	case "setxattr.file.filesystem":
 
@@ -6503,7 +6273,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "setxattr.file.group":
 
-		return e.ResolveGroup(&e.SetXAttr.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.SetXAttr.File.FileFields), nil
 
 	case "setxattr.file.in_upper_layer":
 
@@ -6527,7 +6297,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "setxattr.file.path":
 
-		return e.ResolveFileInode(&e.SetXAttr.File), nil
+		return e.ResolveFilePath(&e.SetXAttr.File), nil
 
 	case "setxattr.file.rights":
 
@@ -6539,7 +6309,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "setxattr.file.user":
 
-		return e.ResolveUser(&e.SetXAttr.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.SetXAttr.File.FileFields), nil
 
 	case "setxattr.retval":
 
@@ -6559,7 +6329,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "unlink.file.group":
 
-		return e.ResolveGroup(&e.Unlink.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Unlink.File.FileFields), nil
 
 	case "unlink.file.in_upper_layer":
 
@@ -6583,7 +6353,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "unlink.file.path":
 
-		return e.ResolveFileInode(&e.Unlink.File), nil
+		return e.ResolveFilePath(&e.Unlink.File), nil
 
 	case "unlink.file.rights":
 
@@ -6595,7 +6365,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "unlink.file.user":
 
-		return e.ResolveUser(&e.Unlink.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Unlink.File.FileFields), nil
 
 	case "unlink.retval":
 
@@ -6615,7 +6385,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "utimes.file.group":
 
-		return e.ResolveGroup(&e.Utimes.File.FileFields), nil
+		return e.ResolveFileFieldsGroup(&e.Utimes.File.FileFields), nil
 
 	case "utimes.file.in_upper_layer":
 
@@ -6639,7 +6409,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "utimes.file.path":
 
-		return e.ResolveFileInode(&e.Utimes.File), nil
+		return e.ResolveFilePath(&e.Utimes.File), nil
 
 	case "utimes.file.rights":
 
@@ -6651,7 +6421,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "utimes.file.user":
 
-		return e.ResolveUser(&e.Utimes.File.FileFields), nil
+		return e.ResolveFileFieldsUser(&e.Utimes.File.FileFields), nil
 
 	case "utimes.retval":
 
@@ -6776,6 +6546,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.id":
 		return "*", nil
 
+	case "container.tags":
+		return "*", nil
+
 	case "exec.args":
 		return "exec", nil
 
@@ -6798,6 +6571,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.comm":
+		return "exec", nil
+
+	case "exec.container.id":
 		return "exec", nil
 
 	case "exec.cookie":
@@ -6875,7 +6651,13 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.group":
 		return "exec", nil
 
+	case "exec.pid":
+		return "exec", nil
+
 	case "exec.ppid":
+		return "exec", nil
+
+	case "exec.tid":
 		return "exec", nil
 
 	case "exec.tty_name":
@@ -7073,6 +6855,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.comm":
 		return "*", nil
 
+	case "process.ancestors.container.id":
+		return "*", nil
+
 	case "process.ancestors.cookie":
 		return "*", nil
 
@@ -7142,9 +6927,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.group":
 		return "*", nil
 
-	case "process.ancestors.id":
-		return "*", nil
-
 	case "process.ancestors.pid":
 		return "*", nil
 
@@ -7170,6 +6952,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.comm":
+		return "*", nil
+
+	case "process.container.id":
 		return "*", nil
 
 	case "process.cookie":
@@ -7754,6 +7539,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "container.tags":
+
+		return reflect.String, nil
+
 	case "exec.args":
 
 		return reflect.String, nil
@@ -7783,6 +7572,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.comm":
+
+		return reflect.String, nil
+
+	case "exec.container.id":
 
 		return reflect.String, nil
 
@@ -7886,7 +7679,15 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.pid":
+
+		return reflect.Int, nil
+
 	case "exec.ppid":
+
+		return reflect.Int, nil
+
+	case "exec.tid":
 
 		return reflect.Int, nil
 
@@ -8150,6 +7951,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.container.id":
+
+		return reflect.String, nil
+
 	case "process.ancestors.cookie":
 
 		return reflect.Int, nil
@@ -8242,10 +8047,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "process.ancestors.id":
-
-		return reflect.String, nil
-
 	case "process.ancestors.pid":
 
 		return reflect.Int, nil
@@ -8279,6 +8080,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.comm":
+
+		return reflect.String, nil
+
+	case "process.container.id":
 
 		return reflect.String, nil
 
@@ -9239,6 +9044,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "container.tags":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
+		}
+		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
+
+		return nil
+
 	case "exec.args":
 
 		var ok bool
@@ -9319,6 +9135,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Comm"}
 		}
 		e.Exec.Process.Comm = str
+
+		return nil
+
+	case "exec.container.id":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
+		}
+		e.Exec.Process.ContainerID = str
 
 		return nil
 
@@ -9582,6 +9409,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "exec.pid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Pid"}
+		}
+		e.Exec.Process.Pid = uint32(v)
+		return nil
+
 	case "exec.ppid":
 
 		var ok bool
@@ -9590,6 +9427,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
 		}
 		e.Exec.Process.PPid = uint32(v)
+		return nil
+
+	case "exec.tid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Tid"}
+		}
+		e.Exec.Process.Tid = uint32(v)
 		return nil
 
 	case "exec.tty_name":
@@ -10273,6 +10120,21 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.ancestors.container.id":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = str
+
+		return nil
+
 	case "process.ancestors.cookie":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -10606,21 +10468,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "process.ancestors.id":
-
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ContainerContext.ID"}
-		}
-		e.ProcessContext.Ancestor.ContainerContext.ID = str
-
-		return nil
-
 	case "process.ancestors.pid":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -10630,9 +10477,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Pid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Pid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Pid = uint32(v)
 		return nil
 
 	case "process.ancestors.ppid":
@@ -10658,9 +10505,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Tid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Tid = uint32(v)
+		e.ProcessContext.Ancestor.ProcessContext.Process.Tid = uint32(v)
 		return nil
 
 	case "process.ancestors.tty_name":
@@ -10735,6 +10582,17 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
 		}
 		e.ProcessContext.Process.Comm = str
+
+		return nil
+
+	case "process.container.id":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerID"}
+		}
+		e.ProcessContext.Process.ContainerID = str
 
 		return nil
 
@@ -10984,9 +10842,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Pid"}
 		}
-		e.ProcessContext.Pid = uint32(v)
+		e.ProcessContext.Process.Pid = uint32(v)
 		return nil
 
 	case "process.ppid":
@@ -11004,9 +10862,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Tid"}
 		}
-		e.ProcessContext.Tid = uint32(v)
+		e.ProcessContext.Process.Tid = uint32(v)
 		return nil
 
 	case "process.tty_name":
