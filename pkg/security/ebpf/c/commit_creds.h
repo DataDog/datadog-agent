@@ -34,12 +34,16 @@ int __attribute__((always_inline)) trace__credentials_update(u64 type) {
     return 0;
 }
 
+int __attribute__((always_inline)) credentials_predicate(u64 type) {
+    return type == EVENT_SETUID || type == EVENT_SETGID || type == EVENT_CAPSET;
+}
+
 int __attribute__((always_inline)) trace__credentials_update_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     if (retval < 0)
         return 0;
 
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_SETUID | SYSCALL_SETGID | SYSCALL_CAPSET);
+    struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
     if (!syscall)
         return 0;
 
@@ -55,19 +59,19 @@ int __attribute__((always_inline)) trace__credentials_update_ret(struct pt_regs 
     fill_container_context(entry, &event.container);
 
     switch (syscall->type) {
-        case SYSCALL_SETUID:
+        case EVENT_SETUID:
             event_type = EVENT_SETUID;
             event.setuid.uid = pid_entry->credentials.uid;
             event.setuid.euid = pid_entry->credentials.euid;
             event.setuid.fsuid = pid_entry->credentials.fsuid;
             break;
-        case SYSCALL_SETGID:
+        case EVENT_SETGID:
             event_type = EVENT_SETGID;
             event.setgid.gid = pid_entry->credentials.gid;
             event.setgid.egid = pid_entry->credentials.egid;
             event.setgid.fsgid = pid_entry->credentials.fsgid;
             break;
-        case SYSCALL_CAPSET:
+        case EVENT_CAPSET:
             event_type = EVENT_CAPSET;
             event.capset.cap_effective = pid_entry->credentials.cap_effective;
             event.capset.cap_permitted = pid_entry->credentials.cap_permitted;
@@ -79,7 +83,7 @@ int __attribute__((always_inline)) trace__credentials_update_ret(struct pt_regs 
 }
 
 SYSCALL_KPROBE0(setuid) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setuid) {
@@ -87,7 +91,7 @@ SYSCALL_KRETPROBE(setuid) {
 }
 
 SYSCALL_KPROBE0(seteuid) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(seteuid) {
@@ -95,7 +99,7 @@ SYSCALL_KRETPROBE(seteuid) {
 }
 
 SYSCALL_KPROBE0(setfsuid) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setfsuid) {
@@ -103,7 +107,7 @@ SYSCALL_KRETPROBE(setfsuid) {
 }
 
 SYSCALL_KPROBE0(setreuid) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setreuid) {
@@ -111,7 +115,7 @@ SYSCALL_KRETPROBE(setreuid) {
 }
 
 SYSCALL_KPROBE0(setresuid) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setresuid) {
@@ -119,7 +123,7 @@ SYSCALL_KRETPROBE(setresuid) {
 }
 
 SYSCALL_KPROBE0(setuid16) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setuid16) {
@@ -127,7 +131,7 @@ SYSCALL_KRETPROBE(setuid16) {
 }
 
 SYSCALL_KPROBE0(seteuid16) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(seteuid16) {
@@ -135,7 +139,7 @@ SYSCALL_KRETPROBE(seteuid16) {
 }
 
 SYSCALL_KPROBE0(setfsuid16) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setfsuid16) {
@@ -143,7 +147,7 @@ SYSCALL_KRETPROBE(setfsuid16) {
 }
 
 SYSCALL_KPROBE0(setreuid16) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setreuid16) {
@@ -151,7 +155,7 @@ SYSCALL_KRETPROBE(setreuid16) {
 }
 
 SYSCALL_KPROBE0(setresuid16) {
-    return trace__credentials_update(SYSCALL_SETUID);
+    return trace__credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setresuid16) {
@@ -161,7 +165,7 @@ SYSCALL_KRETPROBE(setresuid16) {
 
 
 SYSCALL_KPROBE0(setgid) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setgid) {
@@ -169,7 +173,7 @@ SYSCALL_KRETPROBE(setgid) {
 }
 
 SYSCALL_KPROBE0(setegid) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setegid) {
@@ -177,7 +181,7 @@ SYSCALL_KRETPROBE(setegid) {
 }
 
 SYSCALL_KPROBE0(setfsgid) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setfsgid) {
@@ -185,7 +189,7 @@ SYSCALL_KRETPROBE(setfsgid) {
 }
 
 SYSCALL_KPROBE0(setregid) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setregid) {
@@ -193,7 +197,7 @@ SYSCALL_KRETPROBE(setregid) {
 }
 
 SYSCALL_KPROBE0(setresgid) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setresgid) {
@@ -201,7 +205,7 @@ SYSCALL_KRETPROBE(setresgid) {
 }
 
 SYSCALL_KPROBE0(setgid16) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setgid16) {
@@ -209,7 +213,7 @@ SYSCALL_KRETPROBE(setgid16) {
 }
 
 SYSCALL_KPROBE0(setegid16) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setegid16) {
@@ -217,7 +221,7 @@ SYSCALL_KRETPROBE(setegid16) {
 }
 
 SYSCALL_KPROBE0(setfsgid16) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setfsgid16) {
@@ -225,7 +229,7 @@ SYSCALL_KRETPROBE(setfsgid16) {
 }
 
 SYSCALL_KPROBE0(setregid16) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setregid16) {
@@ -233,7 +237,7 @@ SYSCALL_KRETPROBE(setregid16) {
 }
 
 SYSCALL_KPROBE0(setresgid16) {
-    return trace__credentials_update(SYSCALL_SETGID);
+    return trace__credentials_update(EVENT_SETGID);
 }
 
 SYSCALL_KRETPROBE(setresgid16) {
@@ -243,7 +247,7 @@ SYSCALL_KRETPROBE(setresgid16) {
 
 
 SYSCALL_KPROBE0(capset) {
-    return trace__credentials_update(SYSCALL_CAPSET);
+    return trace__credentials_update(EVENT_CAPSET);
 }
 
 SYSCALL_KRETPROBE(capset) {

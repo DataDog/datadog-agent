@@ -10,6 +10,7 @@ What inspired you to submit this pull request?
 
 Anything else we should know when reviewing?
 
-### Describe your test plan
+### Describe how to test your changes
 
-Write there any instructions and details that should be tested during the QA.
+Write here in detail how you have tested your changes
+and instructions on how this should be tested in QA.

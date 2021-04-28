@@ -153,6 +153,8 @@ func (e *Event) GetEventType() EventType {
 // GetTags returns the list of tags specific to this event
 func (e *Event) GetTags() []string {
 	tags := []string{"type:" + e.GetType()}
+
+	// should already be resolved at this stage
 	if len(e.ContainerContext.Tags) > 0 {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}

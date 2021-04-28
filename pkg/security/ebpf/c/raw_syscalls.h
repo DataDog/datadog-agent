@@ -22,18 +22,14 @@ struct bpf_map_def SEC("maps/concurrent_syscalls") concurrent_syscalls = {
     .namespace = "",
 };
 
-#define CONCURRENT_SYSCALLS_COUNTER 0
-
-struct _tracepoint_raw_syscalls_sys_exit
-{
-    unsigned short common_type;
-    unsigned char common_flags;
-    unsigned char common_preempt_count;
-    int common_pid;
-
-    long id;
-    long ret;
+struct bpf_map_def SEC("maps/sys_exit_progs") sys_exit_progs = {
+    .type = BPF_MAP_TYPE_PROG_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 64,
 };
+
+#define CONCURRENT_SYSCALLS_COUNTER 0
 
 struct process_syscall_t {
     char comm[TASK_COMM_LEN];
@@ -88,16 +84,37 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     return 0;
 }
 
-SEC("tracepoint/raw_syscalls/sys_exit")
-int sys_exit(struct _tracepoint_raw_syscalls_sys_exit *args) {
-    u32 key = CONCURRENT_SYSCALLS_COUNTER;
-    long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
-    if (concurrent_syscalls_counter == NULL)
+// used as fallback for kernel < 4.12
+int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall)
         return 0;
 
-    __sync_fetch_and_add(concurrent_syscalls_counter, -1);
-    if (*concurrent_syscalls_counter < 0) {
-        __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+    bpf_tail_call(args, &sys_exit_progs, syscall->type);
+
+    return 0;
+}
+
+SEC("tracepoint/raw_syscalls/sys_exit")
+int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    u64 fallback;
+    LOAD_CONSTANT("kretprobe_fallback", fallback);
+    if (fallback) {
+        handle_sys_exit(args);
+    }
+
+    u64 enabled;
+    LOAD_CONSTANT("syscall_monitor", enabled);
+    if (enabled) {
+        u32 key = CONCURRENT_SYSCALLS_COUNTER;
+        long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
+        if (concurrent_syscalls_counter == NULL)
+            return 0;
+
+        __sync_fetch_and_add(concurrent_syscalls_counter, -1);
+        if (*concurrent_syscalls_counter < 0) {
+            __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+        }
     }
 
     return 0;

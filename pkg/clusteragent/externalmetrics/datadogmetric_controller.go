@@ -36,7 +36,7 @@ const (
 var (
 	gvrDDM  = datadoghq.GroupVersion.WithResource("datadogmetrics")
 	metaDDM = metav1.TypeMeta{
-		Kind:       "datadogmetric",
+		Kind:       "DatadogMetric",
 		APIVersion: "datadoghq.com/v1alpha1",
 	}
 )

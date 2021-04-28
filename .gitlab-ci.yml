@@ -20,6 +20,7 @@ include:
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
   - /.gitlab/deploy_invalidate.yml
+  - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
   - /.gitlab/kitchen_cleanup.yml
@@ -67,6 +68,7 @@ stages:
   - choco_build
   - choco_deploy
   - deploy_invalidate
+  - internal_image_deploy
   - trigger_release
   - e2e
   - kitchen_cleanup

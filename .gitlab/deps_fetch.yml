@@ -7,7 +7,7 @@
   stage: deps_fetch
   needs: []
   script:
-    - inv -e deps --verbose
+    - inv -e deps
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
   artifacts:
     expire_in: 1 day

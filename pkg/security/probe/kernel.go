@@ -21,6 +21,7 @@ import (
 
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
+	kernel4_12 = kernel.VersionCode(4, 12, 0) //nolint:deadcode,unused
 	kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
 	kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
 	kernel5_3  = kernel.VersionCode(5, 3, 0)  //nolint:deadcode,unused

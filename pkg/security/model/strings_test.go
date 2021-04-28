@@ -17,3 +17,11 @@ func TestIsPrintable(t *testing.T) {
 	assert.Equal(t, false, IsPrintable("\n"))
 	assert.Equal(t, false, IsPrintable("\u001d"))
 }
+
+func TestIsPrintableASCII(t *testing.T) {
+	assert.Equal(t, true, IsPrintableASCII("A-B"))
+	assert.Equal(t, true, IsPrintableASCII("A/B"))
+	assert.Equal(t, true, IsPrintableASCII("/dev/pts2"))
+	assert.Equal(t, false, IsPrintableASCII("\n"))
+	assert.Equal(t, false, IsPrintableASCII("\u001d"))
+}

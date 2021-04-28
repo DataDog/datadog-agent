@@ -23,7 +23,7 @@ struct mount_event_t {
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_MOUNT,
+        .type = EVENT_MOUNT,
     };
 
     cache_syscall(&syscall);
@@ -32,7 +32,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 
 SEC("kprobe/attach_recursive_mnt")
 int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
 
@@ -55,7 +55,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
 
 SEC("kprobe/propagate_mnt")
 int kprobe__propagate_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
 
@@ -76,12 +76,7 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
-SYSCALL_COMPAT_KRETPROBE(mount) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MOUNT);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) do_sys_mount_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
     if (retval)
         return 0;
 
@@ -115,6 +110,24 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     send_event(ctx, EVENT_MOUNT, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_mount_exit")
+int handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    if (!syscall)
+        return 0;
+
+    return do_sys_mount_ret(args, syscall, args->ret);
+}
+
+SYSCALL_COMPAT_KRETPROBE(mount) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_mount_ret(ctx, syscall, retval);
 }
 
 #endif

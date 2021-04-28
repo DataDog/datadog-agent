@@ -19,6 +19,16 @@ type Summary interface {
 	Delete(tagsValue ...string)
 }
 
+type summaryNoOp struct{}
+
+func (h summaryNoOp) Observe(_ float64, _ ...string) {}
+func (h summaryNoOp) Delete(_ ...string)             {}
+
+// NewSummaryNoOp creates a dummy Summary
+func NewSummaryNoOp() Summary {
+	return summaryNoOp{}
+}
+
 // NewSummary creates a Summary with default options for telemetry purpose.
 // Current implementation used: Prometheus Summary
 func NewSummary(subsystem, name string, tags []string, help string) Summary {

@@ -28,7 +28,7 @@ int __attribute__((always_inline)) trace__sys_utimes() {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_UTIME,
+        .type = EVENT_UTIME,
         .policy = policy,
     };
 
@@ -63,12 +63,7 @@ SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
     return trace__sys_utimes();
 }
 
-int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UTIME);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) do_sys_utimes_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
@@ -93,6 +88,24 @@ int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
     send_event(ctx, EVENT_UTIME, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_utimes_exit")
+int handle_sys_utimes_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
+    if (!syscall)
+        return 0;
+
+    return do_sys_utimes_ret(args, syscall, args->ret);
+}
+
+int __attribute__((always_inline)) trace__sys_utimes_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_utimes_ret(ctx, syscall, retval);
 }
 
 SYSCALL_COMPAT_KRETPROBE(utime) {

@@ -11,12 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -129,6 +127,10 @@ func StartSystemProbe() error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	if err := initRuntimeSettings(); err != nil {
+		log.Warnf("cannot initialize the runtime settings: %v", err)
+	}
+
 	if pidfilePath != "" {
 		if err := pidfile.WritePID(pidfilePath); err != nil {
 			return log.Errorf("Error while writing PID file, exiting: %v", err)
@@ -153,11 +155,6 @@ func StartSystemProbe() error {
 		return log.Criticalf("Error configuring statsd: %s", err)
 	}
 
-	conn, err := net.NewListener(cfg.SocketAddress)
-	if err != nil {
-		return log.Criticalf("Error creating IPC socket: %s", err)
-	}
-
 	// if a debug port is specified, we expose the default handler to that port
 	if cfg.DebugPort > 0 {
 		go func() {
@@ -168,31 +165,15 @@ func StartSystemProbe() error {
 		}()
 	}
 
-	httpMux := http.NewServeMux()
-	err = api.Register(cfg, httpMux, modules.All)
-	if err != nil {
-		return log.Criticalf("failed to create system probe: %s", err)
+	if err = api.StartServer(cfg); err != nil {
+		return log.Criticalf("Error while starting api server, exiting: %v", err)
 	}
-
-	// Register stats endpoint
-	httpMux.HandleFunc("/debug/stats", func(w http.ResponseWriter, req *http.Request) {
-		stats := api.GetStats()
-		utils.WriteAsJSON(w, stats)
-	})
-
-	go func() {
-		err = http.Serve(conn.GetListener(), httpMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating HTTP server: %s", err)
-		}
-	}()
-
 	return nil
 }
 
 // StopSystemProbe Tears down the system-probe process
 func StopSystemProbe() {
-	api.Close()
+	module.Close()
 	profiler.Stop()
 	_ = os.Remove(pidfilePath)
 	log.Flush()

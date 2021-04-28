@@ -5,15 +5,15 @@
 
 SEC("kprobe/filename_create")
 int kprobe__filename_create(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR | SYSCALL_LINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return 0;
 
     switch (syscall->type) {
-        case SYSCALL_MKDIR:
+        case EVENT_MKDIR:
             syscall->mkdir.path = (struct path *)PT_REGS_PARM3(ctx);
             break;
-       case SYSCALL_LINK:
+       case EVENT_LINK:
             syscall->link.target_path = (struct path *)PT_REGS_PARM3(ctx);
             break;
     }
