@@ -109,6 +109,6 @@ MessageId=15
 SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
 Severity=Warning
 Language=English
-System probe restarting afer %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
+System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
 .
 

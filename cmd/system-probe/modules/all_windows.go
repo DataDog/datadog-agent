@@ -3,6 +3,8 @@
 package modules
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -17,12 +19,11 @@ const (
 	msgSysprobeRestartInactivity = 0x8000000f
 )
 
-func inactivityEventLog(duration string) {
+func inactivityEventLog(duration time.Duration) {
 	elog, err := eventlog.Open(config.ServiceName)
 	if err != nil {
 		return
 	}
 	defer elog.Close()
-	elog.Warning(msgSysprobeRestartInactivity, duration)
-	return
+	elog.Warning(msgSysprobeRestartInactivity, duration.String())
 }
