@@ -2,7 +2,11 @@
 
 package modules
 
-import "github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+)
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
@@ -11,4 +15,8 @@ var All = []module.Factory{
 	OOMKillProbe,
 	SecurityRuntime,
 	Process,
+}
+
+func inactivityEventLog(duration time.Duration) {
+
 }
