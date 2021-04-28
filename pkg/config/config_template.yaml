@@ -78,7 +78,7 @@ api_key:
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param extra_tags - list of key:value elements - optional
-## List of aditional host tqgs. Attached in-app to every metric, event, log,
+## List of aditional host tags. Attached in-app to every metric, event, log,
 ## trace, and service check emitted by this Agent.
 ##
 ## This list is combined with the `tags` setting. This setting can be used to
