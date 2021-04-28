@@ -429,7 +429,7 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorOut <- om
 }
 
-// NetworkDevicesMetadata submit network-devices metadata messages
+// NetworkDevicesMetadata submits network-devices metadata messages
 func (s *checkSender) NetworkDevicesMetadata(msgs []serializer.ProcessMessageBody, payloadType string) {
 	om := senderNetworkDevicesMetadata{
 		msgs:        msgs,
