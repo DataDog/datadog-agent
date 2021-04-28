@@ -141,7 +141,7 @@ func load(configPath string) (*Config, error) {
 
 		ProfilingEnabled:     cfg.GetBool(key(spNS, "internal_profiling.enabled")),
 		ProfilingSite:        cfg.GetString(key(spNS, "internal_profiling.site")),
-		ProfilingURL:         cfg.GetString(key(spNS, "profiling.profile_dd_url")),
+		ProfilingURL:         cfg.GetString(key(spNS, "internal_profiling.profile_dd_url")),
 		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
 		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
 	}
