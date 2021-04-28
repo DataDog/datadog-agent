@@ -15,6 +15,7 @@ core,"code.cloudfoundry.org/gofileutils/fileutils",Apache-2.0
 core,"code.cloudfoundry.org/lager",Apache-2.0
 core,"code.cloudfoundry.org/tlsconfig",Apache-2.0
 core,"github.com/DataDog/agent-payload/gogen",NewBSD
+core,"github.com/DataDog/agent-payload/network-devices",NewBSD
 core,"github.com/DataDog/agent-payload/process",NewBSD
 core,"github.com/DataDog/datadog-go/statsd",MIT
 core,"github.com/DataDog/datadog-operator/api/v1alpha1",Apache-2.0
