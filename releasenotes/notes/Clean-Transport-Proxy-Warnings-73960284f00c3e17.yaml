@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Fix incessant deprecation warnings relating to no_proxy_nonexact_match.
+    Transport Proxy Warnings will now only list the affected HTTP scheme and
+    host necessary to adjust the agent's proxy settings.
