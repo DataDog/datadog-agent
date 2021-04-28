@@ -128,11 +128,10 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 		// Print a warning if the proxy behavior would change if the new no_proxy behavior would be enabled
 		newURL, _ := proxyConfig.ProxyFunc()(r.URL)
 		if url != newURL && url != nil {
-			urlString := r.URL.String()
+			logSafeURL := r.URL.Scheme + "://" + r.URL.Host
 			NoProxyWarningMapMutex.Lock()
-			if _, ok := NoProxyWarningMap[urlString]; !ok {
-				NoProxyWarningMap[log.SanitizeURL(r.URL.String())] = true
-				logSafeURL := r.URL.Scheme + "://" + r.URL.Host
+			if _, ok := NoProxyWarningMap[logSafeURL]; !ok {
+				NoProxyWarningMap[logSafeURL] = true
 				log.Warnf("Deprecation warning: the HTTP request to %s uses proxy %s but will ignore the proxy when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version. Please adapt the Agent’s proxy configuration accordingly", logSafeURL, url.String())
 			}
 			NoProxyWarningMapMutex.Unlock()
