@@ -187,6 +187,6 @@ func TestGetProxyMeta(t *testing.T) {
 func TestGetNetworkInfo(t *testing.T) {
 	ni, err := GetNetworkInfo()
 	require.NoError(t, err)
-	require.Greater(t, ni.EphemeralPortStart, uint16(1024))
+	require.GreaterOrEqual(t, ni.EphemeralPortStart, uint16(1024))
 	require.LessOrEqual(t, ni.EphemeralPortEnd, uint16(65535))
 }
