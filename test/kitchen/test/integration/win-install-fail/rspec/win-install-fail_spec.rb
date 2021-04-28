@@ -24,7 +24,7 @@ shared_examples_for 'a device with no dd-agent-user' do
     expect(is_user).to be_empty
   end
 end
-describe 'dd-agent-install-fail' do
+describe 'dd-agent-win-install-fail' do
   it_behaves_like 'a device with no files installed'
   it_behaves_like 'a device with no dd-agent-user'
 end

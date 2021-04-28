@@ -122,7 +122,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: install-fail
+  - name: win-install-fail
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
