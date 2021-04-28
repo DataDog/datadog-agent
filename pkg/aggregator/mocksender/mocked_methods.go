@@ -72,8 +72,8 @@ func (m *MockSender) EventPlatformEvent(rawEvent string, eventType string) {
 }
 
 //HistogramBucket enables the histogram bucket mock call.
-func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
-	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
+func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 }
 
 //Commit enables the commit mock call.

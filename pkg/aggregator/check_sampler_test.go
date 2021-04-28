@@ -201,13 +201,14 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	checkSampler := newCheckSampler(10 * time.Millisecond)
 
 	bucket1 := &metrics.HistogramBucket{
-		Name:       "my.histogram",
-		Value:      4.0,
-		LowerBound: 10.0,
-		UpperBound: 20.0,
-		Tags:       []string{"foo", "bar"},
-		Timestamp:  12345.0,
-		Monotonic:  true,
+		Name:            "my.histogram",
+		Value:           4.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
 	}
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
@@ -267,6 +268,46 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 	assert.Equal(t, len(checkSampler.lastSeenBucket), 0)
+}
+
+func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
+	checkSampler := newCheckSampler(10 * time.Millisecond)
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           4.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	}
+	checkSampler.addBucket(bucket1)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
+
+	checkSampler.commit(12349.0)
+	_, flushed := checkSampler.flush()
+	assert.Equal(t, 0, len(flushed))
+
+	bucket2 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      6.0,
+		LowerBound: 10.0,
+		UpperBound: 20.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12400.0,
+		Monotonic:  true,
+	}
+	checkSampler.addBucket(bucket2)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
+
+	checkSampler.commit(12401.0)
+	_, flushed = checkSampler.flush()
+
+	assert.Equal(t, 1, len(flushed))
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
