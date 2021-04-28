@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCanRestart(t *testing.T) {
@@ -30,9 +32,7 @@ func TestCanRestart(t *testing.T) {
 		for cidx, check := range tt.checks {
 			name := fmt.Sprintf("%d/%d", tidx, cidx)
 			t.Run(name, func(t *testing.T) {
-				if got := r.canRestart(tref.Add(check.now)); got != check.result {
-					t.Errorf("restartLimiter.canRestart() = %v, want %v", got, check.result)
-				}
+				require.Equal(t, check.result, r.canRestart(tref.Add(check.now)))
 			})
 		}
 	}
