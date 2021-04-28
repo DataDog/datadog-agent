@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	kubelet "github.com/DataDog/datadog-agent/pkg/util/hostname/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"io/ioutil"
@@ -107,7 +106,7 @@ func GetPythonVersion() string {
 // getHostAliases returns the hostname aliases from different provider
 // This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
-	aliases := config.Datadog.GetStringSlice("host_aliases")
+	aliases := config.GetValidHostAliases()
 
 	alibabaAlias, err := alibaba.GetHostAlias()
 	if err != nil {
@@ -151,16 +150,7 @@ func getHostAliases() []string {
 		aliases = append(aliases, tencentAlias)
 	}
 
-	validatedAliases := []string{}
-	for _, alias := range util.SortUniqInPlace(aliases) {
-		if err := validate.ValidHostname(alias); err == nil {
-			validatedAliases = append(validatedAliases, alias)
-		} else {
-			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
-		}
-	}
-
-	return validatedAliases
+	return util.SortUniqInPlace(aliases)
 }
 
 func getPublicIPv4() (string, error) {

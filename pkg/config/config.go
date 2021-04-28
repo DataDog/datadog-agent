@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -1328,4 +1329,23 @@ func GetBindHost() string {
 	}
 
 	return "localhost"
+}
+
+// GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
+// only valid ones.
+func GetValidHostAliases() []string {
+	return getValidHostAliasesWithConfig(Datadog)
+}
+
+func getValidHostAliasesWithConfig(config Config) []string {
+	aliases := []string{}
+	for _, alias := range config.GetStringSlice("host_aliases") {
+		if err := validate.ValidHostname(alias); err == nil {
+			aliases = append(aliases, alias)
+		} else {
+			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
+		}
+	}
+
+	return aliases
 }
