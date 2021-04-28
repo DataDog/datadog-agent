@@ -5,7 +5,7 @@ import "time"
 // restartLimiter checks if too many restarts happened within a time period
 type restartLimiter struct {
 	maxRestarts int
-	interval    float64
+	interval    float64 // in seconds
 	stopTimes   []time.Time
 	idx         int
 }
