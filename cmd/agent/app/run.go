@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	ndcfg "github.com/DataDog/datadog-agent/pkg/network-devices/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -80,8 +81,9 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder  *forwarder.DefaultForwarder
-	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	orchestratorForwarder   *forwarder.DefaultForwarder
+	networkDevicesForwarder *forwarder.DefaultForwarder
+	eventPlatformForwarder  epforwarder.EventPlatformForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -347,11 +349,18 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
+	// setup the orchestrator forwarder (only on cluster check runners)
+	networkDevicesForwarder = ndcfg.NewNetworkDevicesForwarder()
+	log.Warnf("networkDevicesForwarder: %s", networkDevicesForwarder)  // TODO: REMOVE ME
+	if networkDevicesForwarder != nil {
+		networkDevicesForwarder.Start() //nolint:errcheck
+	}
+
 	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
 	eventPlatformForwarder.Start()
 
 	// setup the aggregator
-	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
+	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder, networkDevicesForwarder)
 	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 

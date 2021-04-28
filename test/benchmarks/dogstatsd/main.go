@@ -225,7 +225,7 @@ func main() {
 
 	mockConfig.Set("dogstatsd_stats_enable", true)
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
-	s := serializer.NewSerializer(f, nil)
+	s := serializer.NewSerializer(f, nil, nil)
 	aggr := aggregator.InitAggregator(s, nil, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), nil)
 	if err != nil {

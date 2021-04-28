@@ -140,3 +140,8 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }
+
+// SubmitNetworkDevicesChecks sends network-devices checks
+func (f *SyncForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	return f.defaultForwarder.SubmitNetworkDevicesChecks(payload, extra, payloadType)
+}

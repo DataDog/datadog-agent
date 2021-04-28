@@ -43,6 +43,7 @@ type senderWithChans struct {
 	eventChan              chan metrics.Event
 	bucketChan             chan senderHistogramBucket
 	orchestratorChan       chan senderOrchestratorMetadata
+	networkDevicesChan     chan senderNetworkDevicesMetadata
 	eventPlatformEventChan chan senderEventPlatformEvent
 	sender                 *checkSender
 }
@@ -53,8 +54,9 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 	s.eventChan = make(chan metrics.Event, 10)
 	s.bucketChan = make(chan senderHistogramBucket, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
+	s.networkDevicesChan = make(chan senderNetworkDevicesMetadata, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.eventPlatformEventChan)
+	s.sender = newCheckSender(id, defaultHostname, s.senderMetricSampleChan, s.serviceCheckChan, s.eventChan, s.bucketChan, s.orchestratorChan, s.networkDevicesChan, s.eventPlatformEventChan)
 	return s
 }
 
@@ -139,8 +141,9 @@ func TestGetAndSetSender(t *testing.T) {
 	eventChan := make(chan metrics.Event, 10)
 	bucketChan := make(chan senderHistogramBucket, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
+	networkDevicesChan := make(chan senderNetworkDevicesMetadata, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, eventPlatformChan)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, networkDevicesChan, eventPlatformChan)
 
 	err := SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)

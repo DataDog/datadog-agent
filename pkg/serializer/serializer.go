@@ -99,12 +99,14 @@ type MetricSerializer interface {
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error
+	SendNetworkDevicesMetadata(msgs []ProcessMessageBody, hostName, payloadType string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
 type Serializer struct {
-	Forwarder             forwarder.Forwarder
-	orchestratorForwarder forwarder.Forwarder
+	Forwarder               forwarder.Forwarder
+	orchestratorForwarder   forwarder.Forwarder
+	networkDevicesForwarder forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -126,10 +128,11 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarder.Forwarder, networkDevicesForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
+		networkDevicesForwarder:       networkDevicesForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -418,6 +421,39 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 
 		payloads := forwarder.Payloads{&body}
 		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		if err != nil {
+			return log.Errorf("Unable to submit payload: %s", err)
+		}
+
+		// Consume the responses so that writers to the channel do not become blocked
+		// we don't need the bodies here though
+		for range responses {
+
+		}
+	}
+	return nil
+}
+
+// SendNetworkDevicesMetadata serializes & send network-devices metadata payloads
+func (s *Serializer) SendNetworkDevicesMetadata(msgs []ProcessMessageBody, hostName, payloadType string) error {
+	log.Debugf("[DEV] SendNetworkDevicesMetadata")
+	// TODO: Use networkDevicesForwarder
+	if s.networkDevicesForwarder == nil {
+		return errors.New("network-devices forwarder is not setup")
+	}
+	for _, m := range msgs {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(headers.HostHeader, hostName)
+		//extraHeaders.Set(headers.ClusterIDHeader, clusterID)
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+
+		body, err := processPayloadEncoder(m)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %s", err)
+		}
+
+		payloads := forwarder.Payloads{&body}
+		responses, err := s.networkDevicesForwarder.SubmitNetworkDevicesChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
 		}

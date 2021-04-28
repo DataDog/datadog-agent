@@ -63,7 +63,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 			}
 		}
 	}
-	status["OrchestratorEndpoints"] = endpoints
+	status["NetworkDevicesEndpoints"] = endpoints
 
 	// get cache size
 	status["CacheNumber"] = orchestrator.KubernetesResourceCache.ItemCount()

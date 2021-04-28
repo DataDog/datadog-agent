@@ -760,6 +760,12 @@ func InitConfig(config Config) {
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
+	// Network Devices
+	config.BindEnvAndSetDefault("network_devices.enabled", false)
+	config.BindEnv("network_devices.network_devices_dd_url", "") //nolint:errcheck
+	config.SetKnown("network_devices.network_devices_additional_endpoints.*")
+	config.BindEnvAndSetDefault("network_devices.extra_tags", []string{})
+
 	// Process agent
 	config.SetKnown("process_config.dd_agent_env")
 	config.SetKnown("process_config.enabled")

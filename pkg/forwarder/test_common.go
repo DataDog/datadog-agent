@@ -166,3 +166,8 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
+
+// SubmitNetworkDevicesChecks mock
+func (tf *MockedForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}

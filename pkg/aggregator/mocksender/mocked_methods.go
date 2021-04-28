@@ -106,3 +106,8 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
 	m.Called(msgs, clusterID, payloadType)
 }
+
+// NetworkDevicesMetadata submit network-devices metadata messages
+func (m *MockSender) NetworkDevicesMetadata(msgs []serializer.ProcessMessageBody, payloadType string) {
+	m.Called(msgs, payloadType)
+}

@@ -57,3 +57,8 @@ func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }
+
+// SendNetworkDevicesMetadata serializes & send network-devices metadata payloads
+func (s *MockSerializer) SendNetworkDevicesMetadata(msgs []ProcessMessageBody, hostName, payloadType string) error {
+	return s.Called(msgs, hostName, payloadType).Error(0)
+}
