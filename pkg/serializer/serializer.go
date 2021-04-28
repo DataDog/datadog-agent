@@ -436,15 +436,12 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 
 // SendNetworkDevicesMetadata serializes & send network-devices metadata payloads
 func (s *Serializer) SendNetworkDevicesMetadata(msgs []ProcessMessageBody, hostName, payloadType string) error {
-	log.Debugf("[DEV] SendNetworkDevicesMetadata")
-	// TODO: Use networkDevicesForwarder
 	if s.networkDevicesForwarder == nil {
 		return errors.New("network-devices forwarder is not setup")
 	}
 	for _, m := range msgs {
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.HostHeader, hostName)
-		//extraHeaders.Set(headers.ClusterIDHeader, clusterID)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
 
 		body, err := processPayloadEncoder(m)
