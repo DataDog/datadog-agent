@@ -20,7 +20,7 @@ import (
 extern void submitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
-extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
+extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
 extern void submitEventPlatformEvent(char *, char *, char *);
 
 static void initAggregatorTests(rtloader_t *rtloader) {
