@@ -36,7 +36,7 @@ func (r *restartLimiter) canRestart(now time.Time) bool {
 	// <= ival _after_ the first maxRestarts-1 attempts.
 	canRestart := r.stopTimes[r.idx].Sub(r.stopTimes[oldestIdx]).Seconds() > r.interval
 
-	r.idx = (r.idx + 1) % r.maxRestarts
+	r.idx = oldestIdx
 
 	return canRestart
 }
