@@ -12,3 +12,7 @@ var All = []module.Factory{
 	SecurityRuntime,
 	Process,
 }
+
+func inactivityEventLog(duration string) {
+
+}

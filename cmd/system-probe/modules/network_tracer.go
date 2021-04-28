@@ -115,6 +115,7 @@ func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 
 	nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
 		log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
+		inactivityEventLog(inactivityRestartDuration.String())
 		nt.Close()
 		os.Exit(1)
 	})
