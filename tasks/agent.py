@@ -362,6 +362,9 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
+    if 'INTEGRATIONS_CORE_VERSION' in os.environ:
+        env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
+
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
         pfxfile = get_signing_cert(ctx)
