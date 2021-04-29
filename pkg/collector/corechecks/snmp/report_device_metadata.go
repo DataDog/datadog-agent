@@ -11,7 +11,7 @@ import (
 func (ms *metricSender) reportDeviceMetadata(store *resultValueStore, tags []string) {
 	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
 
-	clusterMessage := &network_devices.Device{
+	deviceMessage := &network_devices.Device{
 		Id:                  "my-Id",
 		Name:                "my-Name",
 		Description:         "my-Description",
@@ -39,7 +39,7 @@ func (ms *metricSender) reportDeviceMetadata(store *resultValueStore, tags []str
 		},
 	}
 
-	ms.sendDeviceMetadata(clusterMessage)
+	ms.sendDeviceMetadata(deviceMessage)
 }
 
 func (ms *metricSender) sendDeviceMetadata(clusterMessage process.MessageBody) {
