@@ -217,7 +217,7 @@ func submitEvent(id *C.char, ev *C.event_t) {
 }
 
 //export submitHistogramBucket
-func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
+func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)
@@ -228,6 +228,7 @@ func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLo
 	if t != nil {
 		tags = append(tags, charArrayToSlice(t)...)
 	}
+	flushFirstValue = bool(fFirstValue)
 }
 
 //export submitEventPlatformEvent
