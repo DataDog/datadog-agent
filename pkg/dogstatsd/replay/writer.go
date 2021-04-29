@@ -84,8 +84,15 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	log.Debug("Starting capture...")
 
 	tc.Lock()
+	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
+	if err := os.MkdirAll(filepath.Dir(p), 0770); err != nil {
+		log.Errorf("There was an issue writing the expected location: %v ", err)
 
-	fp, err := os.Create(path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix())))
+		tc.Unlock()
+		return
+	}
+
+	fp, err := os.Create(p)
 	if err != nil {
 		log.Errorf("There was an issue starting the capture: %v ", err)
 

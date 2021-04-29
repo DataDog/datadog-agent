@@ -390,6 +390,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
+	// Location to store dogstatsd captures by default
+	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
+	// Depth of the channel the capture writer reads before persisting to disk.
+	// Default is 0 - blocking channel
+	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
 
 	_ = config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
