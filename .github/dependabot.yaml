@@ -9,7 +9,7 @@ updates:
     milestone: 22
     ignore:
       # These dependencies are replaced in the main go.mod file.
-      # They are ignored since bumping them would have not effect on the build.
+      # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
       - dependency-name: k8s.io/*
       - dependency-name: github.com/grpc-ecosystem/grpc-gateway
