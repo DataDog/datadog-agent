@@ -64,7 +64,7 @@ static PyObject *submit_topology_event(PyObject *self, PyObject *args) {
 
     topology_event = as_yaml(event_dict);
     if (topology_event == NULL) {
-        // if as_yaml fils it sets py exception so we just return
+        // If as_yaml fails it sets a python exception, so we just return
         goto error;
     } else {
         cb_submit_topology_event(check_id, topology_event);
@@ -72,9 +72,9 @@ static PyObject *submit_topology_event(PyObject *self, PyObject *args) {
     }
 
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
+    Py_RETURN_NONE; // Success
 
 error:
     PyGILState_Release(gstate);
-    return NULL;
+    return NULL; // Failure
 }

@@ -88,27 +88,32 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     char *component_type;
     PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
-    char *yaml_data;
+    char *yaml_data = NULL;
+    PyObject * retval = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsOssO", &check, &check_id, &instance_key_dict, &component_id, &component_type, &data_dict)) {
-      goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!PyDict_Check(instance_key_dict)) {
         PyErr_SetString(PyExc_TypeError, "component instance key must be a dict");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!PyDict_Check(data_dict)) {
         PyErr_SetString(PyExc_TypeError, "component data must be a dict");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!(instance_key = (instance_key_t *)_malloc(sizeof(instance_key_t)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for topology instance key");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
@@ -116,19 +121,28 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     yaml_data = as_yaml(data_dict);
-    cb_submit_component(check_id, instance_key, component_id, component_type, yaml_data);
+    if (yaml_data == NULL) {
+        // If as_yaml fails it sets a python exception, so we just return
+        retval = NULL; // Failure
+        goto done;
+    } else {
+        cb_submit_component(check_id, instance_key, component_id, component_type, yaml_data);
 
-    _free(instance_key->type_);
-    _free(instance_key->url);
-    _free(instance_key);
-    _free(yaml_data);
+        Py_INCREF(Py_None); // Increment, since we are not using the macro Py_RETURN_NONE that does it for us
+        retval = Py_None; // Success
+    }
 
+done:
+    if (instance_key != NULL) {
+        _free(instance_key->type_);
+        _free(instance_key->url);
+        _free(instance_key);
+    }
+    if (yaml_data != NULL) {
+        _free(yaml_data);
+    }
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
-
-error:
-    PyGILState_Release(gstate);
-    return NULL;
+    return retval;
 }
 
 /*! \fn submit_relation(PyObject *self, PyObject *args)
@@ -154,27 +168,32 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     char *relation_type;
     PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
-    char *yaml_data;
+    char *yaml_data = NULL;
+    PyObject * retval = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     if (!PyArg_ParseTuple(args, "OsOsssO", &check, &check_id, &instance_key_dict, &source_id, &target_id, &relation_type, &data_dict)) {
-      goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!PyDict_Check(instance_key_dict)) {
         PyErr_SetString(PyExc_TypeError, "relation instance key must be a dict");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!PyDict_Check(data_dict)) {
         PyErr_SetString(PyExc_TypeError, "relation data must be a dict");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     if (!(instance_key = (instance_key_t *)_malloc(sizeof(instance_key_t)))) {
         PyErr_SetString(PyExc_RuntimeError, "could not allocate memory for topology instance key");
-        goto error;
+        retval = NULL; // Failure
+        goto done;
     }
 
     // notice: PyDict_GetItemString returns a borrowed ref or NULL if key was not found
@@ -182,19 +201,28 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
     yaml_data = as_yaml(data_dict);
-    cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, yaml_data);
+    if (yaml_data == NULL) {
+        // If as_yaml fails it sets a python exception, so we just return
+        retval = NULL; // Failure
+        goto done;
+    } else {
+        cb_submit_relation(check_id, instance_key, source_id, target_id, relation_type, yaml_data);
 
-    _free(instance_key->type_);
-    _free(instance_key->url);
-    _free(instance_key);
-    _free(yaml_data);
+        Py_INCREF(Py_None); // Increment, since we are not using the macro Py_RETURN_NONE that does it for us
+        retval = Py_None; // Success
+    }
 
+done:
+    if (instance_key != NULL) {
+        _free(instance_key->type_);
+        _free(instance_key->url);
+        _free(instance_key);
+    }
+    if (yaml_data != NULL) {
+        _free(yaml_data);
+    }
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
-
-error:
-    PyGILState_Release(gstate);
-    return NULL;
+    return retval;
 }
 
 /*! \fn submit_start_snapshot(PyObject *self, PyObject *args)
@@ -244,11 +272,11 @@ static PyObject *submit_start_snapshot(PyObject *self, PyObject *args) {
     _free(instance_key);
 
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
+    Py_RETURN_NONE; // Success
 
 error:
     PyGILState_Release(gstate);
-    return NULL;
+    return NULL; // Failure
 }
 
 /*! \fn submit_stop_snapshot(PyObject *self, PyObject *args)
@@ -298,9 +326,9 @@ static PyObject *submit_stop_snapshot(PyObject *self, PyObject *args) {
     _free(instance_key);
 
     PyGILState_Release(gstate);
-    Py_RETURN_NONE;
+    Py_RETURN_NONE; // Success
 
 error:
     PyGILState_Release(gstate);
-    return NULL;
+    return NULL; // Failure
 }

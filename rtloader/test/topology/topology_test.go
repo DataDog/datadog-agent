@@ -3,6 +3,7 @@ package testtopology
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
@@ -108,7 +109,40 @@ func TestSubmitComponent(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
-//test passing something that cannot be yaml unmarshalled ?
+func TestSubmitComponentNoDict(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`topology.submit_component(None, "checkid", {"type": "instance.type", "url": "instance.url"}, "compid", "comptype", "I should be a dict")`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: component data must be a dict" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitComponentCannotBeSerialized(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`topology.submit_component(None, "checkid", {"type": "instance.type", "url": "instance.url"}, "compid", "comptype", {object(): object()})`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	// example error 'RepresenterError: ('cannot represent an object', <object object at 0x7fc1df8f3e90>)'
+	if !strings.HasPrefix(out, "RepresenterError: ('cannot represent an object'") {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
 
 func TestSubmitRelation(t *testing.T) {
 	// Reset memory counters
@@ -143,6 +177,41 @@ func TestSubmitRelation(t *testing.T) {
 	}
 
 	testTopoData(t)
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitRelationNoDict(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`topology.submit_relation(None, "checkid", {"type": "instance.type", "url": "instance.url"}, "source", "target", "mytype", "I should be a dict")`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: relation data must be a dict" {
+		t.Errorf("wrong printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitRelationCannotBeSerialized(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(`topology.submit_relation(None, "checkid", {"type": "instance.type", "url": "instance.url"}, "source", "target", "mytype", {object(): object()})`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	// example error 'RepresenterError: ('cannot represent an object', <object object at 0x7fc1df8f3e90>)'
+	if !strings.HasPrefix(out, "RepresenterError: ('cannot represent an object'") {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
 
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
