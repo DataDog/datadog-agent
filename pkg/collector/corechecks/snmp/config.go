@@ -41,6 +41,7 @@ type snmpInstanceConfig struct {
 	Profile          string            `yaml:"profile"`
 	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
 	ExtraTags        string            `yaml:"extra_tags"` // comma separated tags
+	Tags             []string          `yaml:"tags"`
 }
 
 type snmpConfig struct {
@@ -64,6 +65,7 @@ type snmpConfig struct {
 	profileTags       []string
 	uptimeMetricAdded bool
 	extraTags         []string
+	instanceTags      []string
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -194,6 +196,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 	normalizeMetrics(c.metrics)
 
+	c.instanceTags = instance.Tags
 	c.metricTags = instance.MetricTags
 
 	c.oidConfig.scalarOids = parseScalarOids(c.metrics, c.metricTags)
