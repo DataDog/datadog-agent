@@ -31,16 +31,6 @@ func init() {
 	cloud = &cloudProviderImpl{}
 }
 
-type cloudProvider interface {
-	IsAWS() bool
-}
-
-var cloud cloudProvider
-
-func init() {
-	cloud = &cloudProviderImpl{}
-}
-
 func gwLookupEnabled(config *config.Config) bool {
 	// only enabled on AWS currently
 	return config.EnableGatewayLookup && cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
