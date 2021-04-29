@@ -5,17 +5,13 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
+
 .kitchen_test_system_probe:
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
-  rules:
-    - changes:
-        - pkg/ebpf/**/*
-        - pkg/network/**/*
-      when: on_success
-    - when: manual
-      allow_failure: true
   stage: functional_test
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -29,6 +25,13 @@
   extends:
     - .kitchen_test_system_probe
     - .kitchen_azure_location_north_central_us
+  rules:
+    - changes:
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+      when: on_success
+    - when: manual
+      allow_failure: true
   needs: [ "tests_ebpf_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
@@ -38,6 +41,15 @@
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
+  rules:
+    - <<: *if_not_run_all_builds
+      when: never
+    - changes:
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+      when: on_success
+    - when: manual
+      allow_failure: true
   needs: [ "tests_ebpf_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
