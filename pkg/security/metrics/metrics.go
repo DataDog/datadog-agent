@@ -22,7 +22,7 @@ var (
 	// Load controller metrics
 
 	// MetricLoadControllerPidDiscarder is the name of the metric used to count the number of pid discarders
-	// Tags: event_type
+	// Tags: -
 	MetricLoadControllerPidDiscarder = newRuntimeMetric(".load_controller.pids_discarder")
 
 	// Rate limiter metrics

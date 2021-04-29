@@ -252,9 +252,9 @@ func StartAgent() error {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
-	// Setup Profiling
-	if config.Datadog.GetBool("profiling.enabled") {
-		err := settings.SetRuntimeSetting("profiling", true)
+	// Setup Internal Profiling
+	if config.Datadog.GetBool("internal_profiling.enabled") {
+		err := settings.SetRuntimeSetting("internal_profiling", true)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}
