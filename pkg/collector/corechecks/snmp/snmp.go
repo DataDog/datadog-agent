@@ -97,6 +97,8 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
 
+		// TODO: Put metadata collection behind a config flag
+		
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
