@@ -113,6 +113,13 @@ var (
 	MetricSecurityAgentRuntimeRunning = newAgentMetric(".runtime.running")
 	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
 	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
+
+	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent
+	// `Runtime` feature is enabled
+	MetricSecurityAgentRuntimeContainersRunning = newAgentMetric(".runtime.containers_running")
+	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
+	// `FIM` feature is enabled
+	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
 )
 
 func newRuntimeMetric(name string) string {

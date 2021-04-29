@@ -46,6 +46,7 @@ type APIServer struct {
 	probe         *sprobe.Probe
 	queue         []*pendingMsg
 	retention     time.Duration
+	cfg           *config.Config
 }
 
 // GetEvents waits for security events
@@ -188,6 +189,17 @@ func (a *APIServer) Start(ctx context.Context) {
 	go a.start(ctx)
 }
 
+// GetConfig returns config of the runtime security module required by the security agent
+func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
+	if a.cfg != nil {
+		return &api.SecurityConfigMessage{
+			FIMEnabled:     a.cfg.FIMEnabled,
+			RuntimeEnabled: a.cfg.RuntimeEnabled,
+		}, nil
+	}
+	return &api.SecurityConfigMessage{}, nil
+}
+
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	agentContext := &AgentContext{
@@ -301,6 +313,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client
 		statsdClient:  client,
 		probe:         probe,
 		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:           cfg,
 	}
 	return es
 }
