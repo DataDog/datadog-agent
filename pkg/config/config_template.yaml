@@ -232,6 +232,7 @@ api_key:
 ## "azure"   Azure
 ## "alibaba" Alibaba
 ## "tencent" Tencent
+## "upcloud" UpCloud
 #
 # cloud_provider_metadata:
 #   - "aws"

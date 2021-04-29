@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
+	"github.com/DataDog/datadog-agent/pkg/util/upcloud"
 )
 
 type cloudProviderDetector struct {
@@ -34,6 +35,7 @@ type cloudProviderNTPDetector struct {
 // * Azure
 // * Alibaba
 // * Tencent
+// * UpCloud
 func DetectCloudProvider() {
 	detectors := []cloudProviderDetector{
 		{name: ecscommon.CloudProviderName, callback: ecs.IsRunningOn},
@@ -42,6 +44,7 @@ func DetectCloudProvider() {
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
+		{name: upcloud.CloudProviderName, callback: upcloud.IsRunningOn},
 	}
 
 	for _, cloudDetector := range detectors {
@@ -63,6 +66,7 @@ func GetCloudProviderNTPHosts() []string {
 		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
 		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
 		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+		{name: upcloud.CloudProviderName, callback: upcloud.GetNTPHosts},
 	}
 
 	for _, cloudNTPDetector := range detectors {

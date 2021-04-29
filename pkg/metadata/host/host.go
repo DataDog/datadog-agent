@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tencent"
+	"github.com/DataDog/datadog-agent/pkg/util/upcloud"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
@@ -150,13 +151,21 @@ func getHostAliases() []string {
 		aliases = append(aliases, tencentAlias)
 	}
 
+	upcloudAlias, err := upcloud.GetHostAlias()
+	if err != nil {
+		log.Debugf("no UpCloud Host Alias: %s", err)
+	} else if upcloudAlias != "" {
+		aliases = append(aliases, upcloudAlias)
+	}
+
 	return aliases
 }
 
 func getPublicIPv4() (string, error) {
 	publicIPFetcher := map[string]func() (string, error){
-		"EC2": ec2.GetPublicIPv4,
-		"GCE": gce.GetPublicIPv4,
+		"EC2":     ec2.GetPublicIPv4,
+		"GCE":     gce.GetPublicIPv4,
+		"UpCloud": upcloud.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPFetcher {
 		publicIPv4, err := fetcher()
