@@ -185,6 +185,9 @@ func (m *Module) Reload() error {
 		return err
 	}
 
+	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
+	m.ruleSets[m.currentRuleSet] = ruleSet
+
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
@@ -200,9 +203,6 @@ func (m *Module) Reload() error {
 
 	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
-
-	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
-	m.ruleSets[m.currentRuleSet] = ruleSet
 
 	m.displayReport(report)
 
@@ -255,6 +255,9 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) 
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
+	// prepare the event
+	m.probe.OnRuleMatch(rule, event.(*probe.Event))
+
 	m.SendEvent(rule, event)
 }
 

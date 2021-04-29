@@ -7,9 +7,13 @@ int __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *sysca
 int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall);
 int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall);
 
+int __attribute__((always_inline)) security_inode_predicate(u64 type) {
+    return type == EVENT_UTIME || type == EVENT_CHMOD || type == EVENT_CHOWN;
+}
+
 SEC("kprobe/security_inode_setattr")
 int kprobe__security_inode_setattr(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UTIME | SYSCALL_CHMOD | SYSCALL_CHOWN);
+    struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall)
         return 0;
 
@@ -44,19 +48,19 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
 
     u64 event_type = 0;
     switch (syscall->type) {
-        case SYSCALL_UTIME:
+        case EVENT_UTIME:
             if (filter_syscall(syscall, utime_approvers)) {
                 return discard_syscall(syscall);
             }
             event_type = EVENT_UTIME;
             break;
-        case SYSCALL_CHMOD:
+        case EVENT_CHMOD:
             if (filter_syscall(syscall, chmod_approvers)) {
                 return discard_syscall(syscall);
             }
             event_type = EVENT_CHMOD;
             break;
-        case SYSCALL_CHOWN:
+        case EVENT_CHOWN:
             if (filter_syscall(syscall, chown_approvers)) {
                 return discard_syscall(syscall);
             }

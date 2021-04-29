@@ -551,8 +551,6 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Timestamp).UnmarshalJSON(data))
 			}
-		case "event_type":
-			out.Event = string(in.String())
 		case "pid_count":
 			out.Count = uint64(in.Uint64())
 		case "threshold":
@@ -591,11 +589,6 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		const prefix string = ",\"date\":"
 		out.RawString(prefix[1:])
 		out.Raw((in.Timestamp).MarshalJSON())
-	}
-	{
-		const prefix string = ",\"event_type\":"
-		out.RawString(prefix)
-		out.String(string(in.Event))
 	}
 	{
 		const prefix string = ",\"pid_count\":"

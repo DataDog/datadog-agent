@@ -84,7 +84,7 @@ func New(configPath string) (*Config, error) {
 	_, err := aconfig.LoadWithoutSecret()
 	var e viper.ConfigFileNotFoundError
 	if err != nil {
-		if errors.As(err, &e) {
+		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			log.Infof("no config exists at %s, ignoring...", configPath)
 		} else {
 			return nil, err
@@ -139,11 +139,11 @@ func load(configPath string) (*Config, error) {
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
-		ProfilingEnabled:     cfg.GetBool(key(spNS, "profiling.enabled")),
-		ProfilingSite:        cfg.GetString(key(spNS, "profiling.site")),
-		ProfilingURL:         cfg.GetString(key(spNS, "profiling.profile_dd_url")),
-		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "profiling.api_key"))),
-		ProfilingEnvironment: cfg.GetString(key(spNS, "profiling.env")),
+		ProfilingEnabled:     cfg.GetBool(key(spNS, "internal_profiling.enabled")),
+		ProfilingSite:        cfg.GetString(key(spNS, "internal_profiling.site")),
+		ProfilingURL:         cfg.GetString(key(spNS, "internal_profiling.profile_dd_url")),
+		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
+		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
 	}
 
 	if err := ValidateSocketAddress(c.SocketAddress); err != nil {

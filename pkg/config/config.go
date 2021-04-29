@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -199,6 +200,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
+	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -1326,4 +1328,23 @@ func GetBindHost() string {
 	}
 
 	return "localhost"
+}
+
+// GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
+// only valid ones.
+func GetValidHostAliases() []string {
+	return getValidHostAliasesWithConfig(Datadog)
+}
+
+func getValidHostAliasesWithConfig(config Config) []string {
+	aliases := []string{}
+	for _, alias := range config.GetStringSlice("host_aliases") {
+		if err := validate.ValidHostname(alias); err == nil {
+			aliases = append(aliases, alias)
+		} else {
+			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
+		}
+	}
+
+	return aliases
 }

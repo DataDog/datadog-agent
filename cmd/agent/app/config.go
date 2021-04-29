@@ -168,7 +168,7 @@ func initRuntimeSettings() error {
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("profiling")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("internal_profiling")); err != nil {
 		return err
 	}
 
