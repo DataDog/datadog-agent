@@ -1219,7 +1219,7 @@ api_key:
 #
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
-
+#
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.

@@ -49,12 +49,12 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	return &TrafficCaptureReader{
 		Contents: c,
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
+		Shutdown: make(chan struct{}),
 	}, nil
 }
 
 // Read reads the contents of the traffic capture and writes each packet to a channel
 func (tc *TrafficCaptureReader) Read() {
-	tc.Shutdown = make(chan struct{})
 	defer close(tc.Shutdown)
 
 	log.Debugf("About to begin processing file of size: %d\n", len(tc.Contents))
