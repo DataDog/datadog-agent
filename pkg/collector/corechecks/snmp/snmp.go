@@ -100,7 +100,7 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)  // TODO: TEST ME
+		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...) // TODO: TEST ME
 		c.sender.reportDeviceMetadata(valuesStore, deviceMetadataTags)
 	}
 	return tags, nil

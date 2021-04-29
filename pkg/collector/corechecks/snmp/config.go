@@ -41,7 +41,7 @@ type snmpInstanceConfig struct {
 	Profile          string            `yaml:"profile"`
 	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
 	ExtraTags        string            `yaml:"extra_tags"` // comma separated tags
-	Tags             []string          `yaml:"tags"`
+	Tags             []string          `yaml:"tags"`       // used for device metadata
 }
 
 type snmpConfig struct {
