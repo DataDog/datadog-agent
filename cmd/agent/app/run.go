@@ -349,9 +349,8 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
-	// setup the orchestrator forwarder (only on cluster check runners)
+	// setup the network-devices forwarder
 	networkDevicesForwarder = ndcfg.NewNetworkDevicesForwarder()
-	log.Warnf("networkDevicesForwarder: %s", networkDevicesForwarder) // TODO: REMOVE ME
 	if networkDevicesForwarder != nil {
 		networkDevicesForwarder.Start() //nolint:errcheck
 	}
