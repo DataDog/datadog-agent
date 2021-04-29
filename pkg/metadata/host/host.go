@@ -106,7 +106,7 @@ func GetPythonVersion() string {
 // getHostAliases returns the hostname aliases from different provider
 // This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
-	aliases := []string{}
+	aliases := config.GetValidHostAliases()
 
 	alibabaAlias, err := alibaba.GetHostAlias()
 	if err != nil {
@@ -150,7 +150,7 @@ func getHostAliases() []string {
 		aliases = append(aliases, tencentAlias)
 	}
 
-	return aliases
+	return util.SortUniqInPlace(aliases)
 }
 
 func getPublicIPv4() (string, error) {
