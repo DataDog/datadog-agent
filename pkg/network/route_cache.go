@@ -22,7 +22,7 @@ type routeKey struct {
 
 // Route stores info for a route table entry
 type Route struct {
-	Gateway util.Address
+	Gateway net.IP
 	IfIndex int
 }
 
@@ -158,7 +158,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 	r := routes[0]
 	log.Tracef("route for src=%s dst=%s: scope=%s gw=%+v if=%d", source, dest, r.Scope, r.Gw, r.LinkIndex)
 	return Route{
-		Gateway: util.AddressFromNetIP(r.Gw),
+		Gateway: r.Gw,
 		IfIndex: r.LinkIndex,
 	}, true
 }

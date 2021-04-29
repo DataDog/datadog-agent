@@ -4,12 +4,10 @@ package tracer
 
 import (
 	"net"
-	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
@@ -21,8 +19,6 @@ type gatewayLookup struct {
 	routeCache          network.RouteCache
 	subnetCache         map[int]network.Subnet // interface index to subnet map
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
-
-	logLimiter *util.LogLimit
 }
 
 type cloudProvider interface {
@@ -62,7 +58,6 @@ func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup 
 		subnetCache:         make(map[int]network.Subnet),
 		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-		logLimiter:          util.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -79,7 +74,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gateway).IsUnspecified() {
+	if r.Gateway == nil || r.Gateway.IsUnspecified() {
 		return nil
 	}
 
@@ -96,9 +91,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		}
 
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-			if g.logLimiter.ShouldLog() {
-				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
-			}
+			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 			return nil
 		}
 
