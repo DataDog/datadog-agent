@@ -154,18 +154,18 @@ The `test/integration` tree contains the `rspec` verification tests that are run
         │   └── rspec
         │       └── spec_helper.rb
         │       └── iot_spec_helper.rb
-        ├── dd-agent-install-script
+        ├── install-script
         │   └── rspec
-        │       ├── dd-agent_spec.rb
+        │       ├── install_script_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
         │       └── iot_spec_helper.rb -> ../../common/rspec/iot_spec_helper.rb
-        ├── dd-agent-all-subservices
+        ├── win-all-subservices
         │   └── rspec
-        │       ├── dd-agent-all-subservices_spec.rb
+        │       ├── win-all-subservices_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
-        ├── dd-agent-installopts
+        ├── win-installopts
         │   └── rspec
-        │       ├── dd-agent-installopts_spec.rb
+        │       ├── win-installopts_spec.rb
         │       └── spec_helper.rb -> ../../common/rspec/spec_helper.rb
 ```
 
