@@ -752,7 +752,7 @@ func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
 	linkLocal, err := getIPv6LinkLocalAddress()
 	if err != nil {
 		// TODO: Find a offset guessing method that doesn't need an available IPv6 interface
-		log.Debug("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced.")
+		log.Debugf("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced: %s", err)
 		return nil, nil
 	}
 
