@@ -19,6 +19,7 @@ func TestAutoSelectStrategy(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  true,
 	}
 
 	now := time.Now()
@@ -63,6 +64,7 @@ func TestStoreInvocationTime(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  true,
 	}
 
 	now := time.Now()
@@ -82,6 +84,7 @@ func TestInvocationInterval(t *testing.T) {
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
 		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  true,
 	}
 
 	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
