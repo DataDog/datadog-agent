@@ -722,6 +722,11 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 func TestLoadProxyWithoutNoProxy(t *testing.T) {
 	config := setupConf()
 
+	// circleCI set some proxy setting
+	ciValue := os.Getenv("NO_PROXY")
+	os.Unsetenv("NO_PROXY")
+	defer os.Setenv("NO_PROXY", ciValue)
+
 	os.Setenv("DD_PROXY_HTTP", "http_url")
 	os.Setenv("DD_PROXY_HTTPS", "https_url")
 
