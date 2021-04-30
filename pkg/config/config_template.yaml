@@ -308,6 +308,18 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
+## @param azure_hostname_style - string - optional
+## Changes how agent hostname is set on Azure virtual machines.
+##
+## Possible values:
+##   "os" - use the hostname reported by the operating system (default)
+##   "name" - use the instance name
+##   "name_and_resource_group" - use a combination of the instance name and resource group name
+##   "full" - use a combination of the instance name, resource group name and subscription id
+##   "vmid" - use the instance id
+#
+# azure_hostname_style: "os"
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
