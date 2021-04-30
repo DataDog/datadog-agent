@@ -71,3 +71,43 @@ context:
 	}
 	sender.AssertEvent(t, expectedEvent, 0)
 }
+
+func testTopologyEventMissingFields(t *testing.T) {
+	sender := mocksender.NewMockSender("testID")
+	sender.SetupAcceptAll()
+
+	ev := C.CString(`xxx: yyy`)
+
+	SubmitTopologyEvent(C.CString("testID"), ev)
+
+	sender.AssertEvent(t, metrics.Event{}, 0)
+}
+
+func testTopologyEventInvalidYaml(t *testing.T) {
+	sender := mocksender.NewMockSender("testID")
+	sender.SetupAcceptAll()
+
+	yamlString := C.CString(`I'm such A sentence!`)
+	SubmitTopologyEvent(C.CString("testID"), yamlString)
+	sender.AssertNotCalled(t, "Event")
+
+	yamlList := C.CString(`
+  - this
+  - is
+  - a
+  - list
+`)
+	SubmitTopologyEvent(C.CString("testID"), yamlList)
+	sender.AssertNotCalled(t, "Event")
+}
+
+func testTopologyEventWrongFields(t *testing.T) {
+	sender := mocksender.NewMockSender("testID")
+	sender.SetupAcceptAll()
+
+	ev := C.CString(`msg_title: 42`)
+
+	SubmitTopologyEvent(C.CString("testID"), ev)
+
+	sender.AssertNotCalled(t, "Event")
+}
