@@ -233,7 +233,7 @@ func packProcCtrMessages(
 	space := capacity
 
 	for _, ctr := range containers {
-		procs, ok := procsByCtr[ctr.Id]
+		procs := procsByCtr[ctr.Id]
 
 		if len(procs) > capacity {
 			// this container has more process then the msg capacity, so we send it separately
@@ -241,7 +241,7 @@ func packProcCtrMessages(
 			continue
 		}
 
-		if ok && len(procs) > space && space != capacity {
+		if len(procs) > space {
 			// there is not enough space to fit the next set of container processes, so complete the payload with
 			// the previous container processes and reset
 			msgs = append(msgs, msgFn(ctrProcs, ctrs...))

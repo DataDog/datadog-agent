@@ -156,11 +156,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// The maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_ctr_procs_per_message"); config.Datadog.IsSet(k) {
 		if maxCtrProcessesPerMessage := config.Datadog.GetInt(k); maxCtrProcessesPerMessage <= 0 {
-			log.Warn("Invalid max container processes count per message (<= 0), ignoring...")
+			log.Warn("Invalid max container processes count per message (<= 0), using default value of 10,000")
 		} else if maxCtrProcessesPerMessage <= maxCtrProcsMessageBatch {
 			a.MaxCtrProcessesPerMessage = maxCtrProcessesPerMessage
 		} else if maxCtrProcessesPerMessage > 0 {
-			log.Warn("Overriding the configured max container processes count per message limit because it exceeds maximum")
+			log.Warn("Overriding the configured max container processes count per message limit because it exceeds maximum limit of 30,000")
 		}
 	}
 
