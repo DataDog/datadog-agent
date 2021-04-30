@@ -318,7 +318,7 @@ func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
 
 func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	suite.config.Set("api_key", "wassupkey")
-	suite.Equal("wassupkey", getLogsAPIKey(suite.config))
+	suite.Equal("wassupkey", defaultLogsConfigKeys().getLogsAPIKey())
 	endpoints, err := BuildEndpoints(HTTPConnectivityFailure)
 	suite.Nil(err)
 	suite.Equal("wassupkey", endpoints.Main.APIKey)
@@ -327,7 +327,7 @@ func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	suite.config.Set("api_key", "wassupkey")
 	suite.config.Set("logs_config.api_key", "wassuplogskey")
-	suite.Equal("wassuplogskey", getLogsAPIKey(suite.config))
+	suite.Equal("wassuplogskey", defaultLogsConfigKeys().getLogsAPIKey())
 	endpoints, err := BuildEndpoints(HTTPConnectivityFailure)
 	suite.Nil(err)
 	suite.Equal("wassuplogskey", endpoints.Main.APIKey)

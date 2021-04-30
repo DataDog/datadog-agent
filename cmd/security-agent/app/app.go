@@ -114,7 +114,7 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints()
