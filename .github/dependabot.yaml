@@ -28,6 +28,8 @@ updates:
       - dependency-name: github.com/spf13/cast
       - dependency-name: github.com/spf13/viper
       - dependency-name: github.com/ugorji/go
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
   - package-ecosystem: gomod
@@ -39,6 +41,8 @@ updates:
     milestone: 22
     ignore: 
       - dependency-name: github.com/cihub/seelog
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
   - package-ecosystem: gomod
@@ -48,6 +52,9 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
+    ignore: 
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
   - package-ecosystem: gomod
