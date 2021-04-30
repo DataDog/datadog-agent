@@ -214,7 +214,11 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t * t, struct sock
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             return 0;
         }
-    } else if (is_ipv6_enabled() && check_family(skp, AF_INET6)) {
+    } else if (check_family(skp, AF_INET6)) {
+        if (!is_ipv6_enabled()) {
+            return 0;
+        }
+
         if (t->saddr_h == 0) {
             bpf_probe_read(&t->saddr_h, sizeof(t->saddr_h), ((char*)skp) + offset_daddr_ipv6() + 2 * sizeof(u64));
         }

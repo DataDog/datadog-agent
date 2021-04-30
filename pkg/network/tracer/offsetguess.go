@@ -736,20 +736,27 @@ func newEventGenerator(ipv6 bool) (*eventGenerator, error) {
 		return nil, err
 	}
 
-	var udp6Conn *net.UDPConn
-	if ipv6 {
-		linkLocal, err := getIPv6LinkLocalAddress()
-		if err != nil {
-			return nil, err
-		}
-
-		udp6Conn, err = net.ListenUDP("udp6", linkLocal)
-		if err != nil {
-			return nil, err
-		}
+	udp6Conn, err := getUDP6Conn(ipv6)
+	if err != nil {
+		return nil, err
 	}
 
 	return &eventGenerator{listener: l, conn: c, udpConn: udpConn, udp6Conn: udp6Conn, udpDone: udpDone}, nil
+}
+
+func getUDP6Conn(ipv6 bool) (*net.UDPConn, error) {
+	if !ipv6 {
+		return nil, nil
+	}
+
+	linkLocal, err := getIPv6LinkLocalAddress()
+	if err != nil {
+		// TODO: Find a offset guessing method that doesn't need an available IPv6 interface
+		log.Debug("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced.")
+		return nil, nil
+	}
+
+	return net.ListenUDP("udp6", linkLocal)
 }
 
 // Generate an event for offset guessing
