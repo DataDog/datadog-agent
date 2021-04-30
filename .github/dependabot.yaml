@@ -28,6 +28,8 @@ updates:
       - dependency-name: github.com/spf13/cast
       - dependency-name: github.com/spf13/viper
       - dependency-name: github.com/ugorji/go
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
       interval: weekly
   - package-ecosystem: gomod
