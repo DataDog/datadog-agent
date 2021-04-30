@@ -3,52 +3,57 @@
 
 #include "syscalls.h"
 
+int __attribute__((always_inline)) mnt_want_write_predicate(u64 type) {
+    return type == EVENT_UTIME || type == EVENT_CHMOD || type == EVENT_CHOWN || type == EVENT_RENAME || 
+        type == EVENT_RMDIR || type == EVENT_UNLINK || type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR;
+}
+
 SEC("kprobe/mnt_want_write")
 int kprobe__mnt_want_write(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UTIME | SYSCALL_CHMOD | SYSCALL_CHOWN | SYSCALL_RENAME | SYSCALL_RMDIR | SYSCALL_UNLINK | SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
+    struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_predicate);
     if (!syscall)
         return 0;
 
     struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
 
     switch (syscall->type) {
-    case SYSCALL_UTIME:
+    case EVENT_UTIME:
         if (syscall->setattr.file.path_key.mount_id > 0)
             return 0;
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_CHMOD:
+    case EVENT_CHMOD:
         if (syscall->setattr.file.path_key.mount_id > 0)
             return 0;
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_CHOWN:
+    case EVENT_CHOWN:
         if (syscall->setattr.file.path_key.mount_id > 0)
             return 0;
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_RENAME:
+    case EVENT_RENAME:
         if (syscall->rename.src_file.path_key.mount_id > 0)
             return 0;
         syscall->rename.src_file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         syscall->rename.target_file.path_key.mount_id = syscall->rename.src_file.path_key.mount_id;
         break;
-    case SYSCALL_RMDIR:
+    case EVENT_RMDIR:
         if (syscall->rmdir.file.path_key.mount_id > 0)
             return 0;
         syscall->rmdir.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_UNLINK:
+    case EVENT_UNLINK:
         if (syscall->unlink.file.path_key.mount_id > 0)
             return 0;
         syscall->unlink.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_SETXATTR:
+    case EVENT_SETXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0)
             return 0;
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_REMOVEXATTR:
+    case EVENT_REMOVEXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0)
             return 0;
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
@@ -57,8 +62,12 @@ int kprobe__mnt_want_write(struct pt_regs *ctx) {
     return 0;
 }
 
+int __attribute__((always_inline)) mnt_want_write_file_predicate(u64 type) {
+    return type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR || type == EVENT_CHOWN;
+}
+
 int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_CHOWN | SYSCALL_SETXATTR | SYSCALL_REMOVEXATTR);
+    struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall)
         return 0;
 
@@ -67,17 +76,17 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
     bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
 
     switch (syscall->type) {
-    case SYSCALL_CHOWN:
+    case EVENT_CHOWN:
         if (syscall->setattr.file.path_key.mount_id > 0)
             return 0;
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_SETXATTR:
+    case EVENT_SETXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0)
             return 0;
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
-    case SYSCALL_REMOVEXATTR:
+    case EVENT_REMOVEXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0)
             return 0;
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);

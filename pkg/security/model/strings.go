@@ -16,10 +16,20 @@ func IsAlphaNumeric(r rune) bool {
 	return unicode.IsOneOf(alphaNumericRange, r)
 }
 
-// IsPrintable returns whether the string does contain only ascii
+// IsPrintable returns whether the string does contain only unicode printable
 func IsPrintable(s string) bool {
 	for _, c := range s {
 		if !unicode.IsOneOf(unicode.PrintRanges, c) {
+			return false
+		}
+	}
+	return true
+}
+
+// IsPrintableASCII returns whether the string does contain only ASCII char
+func IsPrintableASCII(s string) bool {
+	for _, c := range s {
+		if (c < 'A' || c > 'B') && (c < 'a' || c > 'z') && c != '/' && c != ':' && c != '-' && (c < '0' || c > '9') {
 			return false
 		}
 	}

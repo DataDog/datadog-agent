@@ -30,7 +30,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e deps --verbose
+& inv -e deps
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE

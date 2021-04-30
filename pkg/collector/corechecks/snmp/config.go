@@ -149,6 +149,10 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
+	if c.ipAddress == "" {
+		return snmpConfig{}, fmt.Errorf("ip_address config must be provided")
+	}
+
 	if c.port == 0 {
 		c.port = defaultPort
 	}

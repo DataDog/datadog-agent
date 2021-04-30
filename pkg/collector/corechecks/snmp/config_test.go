@@ -230,6 +230,18 @@ community_string: abc
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.profiles["f5-big-ip"].Metrics)
 }
 
+func TestIPAddressConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default port
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address:
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.EqualError(t, err, "build config failed: ip_address config must be provided")
+}
+
 func TestPortConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	// TEST Default port

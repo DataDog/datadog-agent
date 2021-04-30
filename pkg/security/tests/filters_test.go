@@ -95,6 +95,9 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
+
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +127,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 func TestOpenParentDiscarderFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "/usr/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "/usr/local/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -132,6 +135,9 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
@@ -215,6 +221,9 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	}
 	defer test.Close()
 
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
+
 	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
@@ -255,6 +264,9 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {

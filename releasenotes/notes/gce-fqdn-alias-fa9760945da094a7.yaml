@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Adding the hostname to the host aliases when running on GCE

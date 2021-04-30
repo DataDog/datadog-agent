@@ -939,3 +939,8 @@ func TestPrometheusScrapeChecksEnv(t *testing.T) {
 	assert.NoError(t, Datadog.UnmarshalKey("prometheus_scrape.checks", &checks))
 	assert.EqualValues(t, checks, expected)
 }
+
+func TestGetValidHostAliasesWithConfig(t *testing.T) {
+	config := setupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
+	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
+}

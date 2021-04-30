@@ -6,9 +6,7 @@
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -26,26 +24,16 @@ var (
 	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
 		nil, "Dogstatsd UDS packets bytes")
 
-	tlmListener            telemetry.Histogram
+	tlmListener            = telemetry.NewHistogramNoOp()
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
 )
 
-func init() {
-	get := func(option string, defaultData []float64) []float64 {
-		if !config.Datadog.IsSet(option) {
-			return defaultData
-		}
-
-		buckets, err := config.Datadog.GetFloat64SliceE(option)
-		if err != nil {
-			log.Errorf("%s, falling back to default values", err)
-			return defaultData
-		}
-		if len(buckets) == 0 {
-			log.Debugf("'%s' is empty, falling back to default values", option)
-			return defaultData
-		}
-		return buckets
+// InitTelemetry initialize the telemetry.Histogram buckets for the internal
+// telemetry. This will be called once the first dogstatsd server is created
+// since we need the configuration to be fully loaded.
+func InitTelemetry(buckets []float64) {
+	if buckets == nil {
+		buckets = defaultListenerBuckets
 	}
 
 	tlmListener = telemetry.NewHistogram(
@@ -53,5 +41,5 @@ func init() {
 		"listener_read_latency",
 		[]string{"listener_type"},
 		"Time in nanoseconds while the listener is not reading data",
-		get("telemetry.dogstatsd.listeners_latency_buckets", defaultListenerBuckets))
+		buckets)
 }
