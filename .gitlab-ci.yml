@@ -83,18 +83,17 @@ variables:
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
-  OMNIBUS_BASE_DIR: /.omnibus
+  OMNIBUS_BASE_DIR: /omnibus
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  # Directory in which we execute the omnibus build for SUSE
-  # as we want to separate the RPM built for this distro.
-  OMNIBUS_BASE_DIR_SUSE: /.omnibus/suse
-  # Directory in which we put the artifacts after the build
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  # Directory in which we put the SUSE artifacts after the SUSE build
   # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg
-  OMNIBUS_BASE_DIR_WIN: c:\omni-base\$CI_RUNNER_ID
-  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omni-base/$CI_RUNNER_ID
+  # RPM builds and SUSE RPM builds create artifacts with the same name.
+  # To differentiate them, we put them in different folders. That also
+  # avoids accidentally overwriting files when downloading artifacts from
+  # both RPM and SUSE rpm jobs.
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
