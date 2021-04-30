@@ -722,6 +722,9 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 func TestLoadProxyWithoutNoProxy(t *testing.T) {
 	config := setupConf()
 
+	// Don't include cloud metadata URL's in no_proxy
+	config.Set("use_proxy_for_cloud_metadata", true)
+
 	// circleCI set some proxy setting
 	ciValue := os.Getenv("NO_PROXY")
 	os.Unsetenv("NO_PROXY")
