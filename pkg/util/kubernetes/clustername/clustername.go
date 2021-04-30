@@ -70,12 +70,15 @@ func getClusterName(data *clusterNameData) string {
 		data.clusterName = config.Datadog.GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
-				log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
-					"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
-					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen.", data.clusterName)
-				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
-				data.clusterName = ""
+			skipValidateClusterName := config.Datadog.GetBool("skip_validate_clustername")
+			if !skipValidateClusterName {
+				if !validClusterName.MatchString(data.clusterName) || len(data.clusterName) > 40 {
+					log.Errorf("%q isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+						"start with a lowercase letter followed by up to 39 lowercase letters, numbers, or "+
+						"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen.", data.clusterName)
+					log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
+					data.clusterName = ""
+				}
 			}
 		}
 

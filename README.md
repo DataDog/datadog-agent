@@ -144,3 +144,4 @@ Windows arguments:
 - `tags` = Agent host tags to use for all topology component (by default `os:windows` will be added)
 - `skipSSLValidation` = Skip ssl certificates validation when talking to the backend (defaults to `false`)
 - `agentVersion` = Version of the Agent to be installed (defaults to `latest`)
+

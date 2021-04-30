@@ -48,6 +48,10 @@ const (
 
 	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
 	ClusterIDCacheKey = "orchestratorClusterID"
+
+	// DefaultBatcherBufferSize sets the default buffer size of the batcher to 10000
+	// [sts]
+	DefaultBatcherBufferSize = 10000
 )
 
 var overrideVars = make(map[string]interface{})
@@ -176,6 +180,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
+	// [sts] skip datadog functionality
+	config.BindEnvAndSetDefault("skip_leader_election", true)
+	// [sts] bind env for skip_validate_clustername, default is set in the config_template.yaml to avoid test failures.
+	config.BindEnv("skip_validate_clustername") //nolint:errcheck
+
+	// [sts] batcher environment variables
+	config.BindEnvAndSetDefault("batcher_capacity", DefaultBatcherBufferSize)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -969,7 +980,7 @@ func GetMaxCapacity() int {
 		return Datadog.GetInt("batcher_capacity")
 	}
 
-	return 10000
+	return DefaultBatcherBufferSize
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

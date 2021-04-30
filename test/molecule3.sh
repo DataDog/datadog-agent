@@ -28,6 +28,7 @@ pip3 install -r molecule-role/requirements-molecule3.txt
 
 cd molecule-role
 
-echo =====MOLECULE_RUN_ID=${CI_JOB_ID}======AGENT_CURRENT_BRANCH=${CI_COMMIT_REF_NAME}=======
+echo "===== MOLECULE_RUN_ID=${CI_JOB_ID:-unknown}  ======="
+echo "====== AGENT_CURRENT_BRANCH=${AGENT_CURRENT_BRANCH} ======="
 
 molecule "$@"

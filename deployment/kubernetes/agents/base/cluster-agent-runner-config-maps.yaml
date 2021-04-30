@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stackstatetoken
+data:
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stackstate-cluster-id
+data:

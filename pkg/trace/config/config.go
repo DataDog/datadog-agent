@@ -199,7 +199,8 @@ var fallbackHostnameFunc = os.Hostname
 // set, otherwise falling back to os.Hostname.
 func (c *AgentConfig) acquireHostname() error {
 	// sts - use util.GetHostname instead of using the agent bin path and running a shell command.
-	hostname, err := util.GetHostname(); if err == nil {
+	hostname, err := util.GetHostname()
+	if err == nil {
 		c.Hostname = hostname
 	}
 

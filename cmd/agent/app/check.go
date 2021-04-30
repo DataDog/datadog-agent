@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -119,6 +120,9 @@ var checkCmd = &cobra.Command{
 		// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
+		// [sts] init the batcher for topology production
+		batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
 
 		if config.Datadog.GetBool("inventories_enabled") {
 			metadata.SetupInventoriesExpvar(common.AC, common.Coll)

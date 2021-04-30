@@ -59,6 +59,8 @@ find . -iname \*datadog\* \
   | grep -v "/opt/stackstate-agent/LICENSES/go_dep-github.com_DataDog_zstd" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/stackstate_checks/stubs/datadog_agent.py" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/stackstate_checks/base/stubs/datadog_agent.py" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/python3.8/site-packages/stackstate_checks/stubs/datadog_agent.py" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/python3.8/site-packages/stackstate_checks/base/stubs/datadog_agent.py" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python2.7/site-packages/datadog_a7" \
   | grep -v "/opt/stackstate-agent/embedded/lib/python3\.8/site-packages/datadog_*" \
   | grep -v "/opt/stackstate-agent/embedded/include/datadog_agent_rtloader.h" \

@@ -302,6 +302,8 @@ def apply_branding(ctx):
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/writer/stats_test.go")
     do_sed_rename(ctx, datadog_metrics_replace, "./pkg/trace/info/stats.go")
+    # do_sed_rename(ctx, datadog_metrics_replace, "./pkg/process/statsd/statsd.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./vendor/github.com/DataDog/datadog-go/statsd/statsd.go")
     do_sed_rename(ctx, 's/"Datadog Trace Agent\/%s\/%s"/"Stackstate Trace Agent-%s-%s"/g',
                   "./pkg/trace/writer/sender.go")
 

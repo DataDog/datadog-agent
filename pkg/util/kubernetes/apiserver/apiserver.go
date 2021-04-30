@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"k8s.io/api/extensions/v1beta1"
 	"strings"
 	"time"
 
@@ -89,18 +88,6 @@ type APIClient struct {
 	Cl             kubernetes.Interface
 	DynamicCl      dynamic.Interface
 	timeoutSeconds int64
-}
-
-func (c *APIClient) GetEndpoints() ([]v1.Endpoints, error) {
-	panic("implement me")
-}
-
-func (c *APIClient) GetServices() ([]v1.Service, error) {
-	panic("implement me")
-}
-
-func (c *APIClient) GetIngresses() ([]v1beta1.Ingress, error) {
-	panic("implement me")
 }
 
 // GetAPIClient returns the shared ApiClient instance.

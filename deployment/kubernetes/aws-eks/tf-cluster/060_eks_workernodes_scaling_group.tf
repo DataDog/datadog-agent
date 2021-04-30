@@ -43,8 +43,8 @@ resource "aws_launch_configuration" "eks-launch-configuration" {
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.eks-node-instance-profile.name
   image_id                    = data.aws_ami.eks-worker.id
-  instance_type               = "t2.small"
-  spot_price                  = "0.008"
+  instance_type               = "t2.medium"
+  spot_price                  = "0.016"
   name_prefix                 = "eks-${local.cluster_name}"
   security_groups             = [aws_security_group.eks-nodes-sg.id]
   user_data_base64            = base64encode(local.eks-node-userdata)

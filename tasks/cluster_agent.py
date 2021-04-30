@@ -32,6 +32,7 @@ def apply_branding(ctx):
     Apply stackstate branding
     """
     sts_lower_replace = 's/datadog/stackstate/g'
+    datadog_metrics_replace = 's/"datadog./"stackstate./g'
 
     # Config
     do_go_rename(ctx, '"\\"dd_url\\" -> \\"sts_url\\""', "./pkg/config")
@@ -46,6 +47,10 @@ def apply_branding(ctx):
     do_go_rename(ctx, '"\\"/etc/datadog-agent/checks.d\\" -> \\"/etc/stackstate-agent/checks.d\\""', "./pkg/config")
     do_go_rename(ctx, '"\\"/opt/datadog-agent/run\\" -> \\"/opt/stackstate-agent/run\\""', "./pkg/config")
 
+    # Trace Agent Metrics
+    # do_sed_rename(ctx, datadog_metrics_replace, "./pkg/process/statsd/statsd.go")
+    do_sed_rename(ctx, datadog_metrics_replace, "./vendor/github.com/DataDog/datadog-go/statsd/statsd.go")
+
     # Cluster Agent
     cluster_agent_replace = '/www/! s/datadog/stackstate/g'
     do_sed_rename(ctx, cluster_agent_replace, "./cmd/cluster-agent/main.go")
@@ -53,6 +58,9 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/Datadog Cluster/StackState Cluster/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/Datadog Agent/StackState Agent/g', "./cmd/cluster-agent/app/*")
     do_sed_rename(ctx, 's/to Datadog/to StackState/g', "./cmd/cluster-agent/app/*")
+
+    # Cluster Agent - Kubernetes API client
+    do_go_rename(ctx, '"\\"datadogtoken\\" -> \\"stackstatetoken\\""', "./pkg/util/kubernetes/apiserver")
 
     # Defaults
     do_go_rename(ctx, '"\\"/etc/datadog-agent\\" -> \\"/etc/stackstate-agent\\""', "./cmd/agent/common")
@@ -107,7 +115,7 @@ def clean(ctx):
     """
     Remove temporary objects and binary artifacts
     """
-    clean_common(ctx, "datadog-cluster-agent")
+    clean_common(ctx, "stackstate-cluster-agent")
 
 
 @task
@@ -162,7 +170,7 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
     ctx.run("chmod +x {}".format(latest_file))
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = "{}/datadog-cluster-agent.{}".format(build_context, arch)
+    exec_path = "{}/stackstate-cluster-agent.{}".format(build_context, arch)
     dockerfile_path = "{}/{}/Dockerfile".format(build_context, arch)
 
     shutil.copy2(latest_file, exec_path)

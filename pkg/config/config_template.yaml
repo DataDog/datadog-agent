@@ -328,13 +328,13 @@ api_key:
 ## Metadata collection should always be enabled, except if you are running several
 ## agents/dsd instances per host. In that case, only one Agent should have it on.
 ## WARNING: disabling it on every Agent leads to display and billing issues.
-#
-# enable_metadata_collection: true
+# [sts] disable metadata collection
+enable_metadata_collection: false
 
 ## @param enable_gohai - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
-#
-# enable_gohai: true
+# [sts] disable gohai collection
+enable_gohai: false
 
 ## @param server_timeout - integer - optional - default: 15
 ## IPC api server timeout in seconds.
@@ -1737,6 +1737,10 @@ network_tracer_config:
 ## regardless of the value of this parameter.
 #
 # disable_cluster_name_tag_key: false
+
+## @param skip_validate_clustername - boolean - optional - default: true
+## Disables the kubernetes cluster name validation in the StackState cluster agent.
+skip_validate_clustername: true
 
 {{ end -}}
 {{- if .CloudFoundryBBS }}

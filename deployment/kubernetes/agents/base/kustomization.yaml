@@ -3,6 +3,7 @@ resources:
   - cluster-agent-rbac.yaml
   - cluster-agent-auth-token.yaml
   - cluster-agent-config-map.yaml
+  - cluster-agent-runner-config-maps.yaml
   - cluster-agent.yaml
   - agent-rbac.yaml
   - agent-config-map.yaml

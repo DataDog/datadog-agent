@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -14,7 +14,7 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -22,6 +22,7 @@ import (
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
@@ -38,12 +39,13 @@ const (
 	defaultCachePurge  = 10 * time.Minute
 )
 
-// KubeApiEventsConfig is the config of the API server.
+// EventsConfig is the config of the API server.
 type EventsConfig struct {
 	CollectEvent             bool     `yaml:"collect_events"`
 	FilteredEventTypes       []string `yaml:"filtered_event_types"`
 	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
 	MaxEventCollection       int      `yaml:"max_events_per_run"`
+	LeaderSkip               bool     `yaml:"skip_leader_election"`
 	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
 }
 
@@ -53,7 +55,7 @@ type EventC struct {
 	LastTime   time.Time
 }
 
-// KubeApiEventsCheck grabs events from the API server.
+// EventsCheck grabs events from the API server.
 type EventsCheck struct {
 	CommonCheck
 	instance        *EventsConfig
@@ -67,6 +69,7 @@ func (c *EventsConfig) parse(data []byte) error {
 	// default values
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
+	c.LeaderSkip = true
 
 	return yaml.Unmarshal(data, c)
 }
@@ -109,7 +112,6 @@ func (k *EventsCheck) Configure(config, initConfig integration.Data, source stri
 	if k.instance.MaxEventCollection == 0 {
 		k.instance.MaxEventCollection = maxEventCardinality
 	}
-
 	k.ignoredEvents = convertFilter(k.instance.FilteredEventTypes)
 
 	log.Debugf("Running config %s", config)
@@ -131,25 +133,40 @@ func convertFilter(conf []string) string {
 
 // Run executes the check.
 func (k *EventsCheck) Run() error {
-	// initialize kube api check
-	err := k.InitKubeAPICheck()
-	if err == apiserver.ErrNotLeader {
-		log.Debug("Agent is not leader, will not run the check")
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	// Running the event collection.
-	if !k.instance.CollectEvent {
-		return nil
-	}
-
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
 		return err
 	}
 	defer sender.Commit()
+
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// The Cluster Agent will passed in the `skip_leader_election` bool.
+	if !k.instance.LeaderSkip {
+		// Only run if Leader Election is enabled.
+		if !config.Datadog.GetBool("leader_election") {
+			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
+		}
+		errLeader := k.runLeaderElection()
+		if errLeader != nil {
+			if errLeader == apiserver.ErrNotLeader {
+				// Only the leader can instantiate the apiserver client.
+				return nil
+			}
+			return err
+		}
+	}
+
+	// initialize kube api check
+	err = k.InitKubeAPICheck()
+	if err != nil {
+		return err
+	}
+
+
+	// Running the event collection.
+	if !k.instance.CollectEvent {
+		return nil
+	}
 
 	// Get the events from the API server
 	events, err := k.eventCollectionCheck()
@@ -160,8 +177,30 @@ func (k *EventsCheck) Run() error {
 	// Process the events to have a Datadog format.
 	err = k.processEvents(sender, events)
 	if err != nil {
-		_ = k.Warnf("Could not submit new event %s", err.Error())
+		k.Warnf("Could not submit new event %s", err.Error()) //nolint:errcheck
 	}
+	return nil
+}
+
+func (k *EventsCheck) runLeaderElection() error {
+
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.") //nolint:errcheck
+		return err
+	}
+
+	err = leaderEngine.EnsureLeaderElectionRuns()
+	if err != nil {
+		k.Warn("Leader Election process failed to start") //nolint:errcheck
+		return err
+	}
+
+	if !leaderEngine.IsLeader() {
+		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
+		return apiserver.ErrNotLeader
+	}
+	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
 	return nil
 }
 
@@ -196,60 +235,69 @@ func (k *EventsCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 
 // processEvents:
 // - iterates over the Kubernetes Events
-// - filter events that shouldn't be sent to the intake
-// - convert each K8s event to a metrics event to be processed by the intake
+// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
+// - formats the bundle and submit the Datadog event
 func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
-	filteredByType := make(map[string]int)
-
 	clusterName := clustername.GetClusterName()
 	mapper := k.mapperFactory(k.ac, clusterName)
-
 	for _, event := range events {
-		filtered := false
-		for _, action := range k.instance.FilteredEventTypes {
-			if event.Reason == action {
-				filteredByType[action] = filteredByType[action] + 1
-				filtered = true
-				break
-			}
-		}
-
-		if filtered {
-			continue
-		}
-
-		mappedEvent, err := mapper.mapKubernetesEvent(event, false) //TODO agent3
+		mappedEvent, err := mapper.mapKubernetesEvent(event, false)
 		if err != nil {
 			_ = k.Warnf("Error while mapping event, %s.", err.Error())
 			continue
 		}
 
+		log.Debugf("Sending event: %s", mappedEvent.String())
 		sender.Event(mappedEvent)
-
 	}
 
-	if len(filteredByType) > 0 {
-		log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
-	}
+	// eventsByObject := make(map[string]*kubernetesEventBundle)
 
+	// for _, event := range events {
+	// 	id := bundleID(event)
+	// 	bundle, found := eventsByObject[id]
+	// 	if found == false {
+	// 		bundle = newKubernetesEventBundler(event)
+	// 		eventsByObject[id] = bundle
+	// 	}
+	// 	err := bundle.addEvent(event)
+	// 	if err != nil {
+	// 		k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
+	// 	}
+	// }
+
+	// clusterName := clustername.GetClusterName()
+	// mapper := k.mapperFactory(k.ac, clusterName)
+	// for _, bundle := range eventsByObject {
+	// 	datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
+	// 	if err != nil {
+	// 		k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
+	// 		continue
+	// 	}
+	// 	mappedEvent, err := mapper.mapKubernetesEvent(event, false)
+	// 	if err != nil {
+	// 		_ = k.Warnf("Error while mapping event, %s.", err.Error())
+	// 		continue
+	// 	}
+	// 	sender.Event(datadogEv)
+	// }
 	return nil
 }
 
 // bundleID generates a unique ID to separate k8s events
 // based on their InvolvedObject UIDs and event Types
-//func bundleID(e *v1.Event) string {
-//	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type) //TODO agent3
-//}
+// func bundleID(e *v1.Event) string {
+// 	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type)
+// }
 
 func init() {
 	core.RegisterCheck(kubernetesAPIEventsCheckName, KubernetesAPIEventsFactory)
 }
 
-//TODO agent3
-func formatStringIntMap(input map[string]int) string {
-	var parts []string
-	for k, v := range input {
-		parts = append(parts, fmt.Sprintf("%d %s", v, k))
-	}
-	return strings.Join(parts, " ")
-}
+// func formatStringIntMap(input map[string]int) string {
+// 	var parts []string
+// 	for k, v := range input {
+// 		parts = append(parts, fmt.Sprintf("%d %s", v, k))
+// 	}
+// 	return strings.Join(parts, " ")
+// }

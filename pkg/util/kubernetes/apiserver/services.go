@@ -9,6 +9,8 @@ package apiserver
 
 import (
 	"fmt"
+	"k8s.io/api/extensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -36,4 +38,24 @@ func EntityForService(svc *v1.Service) string {
 		return ""
 	}
 	return fmt.Sprintf("%s%s", kubeServiceIDPrefix, svc.ObjectMeta.UID)
+}
+
+// GetServices retrieves all the endpoints in the Kubernetes / OpenShift cluster across all namespaces.
+func (c *APIClient) GetServices() ([]v1.Service, error) {
+	serviceList, err := c.Cl.CoreV1().Services(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		return []v1.Service{}, err
+	}
+
+	return serviceList.Items, nil
+}
+
+// GetIngresses retrieves all the ingress endpoints linked to services in the Kubernetes / OpenShift cluster across all namespaces.
+func (c *APIClient) GetIngresses() ([]v1beta1.Ingress, error) {
+	ingressList, err := c.Cl.ExtensionsV1beta1().Ingresses(metav1.NamespaceAll).List(metav1.ListOptions{})
+	if err != nil {
+		return []v1beta1.Ingress{}, err
+	}
+
+	return ingressList.Items, nil
 }
