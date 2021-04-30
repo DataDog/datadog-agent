@@ -102,7 +102,7 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // In some circumstances, it may switch to another flush strategy after the flush.
 // shutdown indicates whether this is the last flush before the shutdown or not.
 func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
-	// Increment the invocation wait group while, tracks whether work is in progress for the daemon
+	// Increment the invocation wait group which tracks whether work is in progress for the daemon
 	d.InvcWg.Add(1)
 	defer d.InvcWg.Done()
 
