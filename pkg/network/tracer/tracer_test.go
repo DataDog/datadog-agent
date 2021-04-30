@@ -2304,6 +2304,48 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
 }
 
+func TestGatewayLookupSubnetLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	calls := 0
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		if hwAddr.String() == ifi.HardwareAddr.String() {
+			calls++
+		}
+		return network.Subnet{}, assert.AnError
+	}
+
+	tr.gwLookup.purge()
+
+	// do two dns queries to prompt more than one subnet lookup attempt
+	doDNSQuery(t, "google.com", "8.8.8.8")
+	getConnections(t, tr)
+
+	doDNSQuery(t, "google.com", "8.8.8.8")
+	getConnections(t, tr)
+
+	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are > 1 for hw addr %s", ifi.HardwareAddr)
+}
+
 func TestGatewayLookupCrossNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
