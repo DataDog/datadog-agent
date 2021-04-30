@@ -116,6 +116,7 @@ bool Two::init()
     Py2_init_kubeutil();
     Py2_init_containers();
     Py2_init_topology();
+    Py2_init_telemetry();
 
     // import the base class
     _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
@@ -901,7 +902,7 @@ void Two::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
 }
 
 
-// topology
+// [sts] topology
 void Two::setSubmitComponentCb(cb_submit_component_t cb)
 {
     _set_submit_component_cb(cb);
@@ -921,7 +922,14 @@ void Two::setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t cb)
 {
     _set_submit_stop_snapshot(cb);
 }
-//
+
+
+// [sts] telemetry
+void Two::setSubmitTopologyEventCb(cb_submit_topology_event_t cb)
+{
+    _set_submit_topology_event_cb(cb);
+}
+
 
 // Python Helpers
 

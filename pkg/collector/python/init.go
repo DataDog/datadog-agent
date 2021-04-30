@@ -163,7 +163,7 @@ void initkubeutilModule(rtloader_t *rtloader) {
 }
 
 //
-// topology module
+// [sts] topology module
 //
 
 void SubmitComponent(char *, instance_key_t *, char *, char *, char *);
@@ -176,6 +176,16 @@ void initTopologyModule(rtloader_t *rtloader) {
 	set_submit_relation_cb(rtloader, SubmitRelation);
 	set_submit_start_snapshot_cb(rtloader, SubmitStartSnapshot);
 	set_submit_stop_snapshot_cb(rtloader, SubmitStopSnapshot);
+}
+
+//
+// [sts] telemetry module
+//
+
+void SubmitTopologyEvent(char *, char *);
+
+void initTelemetryModule(rtloader_t *rtloader) {
+	set_submit_topology_event_cb(rtloader, SubmitTopologyEvent);
 }
 
 */
@@ -358,7 +368,11 @@ func Initialize(paths ...string) error {
 	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
+
+	// [sts]
 	C.initTopologyModule(rtloader)
+	C.initTelemetryModule(rtloader)
+	// [sts]
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
