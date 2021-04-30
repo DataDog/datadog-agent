@@ -719,6 +719,28 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
+func TestLoadProxyWithoutNoProxy(t *testing.T) {
+	config := setupConf()
+
+	os.Setenv("DD_PROXY_HTTP", "http_url")
+	os.Setenv("DD_PROXY_HTTPS", "https_url")
+
+	loadProxyFromEnv(config)
+
+	proxies := GetProxies()
+	assert.Equal(t,
+		&Proxy{
+			HTTP:  "http_url",
+			HTTPS: "https_url",
+		},
+		proxies)
+
+	assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+}
+
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := setupConf()
 
