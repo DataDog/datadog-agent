@@ -918,7 +918,14 @@ func loadProxyFromEnv(config Config) {
 	if isSet {
 		config.Set("proxy.http", p.HTTP)
 		config.Set("proxy.https", p.HTTPS)
-		config.Set("proxy.no_proxy", p.NoProxy)
+		if len(p.NoProxy) > 0 {
+			config.Set("proxy.no_proxy", p.NoProxy)
+		} else {
+			// If this is set to an empty []string, viper will have a type conflict when merging
+			// this config during secrets resolution. It unmarshals empty yaml lists to type
+			// []interface{}, which will then conflict with type []string and fail to merge.
+			config.Set("proxy.no_proxy", []interface{}{})
+		}
 		proxies = p
 	}
 
