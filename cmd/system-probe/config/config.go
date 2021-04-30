@@ -63,6 +63,7 @@ type Config struct {
 	ProfilingURL         string
 	ProfilingAPIKey      string
 	ProfilingEnvironment string
+	ProfilingPeriod      int
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -144,6 +145,7 @@ func load(configPath string) (*Config, error) {
 		ProfilingURL:         cfg.GetString(key(spNS, "internal_profiling.profile_dd_url")),
 		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
 		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
+		ProfilingPeriod:      cfg.GetInt(key(spNS, "internal_profiling.period")),
 	}
 
 	if err := ValidateSocketAddress(c.SocketAddress); err != nil {

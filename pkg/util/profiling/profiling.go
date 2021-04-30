@@ -26,6 +26,8 @@ const (
 	ProfileCoreService = "datadog-agent"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
+	// DefaultProfilingPeriod defines the default profiling period
+	DefaultProfilingPeriod = 5 * time.Minute
 )
 
 // Active returns a boolean indicating whether profiling is active or not;

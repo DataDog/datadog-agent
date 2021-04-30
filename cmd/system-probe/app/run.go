@@ -196,12 +196,17 @@ func enableProfiling(cfg *config.Config) error {
 		}
 	}
 
+	period := profiling.DefaultProfilingPeriod
+	if cfg.ProfilingPeriod > 0 {
+		period = time.Duration(cfg.ProfilingPeriod)*time.Minute
+	}
+
 	return profiling.Start(
 		cfg.ProfilingAPIKey,
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",
-		5 * time.Minute,
+		period,
 		fmt.Sprintf("version:%v", v),
 	)
 }
