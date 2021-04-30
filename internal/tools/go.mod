@@ -7,11 +7,11 @@ require (
 	github.com/cloudfoundry-incubator/candiedyaml v0.0.0-20170901234223-a41693b7b7af // indirect
 	github.com/frapposelli/wwhrd v0.2.4
 	github.com/fzipp/gocyclo v0.3.1
-	github.com/go-enry/go-license-detector/v4 v4.1.1 // indirect
+	github.com/go-enry/go-license-detector/v4 v4.1.1
 	github.com/golangci/golangci-lint v1.27.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/goware/modvendor v0.3.0
-	github.com/stretchr/testify v1.6.1
+	github.com/stretchr/testify v1.7.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
