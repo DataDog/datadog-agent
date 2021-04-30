@@ -7,6 +7,7 @@ package profiling
 
 import (
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -38,7 +39,7 @@ func Active() bool {
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(apiKey, site, env, service string, tags ...string) error {
+func Start(apiKey, site, env, service string, period time.Duration, tags ...string) error {
 	if Active() {
 		return nil
 	}
@@ -48,6 +49,7 @@ func Start(apiKey, site, env, service string, tags ...string) error {
 		profiler.WithEnv(env),
 		profiler.WithService(service),
 		profiler.WithURL(site),
+		profiler.WithPeriod(period),
 		profiler.WithTags(tags...),
 	)
 	if err == nil {

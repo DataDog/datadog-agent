@@ -7,6 +7,7 @@ package profiling
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -17,6 +18,7 @@ func TestProfiling(t *testing.T) {
 		"https://nowhere.testing.dev",
 		"testing",
 		ProfileCoreService,
+		time.Minute,
 		"1.0.0",
 	)
 	assert.Nil(t, err)

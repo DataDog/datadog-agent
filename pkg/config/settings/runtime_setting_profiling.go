@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -66,6 +67,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,
+			5 * time.Minute,
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {
