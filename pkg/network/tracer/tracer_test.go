@@ -2336,12 +2336,25 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 
 	tr.gwLookup.purge()
 
-	// do two dns queries to prompt more than one subnet lookup attempt
-	doDNSQuery(t, "google.com", "8.8.8.8")
 	getConnections(t, tr)
 
-	doDNSQuery(t, "google.com", "8.8.8.8")
-	getConnections(t, tr)
+	// do two dns queries to prompt more than one subnet lookup attempt
+	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var c *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
 
 	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are > 1 for hw addr %s", ifi.HardwareAddr)
 }
