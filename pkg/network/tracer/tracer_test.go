@@ -2356,7 +2356,7 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	}, 3*time.Second, 500*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
-	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are > 1 for hw addr %s", ifi.HardwareAddr)
+	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
 }
 
 func TestGatewayLookupCrossNamespace(t *testing.T) {
