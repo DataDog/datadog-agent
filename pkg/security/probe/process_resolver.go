@@ -107,22 +107,6 @@ func TTYConstants(probe *Probe) []manager.ConstantEditor {
 	}
 }
 
-// InodeInfo holds information related to inode from kernel
-type InodeInfo struct {
-	MountID uint32
-	Flags   int32
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (i *InodeInfo) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
-		return 0, model.ErrNotEnoughData
-	}
-	i.MountID = model.ByteOrder.Uint32(data)
-	i.Flags = int32(model.ByteOrder.Uint32(data[4:]))
-	return 8, nil
-}
-
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {
 	DebugCacheSize bool
@@ -131,15 +115,15 @@ type ProcessResolverOpts struct {
 // ProcessResolver resolved process context
 type ProcessResolver struct {
 	sync.RWMutex
-	state        int64
-	probe        *Probe
-	resolvers    *Resolvers
-	client       *statsd.Client
-	inodeInfoMap *lib.Map
-	procCacheMap *lib.Map
-	pidCacheMap  *lib.Map
-	cacheSize    int64
-	opts         ProcessResolverOpts
+	state            int64
+	probe            *Probe
+	resolvers        *Resolvers
+	client           *statsd.Client
+	execFileCacheMap *lib.Map
+	procCacheMap     *lib.Map
+	pidCacheMap      *lib.Map
+	cacheSize        int64
+	opts             ProcessResolverOpts
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -211,18 +195,8 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 			return errors.Errorf("snapshot failed for %d: binary was deleted", proc.Pid)
 		}
 
-		// Get the inode of the process binary
-		fi, err := os.Stat(procExecPath)
-		if err != nil {
-			return errors.Wrapf(err, "snapshot failed for %d: couldn't stat binary", proc.Pid)
-		}
-		stat, ok := fi.Sys().(*syscall.Stat_t)
-		if !ok {
-			return errors.Errorf("snapshot failed for %d: couldn't stat binary", proc.Pid)
-		}
-		inode := stat.Ino
-
-		info, err := p.retrieveInodeInfo(inode)
+		// Get the file fields of the process binary
+		info, err := p.retrieveExecFileFields(procExecPath)
 		if err != nil {
 			return errors.Wrapf(err, "snapshot failed for %d: couldn't retrieve inode info", proc.Pid)
 		}
@@ -269,26 +243,36 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	return nil
 }
 
-// retrieveInodeInfo fetches inode metadata from kernel space
-func (p *ProcessResolver) retrieveInodeInfo(inode uint64) (*model.FileFields, error) {
-	var info model.FileFields
-	inodeb := make([]byte, 8)
-
-	model.ByteOrder.PutUint64(inodeb, inode)
-	data, err := p.inodeInfoMap.LookupBytes(inodeb)
+// retrieveExecFileFields fetches inode metadata from kernel space
+func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.FileFields, error) {
+	fi, err := os.Stat(procExecPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "snapshot failed for `%s`: couldn't stat binary", procExecPath)
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, errors.Errorf("snapshot failed for `%s`: couldn't stat binary", procExecPath)
+	}
+	inode := stat.Ino
+
+	inodeb := make([]byte, 8)
+	model.ByteOrder.PutUint64(inodeb, inode)
+
+	data, err := p.execFileCacheMap.LookupBytes(inodeb)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get filename for inode `%d`: %v", inode, err)
 	}
 
-	if _, err = info.UnmarshalBinary(data); err != nil {
-		return nil, err
+	var fileFields model.FileFields
+	if _, err := fileFields.UnmarshalBinary(data); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`", inode)
 	}
 
-	if info.Inode == 0 {
+	if fileFields.Inode == 0 {
 		return nil, errors.New("not found")
 	}
 
-	return &info, nil
+	return &fileFields, nil
 }
 
 func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
@@ -611,7 +595,7 @@ func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
 // Start starts the resolver
 func (p *ProcessResolver) Start(ctx context.Context) error {
 	var err error
-	if p.inodeInfoMap, err = p.probe.Map("inode_info_cache"); err != nil {
+	if p.execFileCacheMap, err = p.probe.Map("exec_file_cache"); err != nil {
 		return err
 	}
 
