@@ -164,9 +164,12 @@ func (d *Daemon) Stop() {
 	log.Debug("Waiting to shut down HTTP server")
 	time.Sleep(shutdownDelay)
 	log.Debug("Shutting down HTTP server")
-	d.httpServer.Shutdown(context.Background())
+	err := d.httpServer.Shutdown(context.Background())
+	if err != nil {
+		log.Error("Error shutting down HTTP server")
+	}
 
-	err := aws.PersistCurrentStateToFile()
+	err = aws.PersistCurrentStateToFile()
 	if err != nil {
 		log.Error("Unable to persist current state to file while shutting down")
 	}
@@ -179,6 +182,7 @@ func (d *Daemon) Stop() {
 	d.stopTraceAgent()
 	d.statsdServer.Stop()
 	logs.Stop()
+	log.Debug("Serverless agent shutdown complete")
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
