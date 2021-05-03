@@ -107,7 +107,7 @@ func init() {
 func run(cmd *cobra.Command, args []string) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	defer stopCallback(cancel)
+	defer shutDownGracefully(cancel)
 
 	stopCh := make(chan struct{})
 
@@ -481,15 +481,14 @@ func readAPIKeyFromSSM() (string, error) {
 	return "", nil
 }
 
-func stopCallback(cancel context.CancelFunc) {
-	// gracefully shut down any component
+func shutDownGracefully(cancel context.CancelFunc) {
 	cancel()
 
+	log.Debug("Stopping statsdServer...")
 	if statsdServer != nil {
 		statsdServer.Stop()
 	}
 
-	log.Info("See ya!")
 	log.Flush()
 	return
 }

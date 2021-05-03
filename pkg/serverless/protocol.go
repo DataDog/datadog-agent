@@ -31,6 +31,11 @@ const httpServerPort int = 8124
 
 const httpLogsCollectionRoute string = "/lambda/logs"
 
+// logsAgentShutdownDelay is the amount of time we wait before shutting down the logs agent
+// after we begin our final flush before shutting down. This allows for the final log messages
+// to arrive from the Logs API.
+const logsAgentShutdownDelay time.Duration = 1 * time.Second
+
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
@@ -40,19 +45,26 @@ type Daemon struct {
 	statsdServer *dogstatsd.Server
 	traceAgent   *traceAgent.Agent
 
-	// lastInvocations stores last invocations time to be able to compute the
+	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
 	lastInvocations []time.Time
+
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
 	flushStrategy flush.Strategy
+
 	// useAdaptiveFlush is set to false when the flush strategy has been forced
 	// through configuration.
 	useAdaptiveFlush bool
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
-	stopCh     chan struct{}
+
+	// logsCollectionSuspended blocks the collection of logs.
+	// It should be set to true before stopping the logs agent.
+	logsCollectionSuspended bool
+
+	stopCh chan struct{}
 
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instantiated)
@@ -117,7 +129,13 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 	// logs
 	go func() {
 		if shutdown {
-			logs.Stop() // stop the logs agent, everything will be flushed
+			// Wait for any remaining logs to arrive via the logs API
+			time.Sleep(logsAgentShutdownDelay)
+			// Stop collecting new logs before shutting down the logs agent
+			// Sending logs to the logs agent after it has shut down results in a panic
+			d.logsCollectionSuspended = true
+			// Stop the logs agent; everything will be flushed
+			logs.Stop()
 		} else {
 			logs.Flush(ctx)
 		}
@@ -127,9 +145,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 	wg.Wait()
 	log.Debug("Flush done")
 
-	// we've just flushed, we can maybe try to change the flush strategy?
-	// (but do that only if the flush strategy hasn't be forced through configuration)
-	// note that we don't mind doing that if we are shutting down.
+	// After flushing, re-evaluate flush strategy (if applicable)
 	if d.useAdaptiveFlush && !shutdown {
 		newStrat := d.AutoSelectStrategy()
 		if newStrat.String() != d.flushStrategy.String() {
@@ -244,6 +260,14 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// However, if logs are not enabled, we do not send them to the intake.
 			if sendLogsToIntake {
 				logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
+
+				// Do not publish logs to channel if logs collection has been suspended
+				if l.daemon.logsCollectionSuspended {
+					log.Debug("Received log message after logs collection suspended, dropping message")
+					w.WriteHeader(503)
+					return
+				}
+
 				l.ch <- logMessage
 			}
 		}
