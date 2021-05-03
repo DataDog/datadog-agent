@@ -8,6 +8,8 @@ package kubeapi
 
 import (
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"sort"
 	"testing"
 
@@ -61,6 +63,13 @@ func TestProcessBundledEvents(t *testing.T) {
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
+	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+		return &kubernetesEventMapper{
+			urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
+			clusterName: clusterName,
+			sourceType:  string(urn.Kubernetes),
+		}
+	}
 	// Several new events, testing aggregation
 	// Not testing full match of the event message as the order of the actions in the summary isn't guaranteed
 
@@ -143,7 +152,13 @@ func TestProcessEvent(t *testing.T) {
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
-
+	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+		return &kubernetesEventMapper{
+			urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
+			clusterName: clusterName,
+			sourceType:  string(urn.Kubernetes),
+		}
+	}
 	mocked := mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 
 	newKubeEventBundle := []*v1.Event{
@@ -210,7 +225,13 @@ func TestProcessEventsType(t *testing.T) {
 	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container", "Warning", 709662600)
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
-
+	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+		return &kubernetesEventMapper{
+			urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
+			clusterName: clusterName,
+			sourceType:  string(urn.Kubernetes),
+		}
+	}
 	newKubeEventsBundle := []*v1.Event{
 		ev1,
 		ev2,

@@ -10,6 +10,7 @@ package collectors
 import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1052,6 +1053,7 @@ func TestParsePods(t *testing.T) {
 
 func TestParsePodsWithClusterName(t *testing.T) {
 	// set the cluster name config for all test scenarios
+	clustername.ResetClusterName()
 	config.Datadog.Set("cluster_name", "test-cluster")
 
 	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
@@ -1193,6 +1195,10 @@ func TestParsePodsWithClusterName(t *testing.T) {
 			}
 		})
 	}
+
+	// clear up test cases
+	config.Datadog.Set("cluster_name", "")
+	clustername.ResetClusterName()
 }
 
 func TestParseDeploymentForReplicaset(t *testing.T) {

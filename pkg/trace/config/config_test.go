@@ -24,6 +24,8 @@ func cleanConfig() func() {
 
 func TestConfigHostname(t *testing.T) {
 	t.Run("nothing", func(t *testing.T) {
+		// [sts] changed hostname detection, we always fallback to os.Hostname
+		t.Skip()
 		defer cleanConfig()()
 		assert := assert.New(t)
 		fallbackHostnameFunc = func() (string, error) {
