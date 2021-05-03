@@ -34,11 +34,19 @@ def trigger_agent_pipeline(
     if deploy:
         args["DEPLOY_AGENT"] = "true"
 
+    # All builds can be selectively enabled. However, they cannot be explicitly
+    # disabled on pipelines where they're activated by default (master & deploy pipelines)
+    # as that would make the pipeline fail (some jobs on master and deploy pipelines depend
+    # on jobs that are only run if RUN_ALL_BUILDS is true).
     if all_builds:
         args["RUN_ALL_BUILDS"] = "true"
 
+    # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
+    # enabled by default (master and deploy pipelines).
     if kitchen_tests:
         args["RUN_KITCHEN_TESTS"] = "true"
+    else:
+        args["RUN_KITCHEN_TESTS"] = "false"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6

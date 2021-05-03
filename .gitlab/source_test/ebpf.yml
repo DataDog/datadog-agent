@@ -1,7 +1,7 @@
 ---
 
 .if_run_all_builds: &if_run_all_builds
-  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod

@@ -33,7 +33,7 @@
 # - api (when the build is triggered by an API call)
 #
 .if_kitchen: &if_kitchen
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true"
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
 deploy_deb_testing-a6:
   rules:

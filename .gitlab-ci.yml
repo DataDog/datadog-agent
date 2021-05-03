@@ -172,13 +172,13 @@ variables:
   if: $CI_COMMIT_TAG == null
 
 # Rules to run all builds conditionally
-# Master pipeline => Run all builds
-# Deploy pipeline => Run all builds
+# All builds are run by default on master and deploy pipelines.
+# They can be explicitly enabled with the RUN_ALL_BUILDS variable.
 .if_run_all_builds: &if_run_all_builds
-  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 # Run job only on deploy pipelines
 .if_deploy: &if_deploy
@@ -193,17 +193,14 @@ variables:
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true"
 
-# anchor to trigger test kitchen setup, run, and cleanup (so all stages
-# are run if one stage is run).  Triggers as defined:
-# - master
-# - deploys
-# - when explicitly asked to
-#
+# Rules to trigger test kitchen setup, run, and cleanup.
+# Kitchen tests run by default on master and deploy pipelines.
+# They can be explicitly enabled or disabled with the RUN_KITCHEN_TESTS variable.
 .if_kitchen: &if_kitchen
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true"
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
 .if_not_kitchen: &if_not_kitchen
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true"
+  if: ($CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true") || $RUN_KITCHEN_TESTS == "false"
 
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).

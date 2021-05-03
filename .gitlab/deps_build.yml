@@ -2,7 +2,7 @@
 # deps_build stage
 # Contains jobs which build various libraries needed for system-probe.
 .if_run_all_builds: &if_run_all_builds
-  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .build_libbcc_common:
   rules:

@@ -9,7 +9,7 @@
   if: $DEPLOY_AGENT == "true"
 
 .if_run_all_builds: &if_run_all_builds
-  if: $RUN_ALL_BUILDS == "true" || $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .agent_build_common_dmg:
   script:

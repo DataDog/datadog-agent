@@ -6,7 +6,7 @@
   if: $RELEASE_VERSION_7 != ""
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p /gomodcache && tar xzf modcache.tar.gz -C /gomodcache

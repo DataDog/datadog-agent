@@ -27,7 +27,7 @@
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $RUN_ALL_BUILDS != "true" && $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 dev_branch_docker_hub-a6:
   extends: .docker_tag_job_definition
