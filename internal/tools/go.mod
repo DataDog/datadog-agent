@@ -11,7 +11,6 @@ require (
 	github.com/golangci/golangci-lint v1.27.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210103220932-664217a59c00
 	github.com/goware/modvendor v0.3.0
-	github.com/stretchr/testify v1.6.1
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
