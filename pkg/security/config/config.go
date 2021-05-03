@@ -46,6 +46,8 @@ type Config struct {
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 	// CookieCacheSize is the size of the cookie cache used to cache process context
@@ -91,6 +93,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
 		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
