@@ -7,6 +7,6 @@
 powershell_script "repair-agent" do
   code <<-EOF
   $product_code = (Get-WmiObject Win32_Product | Where-Object -Property Name -eq 'Datadog Agent').IdentifyingNumber
-  Start-Process msiexec.exe -Wait '/q /log repair.log /fa $product_code'
+  Start-Process msiexec.exe -Wait -ArgumentList '/q','/log','repair.log','/fa',$product_code
   EOF
 end
