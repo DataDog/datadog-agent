@@ -59,7 +59,6 @@ type Daemon struct {
 
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
-	stopCh     chan struct{}
 
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instantiated)
@@ -154,7 +153,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon(stopCh chan struct{}) *Daemon {
+func StartDaemon() *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
 
@@ -162,7 +161,6 @@ func StartDaemon(stopCh chan struct{}) *Daemon {
 		statsdServer:     nil,
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
 		mux:              mux,
-		stopCh:           stopCh,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
@@ -215,6 +213,11 @@ func (d *Daemon) WaitForDaemon() {
 	if d.clientLibReady {
 		d.InvcWg.Wait()
 	}
+}
+
+// Shutdown the relevant systems.
+func (d *Daemon) Shutdown(ctx context.Context) {
+	d.httpServer.Shutdown(ctx)
 }
 
 // WaitUntilClientReady will wait until the client library
