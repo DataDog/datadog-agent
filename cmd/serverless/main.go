@@ -135,7 +135,7 @@ func main() {
 	}
 }
 
-func runAgent(stopCh chan struct{}) (daemon serverless.Daemon, err error) {
+func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	startTime := time.Now()
 
@@ -164,7 +164,7 @@ func runAgent(stopCh chan struct{}) (daemon serverless.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon := serverless.StartDaemon(stopTraceAgent, stopCh)
+	daemon = serverless.StartDaemon(stopTraceAgent, stopCh)
 
 	// serverless parts
 	// ----------------
@@ -389,7 +389,7 @@ func runAgent(stopCh chan struct{}) (daemon serverless.Daemon, err error) {
 
 // handleSignals handles OS signals, if a SIGTERM is received,
 // the serverless agent stops.
-func handleSignals(daemon serverless.Daemon, stopCh chan struct{}) {
+func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
