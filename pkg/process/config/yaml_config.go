@@ -211,6 +211,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
+		a.ProfilingPeriod = config.Datadog.GetInt("internal_profiling.period")
 	}
 
 	// Used to override container source auto-detection

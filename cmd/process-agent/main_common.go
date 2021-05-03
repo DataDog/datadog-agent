@@ -310,5 +310,5 @@ func enableProfiling(cfg *config.AgentConfig) error {
 
 	v, _ := version.Agent()
 
-	return profiling.Start(cfg.ProfilingAPIKey, site, cfg.ProfilingEnvironment, "process-agent", profiling.DefaultProfilingPeriod, fmt.Sprintf("version:%v", v))
+	return profiling.Start(cfg.ProfilingAPIKey, site, cfg.ProfilingEnvironment, "process-agent", time.Duration(cfg.ProfilingPeriod)*time.Minute, fmt.Sprintf("version:%v", v))
 }

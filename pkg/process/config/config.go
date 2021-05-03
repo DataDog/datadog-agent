@@ -103,6 +103,7 @@ type AgentConfig struct {
 	ProfilingURL              string
 	ProfilingAPIKey           string
 	ProfilingEnvironment      string
+	ProfilingPeriod      int
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 

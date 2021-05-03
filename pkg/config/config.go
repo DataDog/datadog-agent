@@ -595,6 +595,7 @@ func InitConfig(config Config) {
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
 	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
+	config.BindEnvAndSetDefault("internal_profiling.period", 5)
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
