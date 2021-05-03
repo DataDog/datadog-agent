@@ -7,6 +7,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func makeConnection(pid int32) *model.Connection {
@@ -71,7 +72,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		ctm := &model.CollectorConnectionsTelemetry{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -112,7 +113,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -153,7 +154,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -199,7 +200,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains)
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -218,4 +219,59 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 4, total)
+}
+
+func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
+	conns := makeConnections(8)
+
+	routes := []*model.Route{
+		{Subnet: &model.Subnet{Alias: "foo1"}},
+		{Subnet: &model.Subnet{Alias: "foo2"}},
+		{Subnet: &model.Subnet{Alias: "foo3"}},
+		{Subnet: &model.Subnet{Alias: "foo4"}},
+		{Subnet: &model.Subnet{Alias: "foo5"}},
+	}
+
+	conns[0].RouteIdx = 0
+	conns[1].RouteIdx = 1
+	conns[2].RouteIdx = 2
+	conns[3].RouteIdx = 3
+	conns[4].RouteIdx = -1
+	conns[5].RouteIdx = 4
+	conns[6].RouteIdx = 3
+	conns[7].RouteIdx = 2
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 4
+
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes)
+
+	assert.Len(t, chunks, 2)
+	total := 0
+	for i, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		switch i {
+		case 0:
+			require.Equal(t, int32(0), connections.Connections[0].RouteIdx)
+			require.Equal(t, int32(1), connections.Connections[1].RouteIdx)
+			require.Equal(t, int32(2), connections.Connections[2].RouteIdx)
+			require.Equal(t, int32(3), connections.Connections[3].RouteIdx)
+			require.Len(t, connections.Routes, 4)
+			require.Equal(t, routes[0].Subnet.Alias, connections.Routes[0].Subnet.Alias)
+			require.Equal(t, routes[1].Subnet.Alias, connections.Routes[1].Subnet.Alias)
+			require.Equal(t, routes[2].Subnet.Alias, connections.Routes[2].Subnet.Alias)
+			require.Equal(t, routes[3].Subnet.Alias, connections.Routes[3].Subnet.Alias)
+		case 1:
+			require.Equal(t, int32(-1), connections.Connections[0].RouteIdx)
+			require.Equal(t, int32(0), connections.Connections[1].RouteIdx)
+			require.Equal(t, int32(1), connections.Connections[2].RouteIdx)
+			require.Equal(t, int32(2), connections.Connections[3].RouteIdx)
+			require.Len(t, connections.Routes, 3)
+			require.Equal(t, routes[4].Subnet.Alias, connections.Routes[0].Subnet.Alias)
+			require.Equal(t, routes[3].Subnet.Alias, connections.Routes[1].Subnet.Alias)
+			require.Equal(t, routes[2].Subnet.Alias, connections.Routes[2].Subnet.Alias)
+		}
+	}
+	assert.Equal(t, 8, total)
 }

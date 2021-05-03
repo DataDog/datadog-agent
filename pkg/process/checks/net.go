@@ -238,6 +238,26 @@ func batchConnections(
 				batchDomains[i] = domain
 			}
 		}
+
+		// remap route indices
+		// map of old index to new index
+		newRouteIndices := make(map[int32]int32)
+		var batchRoutes []*model.Route
+		for _, c := range batchConns {
+			if c.RouteIdx < 0 {
+				continue
+			}
+			if i, ok := newRouteIndices[c.RouteIdx]; ok {
+				c.RouteIdx = i
+				continue
+			}
+
+			new := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = new
+			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
+			c.RouteIdx = new
+		}
+
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
@@ -248,7 +268,7 @@ func batchConnections(
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
 			Domains:           batchDomains,
-			Routes:            routes,
+			Routes:            batchRoutes,
 		}
 
 		// Add OS telemetry
