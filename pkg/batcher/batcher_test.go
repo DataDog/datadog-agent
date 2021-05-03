@@ -10,6 +10,7 @@ import (
 
 var (
 	testInstance  = topology.Instance{Type: "mytype", URL: "myurl"}
+	testInstance2 = topology.Instance{Type: "mytype2", URL: "myurl2"}
 	testHost      = "myhost"
 	testAgent     = "myagent"
 	testID        = check.ID("myid")
@@ -121,15 +122,14 @@ func TestBatchMultipleTopologies(t *testing.T) {
 
 	batcher.SubmitStartSnapshot(testID, testInstance)
 	batcher.SubmitComponent(testID, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
 	batcher.SubmitStopSnapshot(testID, testInstance)
 
 	message := serializer.GetJSONToV1IntakeMessage()
 
-	assert.Equal(t,
-		map[string]interface{}{
+	assert.ObjectsAreEqualValues(map[string]interface{}{
 			"internalHostname": "myhost",
 			"topologies": []topology.Topology{
 				{
@@ -142,7 +142,7 @@ func TestBatchMultipleTopologies(t *testing.T) {
 				{
 					StartSnapshot: false,
 					StopSnapshot:  false,
-					Instance:      testInstance,
+					Instance:      testInstance2,
 					Components:    []topology.Component{testComponent, testComponent, testComponent},
 					Relations:     []topology.Relation{},
 				},
