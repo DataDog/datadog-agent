@@ -257,6 +257,9 @@ __u64 recv_bytes;
 __u64 timestamp;
 __u32 flags;
 __u8  direction;
+__u64 sent_segments;
+__u64 recv_segments;
+
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
 
@@ -298,18 +301,20 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 	}
 
 	stats := network.ConnectionStats{
-		Pid:                uint32(t.pid),
-		Type:               connType(metadata),
-		Direction:          connDirection(uint8(s.direction)),
-		Family:             family,
-		NetNS:              uint32(t.netns),
-		Source:             source,
-		Dest:               dest,
-		SPort:              uint16(t.sport),
-		DPort:              uint16(t.dport),
-		MonotonicSentBytes: uint64(s.sent_bytes),
-		MonotonicRecvBytes: uint64(s.recv_bytes),
-		LastUpdateEpoch:    uint64(s.timestamp),
+		Pid:                  uint32(t.pid),
+		Type:                 connType(metadata),
+		Direction:            connDirection(uint8(s.direction)),
+		Family:               family,
+		NetNS:                uint32(t.netns),
+		Source:               source,
+		Dest:                 dest,
+		SPort:                uint16(t.sport),
+		DPort:                uint16(t.dport),
+		MonotonicSentBytes:   uint64(s.sent_bytes),
+		MonotonicRecvBytes:   uint64(s.recv_bytes),
+		MonotonicSentPackets: uint64(s.sent_segments),
+		MonotonicRecvPackets: uint64(s.recv_segments),
+		LastUpdateEpoch:      uint64(s.timestamp),
 	}
 
 	if connType(metadata) == network.TCP {
