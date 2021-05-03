@@ -4,8 +4,7 @@ go 1.16
 
 require (
 	github.com/client9/misspell v0.3.4
-	github.com/cloudfoundry-incubator/candiedyaml v0.0.0-20170901234223-a41693b7b7af // indirect
-	github.com/frapposelli/wwhrd v0.2.4
+	github.com/frapposelli/wwhrd v0.4.0
 	github.com/fzipp/gocyclo v0.3.1
 	github.com/go-enry/go-license-detector/v4 v4.2.0
 	github.com/golangci/golangci-lint v1.27.0
