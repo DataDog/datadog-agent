@@ -215,8 +215,9 @@ func TestProcessChunking(t *testing.T) {
 		for _, c := range tc.last {
 			lastStats[c.Pid] = c.Stats
 		}
+		networks := make(map[int32][]*model.Connection)
 
-		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun)
+		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun, networks)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
 		assert.Len(t, chunked, tc.expectedProcChunks, "len %d", i)
@@ -226,7 +227,7 @@ func TestProcessChunking(t *testing.T) {
 		}
 		assert.Equal(t, tc.expectedProcTotal, total, "total test %d", i)
 
-		chunkedStat := fmtProcessStats(cfg, curStats, lastStats, containers, syst2, syst1, lastRun)
+		chunkedStat := fmtProcessStats(cfg, curStats, lastStats, containers, syst2, syst1, lastRun, networks)
 		assert.Len(t, chunkedStat, tc.expectedStatChunks, "len stat %d", i)
 		total = 0
 		for _, c := range chunkedStat {
@@ -316,7 +317,66 @@ func TestFormatIO(t *testing.T) {
 
 }
 
+func TestFormatNetworks(t *testing.T) {
+	for _, tc := range []struct {
+		connsByPID map[int32][]*model.Connection
+		interval   int
+		pid        int32
+		expected   *model.ProcessNetworks
+	}{
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 2,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 5, BytesRate: 150},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 10,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 1, BytesRate: 30},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 20,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 0.5, BytesRate: 15},
+		},
+		{
+			connsByPID: nil,
+			interval:   20,
+			pid:        1,
+			expected:   &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 10,
+			pid:      2,
+			expected: &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
+		},
+	} {
+		result := formatNetworks(tc.connsByPID[tc.pid], tc.interval)
+		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
 func floatEquals(a, b float32) bool {
 	var e float32 = 0.00000001 // Difference less than some epsilon
 	return a-b < e && b-a < e
+}
+
+func yieldConnections(count int) []*model.Connection {
+	result := make([]*model.Connection, count)
+	for i := 0; i < count; i++ {
+		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
+	}
+	return result
 }

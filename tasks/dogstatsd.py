@@ -199,6 +199,7 @@ def omnibus_build(
     release_version="nightly",
     major_version='7',
     omnibus_s3_cache=False,
+    go_mod_cache=None,
 ):
     """
     Build the Dogstatsd packages with Omnibus Installer.
@@ -220,19 +221,34 @@ def omnibus_build(
 
     with ctx.cd("omnibus"):
         env = load_release_versions(ctx, release_version)
+
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd, env=env)
+
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {"omnibus": omnibus, "log_level": log_level, "overrides": overrides_cmd, "populate_s3_cache": ""}
+
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
+
         env['PACKAGE_VERSION'] = get_version(
             ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version
         )
         env['MAJOR_VERSION'] = major_version
+
+        if 'INTEGRATIONS_CORE_VERSION' in os.environ:
+            env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
+
+        # If the host has a GOMODCACHE set, try to reuse it
+        if not go_mod_cache and os.environ.get('GOMODCACHE'):
+            go_mod_cache = os.environ.get('GOMODCACHE')
+
+        if go_mod_cache:
+            env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
         ctx.run(cmd.format(**args), env=env)
 
 

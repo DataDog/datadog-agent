@@ -825,6 +825,11 @@ void Three::setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t cb)
     _set_submit_histogram_bucket_cb(cb);
 }
 
+void Three::setSubmitEventPlatformEventCb(cb_submit_event_platform_event_t cb)
+{
+    _set_submit_event_platform_event_cb(cb);
+}
+
 void Three::setGetVersionCb(cb_get_version_t cb)
 {
     _set_get_version_cb(cb);

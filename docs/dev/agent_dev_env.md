@@ -93,7 +93,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.14`. Make
+You must [install Golang](https://golang.org/doc/install) version `1.15`. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any
 additional tool it might need.
 
@@ -104,7 +104,7 @@ binary properly.**
 
 ## Installing dependencies
 
-From the root of `datadog-agent`, run `invoke deps`. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke install-tools` to install go tooling, then `invoke deps` to install go dependencies. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 

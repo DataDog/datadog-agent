@@ -24,6 +24,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 )
@@ -244,17 +245,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 }
 
 func loadConfigIfExists(path string) error {
-	if util.PathExists(path) {
-		config.Datadog.AddConfigPath(path)
-		if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
-			config.Datadog.SetConfigFile(path)
-		}
+	if path != "" {
+		if util.PathExists(path) {
+			config.Datadog.AddConfigPath(path)
+			if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
+				config.Datadog.SetConfigFile(path)
+			}
 
-		if _, err := config.LoadWithoutSecret(); err != nil {
-			return err
+			if _, err := config.LoadWithoutSecret(); err != nil {
+				return err
+			}
+		} else {
+			log.Infof("no config exists at %s, ignoring...", path)
 		}
-	} else {
-		log.Infof("no config exists at %s, ignoring...", path)
 	}
 	return nil
 }
@@ -323,8 +326,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.LogLevel = "warn"
 	}
 
-	if cfg.HostName == "" {
-		// lookup hostname if there is no config override
+	if err := validate.ValidHostname(cfg.HostName); err != nil {
+		// lookup hostname if there is no config override or if the override is invalid
 		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
@@ -376,7 +379,7 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_PROCESS_AGENT_PROFILING_ENABLED", "process_config.profiling.enabled"},
+		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},

@@ -22,13 +22,13 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
-// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
-var syncTimeout = config.Datadog.GetDuration("cache_sync_timeout") * time.Second
-
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
 func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	var g errgroup.Group
+	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
+	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
+	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	for name := range informers {
 		name := name // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
@@ -45,10 +45,19 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 	return g.Wait()
 }
 
-func StructureIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
+func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
 	unstrObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return fmt.Errorf("could not cast Unstructured object: %v", obj)
 	}
 	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
+}
+
+func UnstructuredFromWPA(structIn *v1alpha1.WatermarkPodAutoscaler, unstructOut *unstructured.Unstructured) error {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
+	if err != nil {
+		return fmt.Errorf("Unable to convert WatermarkPodAutoscaler %v: %w", structIn, err)
+	}
+	unstructOut.SetUnstructuredContent(content)
+	return nil
 }

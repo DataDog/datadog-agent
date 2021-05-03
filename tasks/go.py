@@ -3,15 +3,19 @@ Golang related tasks go here
 """
 
 
+import copy
 import datetime
+import json
 import os
 import shutil
+import tempfile
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
+from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 # List of modules to ignore when running lint
@@ -87,7 +91,7 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("go run golang.org/x/lint/golint {}".format(' '.join(targets_list)))
+    result = ctx.run("golint {}".format(' '.join(targets_list)))
     if result.stdout:
         files = []
         skipped_files = set()
@@ -150,7 +154,7 @@ def cyclo(ctx, targets, limit=15):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("go run github.com/fzipp/gocyclo -over {} ".format(limit) + " ".join(targets))
+    ctx.run("gocyclo -over {} ".format(limit) + " ".join(targets))
     # gocyclo exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("gocyclo found no issues")
@@ -175,9 +179,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     for target in targets:
         print("running golangci on {}".format(target))
         ctx.run(
-            "go run github.com/golangci/golangci-lint/cmd/golangci-lint run --timeout 10m0s -c .golangci.yml --build-tags '{}' {}".format(
-                " ".join(tags), "{}/...".format(target)
-            ),
+            "golangci-lint run --timeout 10m0s --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
             env=env,
         )
 
@@ -199,7 +201,7 @@ def ineffassign(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("go run github.com/gordonklaus/ineffassign " + " ".join(target + "/..." for target in targets))
+    ctx.run("ineffassign " + " ".join(target + "/..." for target in targets))
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
@@ -221,12 +223,12 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     # staticcheck checks recursively only if path is in "path/..." format
     pkgs = [sub + "/..." for sub in targets]
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
     tags.remove("python")
     tags.remove("jmx")
 
-    ctx.run("go run honnef.co/go/tools/cmd/staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
+    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("staticcheck found no issues")
@@ -245,7 +247,7 @@ def misspell(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    result = ctx.run("go run github.com/client9/misspell/cmd/misspell " + " ".join(targets), hide=True)
+    result = ctx.run("misspell " + " ".join(targets), hide=True)
     legit_misspells = []
     for found_misspell in result.stdout.split("\n"):
         if len(found_misspell.strip()) > 0:
@@ -290,7 +292,7 @@ def deps_vendored(ctx, verbose=False):
     # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
     # For this reason, we need to use a 3rd party tool to copy these files.
     # We won't need this if/when we change to non-vendored modules
-    ctx.run('go run github.com/goware/modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
+    ctx.run('modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
 
     # If github.com/DataDog/datadog-agent gets vendored too - nuke it
     # This may happen because of the introduction of nested modules
@@ -349,12 +351,20 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
+
+    # local imports
+    from urllib.parse import urlparse
+
+    import requests
+    from requests.exceptions import RequestException
+
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
     deps_vendored(ctx)
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
     exceptions = []
+    additional = {}
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
         for pkg in wwhrd_conf['exceptions']:
@@ -363,6 +373,9 @@ def get_licenses_list(ctx):
                 exceptions_wildcard.append(pkg[: -len("/...")])
             else:
                 exceptions.append(pkg)
+
+        for pkg, license in wwhrd_conf.get('additional', {}).items():
+            additional[pkg] = license
 
     def is_excluded(pkg):
         if package in exceptions:
@@ -373,7 +386,7 @@ def get_licenses_list(ctx):
         return False
 
     # Parse the output of wwhrd to generate the list
-    result = ctx.run('go run github.com/frapposelli/wwhrd list --no-color', hide='err')
+    result = ctx.run('wwhrd list --no-color', hide='err')
     licenses = []
     if result.stderr:
         for line in result.stderr.split("\n"):
@@ -391,6 +404,35 @@ def get_licenses_list(ctx):
                         print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
                     else:
                         licenses.append("core,\"{}\",{}".format(package, license))
+
+    # Additional Licenses
+    for pkg, lic in additional.items():
+        url = urlparse(lic)
+        url = url._replace(scheme='https', netloc=url.path, path='')
+        try:
+            resp = requests.get(url.geturl())
+            resp.raise_for_status()
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                with open(os.path.join(tempdir, 'LICENSE'), 'w') as lfp:
+                    lfp.write(resp.text)
+                    lfp.flush()
+
+                    temp_path = os.path.dirname(lfp.name)
+                    result = ctx.run("license-detector -f json {}".format(temp_path))
+                    if result.stdout:
+                        results = json.loads(result.stdout)
+                        for project in results:
+                            if 'error' in project:
+                                continue
+
+                            # we get the first match
+                            license = project['matches'][0]['license']
+                            licenses.append("core,\"{}\",{}".format(pkg, license))
+        except RequestException:
+            print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
+            raise Exit(code=1)
+
     licenses.sort()
     shutil.rmtree("vendor/")
     return licenses
@@ -421,3 +463,35 @@ def generate(ctx, mod="mod"):
     """
     ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
+
+
+@task
+def check_mod_tidy(ctx, test_folder="testmodule"):
+    errors_found = []
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")
+            res = ctx.run("git diff-files --exit-code go.mod", warn=True)
+            if res.exited is None or res.exited > 0:
+                errors_found.append("go.mod for {} module is out of sync".format(mod.import_path))
+
+    generate_dummy_package(ctx, test_folder)
+    with ctx.cd(test_folder):
+        ctx.run("go mod tidy")
+        res = ctx.run("go build main.go", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("could not build test module importing external modules")
+        if os.path.isfile(os.path.join(ctx.cwd, "main")):
+            os.remove(os.path.join(ctx.cwd, "main"))
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+        message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+        raise Exit(message=message)
+
+
+@task
+def tidy_all(ctx):
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")

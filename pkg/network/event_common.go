@@ -8,7 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/dustin/go-humanize"
+	humanize "github.com/dustin/go-humanize"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -98,6 +98,7 @@ type ConnectionsTelemetry struct {
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
 	ConntrackSamplingPercent           int64
+	DNSStatsDropped                    int64
 }
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets

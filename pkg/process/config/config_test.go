@@ -569,6 +569,19 @@ func TestGetHostnameFromCmd(t *testing.T) {
 	})
 }
 
+func TestInvalidHostname(t *testing.T) {
+	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml",
+		"",
+	)
+	assert.NoError(t, err)
+
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, agentConfig.HostName)
+}
+
 // TestGetHostnameShellCmd is a method that is called as a substitute for a dd-agent shell command,
 // the GO_TEST_PROCESS flag ensures that if it is called as part of the test suite, it is skipped.
 func TestGetHostnameShellCmd(t *testing.T) {

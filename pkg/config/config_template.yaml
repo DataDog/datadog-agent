@@ -58,6 +58,16 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param host_aliases - list of strings - optional
+## List of host aliases to report in addition to any aliases collected
+## automatically from cloud providers.
+## More information at
+## https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#host-aliases
+#
+# host_aliases:
+#   - <ALIAS-1>
+#   - <ALIAS-2>
+
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
@@ -618,20 +628,25 @@ api_key:
     #
     # loader: core
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
-## Enter specific configurations for profiling.
+## Enter specific configurations for internal profiling.
+##
+## Please note that:
+##   1. This does *not* enable profiling for user applications.
+##   2. This only enables internal profiling of the agent go runtime.
+##   3. To enable profiling for user apps please refer to
+##      https://docs.datadoghq.com/tracing/profiling/
+##   4. Enabling this feature will incur in billing charges and other
+##      unexpected side-effects (ie. agent profiles showing with your
+##      services).
+##
 ## Uncomment this parameter and the one below to enable profiling.
-## See https://docs.datadoghq.com/tracing/profiling/
 #
-## NOTE: If enabled this option may incur in billing charges or other
-##       unexpected side-effects (ie. agent profiles showing with your
-##       services).
-#
-# profiling:
+# internal_profiling:
 #
   ## @param enabled - boolean - optional - default: false
-  ## Enable profiling for the Agent process.
+  ## Enable internal profiling for the Agent process.
   #
   # enabled: false
 
@@ -926,20 +941,25 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
-  ## Enter specific configurations for profiling.
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
   ## Uncomment this parameter and the one below to enable profiling.
-  ## See https://docs.datadoghq.com/tracing/profiling/
   #
-  ## NOTE: If you enable this option, it may impact your billing or
-  ##       other features (e.g. process-agent profiles showing with your
-  ##       services).
-  #
-  # profiling:
+  # internal_profiling:
   #
   ## @param enabled - boolean - optional - default: false
-  ## Enable profiling for the Process Agent process.
+  ## Enable internal profiling for the Process Agent process.
   #
   # enabled: false
 
@@ -995,20 +1015,25 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
-{{- if .Profiling -}}
+{{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
-  ## Enter specific configurations for profiling.
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
   ## Uncomment this parameter and the one below to enable profiling.
-  ## See https://docs.datadoghq.com/tracing/profiling/
   #
-  ## NOTE: If enabled this option may incur billing charges or other
-  ##       unexpected side-effects (ie. system probe profiles showing with your
-  ##       services).
-  #
-  # profiling:
+  # internal_profiling:
   #
     ## @param enabled - boolean - optional - default: false
-    ## Enable profiling for the System Probe process.
+    ## Enable internal profiling for the System Probe process.
     #
     # enabled: false
 
@@ -1194,7 +1219,7 @@ api_key:
 #
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
-
+#
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
@@ -1730,6 +1755,11 @@ api_key:
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
 # ecs_collect_resource_tags_ec2: false
+
+## @param ecs_resource_tags_replace_colon - boolean - optional - default: false
+## The Agent replaces colon `:` characters in the ECS resource tag keys by underscores `_`.
+#
+# ecs_resource_tags_replace_colon: false
 
 ## @param ecs_metadata_timeout - integer - optional - default: 500
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.

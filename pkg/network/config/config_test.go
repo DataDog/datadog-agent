@@ -199,3 +199,34 @@ func TestEnablingDNSDomainCollection(t *testing.T) {
 		assert.True(t, cfg.CollectDNSDomains)
 	})
 }
+
+func TestSettingMaxDNSStats(t *testing.T) {
+	newConfig()
+	defer restoreGlobalConfig()
+
+	t.Run("via YAML", func(t *testing.T) {
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSDomains.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.Equal(t, 100, cfg.MaxDNSStats)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
+
+		newConfig()
+		os.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
+		_, err = sysconfig.New("")
+		require.NoError(t, err)
+		cfg = New()
+
+		assert.Equal(t, 10000, cfg.MaxDNSStats)
+	})
+}

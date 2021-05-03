@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
@@ -29,7 +29,7 @@ LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
 
 DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
-KITCHEN_DIR = os.path.join("test", "kitchen")
+KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -494,7 +494,7 @@ def get_ebpf_build_flags():
         '-D__KERNEL__',
         '-DCONFIG_64BIT',
         '-D__BPF_TRACING__',
-        '-DKBUILD_MODNAME=\'"ddsysprobe"\'',
+        '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
         '-Wno-unused-value',
         '-Wno-pointer-sign',
         '-Wno-compare-distinct-pointer-types',
@@ -529,6 +529,7 @@ def build_network_ebpf_files(ctx, build_dir):
     compiled_programs = [
         "tracer",
         "offset-guess",
+        "http",
     ]
 
     network_flags = get_ebpf_build_flags()
@@ -630,7 +631,7 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     if bundle_ebpf:
         go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir)
+        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task
@@ -641,19 +642,6 @@ def generate_runtime_files(ctx):
     ]
     for f in runtime_compiler_files:
         ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
-
-
-def bundle_files(ctx, bindata_files, dir_prefix, go_dir):
-    assets_cmd = (
-        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags {bundle_tag} -split"
-        + " -pkg bindata -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
-    )
-    ctx.run(
-        assets_cmd.format(
-            dir_prefix=dir_prefix, go_dir=go_dir, bundle_tag=BUNDLE_TAG, bindata_files="' '".join(bindata_files)
-        )
-    )
-    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
 
 
 def build_ebpf_builder(ctx):

@@ -351,8 +351,19 @@ def get_omnibus_env(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     env = load_release_versions(ctx, release_version)
+
+    # If the host has a GOMODCACHE set, try to reuse it
+    if not go_mod_cache and os.environ.get('GOMODCACHE'):
+        go_mod_cache = os.environ.get('GOMODCACHE')
+
+    if go_mod_cache:
+        env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
+    if 'INTEGRATIONS_CORE_VERSION' in os.environ:
+        env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
@@ -453,6 +464,7 @@ def omnibus_build(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -484,6 +496,7 @@ def omnibus_build(
         system_probe_bin=system_probe_bin,
         libbcc_tarball=libbcc_tarball,
         with_bcc=with_bcc,
+        go_mod_cache=go_mod_cache,
     )
 
     target_project = "agent"
@@ -535,6 +548,7 @@ def omnibus_manifest(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -549,6 +563,7 @@ def omnibus_manifest(
         system_probe_bin=system_probe_bin,
         libbcc_tarball=libbcc_tarball,
         with_bcc=with_bcc,
+        go_mod_cache=go_mod_cache,
     )
 
     target_project = "agent"

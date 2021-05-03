@@ -414,6 +414,16 @@ def _create_version_dict_from_match(match):
     return version
 
 
+def _is_dict_version_field(key):
+    """
+    Returns a bool to indicate if the field should be stringified from a dictionary or not.
+
+    Generally all `*_VERSION` fields are parsed with regex but `WINDOWS_DDNPM_VERSION`
+    should be used as-is.
+    """
+    return "VERSION" in key and key != "WINDOWS_DDNPM_VERSION"
+
+
 def _stringify_config(config_dict):
     """
     Takes a config dict of the following form:
@@ -425,7 +435,9 @@ def _stringify_config(config_dict):
 
     and transforms all VERSIONs into their string representation.
     """
-    return {key: _stringify_version(value) if "VERSION" in key else value for key, value in config_dict.items()}
+    return {
+        key: _stringify_version(value) if _is_dict_version_field(key) else value for key, value in config_dict.items()
+    }
 
 
 def _stringify_version(version_dict):
@@ -498,6 +510,31 @@ def _get_highest_version_from_release_json(release_json, highest_major, version_
     return highest_version
 
 
+def _get_windows_ddnpm_release_json_info(
+    release_json, highest_major, version_re, is_first_rc=False,
+):
+
+    highest_release_json_version = _get_highest_version_from_release_json(release_json, highest_major, version_re)
+
+    # First RC should use the data from nightly section otherwise reuse the last RC info
+    if is_first_rc:
+        print("Using 'nightly' DDNPM values")
+        release_json_version_data = release_json['nightly']
+    else:
+        highest_release = _stringify_version(highest_release_json_version)
+        print("Using '{}' DDNPM values".format(highest_release))
+        release_json_version_data = release_json[highest_release]
+
+    win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
+    win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
+    win_ddnpm_shasum = release_json_version_data['WINDOWS_DDNPM_SHASUM']
+
+    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
+        print("WARN: WINDOWS_DDNPM_DRIVER value '{}' is not valid".format(win_ddnpm_driver))
+
+    return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
+
+
 def _save_release_json(
     release_json,
     list_major_versions,
@@ -508,17 +545,21 @@ def _save_release_json(
     jmxfetch_version,
     security_agent_policies_version,
     macos_build_version,
+    windows_ddnpm_driver,
+    windows_ddnpm_version,
+    windows_ddnpm_shasum,
 ):
     import requests
 
     jmxfetch = requests.get(
-        "https://bintray.com/datadog/datadog-maven/download_file?file_path=com%2Fdatadoghq%2Fjmxfetch%2F{0}%2Fjmxfetch-{0}-jar-with-dependencies.jar".format(
+        "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(
             _stringify_version(jmxfetch_version),
         )
     ).content
     jmxfetch_sha256 = hashlib.sha256(jmxfetch).hexdigest()
 
     print("Jmxfetch's SHA256 is {}".format(jmxfetch_sha256))
+    print("Windows DDNPM's SHA256 is {}".format(windows_ddnpm_shasum))
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integration_version
@@ -528,6 +569,9 @@ def _save_release_json(
     new_version_config["JMXFETCH_HASH"] = jmxfetch_sha256
     new_version_config["SECURITY_AGENT_POLICIES_VERSION"] = security_agent_policies_version
     new_version_config["MACOS_BUILD_VERSION"] = macos_build_version
+    new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
+    new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
+    new_version_config["WINDOWS_DDNPM_SHASUM"] = windows_ddnpm_shasum
 
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
@@ -567,6 +611,9 @@ def finish(
     omnibus_ruby_version=None,
     security_agent_policies_version=None,
     macos_build_version=None,
+    windows_ddnpm_driver=None,
+    windows_ddnpm_version=None,
+    windows_ddnpm_shasum=None,
     ignore_rc_tag=False,
 ):
 
@@ -713,6 +760,14 @@ def finish(
                 return Exit(code=1)
     print("datadog-agent-macos-build' tag is {}".format(_stringify_version(macos_build_version)))
 
+    if not windows_ddnpm_version:
+        # Get info on DDNPM
+        windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
+            release_json, highest_major, version_re
+        )
+
+    print("windows ddnpm version is {}".format(windows_ddnpm_version))
+
     _save_release_json(
         release_json,
         list_major_versions,
@@ -723,6 +778,9 @@ def finish(
         jmxfetch_version,
         security_agent_policies_version,
         macos_build_version,
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
     )
 
     # Update internal module dependencies
@@ -739,6 +797,9 @@ def create_rc(
     omnibus_ruby_version=None,
     security_agent_policies_version=None,
     macos_build_version=None,
+    windows_ddnpm_driver=None,
+    windows_ddnpm_version=None,
+    windows_ddnpm_shasum=None,
 ):
 
     """
@@ -829,6 +890,15 @@ def create_rc(
         )
     print("datadog-agent-macos-build's tag is {}".format(_stringify_version(macos_build_version)))
 
+    if not windows_ddnpm_version:
+        is_first_rc = highest_version["rc"] == 1
+        # Get info on DDNPM
+        windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
+            release_json, highest_major, version_re, is_first_rc
+        )
+
+    print("windows ddnpm version is {}".format(windows_ddnpm_version))
+
     _save_release_json(
         release_json,
         list_major_versions,
@@ -839,6 +909,9 @@ def create_rc(
         jmxfetch_version,
         security_agent_policies_version,
         macos_build_version,
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
     )
 
     # Update internal module dependencies
@@ -859,7 +932,7 @@ def update_modules(ctx, agent_version, verify=True):
     * --verify checks for correctness on the Agent Version (on by default).
 
     Examples:
-    inv -e release.update-modules 7.27.0 
+    inv -e release.update-modules 7.27.0
     """
     if verify:
         check_version(agent_version)

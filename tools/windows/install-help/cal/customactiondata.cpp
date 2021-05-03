@@ -2,12 +2,21 @@
 #include "PropertyReplacer.h"
 #include <utility>
 
-CustomActionData::CustomActionData()
-    : domainUser(false)
-      , doInstallSysprobe(true)
-      , ddnpmPresent(false)
-      , userParamMismatch(false)
+CustomActionData::CustomActionData(std::shared_ptr<ITargetMachine> targetMachine)
+: _hInstall(NULL)
+, _domainUser(false)
+, _userParamMismatch(false)
+, _doInstallSysprobe(true)
+, _ddnpmPresent(false)
+, _ddUserExists(false)
+, _targetMachine(std::move(targetMachine))
 {
+}
+
+CustomActionData::CustomActionData()
+: CustomActionData(std::make_shared<TargetMachine>())
+{
+    
 }
 
 CustomActionData::~CustomActionData()
@@ -16,9 +25,9 @@ CustomActionData::~CustomActionData()
 
 bool CustomActionData::init(MSIHANDLE hi)
 {
-    this->hInstall = hi;
+    this->_hInstall = hi;
     std::wstring data;
-    if (!loadPropertyString(this->hInstall, propertyCustomActionData.c_str(), data))
+    if (!loadPropertyString(this->_hInstall, propertyCustomActionData.c_str(), data))
     {
         return false;
     }
@@ -27,7 +36,7 @@ bool CustomActionData::init(MSIHANDLE hi)
 
 bool CustomActionData::init(const std::wstring &data)
 {
-    DWORD errCode = machine.Detect();
+    DWORD errCode = _targetMachine->Detect();
     if (errCode != ERROR_SUCCESS)
     {
         WcaLog(LOGMSG_STANDARD, "Could not determine machine information: %S", FormatErrorMessage(errCode).c_str());
@@ -74,12 +83,12 @@ bool CustomActionData::value(const std::wstring &key, std::wstring &val) const
 
 bool CustomActionData::isUserDomainUser() const
 {
-    return domainUser;
+    return _domainUser;
 }
 
 bool CustomActionData::isUserLocalUser() const
 {
-    return !domainUser;
+    return !_domainUser;
 }
 
 bool CustomActionData::DoesUserExist() const
@@ -114,22 +123,22 @@ void CustomActionData::Sid(sid_ptr &sid)
 
 bool CustomActionData::installSysprobe() const
 {
-    return doInstallSysprobe;
+    return _doInstallSysprobe;
 }
 
 bool CustomActionData::UserParamMismatch() const
 {
-    return userParamMismatch;
+    return _userParamMismatch;
 }
 
 bool CustomActionData::npmPresent() const
 {
-    return this->ddnpmPresent;
+    return this->_ddnpmPresent;
 }
 
-const TargetMachine &CustomActionData::GetTargetMachine() const
+std::shared_ptr<ITargetMachine> CustomActionData::GetTargetMachine() const
 {
-    return machine;
+    return _targetMachine;
 }
 
 // return value of this function is true if the data was parsed,
@@ -141,8 +150,8 @@ bool CustomActionData::parseSysprobeData()
     std::wstring sysprobePresent;
     std::wstring addlocal;
     std::wstring npm;
-    this->doInstallSysprobe = false;
-    this->ddnpmPresent = false;
+    this->_doInstallSysprobe = false;
+    this->_ddnpmPresent = false;
     if (!this->value(L"SYSPROBE_PRESENT", sysprobePresent))
     {
         // key isn't even there.
@@ -156,7 +165,7 @@ bool CustomActionData::parseSysprobeData()
         WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
         return true;
     }
-    this->doInstallSysprobe = true;
+    this->_doInstallSysprobe = true;
 
     if(!this->value(L"NPM", npm))
     {
@@ -165,7 +174,7 @@ bool CustomActionData::parseSysprobeData()
     else 
     {
         WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
-        this->ddnpmPresent = true;
+        this->_ddnpmPresent = true;
     }
 
     // now check to see if we're installing the driver
@@ -181,11 +190,11 @@ bool CustomActionData::parseSysprobeData()
     if (_wcsicmp(addlocal.c_str(), L"ALL") == 0)
     {
         // installing all components, do it
-        this->ddnpmPresent = true;
+        this->_ddnpmPresent = true;
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL is ALL");
     } else if (addlocal.find(L"NPM") != std::wstring::npos) {
         WcaLog(LOGMSG_STANDARD, "ADDLOCAL contains NPM %S", addlocal.c_str());
-        this->ddnpmPresent = true;
+        this->_ddnpmPresent = true;
     }
 
     return true;
@@ -223,18 +232,18 @@ void CustomActionData::checkForUserMismatch(bool previousInstall, bool userSuppl
         if (_wcsicmp(pvsDomain.c_str(), computed_domain.c_str()) != 0)
         {
             WcaLog(LOGMSG_STANDARD, "supplied domain and computed domain don't match");
-            this->userParamMismatch = true;
+            this->_userParamMismatch = true;
         }
         if (_wcsicmp(pvsUser.c_str(), computed_user.c_str()) != 0)
         {
             WcaLog(LOGMSG_STANDARD, "supplied user and computed user don't match");
-            this->userParamMismatch = true;
+            this->_userParamMismatch = true;
         }
     }
     if (previousInstall)
     {
         // this is a bit obtuse, but there's no way of passing the failure up
-        // from here, so even if we set `userParamMismatch` above, we'll hit this
+        // from here, so even if we set `_userParamMismatch` above, we'll hit this
         // code.  That's ok, the install will be failed in `canInstall()`.
         computed_domain = pvsDomain;
         computed_user = pvsUser;
@@ -253,12 +262,12 @@ void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &c
 
     if (computed_domain == L".")
     {
-        if (GetTargetMachine().IsDomainController())
+        if (_targetMachine->IsDomainController())
         {
             // User didn't specify a domain OR didn't specify a user, but we're on a domain controller
             // let's use the joined domain.
-            computed_domain = machine.JoinedDomainName();
-            domainUser = true;
+            computed_domain = _targetMachine->JoinedDomainName();
+            _domainUser = true;
             WcaLog(LOGMSG_STANDARD,
                    "No domain name supplied for installation on a Domain Controller, using joined domain \"%S\"",
                    computed_domain.c_str());
@@ -266,27 +275,27 @@ void CustomActionData::findSuppliedUserInfo(std::wstring &input, std::wstring &c
         else
         {
             WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-            computed_domain = machine.GetMachineName();
-            domainUser = false;
+            computed_domain = _targetMachine->GetMachineName();
+            _domainUser = false;
         }
     }
     else
     {
-        if (0 == _wcsicmp(computed_domain.c_str(), machine.GetMachineName().c_str()))
+        if (0 == _wcsicmp(computed_domain.c_str(), _targetMachine->GetMachineName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
-            domainUser = false;
+            _domainUser = false;
         }
-        else if (0 == _wcsicmp(computed_domain.c_str(), machine.DnsDomainName().c_str()))
+        else if (0 == _wcsicmp(computed_domain.c_str(), _targetMachine->DnsDomainName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", computed_domain.c_str());
-            domainUser = true;
+            _domainUser = true;
         }
         else
         {
             WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", computed_domain.c_str(),
-                   machine.DnsDomainName().c_str());
-            domainUser = true;
+                   _targetMachine->DnsDomainName().c_str());
+            _domainUser = true;
         }
     }
 }

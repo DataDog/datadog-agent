@@ -309,3 +309,60 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
+
+func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
+
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.")
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.")
+
+	suite.Nil(err)
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:   true,
+		BatchWait: coreConfig.DefaultBatchWait * time.Second,
+		Main: Endpoint{
+			APIKey:           "123",
+			Host:             "my-proxy",
+			Port:             443,
+			UseSSL:           true,
+			UseCompression:   true,
+			CompressionLevel: 6,
+		},
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
+	suite.config.Set("api_key", "123")
+
+	os.Setenv("DD_SITE", "mydomain.com")
+	defer os.Unsetenv("DD_SITE")
+
+	os.Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
+	defer os.Unsetenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT")
+
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.")
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.")
+
+	suite.Nil(err)
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:   true,
+		BatchWait: 10 * time.Second,
+		Main: Endpoint{
+			APIKey:           "123",
+			Host:             "default-intake.logs.mydomain.com",
+			Port:             0,
+			UseSSL:           true,
+			UseCompression:   true,
+			CompressionLevel: 6,
+		},
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}

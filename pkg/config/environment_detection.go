@@ -71,7 +71,6 @@ func IsFeaturePresent(feature Feature) bool {
 }
 
 // IsAutoconfigEnabled returns if autoconfig from environment is activated or not
-// We cannot rely on Datadog config as this function may be called before configuration is read
 func IsAutoconfigEnabled() bool {
 	// Usage of pure environment variables should be deprecated
 	for _, envVar := range []string{autoconfEnvironmentVariable, autoconfEnvironmentVariableWithTypo} {

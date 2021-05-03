@@ -14,6 +14,7 @@ cookbook 'docker', '< 7.3.0'
 cookbook 'selinux'
 
 cookbook 'dd-agent-disable-system-repos', path: './site-cookbooks/dd-agent-disable-system-repos'
+cookbook 'dd-agent-enable-fips', path: './site-cookbooks/dd-agent-enable-fips'
 cookbook 'dd-agent-install', path: './site-cookbooks/dd-agent-install'
 cookbook 'dd-agent-reinstall', path: './site-cookbooks/dd-agent-reinstall'
 cookbook 'dd-agent-upgrade', path: './site-cookbooks/dd-agent-upgrade'

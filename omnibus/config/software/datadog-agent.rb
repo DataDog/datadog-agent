@@ -21,11 +21,9 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
-  gomodcache = Pathname.new("/gomodcache")
   if windows?
     env = {
         'GOPATH' => gopath.to_path,
-        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{windows_safe_path(python_2_embedded)}",
         "Python3_ROOT_DIR" => "#{windows_safe_path(python_3_embedded)}",
@@ -36,7 +34,6 @@ build do
   else
     env = {
         'GOPATH' => gopath.to_path,
-        'GOMODCACHE' => gomodcache.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
@@ -46,6 +43,11 @@ build do
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
+  end
+
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
+    gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
+    env["GOMODCACHE"] = gomodcache.to_path
   end
 
   # include embedded path (mostly for `pkg-config` binary)
@@ -100,7 +102,13 @@ build do
       move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-  copy 'bin/agent', "#{install_dir}/bin/"
+
+  unless windows?
+    copy 'bin/agent', "#{install_dir}/bin/"
+  else
+    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+  end
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated

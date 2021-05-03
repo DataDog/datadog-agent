@@ -25,9 +25,19 @@ type gatewayLookup struct {
 	logLimiter *util.LogLimit
 }
 
+type cloudProvider interface {
+	IsAWS() bool
+}
+
+var cloud cloudProvider
+
+func init() {
+	cloud = &cloudProviderImpl{}
+}
+
 func gwLookupEnabled(config *config.Config) bool {
 	// only enabled on AWS currently
-	return config.EnableGatewayLookup && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return config.EnableGatewayLookup && cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
 func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup {
@@ -98,6 +108,10 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 	return &network.Via{Subnet: s}
 }
 
+func (g *gatewayLookup) purge() {
+	g.subnetCache = make(map[int]network.Subnet)
+}
+
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 	snet, err := ec2.GetSubnetForHardwareAddr(hwAddr)
 	if err != nil {
@@ -105,4 +119,10 @@ func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 	}
 
 	return network.Subnet{Alias: snet.ID}, nil
+}
+
+type cloudProviderImpl struct{}
+
+func (cp *cloudProviderImpl) IsAWS() bool {
+	return ec2.IsRunningOn()
 }

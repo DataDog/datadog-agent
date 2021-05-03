@@ -53,11 +53,10 @@ func init() {
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
 type Consumer struct {
-	conn      *netlink.Conn
-	socket    *Socket
-	pool      *sync.Pool
-	workQueue chan func()
-	procRoot  string
+	conn     *netlink.Conn
+	socket   *Socket
+	pool     *sync.Pool
+	procRoot string
 
 	// targetRateLimit represents the maximum number of netlink messages per second
 	// that can be read off the netlink socket. Setting it to -1 disables the limit.
@@ -116,14 +115,11 @@ func NewConsumer(procRoot string, targetRateLimit int, listenAllNamespaces bool)
 	c := &Consumer{
 		procRoot:            procRoot,
 		pool:                newBufferPool(),
-		workQueue:           make(chan func()),
 		targetRateLimit:     targetRateLimit,
 		breaker:             NewCircuitBreaker(int64(targetRateLimit)),
 		netlinkSeqNumber:    1,
 		listenAllNamespaces: listenAllNamespaces,
 	}
-
-	c.initWorker(procRoot)
 
 	return c
 }
@@ -137,7 +133,7 @@ func (c *Consumer) Events() (<-chan Event, error) {
 
 	output := make(chan Event, outputBuffer)
 
-	c.do(false, func() {
+	go func() {
 		defer func() {
 			log.Info("exited conntrack netlink receive loop")
 			close(output)
@@ -146,7 +142,7 @@ func (c *Consumer) Events() (<-chan Event, error) {
 		c.streaming = true
 		_ = c.conn.JoinGroup(netlinkCtNew)
 		c.receive(output)
-	})
+	}()
 
 	return output, nil
 }
@@ -329,42 +325,13 @@ func (c *Consumer) Stop() {
 	}
 }
 
-// initWorker creates a go-routine *within the root network namespace*.
-// This go-routine is responsible for all socket system calls.
-func (c *Consumer) initWorker(procRoot string) {
-	go func() {
-		_ = util.WithRootNS(procRoot, func() error {
-			for {
-				fn, ok := <-c.workQueue
-				if !ok {
-					return nil
-				}
-				fn()
-			}
-		})
-	}()
-}
-
-// do simply dispatches an action to the go-routine running within the root network
-// namespace. the caller can wait for the execution to finish by setting sync to true.
-func (c *Consumer) do(sync bool, fn func()) {
-	if !sync {
-		c.workQueue <- fn
-		return
-	}
-
-	done := make(chan struct{})
-	syncFn := func() {
-		fn()
-		close(done)
-	}
-	c.workQueue <- syncFn
-	<-done
-}
-
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	var err error
-	c.socket, err = NewSocket()
+	err := util.WithRootNS(c.procRoot, func() error {
+		var err error
+		c.socket, err = NewSocket()
+		return err
+	})
+
 	if err != nil {
 		return err
 	}
