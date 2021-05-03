@@ -163,6 +163,7 @@
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
+/pkg/util/kernel/                       @DataDog/networks
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
