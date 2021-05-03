@@ -16,10 +16,10 @@ typedef enum
 
 typedef enum 
 {
-    SEGMENT_COUNT_NONE = 0,
-    SEGMENT_COUNT_ABSOLUTE = 1,
-    SEGMENT_COUNT_INCREMENT = 2,
-} segment_count_increment_t;
+    PACKET_COUNT_NONE = 0,
+    PACKET_COUNT_ABSOLUTE = 1,
+    PACKET_COUNT_INCREMENT = 2,
+} packet_count_increment_t;
 
 #define CONN_DIRECTION_MASK 0b11
 
@@ -29,8 +29,8 @@ typedef struct {
     __u64 timestamp;
     __u32 flags;
     __u8 direction;
-    __u64 sent_segments;
-    __u64 recv_segments;
+    __u64 sent_packets;
+    __u64 recv_packets;
 } conn_stats_ts_t;
 
 // Connection flags

@@ -257,8 +257,8 @@ __u64 recv_bytes;
 __u64 timestamp;
 __u32 flags;
 __u8  direction;
-__u64 sent_segments;
-__u64 recv_segments;
+__u64 sent_packets;
+__u64 recv_packets;
 
 */
 type ConnStatsWithTimestamp C.conn_stats_ts_t
@@ -312,8 +312,8 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		DPort:                uint16(t.dport),
 		MonotonicSentBytes:   uint64(s.sent_bytes),
 		MonotonicRecvBytes:   uint64(s.recv_bytes),
-		MonotonicSentPackets: uint64(s.sent_segments),
-		MonotonicRecvPackets: uint64(s.recv_segments),
+		MonotonicSentPackets: uint64(s.sent_packets),
+		MonotonicRecvPackets: uint64(s.recv_packets),
 		LastUpdateEpoch:      uint64(s.timestamp),
 	}
 
