@@ -166,7 +166,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// immediately starts the communication server
-	daemon := serverless.StartDaemon(stopCh)
+	daemon := serverless.StartDaemon()
 
 	// serverless parts
 	// ----------------
