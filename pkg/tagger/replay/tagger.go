@@ -145,7 +145,7 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 }
 
 // LoadState loads the state for the tagger from the supplied map.
-func (t *Tagger) LoadState(state map[string]pb.Entity) {
+func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 
 	if state != nil {
 		return

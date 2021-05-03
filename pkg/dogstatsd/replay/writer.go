@@ -126,7 +126,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 	tc.Unlock()
 
 	go func() {
-		log.Debug("Capture will be stopped after %v", d)
+		log.Debugf("Capture will be stopped after %v", d)
 
 		<-time.After(d)
 		err := tc.StopCapture()
@@ -299,18 +299,19 @@ func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 		return n, err
 	}
 
+	// Record State
+	n, err := tc.writer.Write(s)
+
+	// Record size
 	buf := make([]byte, 4)
 	binary.LittleEndian.PutUint32(buf, uint32(len(s)))
 
-	// Record size
 	if n, err := tc.writer.Write(buf); err != nil {
 		return n, err
 	}
 
-	// Record
-	n, err := tc.writer.Write(s)
-
-	return n + 4, err
+	// n + 4 bytes for separator + 4 bytes for state size
+	return n + 8, err
 }
 
 // WriteNext writes the next CaptureBuffer after serializing it to a protobuf format.

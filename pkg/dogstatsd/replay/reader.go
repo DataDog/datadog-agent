@@ -12,7 +12,10 @@ import (
 	"sync" // might be unnecessary
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	replayTagger "github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
@@ -22,6 +25,7 @@ import (
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
 	Contents []byte
+	Version  int
 	Traffic  chan *pb.UnixDogstatsdMsg
 	Shutdown chan struct{}
 	offset   uint32
@@ -46,8 +50,14 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 		return nil, fmt.Errorf("unknown capture file provided")
 	}
 
+	ver, err := fileVersion(c)
+	if err != nil {
+		return nil, err
+	}
+
 	return &TrafficCaptureReader{
 		Contents: c,
+		Version:  ver,
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
 		Shutdown: make(chan struct{}),
 	}, nil
@@ -57,12 +67,26 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 func (tc *TrafficCaptureReader) Read() {
 	defer close(tc.Shutdown)
 
-	log.Debugf("About to begin processing file of size: %d\n", len(tc.Contents))
+	log.Debugf("Processing capture file of size: %d", len(tc.Contents))
 
 	// skip header
 	tc.Lock()
 	tc.offset += uint32(len(datadogHeader))
 	tc.Unlock()
+
+	state, err := tc.ReadState()
+	if err != nil {
+		log.Warnf("The state could not be loaded: %v", err)
+	} else if state != nil {
+
+		// set the tagger stuff
+		t := replayTagger.NewTagger()
+		t.LoadState(state)
+		tagger.SetCaptureTagger(t)
+		defer tagger.ResetCaptureTagger()
+	} else {
+		log.Debug("The file contained no state payload")
+	}
 
 	for {
 		msg, err := tc.ReadNext()
@@ -103,7 +127,8 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	sz := binary.LittleEndian.Uint32(tc.Contents[tc.offset : tc.offset+4])
 	tc.offset += 4
 
-	if int(tc.offset+sz) > len(tc.Contents) {
+	// we have reached the state separator or overflow
+	if sz == 0 || int(tc.offset+sz) > len(tc.Contents) {
 		tc.Unlock()
 		return nil, io.EOF
 	}
@@ -120,6 +145,36 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	tc.Unlock()
 
 	return msg, nil
+}
+
+// ReadState reads the tagger state from the end of the capture file.
+// The internal offset of the reader is not modified by this operation.
+func (tc *TrafficCaptureReader) ReadState() (map[string]*pbgo.Entity, error) {
+
+	tc.Lock()
+	defer tc.Unlock()
+
+	if tc.Version < minStateVersion {
+		return nil, fmt.Errorf("The replay file is version: %v and does not contain a tagger state", tc.Version)
+	}
+
+	length := len(tc.Contents)
+	sz := binary.LittleEndian.Uint32(tc.Contents[length-4 : length])
+
+	log.Debugf("State bytes to be read: %v", sz)
+	if sz == 0 {
+		return nil, nil
+	}
+
+	// pb state
+	pbState := &pb.TaggerState{}
+	err := proto.Unmarshal(tc.Contents[length-int(sz)-4:length-4], pbState)
+	if err != nil {
+		tc.Unlock()
+		return nil, err
+	}
+
+	return pbState.State, err
 }
 
 // Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.

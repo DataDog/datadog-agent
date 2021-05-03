@@ -226,7 +226,7 @@ func SetCaptureTagger(tagger Tagger) {
 }
 
 // ResetCaptureTagger resets the capture tagger to nil
-func ResetCaptureTagger(tagger Tagger) {
+func ResetCaptureTagger() {
 	mux.Lock()
 	defer mux.Unlock()
 

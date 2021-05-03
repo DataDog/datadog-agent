@@ -55,6 +55,17 @@ var dogstatsdReplayCmd = &cobra.Command{
 }
 
 func dogstatsdReplay() error {
+
+	_ = config.SetupLogger(
+		loggerName,
+		config.Datadog.GetString("log_level"),
+		"",
+		"",
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
+	)
+
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 	s := config.Datadog.GetString("dogstatsd_socket")
 	if s == "" {
