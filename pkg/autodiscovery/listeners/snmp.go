@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 const (
@@ -146,7 +146,7 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-	params := *job.subnet.defaultParams
+	params := job.subnet.defaultParams
 	deviceIP := job.currentIP.String()
 	params.Target = deviceIP
 	entityID := job.subnet.config.Digest(deviceIP)

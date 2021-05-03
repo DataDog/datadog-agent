@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/viper"
 )
 
