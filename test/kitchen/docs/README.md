@@ -43,6 +43,8 @@ From these base blocks, we define:
 - test types: `kitchen_test_<test_suite>_<flavor>` which is a combination of a chosen test suite, Agent flavor and Azure location.
 - scenarios: `kitchen_scenario_<OS>_aX` which is a combination of a chosen OS and major Agent version.
 
+**Note:** When jobs use combinations of other jobs with the `extends` keyword (eg. test types, scenarios), the `extends` list is processed in order. Duplicate keys are overridden (ie. the latest job in the list which contains the key wins). Therefore, `extends` lists need to be ordered from the most generic to the most specific extension.
+
 **Note:** To avoid having too many different test types, we bind each test suite with a specific Azure location. Eg. all install script tests are run in the same Azure location.
 
 The real jobs that are run in the Gitlab pipelines are thus a combination of test types and scenarios, named `kitchen_<OS>_<test_suite>_<flavor>-aX`.
