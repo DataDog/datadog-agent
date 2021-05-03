@@ -1,5 +1,5 @@
 suites:
-  - name: dd-agent-repair
+  - name: win-repair
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
       - "recipe[dd-agent-install::_stop_windows_agent]"
@@ -22,7 +22,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-installopts
+  - name: win-installopts
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
