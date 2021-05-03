@@ -308,7 +308,7 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
-## @param azure_hostname_style - string - optional
+## @param azure_hostname_style - string - optional - default: "os"
 ## Changes how agent hostname is set on Azure virtual machines.
 ##
 ## Possible values:
