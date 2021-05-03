@@ -39,8 +39,10 @@ const (
 	PayloadTypeJob = "job"
 	// PayloadTypeCronJob is the name of the cluster payload type
 	PayloadTypeCronJob = "cronjob"
-	// PayloadTypeDevice is the name of the network device payload type
-	PayloadTypeDevice = "network-device"
+	// PayloadTypeNetworkDevice is the name of the network device payload type
+	PayloadTypeNetworkDevice = "network-device"
+	// PayloadTypeNetworkInterface is the name of the network interface payload type
+	PayloadTypeNetworkInterface = "network-interface"
 )
 
 const (
@@ -579,8 +581,10 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 // SubmitNetworkDevicesChecks sends network-devices checks
 func (f *DefaultForwarder) SubmitNetworkDevicesChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
 	switch payloadType {
-	case PayloadTypeDevice:
-		transactionsIntakeDevice.Add(1)
+	case PayloadTypeNetworkDevice:
+		transactionsIntakeNetworkDevice.Add(1)
+	case PayloadTypeNetworkInterface:
+		transactionsIntakeNetworkInterface.Add(1)
 	}
 
 	return f.submitProcessLikePayload(networkDevicesEndpoint, payload, extra, true)
