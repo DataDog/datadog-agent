@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // tokenizer.go implemenents a lexer-like iterator that tokenizes SQL and CQL
@@ -40,6 +42,7 @@ const (
 	String
 	DoubleQuotedString
 	DollarQuotedString // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
+	DollarQuotedFunc   // a dollar-quoted string delimited by the tag "$func$"; gets special treatment when feature "dollar_quoted_func" is set
 	Number
 	BooleanLiteral
 	ValueArg
@@ -90,6 +93,8 @@ var tokenKindStrings = map[TokenKind]string{
 	Null:                         "Null",
 	String:                       "String",
 	DoubleQuotedString:           "DoubleQuotedString",
+	DollarQuotedString:           "DollarQuotedString",
+	DollarQuotedFunc:             "DollarQuotedFunc",
 	Number:                       "Number",
 	BooleanLiteral:               "BooleanLiteral",
 	ValueArg:                     "ValueArg",
@@ -302,7 +307,18 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				// want to cover for this use-case too (e.g. $1$some text$1$).
 				return tkn.scanPreparedStatement('$')
 			}
-			return tkn.scanDollarQuotedString()
+			kind, tok := tkn.scanDollarQuotedString()
+			if kind == DollarQuotedFunc {
+				// this is considered an embedded query, we should try and
+				// obfuscate it
+				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes))
+				if err != nil {
+					// if we can't obfuscate it, treat it as a regular string
+					return DollarQuotedString, tok
+				}
+				tok = append(append([]byte("$func$"), []byte(out.Query)...), []byte("$func$")...)
+			}
+			return kind, tok
 		case '{':
 			if tkn.pos == 1 || tkn.curlys > 0 {
 				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
@@ -470,6 +486,11 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 			got = 0
 		}
 		buf.WriteRune(ch)
+	}
+	if config.HasFeature("dollar_quoted_func") && string(delim) == "$func$" {
+		// dolar_quoted_func: treat "$func" delimited dollar-quoted strings
+		// differently and do not obfuscate them as a string
+		return DollarQuotedFunc, buf.Bytes()
 	}
 	return DollarQuotedString, buf.Bytes()
 }
