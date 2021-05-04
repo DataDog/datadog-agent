@@ -353,35 +353,19 @@ func sortMsgs(m []model.MessageBody) {
 		})
 	}
 
-	// sort all the messages by containers then by PIDs
+	// sort all the messages by containers
 	sort.SliceStable(m, func(i, j int) bool {
-		cpI := m[i].(*model.CollectorProc)
-		cpJ := m[j].(*model.CollectorProc)
+		cI := m[i].(*model.CollectorProc).Containers
+		cJ := m[j].(*model.CollectorProc).Containers
 
-		for k := range cpI.Containers {
-			if cpJ.Containers == nil || k > len(cpJ.Containers)-1 {
-				return false
-			}
-			if cpI.Containers[k].Id < cpJ.Containers[k].Id {
-				return true
-			}
-			if cpI.Containers[k].Id > cpJ.Containers[k].Id {
-				return false
-			}
+		if cI == nil {
+			return true
+		}
+		if cJ == nil {
+			return false
 		}
 
-		for k := range cpI.Processes {
-			if cpJ.Processes == nil {
-				return false
-			}
-			if cpI.Processes[k].Pid < cpJ.Processes[k].Pid {
-				return true
-			}
-			if cpI.Processes[k].Pid > cpJ.Processes[k].Pid {
-				return false
-			}
-		}
-		return true
+		return cI[0].Id <= cJ[0].Id
 	})
 }
 

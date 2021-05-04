@@ -159,7 +159,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			log.Warn("Invalid max container processes count per message (<= 0), using default value of 10,000")
 		} else if maxCtrProcessesPerMessage <= maxCtrProcsMessageBatch {
 			a.MaxCtrProcessesPerMessage = maxCtrProcessesPerMessage
-		} else if maxCtrProcessesPerMessage > 0 {
+		} else {
 			log.Warn("Overriding the configured max container processes count per message limit because it exceeds maximum limit of 30,000")
 		}
 	}
