@@ -24,8 +24,6 @@ linux_x64_go_deps:
 
 linux_arm64_go_deps:
   extends: .go_deps
-  rules:
-    - <<: *if_run_all_builds
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
 
