@@ -52,9 +52,8 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		}
 
 		conns := manager.Extract(batch, 0)
-		assert.Len(t, conns, 2)
+		assert.Len(t, conns, 1)
 		assert.Equal(t, uint32(4), conns[0].Pid)
-		assert.Equal(t, uint32(5), conns[1].Pid)
 	})
 }
 
