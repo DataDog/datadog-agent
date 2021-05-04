@@ -157,6 +157,8 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		defer params.Conn.Close()
 
 		oids := []string{"1.3.6.1.2.1.1.2.0"}
+		// Since `params<GoSNMP>.ContextEngineID` is empty
+		// `params.Get` might lead to multiple SNMP GET calls
 		value, err := params.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
