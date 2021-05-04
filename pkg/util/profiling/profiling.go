@@ -41,7 +41,7 @@ func Active() bool {
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(apiKey, site, env, service string, period time.Duration, tags ...string) error {
+func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, tags ...string) error {
 	if Active() {
 		return nil
 	}
@@ -52,6 +52,8 @@ func Start(apiKey, site, env, service string, period time.Duration, tags ...stri
 		profiler.WithService(service),
 		profiler.WithURL(site),
 		profiler.WithPeriod(period),
+		profiler.WithProfileTypes(profiler.CPUProfile, profiler.HeapProfile, profiler.MutexProfile),
+		profiler.CPUDuration(cpuDuration),
 		profiler.WithTags(tags...),
 	)
 	if err == nil {

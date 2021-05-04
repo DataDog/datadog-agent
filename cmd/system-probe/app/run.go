@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -185,10 +184,6 @@ func enableProfiling(cfg *config.Config) error {
 	// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
 	if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
 		site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-		if cfg.ProfilingAPIKey == "" {
-			// when forwarding to the trace agent, its api key will be used. ProfilingAPIKey cannot be empty.
-			cfg.ProfilingAPIKey = "<none>"
-		}
 	} else {
 		site = fmt.Sprintf(profiling.ProfileURLTemplate, cfg.ProfilingSite)
 		if cfg.ProfilingURL != "" {
@@ -201,7 +196,8 @@ func enableProfiling(cfg *config.Config) error {
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",
-		time.Duration(cfg.ProfilingPeriod)*time.Minute,
+		cfg.ProfilingPeriod,
+		cfg.ProfilingCPUDuration,
 		fmt.Sprintf("version:%v", v),
 	)
 }

@@ -231,4 +231,4 @@ replace (
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
 )
 
-replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
+replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
