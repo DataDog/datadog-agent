@@ -54,9 +54,6 @@ type Daemon struct {
 	// and called the /hello route on the agent
 	clientLibReady bool
 
-	// datadogLambdaApiUsed tracks whether the layer has called the
-	datadogLambdaApiUsed bool
-
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 
@@ -64,6 +61,8 @@ type Daemon struct {
 	// (i.e. that the DogStatsD server is properly instantiated)
 	ReadyWg *sync.WaitGroup
 
+	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
+	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
 }
 
@@ -220,7 +219,7 @@ func (d *Daemon) Shutdown(ctx context.Context) {
 	d.httpServer.Shutdown(ctx)
 }
 
-// WaitUntilClientReady will wait until the client library
+// WaitUntilClientReady will wait until the client library has called the /hello route, or timeout
 func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	checkInterval := 10 * time.Millisecond
 	for timeout > checkInterval {
