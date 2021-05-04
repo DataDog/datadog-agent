@@ -438,6 +438,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
+		p.resolvers.ProcessResolver.SetTimestamps(event.processCacheEntry)
+
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry

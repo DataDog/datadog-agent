@@ -38,6 +38,33 @@
                 },
                 "change_time": {
                     "$ref": "file:///datetime.json"
+                },
+                "destination": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {
+                            "type": "integer"
+                        },
+                        "uid": {
+                            "type": "integer"
+                        },
+                        "gid": {
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "mode",
+                        "uid",
+                        "gid"
+                    ]
+                },
+                "flags": {
+                    "type": "array",
+                    "items": [
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "required": [

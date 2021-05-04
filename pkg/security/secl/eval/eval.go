@@ -95,7 +95,7 @@ func (b *BoolEvaluator) IsPartial() bool {
 	return b.isPartial
 }
 
-// Field returns field name used by this evaluator
+// GetField returns field name used by this evaluator
 func (b *BoolEvaluator) GetField() string {
 	return b.Field
 }
