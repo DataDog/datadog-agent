@@ -111,6 +111,7 @@ func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTe
 	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
 	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
 	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
+	t.DnsStatsDropped = tel.DNSStatsDropped
 	return t
 }
 

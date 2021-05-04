@@ -143,6 +143,18 @@ else
   yum_url="yum.${repository_url}"
 fi
 
+# We turn off `repo_gpgcheck` for custom REPO_URL, unless explicitly turned
+# on via DD_RPM_REPO_GPGCHECK.
+# There is more logic for redhat/suse in their specific code branches below
+rpm_repo_gpgcheck=
+if [ -n "$DD_RPM_REPO_GPGCHECK" ]; then
+    rpm_repo_gpgcheck=$DD_RPM_REPO_GPGCHECK
+else
+    if [ -n "$REPO_URL" ]; then
+        rpm_repo_gpgcheck=0
+    fi
+fi
+
 if [ -n "$TESTING_APT_URL" ]; then
   apt_url=$TESTING_APT_URL
 else
@@ -258,6 +270,16 @@ if [ "$OS" = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
+    # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
+    # repo_gpgcheck on RHEL/CentOS 8.1
+    if [ -z "$rpm_repo_gpgcheck" ]; then
+        if grep -q "8\.1\(\b\|\.\)" /etc/redhat-release 2>/dev/null; then
+            rpm_repo_gpgcheck=0
+        else
+            rpm_repo_gpgcheck=1
+        fi
+    fi
+
     if [ "$agent_major_version" -eq 7 ]; then
       gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_E09422B3.public"
     else
@@ -275,7 +297,7 @@ if [ "$OS" = "RedHat" ]; then
       done
     fi
 
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
@@ -354,6 +376,10 @@ elif [ "$OS" = "SUSE" ]; then
       ARCHI="x86_64"
   fi
 
+  if [ -z "$rpm_repo_gpgcheck" ]; then
+      rpm_repo_gpgcheck=1
+  fi
+
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
   if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE11="yes"
@@ -401,7 +427,7 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog

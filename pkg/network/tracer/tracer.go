@@ -624,6 +624,10 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 		tm.MonotonicDNSPacketsProcessed = pp
 	}
 
+	if ds, ok := dnsStats["dropped_stats"]; ok {
+		tm.DNSStatsDropped = ds
+	}
+
 	ebpfStats := t.getEbpfTelemetry()
 	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
 		tm.MonotonicUDPSendsProcessed = usp

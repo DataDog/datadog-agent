@@ -71,6 +71,8 @@ api_key:
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
+## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:

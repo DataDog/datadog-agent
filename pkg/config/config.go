@@ -163,6 +163,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("tags", []string{})
+	config.BindEnvAndSetDefault("extra_tags", []string{})
 	config.BindEnv("env") //nolint:errcheck
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
@@ -825,6 +826,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.events_stats.polling_interval", 20)
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
+	config.BindEnvAndSetDefault("runtime_security_config.event_server.retention", 6)
 	config.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.events_count_threshold", 20000)
 	config.BindEnvAndSetDefault("runtime_security_config.load_controller.discarder_timeout", 10)
@@ -1353,4 +1355,22 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	}
 
 	return aliases
+}
+
+// GetConfiguredTags returns complete list of user configured tags
+func GetConfiguredTags(includeDogstatsd bool) []string {
+	tags := Datadog.GetStringSlice("tags")
+	extraTags := Datadog.GetStringSlice("extra_tags")
+
+	var dsdTags []string
+	if includeDogstatsd {
+		dsdTags = Datadog.GetStringSlice("dogstatsd_tags")
+	}
+
+	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
+	combined = append(combined, tags...)
+	combined = append(combined, extraTags...)
+	combined = append(combined, dsdTags...)
+
+	return combined
 }

@@ -50,7 +50,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.67.0+incompatible
+	github.com/DataDog/agent-payload v4.69.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.28.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.3
 	github.com/DataDog/datadog-go v4.5.0+incompatible
@@ -112,7 +112,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/pprof v0.0.0-20210125172800-10e9aeb4a998
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.29.0
+	github.com/gosnmp/gosnmp v1.31.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/h2non/filetype v1.1.1
@@ -144,7 +144,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20200929063507-e6143ca7d51d
-	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
+	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.3 // indirect
@@ -154,7 +154,6 @@ require (
 	github.com/shirou/gopsutil v3.21.2+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v3.6.1+incompatible
-	github.com/soniah/gosnmp v1.26.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
