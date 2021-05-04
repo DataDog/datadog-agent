@@ -8,6 +8,7 @@ package kubeapi
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"time"
@@ -263,8 +264,6 @@ func TestConvertFilter(t *testing.T) {
 	}
 }
 
-// TODO: To be discussed not on master
-/*
 func TestProcessEventsType(t *testing.T) {
 	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54",  709662600, "Normal")
 	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container",  709662600, "Normal")
@@ -291,20 +290,19 @@ func TestProcessEventsType(t *testing.T) {
 	// We need to check that the countByAction concatenated string contains the source events.
 	// As the order is not guaranteed we want to use contains.
 	calls := []string{
-		(mocked.Calls[0].Arguments.Get(0)).(metrics.Event).Text,
-		(mocked.Calls[1].Arguments.Get(0)).(metrics.Event).Text,
+		(mocked.Calls[0].Arguments.Get(0)).(metrics.Event).EventType,
+		(mocked.Calls[1].Arguments.Get(0)).(metrics.Event).EventType,
+		(mocked.Calls[2].Arguments.Get(0)).(metrics.Event).EventType,
 	}
 
 	// The order of calls is random in processEvents because of the map eventsByObject
 	// Mocked calls need to be sorted before making assertions
 	sort.Strings(calls)
 
-	assert.Contains(t, calls[0], "2 **Scheduled**")
-	assert.Contains(t, calls[0], "3 **Started**")
+	assert.Contains(t, calls[0], "BackOff")
+	assert.Contains(t, calls[1], "Scheduled")
+	assert.Contains(t, calls[2], "Started")
 
-	assert.Contains(t, calls[1], "4 **BackOff**")
-
-	mocked.AssertNumberOfCalls(t, "Event", 2)
+	mocked.AssertNumberOfCalls(t, "Event", 3)
 	mocked.AssertExpectations(t)
 }
-*/
