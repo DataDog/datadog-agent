@@ -61,7 +61,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	ev4 := createEvent(29, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200, "warning")
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
-	kubeApiEventsCheck := &EventsCheck{
+	kubeAPIEventsCheck := &EventsCheck{
 		instance: &EventsConfig{
 			FilteredEventTypes: []string{"ignored"},
 		},
@@ -84,10 +84,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		ev1,
 		ev2,
 	}
-	mocked := mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked := mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, newKubeEventsBundle)
+	_ = kubeAPIEventsCheck.processEvents(mocked, newKubeEventsBundle)
 
 	// We are only expecting one bundle event.
 	// We need to check that the countByAction concatenated string contains the source events.
@@ -121,10 +121,10 @@ func TestProcessBundledEvents(t *testing.T) {
 			},
 		},
 	}
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
+	_ = kubeAPIEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEvents, 0)
 	mocked.AssertExpectations(t)
@@ -157,10 +157,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		},
 	}
 
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
+	_ = kubeAPIEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEventsWithClusterName, 0)
 	mocked.AssertExpectations(t)
