@@ -206,7 +206,6 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        c.PrivKey,
 		},
-		Logger: log.New(os.Stdout, "", 0),
 	}, nil
 }
 
