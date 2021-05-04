@@ -240,6 +240,8 @@ type Process struct {
 	ExecTimestamp uint64    `field:"-"`
 	ExecTime      time.Time `field:"-"`
 
+	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"`
+
 	TTYName string `field:"tty_name"`
 	Comm    string `field:"comm"`
 

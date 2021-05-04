@@ -37,10 +37,6 @@ func main() {
 
 package	eval
 
-import (
-	"time"
-)
-
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
@@ -109,6 +105,9 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 			}
 		}
 		{{ end }}
+
+		ctx := NewContext(nil)
+		_ = ctx
 
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
@@ -288,7 +287,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 
 	durationCompare := func(op string) func(a string, b string) string {
 		return func(a string, b string) string {
-			return fmt.Sprintf("int64(%s + %s) %s time.Now().UnixNano()", a, b, op)
+			return fmt.Sprintf("int64(%s + %s) %s ctx.Now().UnixNano()", a, b, op)
 		}
 	}
 
@@ -404,7 +403,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare("<"),
+				Op:             durationCompare(">"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -413,7 +412,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare("<="),
+				Op:             durationCompare(">="),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -422,7 +421,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare(">"),
+				Op:             durationCompare("<"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -431,7 +430,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare(">="),
+				Op:             durationCompare("<="),
 				ValueType:      "ScalarValueType",
 			},
 		},

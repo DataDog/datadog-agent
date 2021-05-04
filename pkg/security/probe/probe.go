@@ -458,6 +458,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
 
+		p.resolvers.ProcessResolver.SetTimestamps(event.processCacheEntry)
+
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
 		// copy some of the field from the entry

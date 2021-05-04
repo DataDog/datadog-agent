@@ -34,10 +34,10 @@
                     "type": "string"
                 },
                 "modification_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 },
                 "change_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 }
             },
             "required": [

@@ -7,6 +7,7 @@ package eval
 
 import (
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -18,6 +19,16 @@ type Context struct {
 
 	// cache available across all the evaluations
 	Cache map[string]unsafe.Pointer
+
+	now time.Time
+}
+
+// Now return and cache the `now` timestamp
+func (c *Context) Now() time.Time {
+	if c.now.IsZero() {
+		c.now = time.Now()
+	}
+	return c.now
 }
 
 // SetObject set the given object to the context
@@ -29,6 +40,7 @@ func (c *Context) SetObject(obj unsafe.Pointer) {
 func (c *Context) Reset() {
 	c.Object = nil
 	c.Registers = nil
+	c.now = time.Time{}
 
 	// as the cache should be low in entry, prefer to delete than re-alloc
 	for key := range c.Cache {

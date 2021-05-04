@@ -452,6 +452,13 @@ func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry
 	return entry.ContainerPath
 }
 
+// SetTimestamps set timestamp for the given entry
+func (p *ProcessResolver) SetTimestamps(entry *model.ProcessCacheEntry) {
+	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
+	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
+	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
+}
+
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
 	id, err := model.UnmarshalString(data, 64)
@@ -465,9 +472,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 		return read + 64, err
 	}
 
-	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
-	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
-	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
+	p.SetTimestamps(entry)
 
 	return read + 64, err
 }

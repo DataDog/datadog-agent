@@ -693,25 +693,25 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					if nextInt.isDuration {
 						switch *obj.ScalarComparison.Op {
 						case "<":
-							boolEvaluator, err := DurationGreaterThan(unary, nextInt, opts, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
-						case "<=":
-							boolEvaluator, err := DurationGreaterOrEqualThan(unary, nextInt, opts, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
-						case ">":
 							boolEvaluator, err := DurationLesserThan(unary, nextInt, opts, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}
 							return boolEvaluator, obj.Pos, nil
-						case ">=":
+						case "<=":
 							boolEvaluator, err := DurationLesserOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">":
+							boolEvaluator, err := DurationGreaterThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">=":
+							boolEvaluator, err := DurationGreaterOrEqualThan(unary, nextInt, opts, state)
 							if err != nil {
 								return nil, obj.Pos, err
 							}

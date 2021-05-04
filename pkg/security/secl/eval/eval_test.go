@@ -927,8 +927,8 @@ func TestDuration(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.created_at < 2s`, Expected: true},
-		{Expr: `process.created_at > 2s`, Expected: false},
+		{Expr: `process.created_at < 1s`, Expected: true},
+		{Expr: `process.created_at > 1s`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -948,7 +948,7 @@ func TestDuration(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.created_at < 2s`, Expected: false},
+		{Expr: `process.created_at < 1s`, Expected: false},
 		{Expr: `process.created_at > 2s`, Expected: true},
 	}
 
