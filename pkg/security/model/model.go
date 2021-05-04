@@ -237,20 +237,15 @@ type Process struct {
 
 	ContainerID string `field:"container.id"`
 
-	ExecTimestamp uint64    `field:"-"`
-	ExecTime      time.Time `field:"-"`
-
-	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"`
-
 	TTYName string `field:"tty_name"`
 	Comm    string `field:"comm"`
 
 	// pid_cache_t
-	ForkTimestamp uint64    `field:"-"`
-	ForkTime      time.Time `field:"-"`
+	ForkTime time.Time `field:"-"`
+	ExitTime time.Time `field:"-"`
+	ExecTime time.Time `field:"-"`
 
-	ExitTimestamp uint64    `field:"-"`
-	ExitTime      time.Time `field:"-"`
+	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"`
 
 	Cookie uint32 `field:"cookie"`
 	PPid   uint32 `field:"ppid"`
