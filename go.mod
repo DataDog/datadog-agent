@@ -233,7 +233,7 @@ replace (
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
 )
 
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d
 
 // Remove once the PR kubernetes/kube-state-metrics#1455 is merged
 replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
