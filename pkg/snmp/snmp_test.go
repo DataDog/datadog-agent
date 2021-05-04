@@ -39,10 +39,10 @@ func TestBuildSNMPParams(t *testing.T) {
 		Network: "192.168.0.0/24",
 		User:    "admin",
 	}
-	params, _ = config.BuildSNMPParams("192.168.0.1")
+	params, _ = config.BuildSNMPParams("192.168.0.2")
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
-	assert.Equal(t, "192.168.0.1", params.Target)
+	assert.Equal(t, "192.168.0.2", params.Target)
 
 	config = Config{
 		Network:      "192.168.0.0/24",
