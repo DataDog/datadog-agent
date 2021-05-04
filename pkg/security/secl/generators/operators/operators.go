@@ -40,19 +40,7 @@ package	eval
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
+	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
@@ -183,20 +171,8 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state)(*{{ .FuncReturnType }}, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
+func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
+	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {

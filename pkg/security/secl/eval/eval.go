@@ -61,6 +61,9 @@ type Opts struct {
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
+	IsPartial() bool
+	GetField() string
+	IsScalar() bool
 }
 
 // EvaluatorStringer implements the stringer in order to show the result of an evaluation. Should probably used only for logging
@@ -87,6 +90,21 @@ func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
 }
 
+// IsPartial returns whether the evaluator is partial
+func (b *BoolEvaluator) IsPartial() bool {
+	return b.isPartial
+}
+
+// Field returns field name used by this evaluator
+func (b *BoolEvaluator) GetField() string {
+	return b.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (b *BoolEvaluator) IsScalar() bool {
+	return b.EvalFnc == nil
+}
+
 // IntEvaluator returns an int as result of the evaluation
 type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
@@ -101,6 +119,21 @@ type IntEvaluator struct {
 // Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (i *IntEvaluator) IsPartial() bool {
+	return i.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (i *IntEvaluator) GetField() string {
+	return i.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (i *IntEvaluator) IsScalar() bool {
+	return i.EvalFnc == nil
 }
 
 // StringEvaluator returns a string as result of the evaluation
@@ -124,6 +157,21 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
+// IsPartial returns whether the evaluator is partial
+func (s *StringEvaluator) IsPartial() bool {
+	return s.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringEvaluator) IsScalar() bool {
+	return s.EvalFnc == nil
+}
+
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
 	EvalFnc func(ctx *Context) []string
@@ -145,6 +193,21 @@ func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
+// IsPartial returns whether the evaluator is partial
+func (s *StringArrayEvaluator) IsPartial() bool {
+	return s.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringArrayEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringArrayEvaluator) IsScalar() bool {
+	return s.EvalFnc == nil
+}
+
 // IntArrayEvaluator returns an array of int
 type IntArrayEvaluator struct {
 	EvalFnc func(ctx *Context) []int
@@ -156,8 +219,23 @@ type IntArrayEvaluator struct {
 }
 
 // Eval returns the result of the evaluation
-func (s *IntArrayEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+func (i *IntArrayEvaluator) Eval(ctx *Context) interface{} {
+	return i.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (i *IntArrayEvaluator) IsPartial() bool {
+	return i.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (i *IntArrayEvaluator) GetField() string {
+	return i.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (i *IntArrayEvaluator) IsScalar() bool {
+	return i.EvalFnc == nil
 }
 
 // BoolArrayEvaluator returns an array of bool
@@ -173,6 +251,21 @@ type BoolArrayEvaluator struct {
 // Eval returns the result of the evaluation
 func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (b *BoolArrayEvaluator) IsPartial() bool {
+	return b.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (b *BoolArrayEvaluator) GetField() string {
+	return b.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (b *BoolArrayEvaluator) IsScalar() bool {
+	return b.EvalFnc == nil
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
