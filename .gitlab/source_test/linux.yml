@@ -13,7 +13,6 @@
     - source /root/.bashrc && conda activate $CONDA_ENV
     - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
-    - inv -e install-tools
     - inv -e rtloader.make --install-prefix=$SRC_PATH/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
@@ -24,6 +23,7 @@
 .linux_tests:
   stage: source_test
   script:
+    - inv -e install-tools
     - inv -e test --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json
   artifacts:
     expire_in: 2 weeks
