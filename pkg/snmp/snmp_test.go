@@ -16,7 +16,7 @@ func TestBuildSNMPParams(t *testing.T) {
 	config := Config{
 		Network: "192.168.0.0/24",
 	}
-	_, err := config.BuildSNMPParams()
+	_, err := config.BuildSNMPParams("")
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
 	config = Config{
@@ -24,21 +24,21 @@ func TestBuildSNMPParams(t *testing.T) {
 		User:    "admin",
 		Version: "4",
 	}
-	_, err = config.BuildSNMPParams()
+	_, err = config.BuildSNMPParams("")
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
 	config = Config{
 		Network:   "192.168.0.0/24",
 		Community: "public",
 	}
-	params, _ := config.BuildSNMPParams()
+	params, _ := config.BuildSNMPParams("")
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 
 	config = Config{
 		Network: "192.168.0.0/24",
 		User:    "admin",
 	}
-	params, _ = config.BuildSNMPParams()
+	params, _ = config.BuildSNMPParams("")
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 
@@ -47,7 +47,7 @@ func TestBuildSNMPParams(t *testing.T) {
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
-	_, err = config.BuildSNMPParams()
+	_, err = config.BuildSNMPParams("")
 	assert.Equal(t, "Unsupported authentication protocol: foo", err.Error())
 
 	config = Config{
@@ -55,6 +55,6 @@ func TestBuildSNMPParams(t *testing.T) {
 		User:         "admin",
 		PrivProtocol: "bar",
 	}
-	_, err = config.BuildSNMPParams()
+	_, err = config.BuildSNMPParams("")
 	assert.Equal(t, "Unsupported privacy protocol: bar", err.Error())
 }
