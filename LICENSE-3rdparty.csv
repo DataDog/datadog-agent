@@ -487,7 +487,6 @@ core,"github.com/shirou/w32",BSD-3-Clause
 core,"github.com/shuLhan/go-bindata",CC0-1.0
 core,"github.com/shuLhan/go-bindata/cmd/go-bindata",CC0-1.0
 core,"github.com/sirupsen/logrus",MIT
-core,"github.com/soniah/gosnmp",BSD-2-Clause
 core,"github.com/spf13/afero",Apache-2.0
 core,"github.com/spf13/afero/mem",Apache-2.0
 core,"github.com/spf13/cast",MIT
