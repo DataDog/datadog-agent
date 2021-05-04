@@ -118,14 +118,13 @@ var (
 
 	// metadata metrics are useful for label joins
 	// but shouldn't be submitted to Datadog
-	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels)")
+	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels|status_reason)")
 
 	// defaultDeniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
 	defaultDeniedMetrics = options.MetricSet{
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_owner":                                   {},
-		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
 		"kube_pod_completion_time":                         {},
 		"kube_pod_status_scheduled_time":                   {},
@@ -173,6 +172,10 @@ var (
 		"kube_pod_labels": {
 			LabelsToMatch: []string{"pod", "namespace"},
 			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_pod_status_reason": {
+			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},
