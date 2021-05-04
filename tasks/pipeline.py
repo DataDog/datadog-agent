@@ -93,7 +93,7 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
 
 
 @task
-def run_pipeline(
+def run(
     ctx,
     git_ref="master",
     here=False,
@@ -113,9 +113,9 @@ def run_pipeline(
     To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
 
     Examples:
-    inv pipeline.run-pipeline --git-ref my-branch
-    inv pipeline.run-pipeline --here
-    inv pipeline.run-pipeline --here --no-kitchen-tests
+    inv pipeline.run --git-ref my-branch
+    inv pipeline.run --here
+    inv pipeline.run --here --no-kitchen-tests
     """
 
     project_name = "DataDog/datadog-agent"
