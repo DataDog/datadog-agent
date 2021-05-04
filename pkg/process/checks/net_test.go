@@ -23,6 +23,7 @@ func makeConnections(n int) []*model.Connection {
 	for i := 1; i <= n; i++ {
 		c := makeConnection(int32(i))
 		c.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", c.Pid)}
+		c.RouteIdx = int32(-1)
 
 		conns = append(conns, c)
 	}
