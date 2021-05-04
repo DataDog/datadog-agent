@@ -8,8 +8,6 @@ package kubeapi
 
 import (
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
-	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"sort"
 	"testing"
 
@@ -17,13 +15,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
+	"github.com/StackVista/stackstate-agent/pkg/collector/corechecks/cluster/urn"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -37,6 +37,7 @@ func createEvent(count int32, namespace, objname, objkind, objuid, component, ho
 			Namespace: namespace,
 		},
 		Count: count,
+		Type:  alertType,
 		Source: v1.EventSource{
 			Component: component,
 			Host:      hostname,
@@ -130,7 +131,7 @@ func TestProcessBundledEvents(t *testing.T) {
 	mocked.AssertExpectations(t)
 
 	// Test the hostname change when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig := config.Mock()
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
