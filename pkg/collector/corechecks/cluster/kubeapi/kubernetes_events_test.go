@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason, message, typ string, timestamp int64) *v1.Event {
+func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason string, message string, timestamp int64, alertType string) *v1.Event {
 	return &v1.Event{
 		InvolvedObject: v1.ObjectReference{
 			Name:      objname,
@@ -49,7 +49,6 @@ func createEvent(count int32, namespace, objname, objkind, objuid, component, ho
 			Time: time.Unix(timestamp, 0),
 		},
 		Message: message,
-		Type:    typ,
 	}
 }
 
@@ -170,7 +169,7 @@ func TestProcessBundledEvents(t *testing.T) {
 func TestProcessEvent(t *testing.T) {
 	// We want to check if the format of 1 New event creates a DD event accordingly.
 	// We also want to check that filtered and empty events aren't submitted
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Warning", 709662600)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "info")
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
@@ -242,9 +241,9 @@ func TestConvertFilter(t *testing.T) {
 }
 
 func TestProcessEventsType(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", 709662600)
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", 709662600)
-	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container", "Warning", 709662600)
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54",  709662600, "Normal")
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container",  709662600, "Normal")
+	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container",  709662600, "Warning")
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
 	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
