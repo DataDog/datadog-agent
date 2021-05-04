@@ -130,7 +130,7 @@ func (c *Config) Digest(address string) string {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
+func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	if c.Community == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
@@ -186,6 +186,7 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 	}
 
 	return &gosnmp.GoSNMP{
+		Target:          deviceIP,
 		Port:            c.Port,
 		Community:       c.Community,
 		Transport:       "udp",
