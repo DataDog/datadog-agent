@@ -146,7 +146,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
 	if err != nil {
-		log.Warnf("Error building params for device %s: %v", deviceIP, err)
+		log.Errorf("Error building params for device %s: %v", deviceIP, err)
 		return
 	}
 	entityID := job.subnet.config.Digest(deviceIP)
