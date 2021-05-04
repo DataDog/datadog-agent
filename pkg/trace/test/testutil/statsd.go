@@ -9,6 +9,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 // MetricsArgs represents arguments to a StatsClient Gauge method call.
@@ -31,6 +33,8 @@ type GaugeSummary struct {
 	Last  float64
 	Max   float64
 }
+
+var _ statsd.ClientInterface = (*TestStatsClient)(nil)
 
 // TestStatsClient is a mocked StatsClient that records all calls and replies with configurable error return values.
 type TestStatsClient struct {
@@ -145,4 +149,60 @@ func (c *TestStatsClient) GetGaugeSummaries() map[string]*GaugeSummary {
 	}
 
 	return result
+}
+
+// Distribution tracks the statistical distribution of a set of values across your infrastructure.
+func (TestStatsClient) Distribution(name string, value float64, tags []string, rate float64) error {
+	panic("(pkg/trace/test.TestStatsClient).Distribution not implemented")
+}
+
+// Decr is just Count of -1
+func (TestStatsClient) Decr(name string, tags []string, rate float64) error {
+	panic("(pkg/trace/test.TestStatsClient).Decr not implemented")
+}
+
+// Incr is just Count of 1
+func (TestStatsClient) Incr(name string, tags []string, rate float64) error {
+	panic("(pkg/trace/test.TestStatsClient).Incr not implemented")
+}
+
+// Set counts the number of unique elements in a group.
+func (TestStatsClient) Set(name string, value string, tags []string, rate float64) error {
+	panic("(pkg/trace/test.TestStatsClient).Set not implemented")
+}
+
+// TimeInMilliseconds sends timing information in milliseconds.
+// It is flushed by statsd with percentiles, mean and other info (https://github.com/etsy/statsd/blob/master/docs/metric_types.md#timing)
+func (TestStatsClient) TimeInMilliseconds(name string, value float64, tags []string, rate float64) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).Set not implemented")
+}
+
+// Event sends the provided Event.
+func (TestStatsClient) Event(e *statsd.Event) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).Event not implemented")
+}
+
+// SimpleEvent sends an event with the provided title and text.
+func (TestStatsClient) SimpleEvent(title, text string) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).SimpleEvent not implemented")
+}
+
+// ServiceCheck sends the provided ServiceCheck.
+func (TestStatsClient) ServiceCheck(sc *statsd.ServiceCheck) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).ServiceCheck not implemented")
+}
+
+// SimpleServiceCheck sends an serviceCheck with the provided name and status.
+func (TestStatsClient) SimpleServiceCheck(name string, status statsd.ServiceCheckStatus) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).SimpleServiceCheck not implemented")
+}
+
+// Close the client connection.
+func (TestStatsClient) Close() error {
+	panic("(pkg/trace/test.TimeInMilliseconds).Close not implemented")
+}
+
+// SetWriteTimeout allows the user to set a custom write timeout.
+func (TestStatsClient) SetWriteTimeout(d time.Duration) error {
+	panic("(pkg/trace/test.TimeInMilliseconds).SetWriteTimeout not implemented")
 }

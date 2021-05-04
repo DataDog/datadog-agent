@@ -8,8 +8,8 @@ package sampler
 import (
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/tracepb/pb"
 )
 
 // Signature is a hash representation of trace or a service, used to identify

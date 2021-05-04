@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/datadog-go/statsd"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +23,7 @@ func TestTiming(t *testing.T) {
 	assert := assert.New(t)
 	stats := &testutil.TestStatsClient{}
 
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
+	defer func(old statsd.ClientInterface) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
 
 	t.Run("report", func(t *testing.T) {

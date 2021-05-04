@@ -8,8 +8,8 @@ package event
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	"github.com/DataDog/tracepb/pb"
 	"github.com/stretchr/testify/assert"
 )
 
