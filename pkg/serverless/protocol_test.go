@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var daemon *Daemon
-
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	d := StartDaemon()
