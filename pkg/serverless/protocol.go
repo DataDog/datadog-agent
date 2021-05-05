@@ -216,7 +216,10 @@ func (d *Daemon) WaitForDaemon() {
 
 // Shutdown the relevant systems.
 func (d *Daemon) Shutdown(ctx context.Context) {
-	d.httpServer.Shutdown(ctx)
+	err := d.httpServer.Shutdown(ctx)
+	if err != nil {
+		log.Errorf("Couldn't shutdown daemon: %s", err)
+	}
 }
 
 // WaitUntilClientReady will wait until the client library has called the /hello route, or timeout
