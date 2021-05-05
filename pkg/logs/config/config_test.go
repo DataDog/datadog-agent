@@ -336,6 +336,32 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 	suite.Equal(expectedEndpoints, endpoints)
 }
 
+func (suite *ConfigTestSuite) TestEndpointsFallbackLogsDDUrl() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.logs_dd_url", "my-proxy:443")
+
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.")
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.")
+
+	suite.Nil(err)
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:   true,
+		BatchWait: coreConfig.DefaultBatchWait * time.Second,
+		Main: Endpoint{
+			APIKey:           "123",
+			Host:             "my-proxy",
+			Port:             443,
+			UseSSL:           true,
+			UseCompression:   true,
+			CompressionLevel: 6,
+		},
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.config.Set("api_key", "123")
 

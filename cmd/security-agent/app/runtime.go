@@ -151,8 +151,8 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.")
-	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.")
+	logsConfigRuntimeKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.")
+	return newLogContext(logsConfigRuntimeKeys, "runtime-security-http-intake.logs.")
 }
 
 func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
