@@ -86,8 +86,17 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
 
             print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
 
+    # Always run all builds and kitchen tests on a deploy pipeline
     pipeline_id = trigger_agent_pipeline(
-        gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch, deploy=True
+        gitlab,
+        project_name,
+        git_ref,
+        release_version_6,
+        release_version_7,
+        repo_branch,
+        deploy=True,
+        all_builds=True,
+        kitchen_tests=True,
     )
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
@@ -105,7 +114,7 @@ def run(
     """
     Trigger a pipeline on the given git ref, or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests.
-    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run).
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
     deploy them.
@@ -131,7 +140,6 @@ def run(
         release_version_6,
         release_version_7,
         "none",
-        deploy=False,
         all_builds=all_builds,
         kitchen_tests=kitchen_tests,
     )
