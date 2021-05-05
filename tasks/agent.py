@@ -362,8 +362,10 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    if 'INTEGRATIONS_CORE_VERSION' in os.environ:
-        env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    # Only overrides the env var if the value is a non-empty string.
+    if integrations_core_version:
+        env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
