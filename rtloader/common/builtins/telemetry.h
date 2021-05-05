@@ -40,15 +40,13 @@
 
 #define TELEMETRY_MODULE_NAME "telemetry"
 
-#ifdef DATADOG_AGENT_THREE
-PyMODINIT_FUNC PyInit_telemetry(void);
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_TWO
+#ifdef DATADOG_AGENT_THREE
+PyMODINIT_FUNC PyInit_telemetry(void);
+#elif DATADOG_AGENT_TWO
 void Py2_init_telemetry();
 #endif
 

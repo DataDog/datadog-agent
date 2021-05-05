@@ -65,15 +65,13 @@
 
 #define TOPOLOGY_MODULE_NAME "topology"
 
-#ifdef DATADOG_AGENT_THREE
-PyMODINIT_FUNC PyInit_topology(void);
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifdef DATADOG_AGENT_TWO
+#ifdef DATADOG_AGENT_THREE
+PyMODINIT_FUNC PyInit_topology(void);
+#elif defined(DATADOG_AGENT_TWO)
 void Py2_init_topology();
 #endif
 
