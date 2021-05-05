@@ -34,7 +34,7 @@ def trigger_agent_pipeline(
     if deploy:
         args["DEPLOY_AGENT"] = "true"
 
-    # All builds can be selectively enabled. However, they cannot be explicitly
+    # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
     # disabled on pipelines where they're activated by default (master & deploy pipelines)
     # as that would make the pipeline fail (some jobs on master and deploy pipelines depend
     # on jobs that are only run if RUN_ALL_BUILDS is true).
