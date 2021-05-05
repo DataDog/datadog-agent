@@ -119,7 +119,7 @@ bool Two::init()
     Py2_init_telemetry();
 
     // import the base class
-    _baseClass = _importFrom("stackstate_checks.checks", "AgentCheck");
+    _baseClass = _importFrom("datadog_checks.checks", "AgentCheck");
     if (_baseClass == NULL) {
         setError("could not import base class: " + std::string(getError()));
     }
