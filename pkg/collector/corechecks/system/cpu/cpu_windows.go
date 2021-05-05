@@ -37,6 +37,7 @@ const cpuCheckName = "cpu"
 
 // For testing purpose
 var times = Times
+var cpuInfo = cpu.GetCpuInfo
 
 // TimesStat contains the amounts of time the CPU has spent performing different
 // kinds of work. Time units are in USER_HZ or Jiffies (typically hundredths of
@@ -123,7 +124,7 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 	}
 
 	// do nothing
-	info, err := cpu.GetCpuInfo()
+	info, err := cpuInfo()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
@@ -170,6 +171,7 @@ func Times() ([]TimesStat, error) {
 	idle := uint64(uint64(lpIdleTime.DwHighDateTime)<<32) + uint64(lpIdleTime.DwLowDateTime)
 	user := uint64(uint64(lpUserTime.DwHighDateTime)<<32) + uint64(lpUserTime.DwLowDateTime)
 	kernel := uint64(uint64(lpKernelTime.DwHighDateTime)<<32) + uint64(lpKernelTime.DwLowDateTime)
+	// kernel time also includes idle time according to https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getsystemtimes
 	system := (kernel - idle)
 
 	ret = append(ret, TimesStat{
