@@ -5,6 +5,7 @@ package checks
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -25,9 +26,12 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 
 	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses  = map[uint32]cachedProcess{}
-	checkCount       = 0
-	haveWarnedNoArgs = false
+	cachedProcesses = map[uint32]cachedProcess{}
+	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
+	// Right now it's only used in getAllProcesses()
+	cacheProcessesMutex sync.Mutex
+	checkCount          = 0
+	haveWarnedNoArgs    = false
 )
 
 type SystemProcessInformation struct {
@@ -102,7 +106,14 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
 	checkCount++
-	knownPids := makePidSet()
+
+	cacheProcessesMutex.Lock()
+	defer cacheProcessesMutex.Unlock()
+
+	knownPids := make(map[uint32]struct{})
+	for pid := range cachedProcesses {
+		knownPids[pid] = struct{}{}
+	}
 
 	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
 		pid := pe32.Th32ProcessID
@@ -276,14 +287,6 @@ func parseCmdLineArgs(cmdline string) (res []string) {
 		}
 	}
 	return res
-}
-
-func makePidSet() (pids map[uint32]bool) {
-	pids = make(map[uint32]bool)
-	for pid := range cachedProcesses {
-		pids[pid] = true
-	}
-	return
 }
 
 type cachedProcess struct {
