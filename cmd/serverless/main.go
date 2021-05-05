@@ -358,12 +358,12 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
-			return
+		} else {
+			ta = traceAgent.NewAgent(traceAgentCtx, tc)
+			go func() {
+				ta.Run()
+			}()
 		}
-		ta = traceAgent.NewAgent(traceAgentCtx, tc)
-		go func() {
-			ta.Run()
-		}()
 	}
 
 	// run the invocation loop in a routine
