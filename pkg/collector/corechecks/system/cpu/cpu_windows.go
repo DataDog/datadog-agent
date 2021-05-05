@@ -37,6 +37,7 @@ const cpuCheckName = "cpu"
 
 // For testing purpose
 var times = Times
+var cpuInfo = cpu.GetCpuInfo
 
 // TimesStat contains the amounts of time the CPU has spent performing different
 // kinds of work. Time units are in USER_HZ or Jiffies (typically hundredths of
@@ -44,7 +45,8 @@ var times = Times
 type TimesStat struct {
 	CPU    string
 	User   float64
-	System float64
+	Kernel float64
+	System float64 // kernel - idle
 	Idle   float64
 }
 
@@ -59,7 +61,7 @@ type Check struct {
 
 // Total returns the total number of seconds in a CPUTimesStat
 func (c TimesStat) Total() float64 {
-	total := c.User + c.System + c.Idle
+	total := c.User + c.Kernel + c.Idle
 	return total
 }
 
@@ -123,7 +125,7 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 	}
 
 	// do nothing
-	info, err := cpu.GetCpuInfo()
+	info, err := cpuInfo()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
@@ -176,6 +178,7 @@ func Times() ([]TimesStat, error) {
 		CPU:    "cpu-total",
 		Idle:   float64(idle),
 		User:   float64(user),
+		Kernel: float64(kernel),
 		System: float64(system),
 	})
 	return ret, nil

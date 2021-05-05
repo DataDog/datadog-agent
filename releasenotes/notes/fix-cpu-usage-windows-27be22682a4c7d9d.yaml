@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    Fixes CPU utilization being underreported on Windows, expect an increase in the reported percentages under system.cpu.* after upgrading.
+fixes:
+  - |
+    Fixes CPU utilization being underreported on Windows.
