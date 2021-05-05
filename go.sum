@@ -107,8 +107,8 @@ github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321 h1:OPAXA+r6yznoxW
 github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321/go.mod h1:tGQp6XG4XpOyy67WG/YWXVxzOY6LejK35e8KcQhtRIQ=
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC27Xm9TMZlPbRi3CK1OCoawdvl0=
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3 h1:/5yFoDTV29OSmxFrPBLC9E/K3owCSg2TbcmgUECZjFE=
-github.com/DataDog/netlink v1.0.1-0.20210312173533-6d628a7fc6f3/go.mod h1:Z3jEpdZkf9cxInbZuDA2LkQzvG4Lg5q1f5R8h60IQUo=
+github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d h1:nS2B3Lpe4zniuCN9VJoUY/PgbrYUeRkag8n3U1scWtw=
+github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/DataDog/sketches-go v1.0.0 h1:chm5KSXO7kO+ywGWJ0Zs6tdmWU8PBXSbywFVciL6BG4=
 github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/viper v1.8.0 h1:+0s6jzOzQEpMCW+c4bkirz+4vNoWm4jmiQNmKfO2p38=
@@ -120,8 +120,6 @@ github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f/go.mod h1:oXfOhM/Kr
 github.com/GoogleCloudPlatform/k8s-cloud-provider v0.0.0-20200415212048-7901bc822317/go.mod h1:DF8FZRxMHMGv/vP2lQP6h+dYzzjpuRn24VeRiYn3qjQ=
 github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab/go.mod h1:3VYc5hodBMJ5+l/7J4xAyMeuM2PNuepvHlGs8yilUCA=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
-github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2 h1:GBNmojQs4shhcjg04b77y6JVKDfeu66OKCXc6SO4z1g=
-github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2/go.mod h1:Crq80mmPzTQc2CTCRzAb7o/mUJD10UCU/QkM5GSRS7I=
 github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd/go.mod h1:64YHyfSL2R96J44Nlwm39UHepQbyR5q10x7iYa1ks2E=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
@@ -1084,9 +1082,8 @@ github.com/prometheus/common v0.7.0/go.mod h1:DjGbpBbp5NYNiECxcL/VnbXCCaQpKd3tt2
 github.com/prometheus/common v0.9.1/go.mod h1:yhUN8i9wzaXS3w1O07YhxHEBxD+W35wd8bs7vj7HSQ4=
 github.com/prometheus/common v0.10.0/go.mod h1:Tlit/dnDKsSWFlCLTWaA1cyBgKHSMdTB80sz/V91rCo=
 github.com/prometheus/common v0.15.0/go.mod h1:U+gB1OBLb1lF3O42bTCL+FK18tX9Oar16Clt/msog/s=
+github.com/prometheus/common v0.18.0 h1:WCVKW7aL6LEe1uryfI9dnEc2ZqNB1Fn0ok930v0iL1Y=
 github.com/prometheus/common v0.18.0/go.mod h1:U+gB1OBLb1lF3O42bTCL+FK18tX9Oar16Clt/msog/s=
-github.com/prometheus/common v0.19.0 h1:Itb4+NjG9wRdkAWgVucbM/adyIXxEhbw0866e0uZE6A=
-github.com/prometheus/common v0.19.0/go.mod h1:U+gB1OBLb1lF3O42bTCL+FK18tX9Oar16Clt/msog/s=
 github.com/prometheus/exporter-toolkit v0.5.1/go.mod h1:OCkM4805mmisBhLmVFw858QYi3v0wKdY6/UxrT0pZVg=
 github.com/prometheus/procfs v0.0.0-20180125133057-cb4147076ac7/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
 github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
@@ -1540,7 +1537,6 @@ golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20210216163648-f7da38b97c65/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210217105451-b926d437f341/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210303074136-134d130e1a04/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
-golang.org/x/sys v0.0.0-20210308170721-88b6017d0656/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210309074719-68d13333faf2/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210330210617-4fbd30eecc44/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210415045647-66c3f260301c h1:6L+uOeS3OQt/f4eFHXZcTxeZrGCuz+CLElgEBjbcTA4=
@@ -1836,6 +1832,8 @@ k8s.io/kube-proxy v0.20.5/go.mod h1:DBxEvwMdK9/dJHxY6+VCONxHzBMWeebPMQM0Icr0VfY=
 k8s.io/kube-scheduler v0.20.5/go.mod h1:oCOwGvakNU458nFM1jRC5rzp1USDOFBFoie0OAEN4I8=
 k8s.io/kube-state-metrics v1.9.7 h1:uTnQWex0WLUFPmGKouePYjWLGMjxy/zQPUffHI30GWQ=
 k8s.io/kube-state-metrics v1.9.7/go.mod h1:VmWbsdvz/+sCXfxG1RDdlMageJNST9Uo8vBwavSYBu0=
+k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a h1:GXN7ORt2oFR+G6YMpH4/QSu8UDXI4RnRTl7I1dcoUU4=
+k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a/go.mod h1:xMhHSQr442H1qo1SGFBfAOZ32L+hDZ0aiiuwjiUH8Ys=
 k8s.io/kubectl v0.20.5/go.mod h1:mlNQgyV18D4XFt5BmfSkrxQNS+arT2pXDQxxnH5lMiw=
 k8s.io/kubelet v0.20.5/go.mod h1:iM18y0xm/1VlznuHFGBd9YVT9MM15TgEWJrJHrZ4mtQ=
 k8s.io/kubernetes v1.13.0/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
