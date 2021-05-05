@@ -2,14 +2,17 @@ package batcher
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	serializer2 "github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
 var (
 	testInstance  = topology.Instance{Type: "mytype", URL: "myurl"}
+	testInstance2 = topology.Instance{Type: "mytype2", URL: "myurl2"}
 	testHost      = "myhost"
 	testAgent     = "myagent"
 	testID        = check.ID("myid")
@@ -121,15 +124,14 @@ func TestBatchMultipleTopologies(t *testing.T) {
 
 	batcher.SubmitStartSnapshot(testID, testInstance)
 	batcher.SubmitComponent(testID, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
-	batcher.SubmitComponent(testID2, testInstance, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
+	batcher.SubmitComponent(testID2, testInstance2, testComponent)
 	batcher.SubmitStopSnapshot(testID, testInstance)
 
 	message := serializer.GetJSONToV1IntakeMessage()
 
-	assert.Equal(t,
-		map[string]interface{}{
+	assert.ObjectsAreEqualValues(map[string]interface{}{
 			"internalHostname": "myhost",
 			"topologies": []topology.Topology{
 				{
@@ -142,7 +144,7 @@ func TestBatchMultipleTopologies(t *testing.T) {
 				{
 					StartSnapshot: false,
 					StopSnapshot:  false,
-					Instance:      testInstance,
+					Instance:      testInstance2,
 					Components:    []topology.Component{testComponent, testComponent, testComponent},
 					Relations:     []topology.Relation{},
 				},
@@ -176,6 +178,34 @@ func TestBatchFlushOnMaxElements(t *testing.T) {
 		})
 
 	batcher.Shutdown()
+}
+
+func TestBatchFlushOnMaxElementsEnv(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+
+	// set batcher max capacity via ENV var
+	os.Setenv("DD_BATCHER_CAPACITY", "1")
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, config.GetMaxCapacity())
+	assert.Equal(t, 1, batcher.builder.maxCapacity)
+	batcher.SubmitComponent(testID, testInstance, testComponent)
+
+	message := serializer.GetJSONToV1IntakeMessage()
+	assert.Equal(t, message,
+		map[string]interface{}{
+			"internalHostname": "myhost",
+			"topologies": []topology.Topology{
+				{
+					StartSnapshot: false,
+					StopSnapshot:  false,
+					Instance:      testInstance,
+					Components:    []topology.Component{testComponent},
+					Relations:     []topology.Relation{},
+				},
+			},
+		})
+
+	batcher.Shutdown()
+	os.Unsetenv("STS_BATCHER_CAPACITY")
 }
 
 func TestBatcherStartSnapshot(t *testing.T) {
