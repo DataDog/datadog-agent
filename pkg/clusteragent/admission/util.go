@@ -21,37 +21,30 @@ import (
 // generateWebhooks returns mutating webhooks based on the configuration
 func generateWebhooks() []admiv1beta1.MutatingWebhook {
 	webhooks := []admiv1beta1.MutatingWebhook{}
+	labelSelector := buildLabelSelector()
 
 	// DD_AGENT_HOST injection
 	if config.Datadog.GetBool("admission_controller.inject_config.enabled") {
 		webhook := getWebhookSkeleton("config", config.Datadog.GetString("admission_controller.inject_config.endpoint"))
-		if config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
-			// Accept all, ignore pods if they're explicitly filtered-out
-			webhook.ObjectSelector = &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      EnabledLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"false"},
-					},
-				},
-			}
-		} else {
-			// Ignore all, accept pods if they're explicitly whitelisted
-			webhook.ObjectSelector = &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					EnabledLabelKey: "true",
-				},
-			}
-		}
+		webhook.ObjectSelector = labelSelector.DeepCopy()
 		webhooks = append(webhooks, webhook)
 	}
 
 	// DD_ENV, DD_VERSION, DD_SERVICE injection
 	if config.Datadog.GetBool("admission_controller.inject_tags.enabled") {
 		webhook := getWebhookSkeleton("tags", config.Datadog.GetString("admission_controller.inject_tags.endpoint"))
+		webhook.ObjectSelector = labelSelector.DeepCopy()
+		webhooks = append(webhooks, webhook)
+	}
+
+	return webhooks
+}
+
+// buildLabelSelector returns the mutating webhooks object selector on the configuration
+func buildLabelSelector() *metav1.LabelSelector {
+	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
 		// Accept all, ignore pods if they're explicitly filtered-out
-		webhook.ObjectSelector = &metav1.LabelSelector{
+		return &metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
 					Key:      EnabledLabelKey,
@@ -60,10 +53,14 @@ func generateWebhooks() []admiv1beta1.MutatingWebhook {
 				},
 			},
 		}
-		webhooks = append(webhooks, webhook)
 	}
 
-	return webhooks
+	// Ignore all, accept pods if they're explicitly allowed
+	return &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			EnabledLabelKey: "true",
+		},
+	}
 }
 
 func getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
