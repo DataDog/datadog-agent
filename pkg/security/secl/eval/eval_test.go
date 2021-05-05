@@ -927,8 +927,8 @@ func TestDuration(t *testing.T) {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.created_at < 1s`, Expected: true},
-		{Expr: `process.created_at > 1s`, Expected: false},
+		{Expr: `process.created_at < 2s`, Expected: true},
+		{Expr: `process.created_at > 2s`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -938,17 +938,17 @@ func TestDuration(t *testing.T) {
 		}
 
 		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
 		}
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	tests = []struct {
 		Expr     string
 		Expected bool
 	}{
-		{Expr: `process.created_at < 1s`, Expected: false},
+		{Expr: `process.created_at < 2s`, Expected: false},
 		{Expr: `process.created_at > 2s`, Expected: true},
 	}
 
@@ -959,7 +959,7 @@ func TestDuration(t *testing.T) {
 		}
 
 		if result != test.Expected {
-			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
 		}
 	}
 }
