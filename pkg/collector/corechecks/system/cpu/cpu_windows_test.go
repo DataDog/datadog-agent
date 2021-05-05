@@ -22,6 +22,7 @@ var (
 			User:   1229386,
 			System: 263584,
 			Idle:   25496761,
+			Kernel: 25496761 + 263584,
 		},
 	}
 	secondSample = []TimesStat{
@@ -30,6 +31,7 @@ var (
 			User:   1229586,
 			System: 268584,
 			Idle:   25596761,
+			Kernel: 25596761 + 268584,
 		},
 	}
 )
@@ -66,10 +68,10 @@ func TestCPUCheckWindows(t *testing.T) {
 	m.AssertNumberOfCalls(t, "Commit", 1)
 
 	sample = secondSample
-	m.On(metrics.GaugeType.String(), "system.cpu.user", 0.19960079840319359, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.system", 4.99001996007984, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.user", 0.09746588693957114, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.system", 2.4366471734892787, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.0, "", []string(nil)).Return().Times(1)
-	m.On(metrics.GaugeType.String(), "system.cpu.idle", 99.8003992015968, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.idle", 48.732943469785575, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
