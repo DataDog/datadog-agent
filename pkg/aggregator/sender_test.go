@@ -181,16 +181,16 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	checkSender.SetCheckService("")
 	checkSender.FinalizeCheckServiceTag()
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
-	sc := <-serviceCheckChan
-	assert.Equal(t, checkTags, sc.Tags)
+	sc := <-eventChan
+	assert.Equal(t, append(checkTags, fmt.Sprintf("status:%s", metrics.ServiceCheckOK)), sc.Tags)
 
 	// only last call is added as a tag
 	checkSender.SetCheckService("service1")
 	checkSender.SetCheckService("service2")
 	checkSender.FinalizeCheckServiceTag()
 	checkSender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
-	sc = <-serviceCheckChan
-	assert.Equal(t, append(checkTags, "service:service2"), sc.Tags)
+	sc = <-eventChan
+	assert.Equal(t, append(checkTags, "service:service2", fmt.Sprintf("status:%s", metrics.ServiceCheckOK)), sc.Tags)
 }
 
 func TestGetSenderServiceTagEvent(t *testing.T) {

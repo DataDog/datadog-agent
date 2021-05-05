@@ -9,6 +9,8 @@ package collectors
 
 import (
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -242,7 +244,6 @@ func TestParsePods(t *testing.T) {
 				Entity: dockerEntityID,
 				LowCardTags: []string{
 					"kube_namespace:default",
-					"kube_cluster_name:test-cluster",
 					"kube_container_name:dd-agent",
 					"kube_daemon_set:dd-agent-rc",
 					"image_tag:latest5",
@@ -881,7 +882,8 @@ func TestParsePods(t *testing.T) {
 				HighCardTags:         []string{"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"},
 				StandardTags:         []string{},
 			}},
-		}, {
+		},
+		{
 			desc: "cronjob",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
@@ -1047,6 +1049,156 @@ func TestParsePods(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParsePodsWithClusterName(t *testing.T) {
+	// set the cluster name config for all test scenarios
+	clustername.ResetClusterName()
+	config.Datadog.Set("cluster_name", "test-cluster")
+
+	dockerEntityID := "container_id://d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f"
+	dockerContainerStatus := kubelet.Status{
+		Containers: []kubelet.ContainerStatus{
+			{
+				ID:    dockerEntityID,
+				Image: "datadog/docker-dd-agent:latest5",
+				Name:  "dd-agent",
+			},
+		},
+		Phase: "Running",
+	}
+	dockerContainerSpec := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "dd-agent",
+				Image: "datadog/docker-dd-agent:latest5",
+			},
+		},
+	}
+
+	for nb, tc := range []struct {
+		skip              bool
+		desc              string
+		pod               *kubelet.Pod
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expectedInfo      []*TagInfo
+	}{
+		{
+			desc:         "empty pod",
+			pod:          &kubelet.Pod{},
+			labelsAsTags: map[string]string{},
+			expectedInfo: nil,
+		},
+		{
+			desc: "pod + k8s recommended tags",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "dd-agent-rc-qd876",
+					Namespace: "default",
+					Labels: map[string]string{
+						"app.kubernetes.io/name":       "dd-agent",
+						"app.kubernetes.io/instance":   "dd-agent-rc",
+						"app.kubernetes.io/version":    "1.1.0",
+						"app.kubernetes.io/component":  "dd-agent",
+						"app.kubernetes.io/part-of":    "dd",
+						"app.kubernetes.io/managed-by": "spinnaker",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"kube_cluster_name:test-cluster",
+					"kube_container_name:dd-agent",
+					"image_tag:latest5",
+					"kube_app_name:dd-agent",
+					"kube_app_instance:dd-agent-rc",
+					"kube_app_version:1.1.0",
+					"kube_app_component:dd-agent",
+					"kube_app_part_of:dd",
+					"kube_app_managed_by:spinnaker",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
+				},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_dd-agent-rc-qd876",
+				},
+				StandardTags: []string{},
+			}},
+		},
+		{
+			desc: "daemonset + common tags",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "dd-agent-rc-qd876",
+					Namespace: "default",
+					Owners: []kubelet.PodOwner{
+						{
+							Kind: "DaemonSet",
+							Name: "dd-agent-rc",
+							ID:   "6a76e51c-88d7-11e7-9a0f-42010a8401cc",
+						},
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"kube_cluster_name:test-cluster",
+					"kube_container_name:dd-agent",
+					"kube_daemon_set:dd-agent-rc",
+					"image_tag:latest5",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
+				},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_dd-agent-rc-qd876",
+				},
+				StandardTags: []string{},
+			}},
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
+			if tc.skip {
+				t.SkipNow()
+			}
+			collector := &KubeletCollector{}
+			collector.init(nil, nil, tc.labelsAsTags, tc.annotationsAsTags)
+			infos, err := collector.parsePods([]*kubelet.Pod{tc.pod})
+			assert.Nil(t, err)
+
+			if tc.expectedInfo == nil {
+				assert.Len(t, infos, 0)
+			} else {
+				assertTagInfoListEqual(t, tc.expectedInfo, infos)
+			}
+		})
+	}
+
+	// clear up test cases
+	config.Datadog.Set("cluster_name", "")
+	clustername.ResetClusterName()
 }
 
 func TestParseDeploymentForReplicaset(t *testing.T) {
