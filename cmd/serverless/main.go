@@ -356,6 +356,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	var ta *traceAgent.Agent
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.Hostname = ""
 		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
 		tc.SynchronousFlushing = true
 		if confErr != nil {
