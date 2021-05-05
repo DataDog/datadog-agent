@@ -363,6 +363,7 @@ def get_omnibus_env(
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
     integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    # Only overrides the env var if the value is a non-empty string.
     if integrations_core_version:
         env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
