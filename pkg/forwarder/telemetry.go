@@ -22,7 +22,7 @@ var (
 	transactionsIntakeCronJob    = expvar.Int{}
 	transactionsIntakeCluster    = expvar.Int{}
 
-	transactionsIntakeNetworkDevice = expvar.Int{}
+	transactionsIntakeNetworkDevice    = expvar.Int{}
 	transactionsIntakeNetworkInterface = expvar.Int{}
 
 	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
