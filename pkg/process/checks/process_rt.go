@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
 )
 
 // RTProcess is a singleton RTProcessCheck.
@@ -19,7 +20,7 @@ var RTProcess = &RTProcessCheck{probe: procutil.NewProcessProbe()}
 type RTProcessCheck struct {
 	sysInfo      *model.SystemInfo
 	lastCPUTime  cpu.TimesStat
-	lastProcs    map[int32]*procutil.Stats
+	lastProcs    map[int32]*process.FilledProcess
 	lastCtrRates map[string]util.ContainerRateMetrics
 	lastRun      time.Time
 
@@ -103,7 +104,7 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
 func fmtProcessStats(
 	cfg *config.AgentConfig,
-	procs, lastProcs map[int32]*procutil.Stats,
+	procs, lastProcs map[int32]*process.FilledProcess,
 	ctrList []*containers.Container,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
@@ -118,25 +119,25 @@ func fmtProcessStats(
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, cfg.MaxPerMessage)
 
-	for pid, fp := range procs {
+	for _, fp := range procs {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
-		if _, ok := lastProcs[pid]; !ok {
+		if _, ok := lastProcs[fp.Pid]; !ok {
 			continue
 		}
 		chunk = append(chunk, &model.ProcessStat{
-			Pid:                    pid,
+			Pid:                    fp.Pid,
 			CreateTime:             fp.CreateTime,
 			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, fp.CPUTime, lastProcs[pid].CPUTime, syst2, syst1),
+			Cpu:                    formatCPU(fp, fp.CpuTime, lastProcs[fp.Pid].CpuTime, syst2, syst1),
 			Nice:                   fp.Nice,
 			Threads:                fp.NumThreads,
 			OpenFdCount:            fp.OpenFdCount,
 			ProcessState:           model.ProcessState(model.ProcessState_value[fp.Status]),
-			IoStat:                 formatIO(fp, lastProcs[pid].IOStat, lastRun),
+			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
-			ContainerId:            cidByPid[pid],
+			ContainerId:            cidByPid[fp.Pid],
 		})
 		if len(chunk) == cfg.MaxPerMessage {
 			chunked = append(chunked, chunk)

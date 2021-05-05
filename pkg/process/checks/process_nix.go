@@ -7,12 +7,13 @@ import (
 	"runtime"
 	"strconv"
 
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
+
+	model "github.com/DataDog/agent-payload/process"
 )
 
-func formatUser(fp *procutil.Process) *model.ProcessUser {
+func formatUser(fp *process.FilledProcess) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
@@ -33,11 +34,11 @@ func formatUser(fp *procutil.Process) *model.ProcessUser {
 	}
 }
 
-func formatCPU(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
+func formatCPU(fp *process.FilledProcess, t2, t1, syst2, syst1 cpu.TimesStat) *model.CPUStat {
 	numCPU := float64(runtime.NumCPU())
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
-		LastCpu:    "cpu",
+		LastCpu:    t2.CPU,
 		TotalPct:   calculatePct((t2.User-t1.User)+(t2.System-t1.System), deltaSys, numCPU),
 		UserPct:    calculatePct(t2.User-t1.User, deltaSys, numCPU),
 		SystemPct:  calculatePct(t2.System-t1.System, deltaSys, numCPU),

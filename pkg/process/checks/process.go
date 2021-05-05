@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
+	"github.com/DataDog/gopsutil/process"
 )
 
 const emptyCtrID = ""
@@ -34,7 +35,7 @@ type ProcessCheck struct {
 
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
-	lastProcs       map[int32]*procutil.Process
+	lastProcs       map[int32]*process.FilledProcess
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
@@ -228,7 +229,7 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
-	procs, lastProcs map[int32]*procutil.Process,
+	procs, lastProcs map[int32]*process.FilledProcess,
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
@@ -248,14 +249,14 @@ func fmtProcesses(
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
-			Memory:                 formatMemory(fp.Stats),
-			Cpu:                    formatCPU(fp.Stats, fp.Stats.CPUTime, lastProcs[fp.Pid].Stats.CPUTime, syst2, syst1),
-			CreateTime:             fp.Stats.CreateTime,
-			OpenFdCount:            fp.Stats.OpenFdCount,
-			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
+			Memory:                 formatMemory(fp),
+			Cpu:                    formatCPU(fp, fp.CpuTime, lastProcs[fp.Pid].CpuTime, syst2, syst1),
+			CreateTime:             fp.CreateTime,
+			OpenFdCount:            fp.OpenFdCount,
+			State:                  model.ProcessState(model.ProcessState_value[fp.Status]),
+			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
+			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
+			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
 		}
 		_, ok := procsByCtr[proc.ContainerId]
@@ -270,7 +271,7 @@ func fmtProcesses(
 	return procsByCtr
 }
 
-func formatCommand(fp *procutil.Process) *model.Command {
+func formatCommand(fp *process.FilledProcess) *model.Command {
 	return &model.Command{
 		Args:   fp.Cmdline,
 		Cwd:    fp.Cwd,
@@ -281,8 +282,8 @@ func formatCommand(fp *procutil.Process) *model.Command {
 	}
 }
 
-func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nil for Mac
+func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before time.Time) *model.IOStat {
+	// This will be nill for Mac
 	if fp.IOStat == nil {
 		return &model.IOStat{}
 	}
@@ -320,7 +321,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	}
 }
 
-func formatMemory(fp *procutil.Stats) *model.MemoryStat {
+func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
 	ms := &model.MemoryStat{
 		Rss:  fp.MemInfo.RSS,
 		Vms:  fp.MemInfo.VMS,
@@ -341,8 +342,8 @@ func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 // for multiple collections.
 func skipProcess(
 	cfg *config.AgentConfig,
-	fp *procutil.Process,
-	lastProcs map[int32]*procutil.Process,
+	fp *process.FilledProcess,
+	lastProcs map[int32]*process.FilledProcess,
 ) bool {
 	if len(fp.Cmdline) == 0 {
 		return true
@@ -365,7 +366,7 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {
 		if p, ok := p.lastProcs[pid]; ok {
-			createTimeForPID[pid] = p.Stats.CreateTime
+			createTimeForPID[pid] = p.CreateTime
 		}
 	}
 	return createTimeForPID

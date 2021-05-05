@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	cpu "github.com/DataDog/gopsutil/cpu"
 	process "github.com/DataDog/gopsutil/process"
 
 	"github.com/shirou/w32"
@@ -80,24 +81,16 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
-	procs, err := getAllProcesses(probe)
-	if err != nil {
-		return nil, err
-	}
-	stats := make(map[int32]*procutil.Stats, len(procs))
-	for pid, proc := range procs {
-		stats[pid] = proc.Stats
-	}
-	return stats, nil
+func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*process.FilledProcess, error) {
+	return getAllProcesses(probe)
 }
 
-func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error) {
+func getAllProcesses(probe *procutil.Probe) (map[int32]*process.FilledProcess, error) {
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
 		return nil, windows.GetLastError()
 	}
-	procs := make(map[int32]*procutil.Process)
+	procs := make(map[int32]*process.FilledProcess)
 
 	defer w32.CloseHandle(allProcsSnap)
 	var pe32 w32.PROCESSENTRY32
@@ -166,34 +159,32 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 		stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
 
 		delete(knownPids, pid)
-		procs[int32(pid)] = &procutil.Process{
+		procs[int32(pid)] = &process.FilledProcess{
 			Pid:     int32(pid),
 			Ppid:    int32(ppid),
 			Cmdline: cp.parsedArgs,
-			Stats: &procutil.Stats{
-				CreateTime:  ctime,
-				OpenFdCount: int32(handleCount),
-				NumThreads:  int32(pe32.CntThreads),
-				CPUTime: &procutil.CPUTimesStat{
-					User:      utime,
-					System:    stime,
-					Timestamp: time.Now().UnixNano(),
-				},
-				MemInfo: &procutil.MemoryInfoStat{
-					RSS:  uint64(pmemcounter.WorkingSetSize),
-					VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
-					Swap: 0,
-				},
-				IOStat: &procutil.IOCountersStat{
-					ReadCount:  ioCounters.ReadOperationCount,
-					WriteCount: ioCounters.WriteOperationCount,
-					ReadBytes:  ioCounters.ReadTransferCount,
-					WriteBytes: ioCounters.WriteTransferCount,
-				},
-				CtxSwitches: &procutil.NumCtxSwitchesStat{},
+			CpuTime: cpu.TimesStat{
+				User:      utime,
+				System:    stime,
+				Timestamp: time.Now().UnixNano(),
 			},
 
-			Exe:      cp.executablePath,
+			CreateTime:  ctime,
+			OpenFdCount: int32(handleCount),
+			NumThreads:  int32(pe32.CntThreads),
+			CtxSwitches: &process.NumCtxSwitchesStat{},
+			MemInfo: &process.MemoryInfoStat{
+				RSS:  uint64(pmemcounter.WorkingSetSize),
+				VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
+				Swap: 0,
+			},
+			Exe: cp.executablePath,
+			IOStat: &process.IOCountersStat{
+				ReadCount:  ioCounters.ReadOperationCount,
+				WriteCount: ioCounters.WriteOperationCount,
+				ReadBytes:  ioCounters.ReadTransferCount,
+				WriteBytes: ioCounters.WriteTransferCount,
+			},
 			Username: cp.userName,
 		}
 	}
