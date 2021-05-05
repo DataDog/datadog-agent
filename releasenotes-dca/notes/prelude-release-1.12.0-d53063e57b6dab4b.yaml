@@ -1,4 +1,3 @@
 prelude:
     |
-    Released on: 2021-05-05
-    Pinned to datadog-agent v7.28.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7280--6280>`_.
+    Pinned to datadog-agent v7.28.0-rc.5
