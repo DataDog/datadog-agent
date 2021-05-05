@@ -75,17 +75,17 @@ def _get_instance_config(instance_name):
 
 def _find_outgoing_connection(json_data, port, origin, dest):
     """Find Connection as seen from the sending endpoint"""
-    return next(connection for message in json_data["messages"]
+    return next((connection for message in json_data["messages"]
                 for connection in message["message"]["Connections"]["connections"]
                 if connection["remoteEndpoint"]["endpoint"]["port"] == port and
                 connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == dest and
                 connection["localEndpoint"]["endpoint"]["ip"]["address"] == origin
-                )
+                ), {})
 
 
 def _find_outgoing_connection_in_namespace(json_data, port, scope, origin, dest):
     """Find Connection as seen from the sending endpoint"""
-    return next(connection for message in json_data["messages"]
+    return next((connection for message in json_data["messages"]
                 for connection in message["message"]["Connections"]["connections"]
                 if connection["remoteEndpoint"]["endpoint"]["port"] == port and
                 connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == dest and
@@ -95,22 +95,22 @@ def _find_outgoing_connection_in_namespace(json_data, port, scope, origin, dest)
                 "namespace" in connection["remoteEndpoint"] and "namespace" in connection["localEndpoint"] and
                 connection["remoteEndpoint"]["namespace"] == connection["localEndpoint"]["namespace"] and
                 connection["direction"] == "OUTGOING"
-                )
+                ), {})
 
 
 def _find_incoming_connection(json_data, port, origin, dest):
     """Find Connection as seen from the receiving endpoint"""
-    return next(connection for message in json_data["messages"]
+    return next((connection for message in json_data["messages"]
                 for connection in message["message"]["Connections"]["connections"]
                 if connection["localEndpoint"]["endpoint"]["port"] == port and
                 connection["localEndpoint"]["endpoint"]["ip"]["address"] == dest and
                 connection["remoteEndpoint"]["endpoint"]["ip"]["address"] == origin
-                )
+                ), {})
 
 
 def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest):
     """Find Connection as seen from the receiving endpoint"""
-    return next(connection for message in json_data["messages"]
+    return next((connection for message in json_data["messages"]
                 for connection in message["message"]["Connections"]["connections"]
                 if connection["localEndpoint"]["endpoint"]["port"] == port and
                 connection["localEndpoint"]["endpoint"]["ip"]["address"] == dest and
@@ -120,7 +120,7 @@ def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest)
                 "namespace" in connection["remoteEndpoint"] and "namespace" in connection["localEndpoint"] and
                 connection["remoteEndpoint"]["namespace"] == connection["localEndpoint"]["namespace"] and
                 connection["direction"] == "INCOMING"
-                )
+                ), {})
 
 
 def test_created_connection_after_start_with_metrics(host, common_vars):
@@ -144,31 +144,31 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
 
         outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
-        assert outgoing_conn["direction"] == "OUTGOING"
-        assert outgoing_conn["connectionType"] == "TCP"
-        assert outgoing_conn["bytesSentPerSecond"] > 10.0
-        assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
+        assert outgoing_conn.get("direction") == "OUTGOING"
+        assert outgoing_conn.get("connectionType") == "TCP"
+        assert outgoing_conn.get("bytesSentPerSecond") > 10.0
+        assert outgoing_conn.get("bytesReceivedPerSecond") == 0.0
 
         incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(incoming_conn)
-        assert incoming_conn["direction"] == "INCOMING"
-        assert incoming_conn["connectionType"] == "TCP"
-        assert incoming_conn["bytesSentPerSecond"] == 0.0
-        assert incoming_conn["bytesReceivedPerSecond"] > 10.0
+        assert incoming_conn.get("direction") == "INCOMING"
+        assert incoming_conn.get("connectionType") == "TCP"
+        assert incoming_conn.get("bytesSentPerSecond") == 0.0
+        assert incoming_conn.get("bytesReceivedPerSecond") > 10.0
 
         outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
-        assert outgoing_conn["direction"] == "OUTGOING"
-        assert outgoing_conn["connectionType"] == "TCP"
-        assert outgoing_conn["bytesSentPerSecond"] == 0.0       # We don't collect metrics on Windows
-        assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
+        assert outgoing_conn.get("direction") == "OUTGOING"
+        assert outgoing_conn.get("connectionType") == "TCP"
+        assert outgoing_conn.get("bytesSentPerSecond") == 0.0       # We don't collect metrics on Windows
+        assert outgoing_conn.get("bytesReceivedPerSecond") == 0.0
 
         incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(incoming_conn)
-        assert incoming_conn["direction"] == "INCOMING"
-        assert incoming_conn["connectionType"] == "TCP"
-        assert incoming_conn["bytesSentPerSecond"] == 0.0
-        assert incoming_conn["bytesReceivedPerSecond"] == 0.0   # We don't send data from Windows
+        assert incoming_conn.get("direction") == "INCOMING"
+        assert incoming_conn.get("connectionType") == "TCP"
+        assert incoming_conn.get("bytesSentPerSecond") == 0.0
+        assert incoming_conn.get("bytesReceivedPerSecond") == 0.0   # We don't send data from Windows
 
     util.wait_until(wait_for_connection, 30, 3)
 
@@ -194,23 +194,23 @@ def test_created_connection_before_start(host, common_vars):
 
         outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
-        assert outgoing_conn["direction"] == "NONE"          # Outgoing gets no direction from Linux /proc scanning
-        assert outgoing_conn["connectionType"] == "TCP"
+        assert outgoing_conn.get("direction") == "NONE"          # Outgoing gets no direction from Linux /proc scanning
+        assert outgoing_conn.get("connectionType") == "TCP"
 
         incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(incoming_conn)
-        assert incoming_conn["direction"] == "INCOMING"
-        assert incoming_conn["connectionType"] == "TCP"
+        assert incoming_conn.get("direction") == "INCOMING"
+        assert incoming_conn.get("connectionType") == "TCP"
 
         outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
-        assert outgoing_conn["direction"] == "OUTGOING"
-        assert outgoing_conn["connectionType"] == "TCP"
+        assert outgoing_conn.get("direction") == "OUTGOING"
+        assert outgoing_conn.get("connectionType") == "TCP"
 
         incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(incoming_conn)
-        assert incoming_conn["direction"] == "INCOMING"
-        assert incoming_conn["connectionType"] == "TCP"
+        assert incoming_conn.get("direction") == "INCOMING"
+        assert incoming_conn.get("connectionType") == "TCP"
 
     util.wait_until(wait_for_connection, 30, 3)
 
@@ -246,13 +246,13 @@ def test_host_metrics(host):
         # No swap in these tests, we still wanna know whether it is reported
         def assert_metric(name, ubuntu_predicate, fedora_predicate, win_predicate):
             if ubuntu_predicate:
-                for uv in metrics[name]["agent-ubuntu"]:
+                for uv in metrics[name].get("agent-ubuntu", []):
                     assert ubuntu_predicate(uv)
             if fedora_predicate:
-                for fv in metrics[name]["agent-fedora"]:
+                for fv in metrics[name].get("agent-fedora", []):
                     assert fedora_predicate(fv)
             if win_predicate:
-                for wv in metrics[name]["agent-win"]:
+                for wv in metrics[name].get("agent-win", []):
                     assert win_predicate(wv)
 
         assert_metric("system.uptime", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
@@ -302,11 +302,11 @@ def test_process_metrics(host):
             json.dump(json_data, f, indent=4)
 
         def get_keys(m_host):
-            return next(set(message["message"]["MultiMetric"]["values"].keys())
+            return next((set(message["message"]["MultiMetric"]["values"].keys())
                         for message in json_data["messages"]
                         if message["message"]["MultiMetric"]["name"] == "processMetrics" and
                         message["message"]["MultiMetric"]["host"] == m_host
-                        )
+                        ), set())
 
         # Same metrics we check in the backend e2e tests
         # https://stackvista.githost.io/StackVista/StackState/blob/master/stackstate-pm-test/src/test/scala/com/stackstate/it/e2e/ProcessAgentIntegrationE2E.scala#L17
@@ -322,7 +322,6 @@ def test_process_metrics(host):
         assert get_keys("agent-win") == expected
 
     util.wait_until(wait_for_metrics, 30, 3)
-
 
 def test_connection_network_namespaces_relations(host):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1500"
@@ -342,10 +341,10 @@ def test_connection_network_namespaces_relations(host):
         print(incoming_conn)
 
         # assert that the connections are in the same namespace
-        outgoing_local_namespace = outgoing_conn["localEndpoint"]["namespace"]
-        outgoing_remote_namespace = outgoing_conn["remoteEndpoint"]["namespace"]
-        incoming_local_namespace = incoming_conn["localEndpoint"]["namespace"]
-        incoming_remote_namespace = incoming_conn["remoteEndpoint"]["namespace"]
+        outgoing_local_namespace = outgoing_conn.get("localEndpoint", {}).get("namespace")
+        outgoing_remote_namespace = outgoing_conn.get("remoteEndpoint", {}).get("namespace")
+        incoming_local_namespace = incoming_conn.get("localEndpoint", {}).get("namespace")
+        incoming_remote_namespace = incoming_conn.get("remoteEndpoint", {}).get("namespace")
         assert (
             outgoing_local_namespace == outgoing_remote_namespace and
             incoming_local_namespace == incoming_remote_namespace and
