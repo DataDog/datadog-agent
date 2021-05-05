@@ -5,9 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-.if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
-
 .kitchen_test_system_probe:
   extends:
     - .kitchen_common
@@ -42,8 +39,6 @@
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2_spot_instances
   rules:
-    - <<: *if_not_run_all_builds
-      when: never
     - changes:
         - pkg/ebpf/**/*
         - pkg/network/**/*
