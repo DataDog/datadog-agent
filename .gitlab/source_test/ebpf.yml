@@ -1,8 +1,5 @@
 ---
 
-.if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
-
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
   rm -f modcache.tar.gz
@@ -67,8 +64,6 @@ tests_ebpf_x64:
 
 tests_ebpf_arm64:
   extends: .tests_ebpf
-  rules:
-    - <<: *if_run_all_builds
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: [ "linux_arm64_go_deps" ]
