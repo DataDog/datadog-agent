@@ -58,8 +58,9 @@ func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourceP
 	var tx httpTX
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	tx.request_started = 0
-	tx.response_last_seen = _Ctype_ulonglong(latency * 1000000.0) // ms to ns
+	latencyNS := _Ctype_ulonglong(latency * 1000000.0) // ms to ns
+	tx.request_started = 1
+	tx.response_last_seen = tx.request_started + latencyNS
 	tx.response_status_code = _Ctype_ushort(code)
 	tx.request_fragment = requestFragment([]byte(reqFragment))
 	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
