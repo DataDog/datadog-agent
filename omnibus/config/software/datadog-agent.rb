@@ -108,7 +108,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
-    mkdir Omnibus::Config.package_dir() unless File.exists?(Omnibus::Config.package_dir())
+    mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
     copy 'bin/agent/customaction.pdb', "#{Omnibus::Config.package_dir()}/"
   end
 
