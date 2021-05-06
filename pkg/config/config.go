@@ -829,7 +829,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// Serverless Agent
-	config.BindEnvAndSetDefault("send_logs", true)
+	config.BindEnvAndSetDefault("lambda_logs_enabled", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
