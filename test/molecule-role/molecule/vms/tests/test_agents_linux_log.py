@@ -74,8 +74,7 @@ def test_stackstate_trace_agent_no_log_errors(host, hostname):
     # Check for presence of success
     def wait_for_check_successes():
         trace_agent_log = _get_log(host, "{}-{}".format(hostname, "trace-agent"), trace_agent_log_path)
-        assert re.search("total number of tracked services", trace_agent_log)
-        assert re.search("trace-agent running on host", trace_agent_log)
+        assert re.search("Trace agent running on host", trace_agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
