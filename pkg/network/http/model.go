@@ -89,6 +89,12 @@ func (tx *httpTX) RequestLatency() float64 {
 	return float64((tx.response_last_seen - tx.request_started) / (1000000))
 }
 
+// Incomplete returns true if the transaction contains only the request or response information
+// This happens in the context of localhost with NAT, in which case we join the two parts in userspace
+func (tx *httpTX) Incomplete() bool {
+	return tx.request_started == 0 || tx.response_status_code == 0
+}
+
 // IsDirty detects whether the batch page we're supposed to read from is still
 // valid.  A "dirty" page here means that between the time the
 // http_notification_t message was sent to userspace and the time we performed
