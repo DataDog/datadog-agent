@@ -12,7 +12,6 @@ import (
 	"sync" // might be unnecessary
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	replayTagger "github.com/DataDog/datadog-agent/pkg/tagger/replay"
@@ -149,7 +148,7 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 
 // ReadState reads the tagger state from the end of the capture file.
 // The internal offset of the reader is not modified by this operation.
-func (tc *TrafficCaptureReader) ReadState() (map[string]*pbgo.Entity, error) {
+func (tc *TrafficCaptureReader) ReadState() (map[string]*pb.Entity, error) {
 
 	tc.Lock()
 	defer tc.Unlock()
