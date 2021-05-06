@@ -42,8 +42,8 @@ type Iterator interface {
 
 // InstanceResult captures an Instance along with the passed or failed status for the result
 type InstanceResult struct {
-	Instance *Instance
-	Passed   bool
+	Instances []*Instance
+	Passed    bool
 }
 
 const (
@@ -59,7 +59,7 @@ var (
 )
 
 // EvaluateIterator evaluates an iterable expression for an iterator
-func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*InstanceResult, error) {
+func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance, maxInstances int) (*InstanceResult, error) {
 	if e.IterableComparison == nil {
 		return e.iterate(
 			it,
@@ -68,6 +68,7 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*I
 				// First failure stops the iteration
 				return passed
 			},
+			maxInstances,
 		)
 	}
 
@@ -96,6 +97,7 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*I
 			}
 			return true
 		},
+		maxInstances,
 	)
 	if err != nil {
 		return nil, err
@@ -107,8 +109,8 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*I
 	}
 
 	return &InstanceResult{
-		Instance: result.Instance,
-		Passed:   passed,
+		Instances: result.Instances,
+		Passed:    passed,
 	}, nil
 }
 
@@ -150,18 +152,22 @@ func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, tot
 	}
 }
 
-func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) (*InstanceResult, error) {
+func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool, maxInstances int) (*InstanceResult, error) {
 	var (
-		instance *Instance
-		first    *Instance
-		err      error
-		passed   bool
+		first     *Instance
+		instance  *Instance
+		instances []*Instance
+		err       error
+		passed    bool
+		succeed   bool = !it.Done()
 	)
+
 	for !it.Done() {
 		instance, err = it.Next()
 		if err != nil {
 			return nil, err
 		}
+
 		if first == nil {
 			first = instance
 		}
@@ -172,17 +178,22 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 		}
 
 		if !checkResult(instance, passed) {
+			succeed = false
+			instances = append(instances, instance)
+		}
+
+		if len(instances) >= maxInstances {
 			break
 		}
 	}
 
-	if passed {
-		instance = first
+	if succeed {
+		instances = []*Instance{first}
 	}
 
 	return &InstanceResult{
-		Instance: instance,
-		Passed:   passed,
+		Instances: instances,
+		Passed:    succeed,
 	}, nil
 }
 
