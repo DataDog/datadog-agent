@@ -2304,6 +2304,61 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
 }
 
+func TestGatewayLookupSubnetLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	calls := 0
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		if hwAddr.String() == ifi.HardwareAddr.String() {
+			calls++
+		}
+		return network.Subnet{}, assert.AnError
+	}
+
+	tr.gwLookup.purge()
+
+	getConnections(t, tr)
+
+	// do two dns queries to prompt more than one subnet lookup attempt
+	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var c *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
+}
+
 func TestGatewayLookupCrossNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
