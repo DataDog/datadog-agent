@@ -401,6 +401,7 @@ core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/josharian/intern",MIT
+core,"github.com/josharian/native",MIT
 core,"github.com/json-iterator/go",MIT
 core,"github.com/kardianos/osext",NewBSD
 core,"github.com/klauspost/compress/flate",NewBSD

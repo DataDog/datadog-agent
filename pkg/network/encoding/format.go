@@ -7,6 +7,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
@@ -174,6 +175,24 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 	}
 
 	return aggregationsByKey
+}
+
+// Build the key for the http map based on whether the local or remote side is http.
+func httpKeyFromConn(c network.ConnectionStats) http.Key {
+	// Retrieve translated addresses
+	laddr, lport := nat.GetLocalAddress(c)
+	raddr, rport := nat.GetRemoteAddress(c)
+
+	if http.IsHTTP(int(rport)) {
+		return http.NewKey(laddr, raddr, lport, rport, "")
+	}
+
+	if http.IsHTTP(int(lport)) {
+		// Since HTTP data is always indexed as (client, server), we flip the lookup key
+		return http.NewKey(raddr, laddr, rport, lport, "")
+	}
+
+	return http.Key{}
 }
 
 func returnToPool(c *model.Connections) {

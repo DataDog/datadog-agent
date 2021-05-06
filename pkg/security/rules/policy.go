@@ -85,7 +85,7 @@ func LoadPolicy(r io.Reader, name string) (*Policy, error) {
 	policy := &Policy{Name: name}
 
 	decoder := yaml.NewDecoder(r)
-	if err := decoder.Decode(&policy); err != nil {
+	if err := decoder.Decode(policy); err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 

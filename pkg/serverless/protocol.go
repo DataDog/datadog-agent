@@ -31,6 +31,11 @@ const httpServerPort int = 8124
 
 const httpLogsCollectionRoute string = "/lambda/logs"
 
+// shutdownDelay is the amount of time we wait before shutting down the HTTP server
+// after we receive a Shutdown event. This allows time for the final log messages
+// to arrive from the Logs API.
+const shutdownDelay time.Duration = 1 * time.Second
+
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
@@ -38,14 +43,18 @@ type Daemon struct {
 	mux        *http.ServeMux
 
 	statsdServer *dogstatsd.Server
-	traceAgent   *traceAgent.Agent
 
-	// lastInvocations stores last invocations time to be able to compute the
+	traceAgent     *traceAgent.Agent
+	stopTraceAgent context.CancelFunc
+
+	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
 	lastInvocations []time.Time
+
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
 	flushStrategy flush.Strategy
+
 	// useAdaptiveFlush is set to false when the flush strategy has been forced
 	// through configuration.
 	useAdaptiveFlush bool
@@ -57,6 +66,8 @@ type Daemon struct {
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 
+	// stopped represents whether the Daemon has been stopped
+	stopped bool
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instantiated)
 	ReadyWg *sync.WaitGroup
@@ -98,12 +109,11 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // TriggerFlush triggers a flush of the aggregated metrics, traces and logs.
 // They are flushed concurrently.
 // In some circumstances, it may switch to another flush strategy after the flush.
-// shutdown indicates whether this is the last flush before the shutdown or not.
-func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
+// isLastFlush indicates whether this is the last flush before the shutdown or not.
+func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	// Increment the invocation wait group which tracks whether work is in progress for the daemon
 	d.InvcWg.Add(1)
 	defer d.InvcWg.Done()
-
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	wg.Add(1)
@@ -127,23 +137,57 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 
 	// logs
 	go func() {
-		if shutdown {
-			logs.Stop() // stop the logs agent, everything will be flushed
-		} else {
-			logs.Flush(ctx)
-		}
+		logs.Flush(ctx)
 		wg.Done()
 	}()
 
 	wg.Wait()
 	log.Debug("Flush done")
 
-	// we've just flushed, we can maybe try to change the flush strategy?
-	// (but do that only if the flush strategy hasn't be forced through configuration)
-	// note that we don't mind doing that if we are shutting down.
-	if !shutdown {
+	// After flushing, re-evaluate flush strategy (if applicable)
+	if !isLastFlush {
 		d.UpdateStrategy()
 	}
+}
+
+// Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
+// is shut down, data is flushed a final time, and then the agents are shut down.
+func (d *Daemon) Stop() {
+	// Can't shut down before starting
+	// If the DogStatsD daemon isn't ready, wait for it.
+	d.ReadyWg.Wait()
+
+	if d.stopped {
+		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
+		return
+	}
+	d.stopped = true
+
+	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
+	log.Debug("Waiting to shut down HTTP server")
+	time.Sleep(shutdownDelay)
+	log.Debug("Shutting down HTTP server")
+	err := d.httpServer.Shutdown(context.Background())
+	if err != nil {
+		log.Error("Error shutting down HTTP server")
+	}
+
+	err = aws.PersistCurrentStateToFile()
+	if err != nil {
+		log.Error("Unable to persist current state to file while shutting down")
+	}
+
+	// Once the HTTP server is shut down, it is safe to shut down the agents
+	// Otherwise, we might try to handle API calls after the agent has already been shut down
+	d.TriggerFlush(context.Background(), true)
+
+	log.Debug("Shutting down agents")
+	d.stopTraceAgent()
+	if d.statsdServer != nil {
+		d.statsdServer.Stop()
+	}
+	logs.Stop()
+	log.Debug("Serverless agent shutdown complete")
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
@@ -152,13 +196,14 @@ func (d *Daemon) TriggerFlush(ctx context.Context, shutdown bool) {
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon() *Daemon {
+func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
 		statsdServer:     nil,
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
+		stopTraceAgent:   stopTraceAgent,
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
@@ -211,14 +256,6 @@ func (d *Daemon) FinishInvocation() {
 func (d *Daemon) WaitForDaemon() {
 	if d.clientLibReady {
 		d.InvcWg.Wait()
-	}
-}
-
-// Shutdown the relevant systems.
-func (d *Daemon) Shutdown(ctx context.Context) {
-	err := d.httpServer.Shutdown(ctx)
-	if err != nil {
-		log.Errorf("Couldn't shutdown daemon: %s", err)
 	}
 }
 

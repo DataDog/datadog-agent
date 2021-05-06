@@ -105,20 +105,16 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	// Main context passed to components
-	ctx, cancel := context.WithCancel(context.Background())
-	defer stopCallback(cancel)
-
 	stopCh := make(chan struct{})
 
-	// handle SIGTERM
-	go handleSignals(stopCh)
-
 	// run the agent
-	err := runAgent(ctx, stopCh)
+	daemon, err := runAgent(stopCh)
 	if err != nil {
 		return err
 	}
+
+	// handle SIGTERM
+	go handleSignals(daemon, stopCh)
 
 	// block here until we receive a stop signal
 	<-stopCh
@@ -139,9 +135,11 @@ func main() {
 	}
 }
 
-func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
+func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	startTime := time.Now()
+
+	traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
 
 	// setup logger
 	// -----------
@@ -166,7 +164,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// immediately starts the communication server
-	daemon := serverless.StartDaemon()
+	daemon = serverless.StartDaemon(stopTraceAgent)
 
 	// serverless parts
 	// ----------------
@@ -361,12 +359,12 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
-			return
+		} else {
+			ta = traceAgent.NewAgent(traceAgentCtx, tc)
+			go func() {
+				ta.Run()
+			}()
 		}
-		ta = traceAgent.NewAgent(ctx, tc)
-		go func() {
-			ta.Run()
-		}()
 	}
 
 	// run the invocation loop in a routine
@@ -394,7 +392,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 // handleSignals handles OS signals, if a SIGTERM is received,
 // the serverless agent stops.
-func handleSignals(stopCh chan struct{}) {
+func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -405,6 +403,7 @@ func handleSignals(stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+			daemon.Stop()
 			stopCh <- struct{}{}
 			return
 		}
@@ -482,17 +481,4 @@ func readAPIKeyFromSSM() (string, error) {
 	// should not happen but let's handle this gracefully
 	log.Warn("SSM returned something but there seems to be no data available;")
 	return "", nil
-}
-
-func stopCallback(cancel context.CancelFunc) {
-	// gracefully shut down any component
-	cancel()
-
-	if statsdServer != nil {
-		statsdServer.Stop()
-	}
-
-	log.Info("See ya!")
-	log.Flush()
-	return
 }

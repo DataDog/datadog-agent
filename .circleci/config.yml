@@ -67,7 +67,7 @@ jobs:
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose
+            inv -e deps
       - run:
           name: build rtloader
           command: |

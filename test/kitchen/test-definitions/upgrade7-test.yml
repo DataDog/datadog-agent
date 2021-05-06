@@ -2,7 +2,7 @@ suites:
 
 # Installs the latest release Agent 7, then updates it to the latest release
 # candidate
-- name: dd-agent-upgrade-agent7
+- name: upgrade-agent7
   run_list:
     <% if ENV['FIPS'] == 'true' %>
     - "recipe[dd-agent-enable-fips::enable]"

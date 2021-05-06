@@ -245,17 +245,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 }
 
 func loadConfigIfExists(path string) error {
-	if util.PathExists(path) {
-		config.Datadog.AddConfigPath(path)
-		if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
-			config.Datadog.SetConfigFile(path)
-		}
+	if path != "" {
+		if util.PathExists(path) {
+			config.Datadog.AddConfigPath(path)
+			if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
+				config.Datadog.SetConfigFile(path)
+			}
 
-		if _, err := config.LoadWithoutSecret(); err != nil {
-			return err
+			if _, err := config.LoadWithoutSecret(); err != nil {
+				return err
+			}
+		} else {
+			log.Infof("no config exists at %s, ignoring...", path)
 		}
-	} else {
-		log.Infof("no config exists at %s, ignoring...", path)
 	}
 	return nil
 }

@@ -391,14 +391,16 @@ func TestProcessContext(t *testing.T) {
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "process.file.container_path")
 			}
+
+			str := event.String()
+
+			if !strings.Contains(str, "pts") {
+				t.Error("tty not serialized")
+			}
 		}
 	})
 
 	test.Run(t, "ancestors", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if rhel7 {
-			t.Skip()
-		}
-
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -434,10 +436,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if rhel7 {
-			t.Skip()
-		}
-
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
 			t.Fatal(err)
@@ -460,7 +458,7 @@ func TestProcessContext(t *testing.T) {
 		} else {
 			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
 
-			if !rhel7 && !validateExecSchema(t, event) {
+			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
 
@@ -620,11 +618,25 @@ func TestProcessLineage(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
-		event, err := test.GetProbeEvent(3*time.Second, "fork")
-		if err != nil {
-			t.Error(err)
-		} else {
-			testProcessLineageFork(t, event)
+
+		forkTimeout := time.After(3 * time.Second)
+
+		for {
+			select {
+			case <-forkTimeout:
+				t.Error(errors.New("timeout"))
+				return
+			default:
+				event, err := test.GetProbeEvent(3*time.Second, "fork")
+				if err != nil {
+					continue
+				} else {
+					if filename, err := event.GetFieldValue("process.file.name"); err == nil && filename.(string) == "testsuite" {
+						testProcessLineageFork(t, event)
+						return
+					}
+				}
+			}
 		}
 	})
 

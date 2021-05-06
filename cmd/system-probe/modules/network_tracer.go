@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -24,12 +25,13 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
-var inactivityLogDuration = 10 * time.Minute
+const inactivityLogDuration = 10 * time.Minute
+const inactivityRestartDuration = 20 * time.Minute
 
 // NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = api.Factory{
+var NetworkTracer = module.Factory{
 	Name: config.NetworkTracerModule,
-	Fn: func(cfg *config.Config) (api.Module, error) {
+	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer
@@ -44,10 +46,11 @@ var NetworkTracer = api.Factory{
 	},
 }
 
-var _ api.Module = &networkTracer{}
+var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
-	tracer *tracer.Tracer
+	tracer       *tracer.Tracer
+	restartTimer *time.Timer
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -72,6 +75,9 @@ func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 		marshaler := encoding.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
+		if nt.restartTimer != nil {
+			nt.restartTimer.Reset(inactivityRestartDuration)
+		}
 		count := atomic.AddUint64(&runCounter, 1)
 		logRequests(id, count, len(cs.Conns), start)
 	})
@@ -107,6 +113,15 @@ func (nt *networkTracer) Register(httpMux *http.ServeMux) error {
 			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
 		}
 	})
+
+	if runtime.GOOS == "windows" {
+		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
+			log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
+			inactivityEventLog(inactivityRestartDuration)
+			nt.Close()
+			os.Exit(1)
+		})
+	}
 
 	return nil
 }

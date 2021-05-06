@@ -15,9 +15,10 @@ import (
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
-	ctx := context.Background()
-	defer d.Shutdown(ctx)
+	_, cancel := context.WithCancel(context.Background())
+	d := StartDaemon(cancel)
+	d.ReadyWg.Done()
+	defer d.Stop()
 
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
@@ -41,9 +42,10 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 
 func TestWaitUntilReady(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
-	ctx := context.Background()
-	defer d.Shutdown(ctx)
+	_, cancel := context.WithCancel(context.Background())
+	d := StartDaemon(cancel)
+	d.ReadyWg.Done()
+	defer d.Stop()
 
 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
 	assert.Equal(ready, false, "client was ready")

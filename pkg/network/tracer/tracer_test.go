@@ -2191,12 +2191,39 @@ func TestGatewayLookupNotEnabled(t *testing.T) {
 	})
 
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
-		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
-
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(false)
+		cloud = m
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, aws metadata endpoint not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(true)
+		cloud = m
+
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
@@ -2229,6 +2256,16 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 }
 
 func TestGatewayLookupEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
@@ -2268,6 +2305,16 @@ func TestGatewayLookupEnabled(t *testing.T) {
 }
 
 func TestGatewayLookupCrossNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
@@ -2299,10 +2346,14 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"ip -n test1 r add default via 2.2.2.1",
 		"ip -n test2 r add default via 2.2.2.1",
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+		"iptables -I FORWARD -i br0 -j ACCEPT",
+		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
 	defer func() {
 		testutil.RunCommands(t, []string{
+			"iptables -D FORWARD -o br0 -j ACCEPT",
+			"iptables -D FORWARD -i br0 -j ACCEPT",
 			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",

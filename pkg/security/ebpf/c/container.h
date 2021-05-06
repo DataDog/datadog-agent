@@ -9,6 +9,9 @@ static __attribute__((always_inline)) u32 copy_container_id(char src[CONTAINER_I
 #pragma unroll
     for (int i = 0; i < CONTAINER_ID_LEN; i++)
     {
+        if (src[i] == 0)
+            break;
+
         dst[i] = src[i];
     }
     return CONTAINER_ID_LEN;

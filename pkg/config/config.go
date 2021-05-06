@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -199,6 +200,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
+	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -390,6 +392,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
+	// Location to store dogstatsd captures by default
+	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
+	// Depth of the channel the capture writer reads before persisting to disk.
+	// Default is 0 - blocking channel
+	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
 
 	_ = config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
@@ -499,7 +506,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("cache_sync_timeout", 2) // in seconds
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 2)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -507,6 +514,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
 	config.BindEnvAndSetDefault("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
 	config.BindEnvAndSetDefault("cluster_agent.tagging_fallback", false)
+	config.BindEnvAndSetDefault("cluster_agent.server.read_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.write_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("cluster_agent.server.idle_timeout_seconds", 60)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -746,11 +756,13 @@ func InitConfig(config Config) {
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
+	config.BindEnv("orchestrator_explorer.max_per_message")                   //nolint:errcheck
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")               //nolint:errcheck
+	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints") //nolint:errcheck
 
 	// Orchestrator Explorer - process agent
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "") //nolint:errcheck
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
-	config.BindEnv("process_config.orchestrator_dd_url", "") //nolint:errcheck
+	config.BindEnv("process_config.orchestrator_dd_url") //nolint:errcheck
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
 	config.SetKnown("process_config.orchestrator_additional_endpoints.*")
 	config.SetKnown("orchestrator_explorer.orchestrator_additional_endpoints.*")
@@ -779,8 +791,6 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
-
-	setupSystemProbe(config)
 
 	// Network
 	config.BindEnv("network.id") //nolint:errcheck
@@ -1324,4 +1334,23 @@ func GetBindHost() string {
 	}
 
 	return "localhost"
+}
+
+// GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
+// only valid ones.
+func GetValidHostAliases() []string {
+	return getValidHostAliasesWithConfig(Datadog)
+}
+
+func getValidHostAliasesWithConfig(config Config) []string {
+	aliases := []string{}
+	for _, alias := range config.GetStringSlice("host_aliases") {
+		if err := validate.ValidHostname(alias); err == nil {
+			aliases = append(aliases, alias)
+		} else {
+			log.Warnf("skipping invalid host alias '%s': %s", alias, err)
+		}
+	}
+
+	return aliases
 }
