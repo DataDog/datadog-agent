@@ -79,6 +79,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
+	github.com/client9/misspell v0.3.4 // indirect
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
@@ -95,7 +96,9 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
+	github.com/frapposelli/wwhrd v0.4.0 // indirect
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
+	github.com/fzipp/gocyclo v0.3.1 // indirect
 	github.com/go-ini/ini v1.62.0
 	github.com/go-ole/go-ole v1.2.5
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
@@ -170,8 +173,12 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20200910180754-dd1b699fc489
+	go.opencensus.io v0.22.6 // indirect
 	go.uber.org/automaxprocs v1.2.0
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.16.0 // indirect
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
+	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210415231046-e915ea6b2b7d
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
@@ -189,6 +196,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.29.0
 	gotest.tools v2.2.0+incompatible
+	gotest.tools/gotestsum v0.3.5 // indirect
+	honnef.co/go/tools v0.1.1 // indirect
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
