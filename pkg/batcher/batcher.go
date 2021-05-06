@@ -176,7 +176,7 @@ func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance
 
 // SubmitComplete signals completion of a check. May trigger a flush only if the check produced data
 func (batcher AsynchronousBatcher) SubmitComplete(checkID check.ID) {
-	log.Debugf("Submitting complete for check [%s] instance [%s]", checkID)
+	log.Debugf("Submitting complete for check [%s]", checkID)
 	batcher.input <- submitComplete{
 		checkID: checkID,
 	}
