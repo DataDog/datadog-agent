@@ -52,16 +52,25 @@ func (p *PoolManager) Put(x interface{}) {
 	// avoid adding items to the map while flushing.
 	p.RLock()
 
-	// TODO: use LoadAndDelete when go 1.15 is introduced
+	var ref interface{}
 
-	_, loaded := p.refs.Load(x)
+	switch v := x.(type) {
+	case []uint8:
+		ref = &v
+	default:
+		ref = v
+	}
+
+
+	// TODO: use LoadAndDelete when go 1.15 is introduced
+	_, loaded := p.refs.Load(ref)
 	if loaded {
 		// reference exists, put back.
-		p.refs.Delete(x)
+		p.refs.Delete(ref)
 		p.pool.Put(x)
 	} else {
 		// reference does not exist, account.
-		p.refs.Store(x, struct{}{})
+		p.refs.Store(ref, struct{}{})
 	}
 
 	// relatively hot path so not deferred

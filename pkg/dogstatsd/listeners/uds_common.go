@@ -156,7 +156,7 @@ func (l *UDSListener) Listen() {
 		}
 
 		if l.OriginDetection {
-			// Read datagram + credentials in ancilary data
+			// Read datagram + credentials in ancillary data
 			oob := l.oobPoolManager.Get().([]byte)
 			var oobn int
 
