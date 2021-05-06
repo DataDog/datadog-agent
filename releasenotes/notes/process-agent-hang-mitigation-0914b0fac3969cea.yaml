@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On Windows, exit system-probe if process-agent has not queried for connection data for 20 consecutive minutes.
+    This ensures excessive system resources are not used while connection data is not being sent to Datadog.
+
