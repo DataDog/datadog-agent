@@ -66,8 +66,9 @@ type TrafficCaptureWriter struct {
 func NewTrafficCaptureWriter(l string, depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
-		Location: l,
-		Traffic:  make(chan *CaptureBuffer, depth),
+		Location:    l,
+		Traffic:     make(chan *CaptureBuffer, depth),
+		taggerState: make(map[string]string),
 	}
 }
 
