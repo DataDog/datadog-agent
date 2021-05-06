@@ -59,18 +59,22 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
+	// clientLibReady indicates whether the datadog client library has initialised
+	// and called the /hello route on the agent
+	clientLibReady bool
+
 	// aggregator used by the statsd server
 	aggregator *aggregator.BufferedAggregator
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
-
-	// stopCh is the channel that the the Daemon can use to shut down the extension.
-	stopCh chan struct{}
-
 	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
 	// (i.e. that the DogStatsD server is properly instantiated)
 	ReadyWg *sync.WaitGroup
+
+	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
+	// work before finishing an invocation
+	InvcWg *sync.WaitGroup
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -107,6 +111,9 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // In some circumstances, it may switch to another flush strategy after the flush.
 // isLastFlush indicates whether this is the last flush before the shutdown or not.
 func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
+	// Increment the invocation wait group which tracks whether work is in progress for the daemon
+	d.InvcWg.Add(1)
+	defer d.InvcWg.Done()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	wg.Add(1)
@@ -138,12 +145,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	log.Debug("Flush done")
 
 	// After flushing, re-evaluate flush strategy (if applicable)
-	if d.useAdaptiveFlush && !isLastFlush {
-		newStrat := d.AutoSelectStrategy()
-		if newStrat.String() != d.flushStrategy.String() {
-			log.Debug("Switching to flush strategy:", newStrat)
-			d.flushStrategy = newStrat
-		}
+	if !isLastFlush {
+		d.UpdateStrategy()
 	}
 }
 
@@ -180,7 +183,9 @@ func (d *Daemon) Stop() {
 
 	log.Debug("Shutting down agents")
 	d.stopTraceAgent()
-	d.statsdServer.Stop()
+	if d.statsdServer != nil {
+		d.statsdServer.Stop()
+	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
 }
@@ -191,7 +196,7 @@ func (d *Daemon) Stop() {
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon(stopTraceAgent context.CancelFunc, stopCh chan struct{}) *Daemon {
+func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
 
@@ -200,10 +205,11 @@ func StartDaemon(stopTraceAgent context.CancelFunc, stopCh chan struct{}) *Daemo
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
 		stopTraceAgent:   stopTraceAgent,
 		mux:              mux,
-		stopCh:           stopCh,
 		ReadyWg:          &sync.WaitGroup{},
+		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
+		clientLibReady:   false,
 		flushStrategy:    &flush.AtTheEnd{},
 	}
 
@@ -234,6 +240,37 @@ func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage,
 	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
 	log.Debugf("Logs collection route has been initialized. Logs must be sent to %s", httpAddr)
 	return httpAddr, logsChan, nil
+}
+
+// StartInvocation tells the daemon the invocation began
+func (d *Daemon) StartInvocation() {
+	d.InvcWg.Add(1)
+}
+
+// FinishInvocation finishes the current invocation
+func (d *Daemon) FinishInvocation() {
+	d.InvcWg.Done()
+}
+
+// WaitForDaemon waits until invocation finished any pending work
+func (d *Daemon) WaitForDaemon() {
+	if d.clientLibReady {
+		d.InvcWg.Wait()
+	}
+}
+
+// WaitUntilClientReady will wait until the client library has called the /hello route, or timeout
+func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
+	checkInterval := 10 * time.Millisecond
+	for timeout > checkInterval {
+		if d.clientLibReady {
+			return true
+		}
+		<-time.After(checkInterval)
+		timeout -= checkInterval
+	}
+	<-time.After(timeout)
+	return d.clientLibReady
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -308,6 +345,7 @@ type Hello struct {
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	// if the DogStatsD daemon isn't ready, wait for it.
+	h.daemon.clientLibReady = true
 	h.daemon.ReadyWg.Wait()
 }
 
@@ -323,6 +361,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
+		f.daemon.FinishInvocation()
 		return
 	}
 
@@ -333,13 +372,18 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if f.daemon.statsdServer == nil {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
+		f.daemon.FinishInvocation()
 		return
 	}
 
 	// note that I am not using the request context because I think that we don't
 	// want the flush to be canceled if the client is closing the request.
-	flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-	f.daemon.TriggerFlush(ctx, false)
-	cancel()
+	go func() {
+		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		f.daemon.TriggerFlush(ctx, false)
+		f.daemon.FinishInvocation()
+		cancel()
+	}()
+
 }

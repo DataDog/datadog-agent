@@ -164,7 +164,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon = serverless.StartDaemon(stopTraceAgent, stopCh)
+	daemon = serverless.StartDaemon(stopTraceAgent)
 
 	// serverless parts
 	// ----------------
@@ -295,7 +295,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 			}
 		}
 	} else {
-		logsType = append(logsType, "platform", "function")
+		logsType = append(logsType, "platform", "function", "extension")
 	}
 
 	log.Debug("Enabling logs collection HTTP route")
@@ -354,6 +354,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	var ta *traceAgent.Agent
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.Hostname = ""
 		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
 		tc.SynchronousFlushing = true
 		if confErr != nil {
@@ -370,10 +371,12 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
+		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
+			coldstart = false
 		}
 	}()
 
