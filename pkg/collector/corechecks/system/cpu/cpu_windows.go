@@ -122,7 +122,7 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 	}
 	c.userCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% User Time", &[]string{"_Total"}, nil)
 	if err != nil {
-		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
+		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
 	}
 	c.privilegedCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Privileged Time", &[]string{"_Total"}, nil)
 	if err != nil {
