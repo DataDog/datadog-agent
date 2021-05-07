@@ -441,6 +441,7 @@ deploy_windows_only_google_container_registry_manifests-a7:
   stage: deploy7
   dependencies: []
   script:
+    - LINUX_REPOSITORY="${REPOSITORY}"
     - LINUX_VERSION="7.27.0"
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
     - | # If we're not deploying on tag 7, target the dev repo instead
@@ -450,29 +451,29 @@ deploy_windows_only_google_container_registry_manifests-a7:
     - echo "Working on repsoitory ${REPOSITORY}"
     # Manifests
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest
-      --image ${REPOSITORY}-amd64:${LINUX_VERSION},linux/amd64
+      --image ${LINUX_REPOSITORY}-amd64:${LINUX_VERSION},linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
-      --image ${REPOSITORY}-arm64:${LINUX_VERSION},linux/arm64
+      --image ${LINUX_REPOSITORY}-arm64:${LINUX_VERSION},linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-jmx
-      --image ${REPOSITORY}-amd64:${LINUX_VERSION}-jmx,linux/amd64
+      --image ${LINUX_REPOSITORY}-amd64:${LINUX_VERSION}-jmx,linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
-      --image ${REPOSITORY}-arm64:${LINUX_VERSION}-jmx,linux/arm64
+      --image ${LINUX_REPOSITORY}-arm64:${LINUX_VERSION}-jmx,linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7
-      --image ${REPOSITORY}-amd64:${LINUX_VERSION},linux/amd64
+      --image ${LINUX_REPOSITORY}-amd64:${LINUX_VERSION},linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
-      --image ${REPOSITORY}-arm64:${LINUX_VERSION},linux/arm64
+      --image ${LINUX_REPOSITORY}-arm64:${LINUX_VERSION},linux/arm64
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 7-jmx
-      --image ${REPOSITORY}-amd64:${LINUX_VERSION}-jmx,linux/amd64
+      --image ${LINUX_REPOSITORY}-amd64:${LINUX_VERSION}-jmx,linux/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
-      --image ${REPOSITORY}-arm64:${LINUX_VERSION}-jmx,linux/arm64
+      --image ${LINUX_REPOSITORY}-arm64:${LINUX_VERSION}-jmx,linux/arm64
 
 deploy_latest_manifests_docker_hub-a7:
   extends:
