@@ -98,8 +98,8 @@ Vagrant.configure("2") do |config|
                            env: {
                                :STS_API_KEY => "API_KEY",
                                :STS_URL => "http://192.168.56.1:7077/stsAgent",
-                               :DEBIAN_REPO => "https://stackstate-agent-2#{agent_version[:repo_suffix]}.s3.amazonaws.com",
-                               :YUM_REPO => "https://stackstate-agent-2-rpm#{agent_version[:repo_suffix]}.s3.amazonaws.com",
+                               :DEBIAN_REPO => "https://stackstate-agent-3#{agent_version[:repo_suffix]}.s3.amazonaws.com",
+                               :YUM_REPO => "https://stackstate-agent-3-rpm#{agent_version[:repo_suffix]}.s3.amazonaws.com",
                                :CODE_NAME => agent_version[:branch]
                            },
                            path: "./cmd/agent/install_script.sh",
@@ -113,7 +113,7 @@ Vagrant.configure("2") do |config|
 
             box.vm.provision "shell",
                              env: {
-                                 :WIN_REPO => "https://stackstate-agent-2#{agent_version[:repo_suffix]}.s3.amazonaws.com/windows",
+                                 :WIN_REPO => "https://stackstate-agent-3#{agent_version[:repo_suffix]}.s3.amazonaws.com/windows",
                              },
                              inline: $script,
                              privileged: true
