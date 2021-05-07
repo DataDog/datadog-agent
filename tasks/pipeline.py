@@ -7,6 +7,7 @@ from collections import defaultdict
 from invoke import task
 from invoke.exceptions import Exit
 
+from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
 from .libs.pipeline_notifications import (
     base_message,
@@ -75,6 +76,38 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
 
 
 @task
+def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+    """
+    DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
+
+    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
+    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
+
+    Example:
+    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
+    """
+    print(
+        color_message(
+            "WARNING: the pipeline.trigger invoke task is deprecated and will be removed in the future.\n"
+            + "         Use pipeline.run with the --deploy option instead.",
+            "orange",
+        )
+    )
+
+    run(
+        ctx,
+        git_ref=git_ref,
+        release_version_6=release_version_6,
+        release_version_7=release_version_7,
+        repo_branch=repo_branch,
+        deploy=True,
+        all_builds=True,
+        kitchen_tests=True,
+    )
+
+
+@task
 def run(
     ctx,
     git_ref="master",
@@ -122,10 +155,20 @@ def run(
         )
         # Force all builds and kitchen tests to be run
         if not all_builds:
-            print("Deploy pipeline: force-setting RUN_ALL_BUILDS to true")
+            print(
+                color_message(
+                    "WARNING: ignoring --no-all-builds option, RUN_ALL_BUILDS is automatically set to true on deploy pipelines",
+                    "orange",
+                )
+            )
             all_builds = True
         if not kitchen_tests:
-            print("Deploy pipeline: force-setting RUN_KITCHEN_TESTS to true")
+            print(
+                color_message(
+                    "WARNING: ignoring --no-kitchen-tests option, RUN_KITCHEN_TESTS is automatically set to true on deploy pipelines",
+                    "orange",
+                )
+            )
             kitchen_tests = True
 
     if here:
