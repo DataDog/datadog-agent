@@ -26,9 +26,10 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 
 	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses = map[uint32]cachedProcess{}
+	cachedProcesses = map[uint32]*cachedProcess{}
 	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
-	// Right now it's only used in getAllProcesses()
+	// So far this is the case for Process check and RTProcess check
+	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
 	cacheProcessesMutex sync.Mutex
 	checkCount          = 0
 	haveWarnedNoArgs    = false
@@ -128,7 +129,7 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 		cp, ok := cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
-			cp = cachedProcess{}
+			cp = &cachedProcess{}
 
 			if err := cp.fillFromProcEntry(&pe32); err != nil {
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
@@ -209,7 +210,6 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 	for pid := range knownPids {
 		cp := cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
-		cp.close()
 		delete(cachedProcesses, pid)
 	}
 
