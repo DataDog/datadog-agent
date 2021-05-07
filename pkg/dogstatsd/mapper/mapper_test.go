@@ -50,6 +50,27 @@ dogstatsd_mapper_profiles:
 			},
 		},
 		{
+			name: "Customer case",
+			config: `
+dogstatsd_mapper_profiles:
+  - name: airflow
+    prefix: 'airflow.'
+    mappings:
+      - match: 'airflow\.dag\.(.*)\.([^.]*)\.duration\.avg'
+        match_type: "regex"
+        name: 'airflow.dag.task.duration.avg'
+        tags:
+          dag_id: "$1"
+          task_id: "$2"
+`,
+			packets: []string{
+				"airflow.dag.airflow_monitoring.echo.duration.avg",
+			},
+			expectedResults: []MapResult{
+				{Name: "airflow.dag.task.duration.avg", Tags: []string{"dag_id:airflow_monitoring", "task_id:echo"}, matched: true},
+			},
+		},
+		{
 			name: "Not/Partially mapped are accepted",
 			config: `
 dogstatsd_mapper_profiles:
