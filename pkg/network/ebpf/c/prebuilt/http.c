@@ -13,6 +13,8 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    u16 src_port = skb_info.tup.sport;
+
     if (skb_info.tup.sport != 80 && skb_info.tup.sport != 8080 && skb_info.tup.dport != 80 && skb_info.tup.dport != 8080) {
         return 0;
     }
@@ -22,7 +24,7 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&skb_info.tup);
     }
 
-    http_handle_packet(skb, &skb_info);
+    http_handle_packet(skb, &skb_info, src_port);
 
     return 0;
 }

@@ -175,7 +175,7 @@ static __always_inline void http_read_data(struct __sk_buff *skb, skb_info_t *sk
     }
 }
 
-static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info) {
+static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info, u16 src_port) {
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(&buffer, '\0', sizeof(buffer));
 
@@ -183,14 +183,16 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_read_data(skb, skb_info, buffer, &packet_type, &method);
     http_transaction_t *http = NULL;
+
     http_transaction_t new_entry = { 0 };
+    new_entry.owned_by = src_port;
     __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
 
     switch(packet_type) {
     case HTTP_REQUEST:
         bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
         http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL) {
+        if (http == NULL || http->owned_by != src_port) {
             return 0;
         }
         http_begin_request(http, method, buffer);
@@ -217,7 +219,7 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
-    if (skb_info->tcp_flags & TCPHDR_FIN) {
+    if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by == src_port) {
         http_enqueue(http);
     }
 
