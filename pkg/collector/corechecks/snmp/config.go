@@ -85,6 +85,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, parseScalarOids(definition.Metrics, definition.MetricTags)...)
 	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, metadataScalarOIDs...) // TODO: TEST ME
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
+	c.oidConfig.columnOids = append(c.oidConfig.columnOids, metadataColumnOIDs...)
 
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
