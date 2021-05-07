@@ -39,7 +39,7 @@
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-platform
-/.gitlab/binary_build/system_probe.yml               @DataDog/networks @DataDog/agent-platform
+/.gitlab/binary_build/system_probe.yml               @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 
@@ -47,15 +47,15 @@
 /.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 
-/.gitlab/deps_build.yml                              @DataDog/networks @DataDog/agent-platform
+/.gitlab/deps_build.yml                              @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
-/.gitlab/functional_test/system_probe.yml            @DataDog/networks @DataDog/agent-platform
-/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/networks @DataDog/agent-platform
+/.gitlab/functional_test/system_probe.yml            @DataDog/agent-network @DataDog/agent-platform
+/.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/image_build/                                @DataDog/container-integrations @DataDog/agent-platform
 
@@ -63,13 +63,13 @@
 
 /.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/internal_deploy.yml                         @DataDog/processes @DataDog/networks @DataDog/agent-platform
+/.gitlab/internal_deploy.yml                         @DataDog/processes @DataDog/agent-network @DataDog/agent-platform
 
 /.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/source_test/ebpf.yml                        @DataDog/networks @DataDog/agent-platform
+/.gitlab/source_test/ebpf.yml                        @DataDog/agent-network @DataDog/agent-platform
 
 
 /chocolatey/                            @DataDog/agent-platform
@@ -90,7 +90,7 @@
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
-/cmd/system-probe/                      @DataDog/networks
+/cmd/system-probe/                      @DataDog/agent-network
 /cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
 
 /dev/                                   @DataDog/agent-platform
@@ -163,18 +163,18 @@
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
-/pkg/util/kernel/                       @DataDog/networks
+/pkg/util/kernel/                       @DataDog/agent-network
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
-/pkg/metadata/ecs/                      @DataDog/networks
-/pkg/metadata/kubernetes/               @DataDog/networks
+/pkg/metadata/ecs/                      @DataDog/agent-network
+/pkg/metadata/kubernetes/               @DataDog/agent-network
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
 /pkg/orchestrator/                      @DataDog/container-app
-/pkg/network/                           @DataDog/networks
-/pkg/ebpf/                              @DataDog/networks
+/pkg/network/                           @DataDog/agent-network
+/pkg/ebpf/                              @DataDog/agent-network
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/bindata/bindataRuntimesecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
@@ -193,7 +193,7 @@
 /tasks/agent.py                         @DataDog/agent-core
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/integrations-tools-and-libraries
 /tasks/process_agent.py                 @DataDog/processes
-/tasks/system_probe.py                  @DataDog/networks
+/tasks/system_probe.py                  @DataDog/agent-network
 /tasks/trace.py                         @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 
@@ -207,14 +207,14 @@
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
 /test/kitchen/test/integration/dd-security-agent-test/ @DataDog/agent-security
-/test/kitchen/kitchen-azure-system-probe-test.yml @DataDog/networks
-/test/kitchen/kitchen-vagrant-system-probe.yml @DataDog/networks
-/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/networks
-/test/kitchen/test/integration/dd-system-probe-test/ @DataDog/networks
+/test/kitchen/kitchen-azure-system-probe-test.yml @DataDog/agent-network
+/test/kitchen/kitchen-vagrant-system-probe.yml @DataDog/agent-network
+/test/kitchen/site-cookbooks/dd-system-probe-check/ @DataDog/agent-network
+/test/kitchen/test/integration/dd-system-probe-test/ @DataDog/agent-network
 /test/system/                           @DataDog/agent-core
 
 /tools/                                 @DataDog/agent-platform
-/tools/ebpf/                            @DataDog/networks
+/tools/ebpf/                            @DataDog/agent-network
 /tools/gdb/                             @DataDog/agent-core
 /tools/retry_file_dump/                 @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform
