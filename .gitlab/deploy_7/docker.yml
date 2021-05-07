@@ -322,7 +322,7 @@ deploy_google_container_registry_manifests-a7:
       if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
-    - echo "Working on repsoitory ${REPOSITORY}"
+    - echo "Working on repository ${REPOSITORY}"
     - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-winonly
       --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
       --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
