@@ -76,7 +76,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	// KSM > SSM > Apikey in environment var
 	// If one is set but failing, the next will be tried
 	kmsAPIKeyEnvVar = "DD_KMS_API_KEY"
-	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	ssmAPIKeyEnvVar = "DD_API_KEY_SSM_NAME"
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
@@ -449,7 +449,7 @@ func readAPIKeyFromKMS() (string, error) {
 	return rv, nil
 }
 
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
+// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SSM_NAME
 // has been set.
 // If none has been set, it is returning an empty string and a nil error.
 func readAPIKeyFromSSM() (string, error) {
@@ -457,7 +457,7 @@ func readAPIKeyFromSSM() (string, error) {
 	if arn == "" {
 		return "", nil
 	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
+	log.Debug("Found DD_API_KEY_SSM_NAME value, trying to use it.")
 	ssmClient := secretsmanager.New(session.New(nil))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
