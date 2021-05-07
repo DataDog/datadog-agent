@@ -72,9 +72,9 @@ func TestTrackContext(t *testing.T) {
 	contextResolver := newContextResolver()
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 1)
-	contextKey2 := contextResolver.trackContext(&mSample2, 1)
-	contextKey3 := contextResolver.trackContext(&mSample3, 1)
+	contextKey1 := contextResolver.trackContext(&mSample1)
+	contextKey2 := contextResolver.trackContext(&mSample2)
+	contextKey3 := contextResolver.trackContext(&mSample3)
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
@@ -109,7 +109,7 @@ func TestExpireContexts(t *testing.T) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newContextResolver()
+	contextResolver := newTimestampContextResolver()
 
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 4)
@@ -117,8 +117,8 @@ func TestExpireContexts(t *testing.T) {
 
 	// With an expireTimestap of 3, both contexts are still valid
 	assert.Len(t, contextResolver.expireContexts(3), 0)
-	_, ok1 := contextResolver.contextsByKey[contextKey1]
-	_, ok2 := contextResolver.contextsByKey[contextKey2]
+	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
+	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok1)
 	assert.True(t, ok2)
 
@@ -129,8 +129,8 @@ func TestExpireContexts(t *testing.T) {
 	}
 
 	// context 1 is not tracked anymore, but context 2 still is
-	_, ok := contextResolver.contextsByKey[contextKey1]
+	_, ok := contextResolver.resolver.contextsByKey[contextKey1]
 	assert.False(t, ok)
-	_, ok = contextResolver.contextsByKey[contextKey2]
+	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
 }

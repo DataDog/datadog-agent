@@ -21,7 +21,7 @@ const checksSourceTypeName = "System"
 type CheckSampler struct {
 	series          []*metrics.Serie
 	sketches        metrics.SketchSeriesList
-	contextResolver *ContextResolver
+	contextResolver *timestampContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
@@ -34,7 +34,7 @@ func newCheckSampler(bucketExpiry time.Duration) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newContextResolver(),
+		contextResolver: newTimestampContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
