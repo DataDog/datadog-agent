@@ -86,6 +86,7 @@ func (ms *metricSender) sendNetworkInterfaceMetadata(deviceId string, config snm
 		interfaces = append(interfaces, &networkInterface)
 	}
 
+	// TODO: batch interfaces with max
 	interfacesMessage := &network_devices.CollectorNetworkInterface{
 		DeviceId:   deviceId,
 		Interfaces: interfaces,
