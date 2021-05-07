@@ -497,8 +497,6 @@ deploy_latest_manifests_docker_hub-a7:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -529,8 +527,6 @@ deploy_latest_manifests_google_container_registry-a7:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -561,8 +557,6 @@ deploy_latest_manifests_windows_only_docker_hub-a7:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -593,8 +587,6 @@ deploy_latest_manifests_windows_only_google_container_registry-a7:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -637,8 +629,6 @@ deploy_latest_docker_hub-dogstatsd:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
@@ -669,8 +659,6 @@ deploy_latest_google_container_registry-dogstatsd:
     - <<: *if_deploy_on_tag_7
       when: manual
       allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
     - <<: *if_deploy_7
       when: manual
       allow_failure: true
