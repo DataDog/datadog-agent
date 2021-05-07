@@ -63,6 +63,8 @@ type snmpConfig struct {
 	oidBatchSize      int
 	profiles          profileDefinitionMap
 	profileTags       []string
+	profile           string
+	profileDef        *profileDefinition
 	uptimeMetricAdded bool
 	extraTags         []string
 	instanceTags      []string
@@ -75,10 +77,13 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
+	c.profileDef = &definition
+	c.profile = profile // TODO: TEST ME
 
 	c.metrics = append(c.metrics, definition.Metrics...)
 	c.metricTags = append(c.metricTags, definition.MetricTags...)
 	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, parseScalarOids(definition.Metrics, definition.MetricTags)...)
+	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, metadataScalarOIDs...) // TODO: TEST ME
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
 
 	if definition.Device.Vendor != "" {

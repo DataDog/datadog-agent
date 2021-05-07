@@ -8,21 +8,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (ms *metricSender) reportNetworkDeviceMetadata(store *resultValueStore, tags []string) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
+	var vendor string
+
 	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
+
+	sysName := getScalarString(store, sysNameOID)
+	sysDescr := getScalarString(store, sysDescrOID)
+	sysObjectID := getScalarString(store, sysObjectIDOID)
+
+	if config.profileDef != nil {
+		vendor = config.profileDef.Device.Vendor
+	}
 
 	deviceMessage := &network_devices.CollectorNetworkDevice{
 		Device: &network_devices.NetworkDevice{
 			Id:          "abc123",
-			Name:        "my-Name",
-			Description: "my-Description",
-			IpAddress:   "1.2.3.4",
-			SysObjectId: "1.2.3.4.5.6.6.7.8",
-			Profile:     "my-profile",
-			Vendor:      "my-vendor",
+			Name:        sysName,
+			Description: sysDescr,
+			IpAddress:   config.ipAddress,
+			SysObjectId: sysObjectID,
+			Profile:     config.profile,
+			Vendor:      vendor,
 			Tags:        tags,
 		},
 	}
+
+	log.Debugf("[DEV] deviceMessage: %v", deviceMessage)
+
 	ms.sendNetworkDeviceMetadata(deviceMessage)
 
 	interfaces := &network_devices.CollectorNetworkInterface{
@@ -60,4 +73,18 @@ func (ms *metricSender) sendNetworkDeviceMetadata(clusterMessage process.Message
 func (ms *metricSender) sendNetworkInterfaceMetadata(clusterMessage process.MessageBody) {
 	ms.sender.NetworkDevicesMetadata([]serializer.ProcessMessageBody{clusterMessage}, forwarder.PayloadTypeNetworkInterface)
 	// TODO: Implement CheckStats ?
+}
+
+func getScalarString(store *resultValueStore, oid string) string {
+	value, err := store.getScalarValue(oid)
+	if err != nil {
+		log.Debugf("failed to get value for OID %s: %s", oid, err)
+		return ""
+	}
+	str, err := value.toString()
+	if err != nil {
+		log.Debugf("failed to convert to string for OID %s with value %v: %s", oid, value, err)
+		return ""
+	}
+	return str
 }
