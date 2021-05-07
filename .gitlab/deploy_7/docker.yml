@@ -138,7 +138,7 @@ deploy_docker_hub_windows-a7:
     SIGNING_ARGS: --signed-push
 
 deploy_google_container_registry_windows-a7:
-  extends: 
+  extends:
     - .google_container_registry_tag_windows_job_definition
     - .deploy_docker_windows-a7
   rules:
@@ -310,6 +310,94 @@ deploy_google_container_registry_manifests-a7:
   #   - deploy_google_container_registry_windows-a7
 
 #
+# Windows-only manifest publication
+#
+
+.deploy_windows_manifests-a7:
+  stage: deploy7
+  dependencies: []
+  script:
+    - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
+    - | # If we're not deploying on tag 7, target the dev repo instead
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+        REPOSITORY="${REPOSITORY}-dev"
+      fi
+    - echo "Working on repsoitory ${REPOSITORY}"
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-winonly
+      --image ${REPOSITORY}-amd64:${VERSION}-win1809,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-win1909,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-win2004,windows/amd64
+    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-winonly-jmx
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1809,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win1909,windows/amd64
+      --image ${REPOSITORY}-amd64:${VERSION}-jmx-win2004,windows/amd64
+
+deploy_windows_only_docker_hub_manifests-a7:
+  extends:
+    - .docker_tag_job_definition
+    - .deploy_windows_manifests-a7
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_7
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent
+    # - <<: *if_deploy_7
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: datadog/agent-dev
+    - <<: *if_deploy_7
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: datadog/agent
+    SIGNING_ARGS: --signed-push
+  # HACK: a job should not depend on manual jobs, otherwise it blocks
+  # the next stages of the pipeline until said manual jobs are run
+  # (the job remains in a pending state until all its dependencies
+  # are run).
+  # However, this job implicitly still needs both of the below jobs,
+  # and thus should be run after these two manual jobs.
+  # needs:
+  #   - deploy_docker_hub_linux-a7
+  #   - deploy_docker_hub_windows-a7
+
+deploy_windows_only_google_container_registry_manifests-a7:
+  extends:
+    - .google_container_registry_tag_job_definition
+    - .deploy_windows_manifests-a7
+  rules:
+    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
+    # - <<: *if_deploy_on_tag_7
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent
+    # - <<: *if_deploy_7
+    #   when: manual
+    #   allow_failure: true
+    #   variables:
+    #     REPOSITORY: gcr.io/datadoghq/agent-dev
+    - <<: *if_deploy_7
+      when: manual
+      allow_failure: true
+  variables:
+    REPOSITORY: gcr.io/datadoghq/agent
+    SIGNING_ARGS: ""
+  # HACK: a job should not depend on manual jobs, otherwise it blocks
+  # the next stages of the pipeline until said manual jobs are run
+  # (the job remains in a pending state until all its dependencies
+  # are run).
+  # However, this job implicitly still needs both of the below jobs,
+  # and thus should be run after these two manual jobs.
+  # needs:
+  #   - deploy_google_container_registry_linux-a7
+  #   - deploy_google_container_registry_windows-a7
+
+
+#
 # Latest publication
 #
 
@@ -380,7 +468,7 @@ deploy_latest_manifests_docker_hub-a7:
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
-  
+
 deploy_latest_manifests_google_container_registry-a7:
   extends:
     - .google_container_registry_tag_job_definition
