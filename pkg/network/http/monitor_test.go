@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +27,29 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
 	}
 
-	const (
-		srvAddr = "localhost:8080"
-		numReqs = 100
-	)
-	srvDoneFn := serverSetup(t, srvAddr)
+	targetAddr := "localhost:8080"
+	serverAddr := "localhost:8080"
+	testHTTPMonitor(t, targetAddr, serverAddr, 100)
+}
+
+func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+
+	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+	testutil.SetupDNAT(t)
+	defer testutil.TeardownDNAT(t)
+
+	targetAddr := "2.2.2.2:8080"
+	serverAddr := "1.1.1.1:8080"
+	testHTTPMonitor(t, targetAddr, serverAddr, 10)
+}
+
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
+	srvDoneFn := serverSetup(t, serverAddr)
 	defer srvDoneFn()
 
 	monitor, err := NewMonitor(config.New())
@@ -40,7 +59,7 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	defer monitor.Stop()
 
 	// Perform a number of random requests
-	requestFn := requestGenerator(t, srvAddr)
+	requestFn := requestGenerator(t, targetAddr)
 	var requests []*nethttp.Request
 	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
