@@ -24,7 +24,7 @@ long __attribute__((always_inline)) trace__sys_mkdir(umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_MKDIR,
+        .type = EVENT_MKDIR,
         .policy = policy,
         .mkdir = {
             .mode = mode
@@ -48,7 +48,7 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 
 SEC("kprobe/vfs_mkdir")
 int kprobe__vfs_mkdir(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MKDIR);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall)
         return 0;
 
@@ -66,12 +66,7 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MKDIR);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) do_sys_mkdir_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
@@ -96,6 +91,24 @@ int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
     send_event(ctx, EVENT_MKDIR, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_mkdir_exit")
+int handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+    if (!syscall)
+        return 0;
+
+    return do_sys_mkdir_ret(args, syscall, args->ret);
+}
+
+int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_mkdir_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(mkdir)

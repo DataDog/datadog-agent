@@ -39,6 +39,7 @@ const (
 	Null
 	String
 	DoubleQuotedString
+	DollarQuotedString // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	Number
 	BooleanLiteral
 	ValueArg
@@ -295,7 +296,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			// modulo operator (e.g. 'id % 8')
 			return TokenKind(ch), tkn.bytes()
 		case '$':
-			return tkn.scanPreparedStatement('$')
+			if isDigit(tkn.lastChar) {
+				// TODO(gbbr): the first digit after $ does not necessarily guarantee
+				// that this isn't a dollar-quoted string constant. We might eventually
+				// want to cover for this use-case too (e.g. $1$some text$1$).
+				return tkn.scanPreparedStatement('$')
+			}
+			return tkn.scanDollarQuotedString()
 		case '{':
 			if tkn.pos == 1 || tkn.curlys > 0 {
 				// Do not fully obfuscate top-level SQL escape sequences like {{[?=]call procedure-name[([parameter][,parameter]...)]}.
@@ -420,6 +427,51 @@ func (tkn *SQLTokenizer) scanVariableIdentifier(prefix rune) (TokenKind, []byte)
 func (tkn *SQLTokenizer) scanFormatParameter(prefix rune) (TokenKind, []byte) {
 	tkn.advance()
 	return Variable, tkn.bytes()
+}
+
+// scanDollarQuotedString scans a Postgres dollar-quoted string constant.
+// See: https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
+func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
+	kind, tag := tkn.scanString('$', String)
+	if kind == LexError {
+		return kind, tkn.bytes()
+	}
+	var (
+		got int
+		buf bytes.Buffer
+	)
+	delim := tag
+	// on empty strings, tkn.scanString returns the delimiters
+	if string(delim) != "$$" {
+		// on non-empty strings, the delimiter is $tag$
+		delim = append([]byte{'$'}, delim...)
+		delim = append(delim, '$')
+	}
+	for {
+		ch := tkn.lastChar
+		tkn.advance()
+		if ch == EndChar {
+			tkn.setErr("unexpected EOF in dollar-quoted string")
+			return LexError, buf.Bytes()
+		}
+		if byte(ch) == delim[got] {
+			got++
+			if got == len(delim) {
+				break
+			}
+			continue
+		}
+		if got > 0 {
+			_, err := buf.Write(delim[:got])
+			if err != nil {
+				tkn.setErr("error reading dollar-quoted string: %v", err)
+				return LexError, buf.Bytes()
+			}
+			got = 0
+		}
+		buf.WriteRune(ch)
+	}
+	return DollarQuotedString, buf.Bytes()
 }
 
 func (tkn *SQLTokenizer) scanPreparedStatement(prefix rune) (TokenKind, []byte) {

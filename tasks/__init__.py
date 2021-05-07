@@ -30,6 +30,7 @@ from . import (
 )
 from .build_tags import audit_tag_impact
 from .go import (
+    check_mod_tidy,
     cyclo,
     deps,
     deps_vendored,
@@ -40,12 +41,14 @@ from .go import (
     lint,
     lint_licenses,
     reset,
+    tidy_all,
     vet,
 )
 from .test import (
     check_gitlab_broken_dependencies,
     e2e_tests,
     install_shellcheck,
+    install_tools,
     integration_tests,
     lint_filenames,
     lint_milestone,
@@ -85,6 +88,9 @@ ns.add_task(make_simple_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
+ns.add_task(install_tools)
+ns.add_task(check_mod_tidy)
+ns.add_task(tidy_all)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "stdafx.h"
+#include <string>
+#include <map>
+#include <gtest/gtest.h>
 #include "PropertyReplacer.h"
-#include "gtest/gtest.h"
 
 class ReplaceYamlPropertiesTests : public testing::Test
 {

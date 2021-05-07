@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -1005,4 +1006,176 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		return nil, 0, err
 	}
 	return data, count, nil
+}
+
+func TestConvertStats(t *testing.T) {
+	testCases := []struct {
+		in            pb.ClientStatsPayload
+		lang          string
+		tracerVersion string
+		out           pb.ClientStatsPayload
+	}{
+		{
+			in: pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			out: pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				Stats: []pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	a := Agent{
+		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
+		obfuscator:  obfuscate.NewObfuscator(nil),
+		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
+	}
+	for _, testCase := range testCases {
+		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		assert.Equal(t, testCase.out, out)
+	}
+}
+
+func TestMergeDuplicates(t *testing.T) {
+	in := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+		},
+	}
+	expected := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       2,
+				Duration:     246,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     246,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+		},
+	}
+	mergeDuplicates(in)
+	assert.Equal(t, expected, in)
 }

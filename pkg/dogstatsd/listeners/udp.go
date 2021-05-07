@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"net"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -22,11 +23,6 @@ var (
 	udpPacketReadingErrors = expvar.Int{}
 	udpPackets             = expvar.Int{}
 	udpBytes               = expvar.Int{}
-
-	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
-		[]string{"state"}, "Dogstatsd UDP packets count")
-	tlmUDPPacketsBytes = telemetry.NewCounter("dogstatsd", "udp_packets_bytes",
-		nil, "Dogstatsd UDP packets bytes count")
 )
 
 func init() {
@@ -41,13 +37,14 @@ func init() {
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn            *net.UDPConn
-	packetsBuffer   *packetsBuffer
-	packetAssembler *packetAssembler
+	packetsBuffer   *packets.Buffer
+	packetAssembler *packets.Assembler
 	buffer          []byte
+	trafficCapture  *replay.TrafficCapture // Currently ignored
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -78,14 +75,15 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 	flushTimeout := config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := newPacketsBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
-	packetAssembler := newPacketAssembler(flushTimeout, packetsBuffer, sharedPacketPool, UDP)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
 		conn:            conn,
 		packetsBuffer:   packetsBuffer,
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
+		trafficCapture:  capture,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -93,10 +91,13 @@ func NewUDPListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDPL
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
+	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		udpPackets.Add(1)
 		n, _, err := l.conn.ReadFrom(l.buffer)
+		t1 = time.Now()
+		udpPackets.Add(1)
+
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -106,21 +107,24 @@ func (l *UDPListener) Listen() {
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
 			udpPacketReadingErrors.Add(1)
 			tlmUDPPackets.Inc("error")
-			continue
+		} else {
+			tlmUDPPackets.Inc("ok")
+
+			udpBytes.Add(int64(n))
+			tlmUDPPacketsBytes.Add(float64(n))
+
+			// packetAssembler merges multiple packets together and sends them when its buffer is full
+			l.packetAssembler.AddMessage(l.buffer[:n])
 		}
-		tlmUDPPackets.Inc("ok")
 
-		udpBytes.Add(int64(n))
-		tlmUDPPacketsBytes.Add(float64(n))
-
-		// packetAssembler merges multiple packets together and sends them when its buffer is full
-		l.packetAssembler.addMessage(l.buffer[:n])
+		t2 = time.Now()
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
 	}
 }
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetAssembler.close()
-	l.packetsBuffer.close()
+	l.packetAssembler.Close()
+	l.packetsBuffer.Close()
 	l.conn.Close()
 }

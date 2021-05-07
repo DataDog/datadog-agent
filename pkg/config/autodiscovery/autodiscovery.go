@@ -40,6 +40,11 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	// We automatically activate the environment listener
 	detectedListeners = append(detectedListeners, config.Listeners{Name: "environment"})
 
+	// Automatic handling of AD providers/listeners should only run in Core agent.
+	if flavor.GetFlavor() != flavor.DefaultAgent {
+		return detectedProviders, detectedListeners
+	}
+
 	if config.IsFeaturePresent(config.Docker) {
 		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: "docker", Polling: true, PollInterval: "1s"})
 		if !config.IsFeaturePresent(config.Kubernetes) {

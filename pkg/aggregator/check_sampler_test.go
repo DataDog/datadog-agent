@@ -32,7 +32,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 }
 
 func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(60 * time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -91,7 +91,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(60 * time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -140,7 +140,7 @@ func TestCheckRateSampling(t *testing.T) {
 }
 
 func TestHistogramIntervalSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(60 * time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -198,8 +198,7 @@ func TestHistogramIntervalSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
-	checkSampler.bucketExpiry = 10 * time.Millisecond
+	checkSampler := newCheckSampler(10 * time.Millisecond)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -271,8 +270,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler()
-	checkSampler.bucketExpiry = 10 * time.Millisecond
+	checkSampler := newCheckSampler(10 * time.Millisecond)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",

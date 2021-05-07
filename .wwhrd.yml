@@ -1,9 +1,9 @@
 ---
-blacklist:
+denylist:
   - GPL-2.0
   - GPL-3.0
 
-whitelist:
+allowlist:
   - 0BSD
   - Apache-2.0
   - BSD-2-Clause
@@ -16,32 +16,13 @@ whitelist:
   - NewBSD
   - FreeBSD
 
-exceptions: # Exclude all tools and tool dependencies
-  - "github.com/client9/misspell/cmd/misspell"
-  - "github.com/frapposelli/wwhrd"
-  - "github.com/fzipp/gocyclo"
-  - "github.com/golangci/..."
-  - "github.com/gordonklaus/ineffassign"
-  - "github.com/goware/modvendor"
-  - "github.com/shuLhan/go-bindata/..."
-  - "github.com/stretchr/testify"
-  - "golang.org/x/lint/golint"
+exceptions:
   - "golang.org/x/mobile/..."
-  - "golang.org/x/perf/..."
   - "golang.org/x/tools/..."
-  - "gotest.tools/gotestsum/..."
-  - "honnef.co/go/tools/..."
-  - "github.com/OpenPeeDeeP/depguard"
-  - "mvdan.cc/interfacer/check"
-  - "mvdan.cc/lint"
-  - "mvdan.cc/unparam/check"
-  - "github.com/ryancurrah/gomodguard"
-  - "github.com/ryanuber/go-license"
-  - "github.com/nbutton23/zxcvbn-go"
-  - "github.com/go-lintpack/lintpack/..."
-  - "github.com/gostaticanalysis/analysisutil"
-  - "github.com/kisielk/gotool"
-  - "github.com/maratori/testpackage/pkg/testpackage"
-  - "github.com/matoous/godox"
-  - "github.com/go-critic/go-critic/checkers/..."
   - "golang.org/x/mod/..."
+  - "golang.org/x/xerrors/..."
+  - "github.com/stretchr/testify"
+
+additional:
+  # list here paths to additional licenses
+  golang/go: "raw.githubusercontent.com/golang/go/master/LICENSE"

@@ -2,6 +2,9 @@
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
   rm -f modcache.tar.gz
@@ -31,6 +34,8 @@ build_dogstatsd-deb_x64:
     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 build_dogstatsd-deb_arm64:
+  rules:
+    - <<: *if_run_all_builds
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -61,6 +66,8 @@ build_iot_agent-deb_x64:
     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-deb_arm64:
+  rules:
+    - <<: *if_run_all_builds
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]

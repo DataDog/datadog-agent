@@ -66,6 +66,28 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
+func TestScanDollarQuotedString(t *testing.T) {
+	for _, tt := range []struct {
+		in  string
+		out string
+		err bool
+	}{
+		{`$tag$abc$tag$`, `abc`, false},
+		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `textwith\n\rnewlinesand\r\\\`, false},
+		{`$tag$ab$tactac$tx$tag$`, `ab$tactac$tx`, false},
+		{`$$abc$$`, `abc`, false},
+		{`$$abc`, `abc`, true},
+		{`$$abc$`, `abc`, true},
+	} {
+		tok := NewSQLTokenizer(tt.in, false)
+		kind, str := tok.Scan()
+		if tt.err && kind != LexError {
+			t.Fatalf("Expected error, got %s", kind)
+		}
+		assert.Equal(t, string(str), tt.out)
+	}
+}
+
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
 	testCases := []struct {
@@ -703,6 +725,22 @@ LIMIT 1
 ;`,
 			`SELECT set_config ( ? ( SELECT foo.bar FROM sometable WHERE sometable.uuid = ? ) :: text, ? ) SELECT othertable.id, othertable.title FROM othertable INNER JOIN sometable ON sometable.id = othertable.site_id WHERE sometable.uuid = ? LIMIT ?`,
 		},
+		{
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`,
+		},
+		{
+			`INSERT INTO table (field1, field2) VALUES (1, $$someone's string123$with other things$$)`,
+			`INSERT INTO table ( field1, field2 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($some tag$this text confuses$some other text$some ta not quite$some tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
 	}
 
 	for _, c := range cases {
@@ -1052,7 +1090,7 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			"USING $A FROM users",
-			`at position 7: prepared statements must start with digits, got "A" (65)`,
+			`at position 20: unexpected EOF in string`,
 		},
 
 		{
@@ -1379,6 +1417,10 @@ func TestCassQuantizer(t *testing.T) {
 		{
 			"SELECT timestamp, processes FROM process_snapshot.minutely WHERE org_id = ? AND host = ? AND timestamp >= ? AND timestamp <= ?",
 			"SELECT timestamp, processes FROM process_snapshot.minutely WHERE org_id = ? AND host = ? AND timestamp >= ? AND timestamp <= ?",
+		},
+		{
+			"SELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )\nSELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )",
+			"SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) ) SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) )",
 		},
 	}
 

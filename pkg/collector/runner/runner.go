@@ -35,13 +35,20 @@ const (
 
 var (
 	// TestWg is used for testing the number of check workers
-	TestWg      sync.WaitGroup
-	runnerStats *expvar.Map
-	checkStats  *runnerCheckStats
+	TestWg             sync.WaitGroup
+	runnerStats        *expvar.Map
+	runningChecksStats *expvar.Map
+	checkStats         *runnerCheckStats
 )
+
+type timeVar time.Time
+
+func (tv timeVar) String() string { return fmt.Sprintf("\"%s\"", time.Time(tv).Format(time.RFC3339)) }
 
 func init() {
 	runnerStats = expvar.NewMap("runner")
+	runningChecksStats = &expvar.Map{}
+	runnerStats.Set("running", runningChecksStats)
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
 	checkStats = &runnerCheckStats{
 		Stats: make(map[string]map[check.ID]*check.Stats),
@@ -267,7 +274,9 @@ func (r *Runner) work() {
 		var err error
 		t0 := time.Now()
 
+		runningChecksStats.Set(string(check.ID()), timeVar(t0))
 		err = check.Run()
+		runningChecksStats.Delete(string(check.ID()))
 		longRunning := check.Interval() == 0
 
 		warnings := check.GetWarnings()
@@ -313,8 +322,8 @@ func (r *Runner) work() {
 			// If the scheduler isn't assigned (it should), just add stats
 			// otherwise only do so if the check is in the scheduler
 			if r.scheduler == nil || r.scheduler.IsCheckScheduled(check.ID()) {
-				mStats, _ := check.GetMetricStats()
-				addWorkStats(check, time.Since(t0), err, warnings, mStats)
+				sStats, _ := check.GetSenderStats()
+				addWorkStats(check, time.Since(t0), err, warnings, sStats)
 			}
 		}
 		r.m.Unlock()
@@ -366,7 +375,7 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	return
 }
 
-func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
+func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats check.SenderStats) {
 	var s *check.Stats
 	var found bool
 

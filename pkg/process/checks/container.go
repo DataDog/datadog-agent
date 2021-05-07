@@ -1,7 +1,6 @@
 package checks
 
 import (
-	"runtime"
 	"sync"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // Container is a singleton ContainerCheck.
@@ -133,7 +133,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		lastCtr = fillNilRates(lastCtr)
 
 		ifStats := ctr.Network.SumInterfaces()
-		cpus := runtime.NumCPU()
+		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
 		// Retrieves metadata tags

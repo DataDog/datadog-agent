@@ -185,6 +185,7 @@
 
 enum event_type
 {
+    EVENT_ANY = 0,
     EVENT_FIRST_DISCARDER = 1,
     EVENT_OPEN = EVENT_FIRST_DISCARDER,
     EVENT_MKDIR,
@@ -211,28 +212,6 @@ enum event_type
     EVENT_ARGS_ENVS,
     EVENT_MOUNT_RELEASED,
     EVENT_MAX, // has to be the last one
-};
-
-enum syscall_type
-{
-    SYSCALL_OPEN        = 1 << EVENT_OPEN,
-    SYSCALL_MKDIR       = 1 << EVENT_MKDIR,
-    SYSCALL_LINK        = 1 << EVENT_LINK,
-    SYSCALL_RENAME      = 1 << EVENT_RENAME,
-    SYSCALL_UNLINK      = 1 << EVENT_UNLINK,
-    SYSCALL_RMDIR       = 1 << EVENT_RMDIR,
-    SYSCALL_CHMOD       = 1 << EVENT_CHMOD,
-    SYSCALL_CHOWN       = 1 << EVENT_CHOWN,
-    SYSCALL_UTIME       = 1 << EVENT_UTIME,
-    SYSCALL_MOUNT       = 1 << EVENT_MOUNT,
-    SYSCALL_UMOUNT      = 1 << EVENT_UMOUNT,
-    SYSCALL_SETXATTR    = 1 << EVENT_SETXATTR,
-    SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
-    SYSCALL_EXEC        = 1 << EVENT_EXEC,
-    SYSCALL_FORK        = 1 << EVENT_FORK,
-    SYSCALL_SETUID      = 1 << EVENT_SETUID,
-    SYSCALL_SETGID      = 1 << EVENT_SETGID,
-    SYSCALL_CAPSET      = 1 << EVENT_CAPSET,
 };
 
 struct kevent_t {
@@ -285,6 +264,17 @@ struct file_t {
     u32 flags;
     u32 padding;
     struct file_metadata_t metadata;
+};
+
+struct tracepoint_raw_syscalls_sys_exit_t
+{
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    long id;
+    long ret;
 };
 
 struct bpf_map_def SEC("maps/path_id") path_id = {

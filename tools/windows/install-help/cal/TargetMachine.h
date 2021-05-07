@@ -4,6 +4,12 @@ class ITargetMachine
 {
 public:
     /// <summary>
+    /// Start detecting the characteristics of the target machine.
+    /// </summary>
+    /// <returns>ERROR_SUCCESS if everything went well, an error code otherwise.</returns>
+    virtual DWORD Detect() = 0;
+
+    /// <summary>
     /// Get the name of the computer.
     /// </summary>
     /// <returns>The name of the computer.</returns>

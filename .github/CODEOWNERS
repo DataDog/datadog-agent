@@ -23,7 +23,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform
+/release.json                           @DataDog/agent-platform @DataDog/agent-core
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -63,7 +63,9 @@
 
 /.gitlab/image_scan.yml                              @DataDog/container-integrations @DataDog/agent-platform
 
-/.gitlab/internal_deploy.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/internal_deploy.yml                         @DataDog/processes @DataDog/networks @DataDog/agent-platform
+
+/.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-platform
 
@@ -139,6 +141,7 @@
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
+/pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
@@ -155,14 +158,16 @@
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries
 /pkg/util/clusteragent/                 @DataDog/container-integrations
+/pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/integrations-tools-and-libraries
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
+/pkg/util/kernel/                       @DataDog/networks
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
-/pkg/logs/input/traps/                  @DataDog/agent-integrations @DataDog/agent-core
+/pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
 /pkg/metadata/ecs/                      @DataDog/networks
 /pkg/metadata/kubernetes/               @DataDog/networks
 /pkg/process/                           @DataDog/processes
@@ -170,6 +175,7 @@
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/networks
 /pkg/ebpf/                              @DataDog/networks
+/pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/bindata/bindataRuntimesecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/container-integrations

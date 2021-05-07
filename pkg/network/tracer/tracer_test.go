@@ -72,8 +72,6 @@ func TestTracerExpvar(t *testing.T) {
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 
 	cfg := testConfig()
-	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -157,8 +155,6 @@ func TestTracerExpvar(t *testing.T) {
 			"RTcpCloseMisses",
 			"RUdpRecvmsgHits",
 			"RUdpRecvmsgMisses",
-			"RTcpSendmsgHits",
-			"RTcpSendmsgMisses",
 			"RInetBindHits",
 			"RInetBindMisses",
 			"RInet6BindHits",
@@ -2195,12 +2191,39 @@ func TestGatewayLookupNotEnabled(t *testing.T) {
 	})
 
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
-		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
-
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(false)
+		cloud = m
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, aws metadata endpoint not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(true)
+		cloud = m
+
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
@@ -2233,6 +2256,16 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 }
 
 func TestGatewayLookupEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
@@ -2271,7 +2304,72 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
 }
 
+func TestGatewayLookupSubnetLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	calls := 0
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		if hwAddr.String() == ifi.HardwareAddr.String() {
+			calls++
+		}
+		return network.Subnet{}, assert.AnError
+	}
+
+	tr.gwLookup.purge()
+
+	getConnections(t, tr)
+
+	// do two dns queries to prompt more than one subnet lookup attempt
+	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var c *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
+}
+
 func TestGatewayLookupCrossNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
@@ -2303,11 +2401,15 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		"ip -n test1 r add default via 2.2.2.1",
 		"ip -n test2 r add default via 2.2.2.1",
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+		"iptables -I FORWARD -i br0 -j ACCEPT",
+		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
 	defer func() {
 		testutil.RunCommands(t, []string{
-			"iptables -D POSTROUTING 1 -t nat",
+			"iptables -D FORWARD -o br0 -j ACCEPT",
+			"iptables -D FORWARD -i br0 -j ACCEPT",
+			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 			"ip link del veth1",
 			"ip link del veth3",
 			"ip link del br0",
@@ -2327,6 +2429,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 		return network.Subnet{Alias: "subnet"}, nil
 	}
+	tr.gwLookup.purge()
 
 	test1Ns, err := netns.GetFromName("test1")
 	require.NoError(t, err)
@@ -2368,12 +2471,12 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		util.WithNS("/proc", test2Ns, func() error {
+		err = util.WithNS("/proc", test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
-			require.NoError(t, err)
 			return err
 		})
+		require.NoError(t, err)
 		defer c.Close()
 
 		// write some data

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -132,7 +133,7 @@ func TestSubmitIfStopped(t *testing.T) {
 
 func TestCreateHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	p2 := []byte("Another payload")
 	payloads := Payloads{&p1, &p2}
@@ -145,10 +146,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
 	assert.Equal(t, testVersionDomain, transactions[2].Domain)
 	assert.Equal(t, testVersionDomain, transactions[3].Domain)
-	assert.Equal(t, endpoint.route, transactions[0].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[1].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[2].Endpoint.route)
-	assert.Equal(t, endpoint.route, transactions[3].Endpoint.route)
+	assert.Equal(t, endpoint.Route, transactions[0].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[1].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[2].Endpoint.Route)
+	assert.Equal(t, endpoint.Route, transactions[3].Endpoint.Route)
 	assert.Len(t, transactions[0].Headers, 4)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
@@ -162,15 +163,15 @@ func TestCreateHTTPTransactions(t *testing.T) {
 
 	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint.route, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint.route, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint.route, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint.route, "api_key=api-key-2")
+	assert.Contains(t, transactions[0].Endpoint.Route, "api_key=api-key-1")
+	assert.Contains(t, transactions[1].Endpoint.Route, "api_key=api-key-2")
+	assert.Contains(t, transactions[2].Endpoint.Route, "api_key=api-key-1")
+	assert.Contains(t, transactions[3].Endpoint.Route, "api_key=api-key-2")
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysWithMultipleDomains))
-	endpoint := endpoint{route: "/api/foo", name: "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -179,7 +180,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
 	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
 
-	var txNormal, txBar []*HTTPTransaction
+	var txNormal, txBar []*transaction.HTTPTransaction
 	for _, t := range transactions {
 		if t.Domain == testVersionDomain {
 			txNormal = append(txNormal, t)
@@ -192,14 +193,14 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-2")
+	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.route, "/api/foo?api_key=api-key-3")
+	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
@@ -208,7 +209,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	defer mockConfig.Set("allow_arbitrary_tags", false)
 
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
@@ -219,7 +220,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 
 func TestSendHTTPTransactions(t *testing.T) {
 	forwarder := NewDefaultForwarder(NewOptions(keysPerDomains))
-	endpoint := endpoint{"/api/foo", "foo"}
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
 	p1 := []byte("A payload")
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
@@ -243,7 +244,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	// Overwrite domainForwarders input channel. We are testing that the
 	// DefaultForwarder correctly create HTTPTransaction, set the headers
 	// and send them to the correct domainForwarder.
-	inputQueue := make(chan Transaction, 1)
+	inputQueue := make(chan transaction.Transaction, 1)
 	df := forwarder.domainForwarders[testVersionDomain]
 	bk := df.highPrio
 	df.highPrio = inputQueue
@@ -255,7 +256,7 @@ func TestSubmitV1Intake(t *testing.T) {
 	select {
 	case tr := <-df.highPrio:
 		require.NotNil(t, tr)
-		httpTr := tr.(*HTTPTransaction)
+		httpTr := tr.(*transaction.HTTPTransaction)
 		assert.Equal(t, "application/json", httpTr.Headers.Get("Content-Type"))
 	case <-time.After(1 * time.Second):
 		require.Fail(t, "highPrio queue should contain a transaction")
@@ -345,11 +346,11 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -365,10 +366,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -403,11 +404,11 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
@@ -423,10 +424,10 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -457,15 +458,15 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].completionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		assert.Equal(t, http.StatusInternalServerError, statusCode)
 		wg.Done()
 	}
-	transactions[0].attemptHandler = func(transaction *HTTPTransaction) {
+	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
 		atomic.AddInt64(&attempts, 1)
 	}
 
-	transactions[0].retryable = false
+	transactions[0].Retryable = false
 
 	err := f.sendHTTPTransactions(transactions)
 	require.NoError(t, err)
@@ -594,7 +595,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
 	done := make(chan struct{})
 	defer close(done)
-	var handler HTTPCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {
+	var handler transaction.HTTPCompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		done <- struct{}{}
 	}
 

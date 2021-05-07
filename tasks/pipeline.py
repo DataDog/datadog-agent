@@ -1,5 +1,7 @@
+import io
 import os
 import re
+import traceback
 from collections import defaultdict
 
 from invoke import task
@@ -17,6 +19,8 @@ from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
 from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
+
+ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
 @task
@@ -36,6 +40,15 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
+
+    # Check that the target repo branch is valid
+    if repo_branch not in ALLOWED_REPO_BRANCHES:
+        print(
+            "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
+                repo_branch, ALLOWED_REPO_BRANCHES
+            )
+        )
+        raise Exit(code=1)
 
     #
     # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.
@@ -71,25 +84,45 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
 
             print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
 
+    # Always run all builds and kitchen tests on a deploy pipeline
     pipeline_id = trigger_agent_pipeline(
-        gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch, deploy=True
+        gitlab,
+        project_name,
+        git_ref,
+        release_version_6,
+        release_version_7,
+        repo_branch,
+        deploy=True,
+        all_builds=True,
+        kitchen_tests=True,
     )
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
 @task
-def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7"):
+def run(
+    ctx,
+    git_ref="master",
+    here=False,
+    release_version_6="nightly",
+    release_version_7="nightly-a7",
+    all_builds=True,
+    kitchen_tests=True,
+):
     """
     Trigger a pipeline on the given git ref, or on the current branch if --here is given.
-    This pipeline will run all tests, including kitchen tests.
+    By default, this pipeline will run all builds & tests, including all kitchen tests.
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
+    Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
     deploy them.
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
     To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
 
     Examples:
-    inv pipeline.run-all-tests --git-ref my-branch
-    inv pipeline.run-all-tests --here
+    inv pipeline.run --git-ref my-branch
+    inv pipeline.run --here
+    inv pipeline.run --here --no-kitchen-tests
     """
 
     project_name = "DataDog/datadog-agent"
@@ -99,7 +132,14 @@ def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly"
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     pipeline_id = trigger_agent_pipeline(
-        gitlab, project_name, git_ref, release_version_6, release_version_7, "none", deploy=False
+        gitlab,
+        project_name,
+        git_ref,
+        release_version_6,
+        release_version_7,
+        "none",
+        all_builds=all_builds,
+        kitchen_tests=kitchen_tests,
     )
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
@@ -162,24 +202,10 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 
 
-@task
-def notify_failure(_, notification_type="merge", print_to_stdout=False):
-    """
-    Send failure notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
-    real slack messages.
-    """
-    header = ""
-    if notification_type == "merge":
-        header = ":host-red: :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = ":host-red: :rocket: datadog-agent deploy"
-
+def generate_failure_messages(base):
     project_name = "DataDog/datadog-agent"
     all_teams = "@DataDog/agent-all"
     failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
-    base = base_message(header)
-
     # Generate messages for each team
     messages_to_send = defaultdict(lambda: TeamMessage(base))
     messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
@@ -203,6 +229,39 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             pass
             # TODO: enable also jobs
             # messages_to_send[owner].failed_jobs = jobs
+
+    return messages_to_send
+
+
+@task
+def notify_failure(_, notification_type="merge", print_to_stdout=False):
+    """
+    Send failure notifications for the current pipeline. CI-only task.
+    Use the --print-to-stdout option to test this locally, without sending
+    real slack messages.
+    """
+
+    header = ""
+    if notification_type == "merge":
+        header = ":host-red: :merged: datadog-agent merge"
+    elif notification_type == "deploy":
+        header = ":host-red: :rocket: datadog-agent deploy"
+    base = base_message(header)
+
+    try:
+        messages_to_send = generate_failure_messages(base)
+    except Exception as e:
+        buffer = io.StringIO()
+        print(base, file=buffer)
+        print("Found exception when generating notification:", file=buffer)
+        traceback.print_exc(limit=-1, file=buffer)
+        print("See the job log for the full exception traceback.", file=buffer)
+        messages_to_send = {
+            "@DataDog/agent-all": SlackMessage(buffer.getvalue()),
+        }
+        # Print traceback on job log
+        print(e)
+        traceback.print_exc()
 
     # Send messages
     for owner, message in messages_to_send.items():

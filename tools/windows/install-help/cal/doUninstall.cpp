@@ -1,5 +1,5 @@
-#include "TargetMachine.h"
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 extern std::wstring versionhistoryfilename;
 

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -242,6 +242,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
+		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}

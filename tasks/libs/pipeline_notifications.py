@@ -54,18 +54,29 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     gitlab = Gitlab()
     owners = read_owners(owners_file)
     test_output = gitlab.artifact(project_name, job["id"], "test_output.json")
+    failed_tests = {}  # type: dict[tuple[str, str], Test]
     if test_output:
         for line in test_output.iter_lines():
             json_test = json.loads(line)
-            if 'Test' in json_test and json_test["Action"] == "fail":
-                # Ignore subtests, only the parent test should be reported for now
-                # to avoid multiple reports on the same test
-                # NTH: maybe the Test object should be more flexible to incorporate
-                # subtests? This would require some postprocessing of the Test objects
-                # we yield here to merge child Test objects with their parents.
-                if '/' in json_test["Test"]:  # Subtests have a name of the form "Test/Subtest"
-                    continue
-                yield Test(owners, json_test['Test'], json_test['Package'])
+            if 'Test' in json_test:
+                name = json_test['Test']
+                package = json_test['Package']
+                action = json_test["Action"]
+
+                if action == "fail":
+                    # Ignore subtests, only the parent test should be reported for now
+                    # to avoid multiple reports on the same test
+                    # NTH: maybe the Test object should be more flexible to incorporate
+                    # subtests? This would require some postprocessing of the Test objects
+                    # we yield here to merge child Test objects with their parents.
+                    if '/' in name:  # Subtests have a name of the form "Test/Subtest"
+                        continue
+                    failed_tests[(package, name)] = Test(owners, name, package)
+                elif action == "pass" and (package, name) in failed_tests:
+                    print("Test {} from package {} passed after retry, removing from output".format(name, package))
+                    del failed_tests[(package, name)]
+
+    return failed_tests.values()
 
 
 def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):

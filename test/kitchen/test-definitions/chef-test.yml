@@ -1,7 +1,7 @@
 suites:
 
 # Install the latest release candidate using Chef
-- name: dd-agent
+- name: chef
   run_list:
     - "recipe[dd-agent-disable-system-repos]"
     - "recipe[dd-agent-sles-workaround]"

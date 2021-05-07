@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -28,6 +29,7 @@ const (
 var (
 	errClient = errors.New("client error")
 	errServer = errors.New("server error")
+	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
@@ -37,6 +39,7 @@ var emptyPayload []byte
 type Destination struct {
 	url                 string
 	contentType         string
+	host                string
 	contentEncoding     ContentEncoding
 	client              *httputils.ResetClient
 	destinationsContext *client.DestinationsContext
@@ -58,6 +61,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		maxConcurrentBackgroundSends = 0
 	}
 	return &Destination{
+		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		contentType:         contentType,
 		contentEncoding:     buildContentEncoding(endpoint),
@@ -67,9 +71,23 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 	}
 }
 
+func errorToTag(err error) string {
+	if err == nil {
+		return "none"
+	} else if _, ok := err.(*client.RetryableError); ok {
+		return "retryable"
+	} else {
+		return "non-retryable"
+	}
+}
+
 // Send sends a payload over HTTP,
 // the error returned can be retryable and it is the responsibility of the callee to retry.
-func (d *Destination) Send(payload []byte) error {
+func (d *Destination) Send(payload []byte) (err error) {
+	defer func() {
+		tlmSend.Inc(d.host, errorToTag(err))
+	}()
+
 	ctx := d.destinationsContext.Context()
 
 	encodedPayload, err := d.contentEncoding.encode(payload)

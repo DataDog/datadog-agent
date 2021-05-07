@@ -450,3 +450,43 @@ func TestSubmitHistogramBucket(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestSubmitEventPlatformEvent(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	cases := []struct {
+		args        string
+		expectedOut string
+	}{
+		{
+			"None, 'id', 'raw-event', 'dbm-sample'",
+			"",
+		},
+		{
+			"None, 'id', '', ''",
+			"",
+		},
+		{
+			"None, 'id', 'raw-event', 1",
+			"TypeError: argument 4 must be (str|string), not int",
+		},
+	}
+
+	for _, testCase := range cases {
+		out, err := run(fmt.Sprintf("aggregator.submit_event_platform_event(%s)", testCase.args))
+		if err != nil {
+			t.Fatal(err)
+		}
+		matched, err := regexp.Match(testCase.expectedOut, []byte(out))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !matched {
+			t.Fatalf("wrong output. expected='%s', found='%s'", testCase.expectedOut, out)
+		}
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}

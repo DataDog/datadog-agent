@@ -24,11 +24,85 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
+
+func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	cronJobMsgs := make([]*model.CronJob, 0, len(cronJobList))
+
+	for _, cronJob := range cronJobList {
+		if orchestrator.SkipKubernetesResource(cronJob.UID, cronJob.ResourceVersion, orchestrator.K8sCronJob) {
+			continue
+		}
+
+		// extract cronJob info
+		cronJobModel := extractCronJob(cronJob)
+		// scrub & generate YAML
+		if cfg.IsScrubbingEnabled {
+			for c := 0; c < len(cronJob.Spec.JobTemplate.Spec.Template.Spec.InitContainers); c++ {
+				redact.ScrubContainer(&cronJob.Spec.JobTemplate.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
+			}
+			for c := 0; c < len(cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers); c++ {
+				redact.ScrubContainer(&cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[c], cfg.Scrubber)
+			}
+		}
+		// k8s objects only have json "omitempty" annotations
+		// and marshalling is more performant than YAML
+		jsonCronJob, err := jsoniter.Marshal(cronJob)
+		if err != nil {
+			log.Warnf("Could not marshal cron job to JSON: %s", err)
+			continue
+		}
+		cronJobModel.Yaml = jsonCronJob
+
+		cronJobMsgs = append(cronJobMsgs, cronJobModel)
+	}
+
+	groupSize := len(cronJobMsgs) / cfg.MaxPerMessage
+	if len(cronJobMsgs)%cfg.MaxPerMessage != 0 {
+		groupSize++
+	}
+	chunked := chunkCronJobs(cronJobMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorCronJob{
+			ClusterName: cfg.KubeClusterName,
+			CronJobs:    chunked[i],
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d cron jobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
+	return messages, nil
+}
+
+// chunkCronJobs formats and chunks cronJobs into a slice of chunks using a specific number of chunks.
+func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*model.CronJob {
+	chunks := make([][]*model.CronJob, 0, chunkCount)
+
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(cronJobs)
+		}
+		chunks = append(chunks, cronJobs[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
 
 func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
@@ -80,7 +154,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d deployments in %s", len(deployMsgs), len(deploymentList), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
 	return messages, nil
 }
 
@@ -98,6 +172,78 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 			chunkEnd = len(deploys)
 		}
 		chunks = append(chunks, deploys[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	jobMsgs := make([]*model.Job, 0, len(jobList))
+
+	for _, job := range jobList {
+		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
+			continue
+		}
+
+		// extract job info
+		jobModel := extractJob(job)
+		// scrub & generate YAML
+		if cfg.IsScrubbingEnabled {
+			for c := 0; c < len(job.Spec.Template.Spec.InitContainers); c++ {
+				redact.ScrubContainer(&job.Spec.Template.Spec.InitContainers[c], cfg.Scrubber)
+			}
+			for c := 0; c < len(job.Spec.Template.Spec.Containers); c++ {
+				redact.ScrubContainer(&job.Spec.Template.Spec.Containers[c], cfg.Scrubber)
+			}
+		}
+		// k8s objects only have json "omitempty" annotations
+		// and marshalling is more performant than YAML
+		jsonJob, err := jsoniter.Marshal(job)
+		if err != nil {
+			log.Warnf("Could not marshal job to JSON: %s", err)
+			continue
+		}
+		jobModel.Yaml = jsonJob
+
+		jobMsgs = append(jobMsgs, jobModel)
+	}
+
+	groupSize := len(jobMsgs) / cfg.MaxPerMessage
+	if len(jobMsgs)%cfg.MaxPerMessage != 0 {
+		groupSize++
+	}
+	chunked := chunkJobs(jobMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorJob{
+			ClusterName: cfg.KubeClusterName,
+			Jobs:        chunked[i],
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
+	return messages, nil
+}
+
+// chunkJobs formats and chunks jobs into a slice of chunks using a specific number of chunks.
+func chunkJobs(jobs []*model.Job, chunkCount, chunkSize int) [][]*model.Job {
+	chunks := make([][]*model.Job, 0, chunkCount)
+
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(jobs)
+		}
+		chunks = append(chunks, jobs[chunkStart:chunkEnd])
 	}
 
 	return chunks
@@ -155,7 +301,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d replica sets in %s", len(rsMsgs), len(rsList), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d replica sets in %s", len(rsMsgs), len(rsList), time.Since(start))
 	return messages, nil
 }
 
@@ -222,7 +368,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d services in %s", len(serviceMsgs), len(serviceList), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
 	return messages, nil
 }
 
@@ -314,9 +460,8 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		nodeModel.Yaml = jsonNode
 
 		// additional tags
-		for _, tag := range convertNodeStatusToTags(nodeModel.Status.Status) {
-			nodeModel.Tags = append(nodeModel.Tags, tag)
-		}
+		nodeStatusTags := convertNodeStatusToTags(nodeModel.Status.Status)
+		nodeModel.Tags = append(nodeModel.Tags, nodeStatusTags...)
 
 		for _, role := range nodeModel.Roles {
 			nodeModel.Tags = append(nodeModel.Tags, fmt.Sprintf("%s:%s", kubernetes.KubeNodeRoleTagName, strings.ToLower(role)))
@@ -344,7 +489,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Now().Sub(start))
+	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
 	return nodeMessages, model.Cluster{
 		KubeletVersions:   kubeletVersions,
 		PodCapacity:       podCap,

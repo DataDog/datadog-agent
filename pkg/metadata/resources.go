@@ -29,7 +29,7 @@ func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	payload := map[string]interface{}{
 		"resources": resources.GetPayload(hostname),
 	}
-	if err := s.SendJSONToV1Intake(payload); err != nil {
+	if err := s.SendProcessesMetadata(payload); err != nil {
 		return fmt.Errorf("unable to serialize processes metadata payload, %s", err)
 	}
 	return nil

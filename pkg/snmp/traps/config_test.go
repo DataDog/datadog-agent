@@ -6,7 +6,7 @@
 package traps
 
 import (
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

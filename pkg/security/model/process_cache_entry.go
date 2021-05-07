@@ -8,7 +8,6 @@
 package model
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -24,8 +23,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
-	if len(parent.ContainerContext.ID) > 0 && len(child.ContainerContext.ID) == 0 {
-		child.ContainerContext.ID = parent.ContainerContext.ID
+	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
+		child.ContainerID = parent.ContainerID
 		child.ContainerPath = parent.ContainerPath
 	}
 }
@@ -58,14 +57,16 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.FileFields = pc.FileFields
 	childEntry.PathnameStr = pc.PathnameStr
 	childEntry.BasenameStr = pc.BasenameStr
+	childEntry.Filesystem = pc.Filesystem
 	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTimestamp = pc.ExecTimestamp
+	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
 	copyProcessContext(pc, childEntry)
 }
 
-func (pc *ProcessCacheEntry) String() string {
+/*func (pc *ProcessCacheEntry) String() string {
 	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {
@@ -76,24 +77,4 @@ func (pc *ProcessCacheEntry) String() string {
 		ancestor = ancestor.Ancestor
 	}
 	return s
-}
-
-// UnmarshalBinary reads the binary representation of itself
-func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool) (int, error) {
-	var read int
-
-	if unmarshalContext {
-		offset, err := UnmarshalBinary(data, &pc.ContainerContext)
-		if err != nil {
-			return 0, err
-		}
-		read += offset
-	}
-
-	offset, err := pc.Process.UnmarshalBinary(data[read:])
-	if err != nil {
-		return 0, err
-	}
-
-	return read + offset, nil
-}
+}*/
