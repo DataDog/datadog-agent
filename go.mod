@@ -50,7 +50,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.69.0+incompatible
+	github.com/DataDog/agent-payload v4.70.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.28.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.3
 	github.com/DataDog/datadog-go v4.5.0+incompatible
