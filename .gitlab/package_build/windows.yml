@@ -92,18 +92,6 @@ windows_msi_x86-a6:
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
 
-windows_dsd_msi_x64-a7:
-  extends: .windows_msi_base
-  rules:
-    - <<: *if_version_7
-  variables:
-    ARCH: "x64"
-    PYTHON_RUNTIMES: ""
-    AGENT_MAJOR_VERSION: '7'
-    OMNIBUS_TARGET: dogstatsd
-  before_script:
-    - set RELEASE_VERSION $RELEASE_VERSION_7
-
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
   rules:

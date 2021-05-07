@@ -138,9 +138,10 @@ func Test_generateWebhooks(t *testing.T) {
 			},
 		},
 		{
-			name: "tags injection",
+			name: "tags injection, mutate all",
 			setupConfig: func() {
 				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
 			},
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -158,7 +159,24 @@ func Test_generateWebhooks(t *testing.T) {
 			},
 		},
 		{
-			name: "config and tags injection",
+			name: "tags injection, mutate labelled",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", false)
+				mockConfig.Set("admission_controller.mutate_unlabelled", false)
+				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+			},
+			want: func() []admiv1beta1.MutatingWebhook {
+				webhook := getWebhookSkeleton("tags", "/injecttags")
+				webhook.ObjectSelector = &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				}
+				return []admiv1beta1.MutatingWebhook{webhook}
+			},
+		},
+		{
+			name: "config and tags injection, mutate labelled",
 			setupConfig: func() {
 				mockConfig.Set("admission_controller.inject_config.enabled", true)
 				mockConfig.Set("admission_controller.inject_tags.enabled", true)
@@ -168,6 +186,33 @@ func Test_generateWebhooks(t *testing.T) {
 				webhookConfig.ObjectSelector = &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
+					},
+				}
+				webhookTags := getWebhookSkeleton("tags", "/injecttags")
+				webhookTags.ObjectSelector = &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				}
+				return []admiv1beta1.MutatingWebhook{webhookConfig, webhookTags}
+			},
+		},
+		{
+			name: "config and tags injection, mutate all",
+			setupConfig: func() {
+				mockConfig.Set("admission_controller.inject_config.enabled", true)
+				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.Set("admission_controller.inject_tags.enabled", true)
+			},
+			want: func() []admiv1beta1.MutatingWebhook {
+				webhookConfig := getWebhookSkeleton("config", "/injectconfig")
+				webhookConfig.ObjectSelector = &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}
 				webhookTags := getWebhookSkeleton("tags", "/injecttags")

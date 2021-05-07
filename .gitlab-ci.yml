@@ -128,7 +128,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   DATADOG_AGENT_BUILDIMAGES: v4452649-b69b5d5
-  DATADOG_AGENT_BUILDERS: v4410764-0c7cf9a
+  DATADOG_AGENT_BUILDERS: v4474312-e26b500
   DATADOG_AGENT_WINBUILDIMAGES: v4319944-68f7e12
   DATADOG_AGENT_ARMBUILDIMAGES: v4319944-68f7e12
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v4319944-68f7e12
@@ -171,6 +171,19 @@ variables:
 .if_not_tagged_commit: &if_not_tagged_commit
   if: $CI_COMMIT_TAG == null
 
+# Rules to run all builds conditionally.
+# By default:
+# - on master and deploy pipelines, all builds are run
+# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
+# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
+# RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs 
+# on master and deploy pipelines depend on jobs that are only run if we run all builds).
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+
 # Run job only on deploy pipelines
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
@@ -184,21 +197,17 @@ variables:
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true"
 
-# anchor to trigger test kitchen setup, run, and cleanup (so all stages
-# are run if one stage is run).  Triggers as defined:
-# - master
-# - tags (a tagged build)
-# - deploys (as above)
-# - web (when the build is triggered by a specific build request through the
-#        web interface.  This way, if a kitchen run is desired on a specific branch,
-#        it can be triggered by requesting a specific build)
-# - api (when the build is triggered by an API call)
-#
-.if_kitchen_deploy: &if_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+# Rules to trigger test kitchen setup, run, and cleanup.
+# By default:
+# - on master and deploy pipelines, kitchen tests are run
+# - on branch pipelines, kitchen tests are not run
+# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
+# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on master/deploy pipelines.
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
-.if_not_kitchen_deploy: &if_not_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
+.if_not_kitchen: &if_not_kitchen
+  if: ($CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true") || $RUN_KITCHEN_TESTS == "false"
 
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).

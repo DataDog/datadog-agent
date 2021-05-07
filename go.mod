@@ -50,7 +50,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.69.0+incompatible
+	github.com/DataDog/agent-payload v4.70.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.28.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.3
 	github.com/DataDog/datadog-go v4.5.0+incompatible
@@ -198,7 +198,7 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.20.1
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/kube-state-metrics/v2 v2.0.0
+	k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a
 	k8s.io/kubernetes v1.20.5
 	k8s.io/metrics v0.20.5
 )
@@ -234,8 +234,5 @@ replace (
 )
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d
-
-// Remove once the PR kubernetes/kube-state-metrics#1455 is merged
-replace k8s.io/kube-state-metrics/v2 => github.com/L3n41c/kube-state-metrics/v2 v2.0.0-rc.1.0.20210409121934-c22976b826b2
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
