@@ -186,7 +186,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/agent-platform": "#agent-platform",
     "@DataDog/container-integrations": "#container-integration",
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
-    "@DataDog/networks": "#networks",
+    "@DataDog/agent-network": "#network-agent",
     "@DataDog/agent-security": "#security-and-compliance-agent",
     "@DataDog/agent-apm": "#apm-agent",
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
