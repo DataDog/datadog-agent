@@ -79,6 +79,18 @@ func TestScrubAnnotations(t *testing.T) {
 	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
 	expected := replacedValue
 	assert.Equal(t, expected, actual)
+
+}
+
+func TestScrubAnnotationsValueDoesNotExist(t *testing.T) {
+	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
+		"something/else": "some pseudo yaml",
+	}}
+
+	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	expected := ""
+	assert.Equal(t, expected, actual)
 }
 
 func TestScrubContainer(t *testing.T) {
