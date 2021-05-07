@@ -66,7 +66,7 @@ func (p *Pool) Get() interface{} {
 
 // Put resets the Packet origin and puts it back in the pool.
 func (p *Pool) Put(x interface{}) {
-	if p == nil {
+	if x == nil {
 		return
 	}
 
