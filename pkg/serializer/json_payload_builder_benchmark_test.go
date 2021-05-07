@@ -4,7 +4,6 @@ package serializer
 
 import (
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -54,34 +53,37 @@ func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs
 	fmt.Printf("inputSize: %d bytes \t # of metrics: %d \t tags: %d \t points: %d \t avg duration: %s \t throughput: %f MB/sec \t metrics/sec: %d\n", initialSize, metricsCount, tags, points, fmt.Sprint(time.Duration(avgTime)), speed/megabyte, metricRate)
 }
 
-func TestJSONPayloadBuilderThroughputPoints(t *testing.T) {
-	// # of points and items chosen to be approximately the same # of bytes per payload between tests
-	benchmarkJSONPayloadBuilderThroughput(0, 21000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 20000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(2, 20000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(5, 15000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(10, 10000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(100, 2000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(200, 1000, 1, 10)
-}
+// Uncomment to run these benchmarks. These are non-standard benchmarks to collect custom metrics
+// so they should not be run as part of normal CI.
 
-func TestJSONPayloadBuilderThroughputTags(t *testing.T) {
-	// # of points and items chosen to be approximately the same # of bytes per payload between tests
-	benchmarkJSONPayloadBuilderThroughput(1, 21000, 1, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 21000, 2, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 19000, 5, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 15000, 10, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 2000, 100, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 200, 1000, 10)
-	benchmarkJSONPayloadBuilderThroughput(1, 20, 10000, 10)
-}
+// func TestJSONPayloadBuilderThroughputPoints(t *testing.T) {
+// 	// # of points and items chosen to be approximately the same # of bytes per payload between tests
+// 	benchmarkJSONPayloadBuilderThroughput(0, 21000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 20000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(2, 20000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(5, 15000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(10, 10000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(100, 2000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(200, 1000, 1, 10)
+// }
 
-func TestJSONPayloadBuilderThroughputHighRate(t *testing.T) {
-	// warning - These tests are very slow
-	benchmarkJSONPayloadBuilderThroughput(1, 1000000, 1, 1)
-	benchmarkJSONPayloadBuilderThroughput(1, 1000000, 10, 1)
-	benchmarkJSONPayloadBuilderThroughput(2, 1000000, 1, 1)
-	benchmarkJSONPayloadBuilderThroughput(2, 1000000, 10, 1)
-	benchmarkJSONPayloadBuilderThroughput(4, 500000, 1, 1)
-	benchmarkJSONPayloadBuilderThroughput(4, 500000, 10, 1)
-}
+// func TestJSONPayloadBuilderThroughputTags(t *testing.T) {
+// 	// # of points and items chosen to be approximately the same # of bytes per payload between tests
+// 	benchmarkJSONPayloadBuilderThroughput(1, 21000, 1, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 21000, 2, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 19000, 5, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 15000, 10, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 2000, 100, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 200, 1000, 10)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 20, 10000, 10)
+// }
+
+// func TestJSONPayloadBuilderThroughputHighRate(t *testing.T) {
+// 	// warning - These tests are very slow
+// 	benchmarkJSONPayloadBuilderThroughput(1, 1000000, 1, 1)
+// 	benchmarkJSONPayloadBuilderThroughput(1, 1000000, 10, 1)
+// 	benchmarkJSONPayloadBuilderThroughput(2, 1000000, 1, 1)
+// 	benchmarkJSONPayloadBuilderThroughput(2, 1000000, 10, 1)
+// 	benchmarkJSONPayloadBuilderThroughput(4, 500000, 1, 1)
+// 	benchmarkJSONPayloadBuilderThroughput(4, 500000, 10, 1)
+// }
