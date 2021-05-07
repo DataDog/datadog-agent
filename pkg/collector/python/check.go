@@ -10,6 +10,7 @@ package python
 import (
 	"errors"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"runtime"
 	"time"
 	"unsafe"
@@ -87,6 +88,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 		}
 		s.Commit()
 	}
+	batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
 
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings(gstate)
