@@ -23,23 +23,12 @@ from .libs.types import SlackMessage, TeamMessage
 ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
-@task
-def trigger(_, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch):
     """
-    Trigger a deploy pipeline on the given git ref.
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
-    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
-
-    Example:
-    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
+    Run checks to verify a deploy pipeline is valid:
+    - it targets a valid repo branch
+    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
     """
-
-    #
-    # Create gitlab instance and make sure we have access.
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab()
-    gitlab.test_project_found(project_name)
 
     # Check that the target repo branch is valid
     if repo_branch not in ALLOWED_REPO_BRANCHES:
@@ -84,20 +73,6 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
 
             print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
 
-    # Always run all builds and kitchen tests on a deploy pipeline
-    pipeline_id = trigger_agent_pipeline(
-        gitlab,
-        project_name,
-        git_ref,
-        release_version_6,
-        release_version_7,
-        repo_branch,
-        deploy=True,
-        all_builds=True,
-        kitchen_tests=True,
-    )
-    wait_for_pipeline(gitlab, project_name, pipeline_id)
-
 
 @task
 def run(
@@ -106,38 +81,64 @@ def run(
     here=False,
     release_version_6="nightly",
     release_version_7="nightly-a7",
+    repo_branch="nightly",
+    deploy=False,
     all_builds=True,
     kitchen_tests=True,
 ):
     """
-    Trigger a pipeline on the given git ref, or on the current branch if --here is given.
-    By default, this pipeline will run all builds & tests, including all kitchen tests.
+    Run a pipeline on the given git ref, or on the current branch if --here is given.
+    By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
+    Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
-    The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
-    deploy them.
+
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
     To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
-    Examples:
-    inv pipeline.run --git-ref my-branch
-    inv pipeline.run --here
-    inv pipeline.run --here --no-kitchen-tests
+    Examples
+    Run a pipeline on my-branch:
+      inv pipeline.run --git-ref my-branch
+
+    Run a pipeline on the current branch:
+      inv pipeline.run --here
+
+    Run a pipeline without kitchen tests on the current branch:
+      inv pipeline.run --here --no-kitchen-tests
+
+    Run a deploy pipeline on the 7.28.0 tag, uploading the artifacts to the stable branch of the staging repositories:
+      inv pipeline.run --deploy --git-ref 7.28.0 --release-version-6 "6.28.0" --release-version-7 "7.28.0" --repo-branch "stable"
     """
 
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
+    if deploy:
+        # Check the validity of the deploy pipeline
+        check_deploy_pipeline(
+            gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch,
+        )
+        # Force all builds and kitchen tests to be run
+        if not all_builds:
+            print("Deploy pipeline: force-setting RUN_ALL_BUILDS to true")
+            all_builds = True
+        if not kitchen_tests:
+            print("Deploy pipeline: force-setting RUN_KITCHEN_TESTS to true")
+            kitchen_tests = True
+
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
     pipeline_id = trigger_agent_pipeline(
         gitlab,
         project_name,
         git_ref,
         release_version_6,
         release_version_7,
-        "none",
+        repo_branch,
+        deploy=deploy,
         all_builds=all_builds,
         kitchen_tests=kitchen_tests,
     )
