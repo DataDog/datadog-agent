@@ -171,11 +171,13 @@ func (l *UDSListener) Listen() {
 			container, taggingErr := processUDSOrigin(oob[:oobn])
 
 			if capBuff != nil {
+				capBuff.Pb.Timestamp = time.Now().Unix()
 				capBuff.Oob = &oob
+				capBuff.Buff = packet
 				capBuff.Pb.AncillarySize = int32(oobn)
 				capBuff.Pb.Ancillary = oob[:oobn] // or oob[:oobn] ?
 				capBuff.Pb.PayloadSize = int32(n)
-				capBuff.Pb.Payload = packet.Buffer[:n] // or packet.Buffer[:n] ?
+				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
 			}
 
 			if taggingErr != nil {
