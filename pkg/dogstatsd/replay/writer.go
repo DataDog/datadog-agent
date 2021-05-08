@@ -154,7 +154,6 @@ process:
 			}
 
 			if tc.sharedPacketPoolManager != nil {
-				log.Debugf("Processing the following message: %v", msg)
 				tc.sharedPacketPoolManager.Put(msg.Buff)
 			}
 

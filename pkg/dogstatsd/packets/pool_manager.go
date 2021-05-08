@@ -47,7 +47,6 @@ func (p *PoolManager) Put(x interface{}) {
 
 	if p.IsPassthru() {
 		p.pool.Put(x)
-		log.Debugf("Passthuru, just returned: %v to packet pool.", x)
 		return
 	}
 
@@ -64,15 +63,13 @@ func (p *PoolManager) Put(x interface{}) {
 		ref = v
 	}
 
-	log.Debugf("Putting back interface: %v and reference: %v\n", x, ref)
-
 	// TODO: use LoadAndDelete when go 1.15 is introduced
 	_, loaded := p.refs.Load(ref)
 	if loaded {
 		// reference exists, put back.
 		p.refs.Delete(ref)
 		p.pool.Put(x)
-		log.Debugf("Just returned: %v to packet pool.", x)
+		log.Debugf("Returning type: %T to packet pool.", x)
 	} else {
 		// reference does not exist, account.
 		p.refs.Store(ref, struct{}{})
