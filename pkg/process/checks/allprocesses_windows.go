@@ -4,6 +4,7 @@ package checks
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -96,6 +97,10 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 }
 
 func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error) {
+	// make sure we get the consistent snapshot by using the same OS thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
 		return nil, windows.GetLastError()
