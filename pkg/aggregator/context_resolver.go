@@ -77,17 +77,6 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	}
 }
 
-// updateTrackedContext updates the last seen timestamp on a given context key
-func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
-	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {
-		cr.lastSeenByKey[contextKey] = timestamp
-	} else if !ok {
-		return fmt.Errorf("Trying to update a context that is not tracked")
-	}
-
-	return nil
-}
-
 // timestampContextResolver allows tracking and expiring contexts based on time.
 type timestampContextResolver struct {
 	resolver      *contextResolver
@@ -99,6 +88,17 @@ func newTimestampContextResolver() *timestampContextResolver {
 		resolver:      newContextResolver(),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
+}
+
+// updateTrackedContext updates the last seen timestamp on a given context key
+func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
+	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {
+		cr.lastSeenByKey[contextKey] = timestamp
+	} else if !ok {
+		return fmt.Errorf("Trying to update a context that is not tracked")
+	}
+
+	return nil
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
