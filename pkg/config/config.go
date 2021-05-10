@@ -718,7 +718,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
-	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 10) // 30s corresponds to the default value set by the Kubernetes API
+	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 10) // in seconds (see kubernetes/kubernetes#71508)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
 	config.BindEnvAndSetDefault("admission_controller.certificate.expiration_threshold", 30*24)        // how long before its expiration a certificate should be refreshed (in hours, default 1 month)
