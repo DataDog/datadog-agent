@@ -190,6 +190,12 @@ cleanup:
 		log.Warnf("Wrote %d bytes for capture tagger state", n)
 	}
 
+	err = tc.writer.Flush()
+	if err != nil {
+		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
+	}
+
+	tc.File.Close()
 }
 
 // StopCapture stops the ongoing capture if in process and returns an error, if any.
@@ -199,11 +205,6 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 
 	if !tc.ongoing {
 		return nil
-	}
-
-	err := tc.writer.Flush()
-	if err != nil {
-		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
 	}
 
 	if tc.sharedPacketPoolManager != nil {
@@ -217,7 +218,7 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 	tc.ongoing = false
 
 	log.Debug("Capture was stopped")
-	return tc.File.Close()
+	return nil
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
