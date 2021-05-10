@@ -89,7 +89,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 		raddr.ContainerId = l.addrToCtrID[addr]
 
-		// resolver laddr
+		// resolve laddr
 		cid, ok := l.ctrForPid[conn.Pid]
 		if !ok {
 			continue
@@ -97,73 +97,76 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 		conn.Laddr.ContainerId = cid
 
-		laddr := translatedLaddr(conn.Laddr, conn.IpTranslation)
-		ip := procutil.AddressFromString(laddr.Ip)
+		ip := procutil.AddressFromString(conn.Laddr.Ip)
 		if ip == nil {
 			continue
 		}
 
-		claddr := model.ContainerAddr{
-			Ip:       laddr.Ip,
-			Port:     laddr.Port,
+		laddr := model.ContainerAddr{
+			Ip:       conn.Laddr.Ip,
+			Port:     conn.Laddr.Port,
 			Protocol: conn.Type,
 		}
 
 		netns := conn.NetNS
+		ctrsByLaddr[addrWithNS{laddr, netns}] = cid
 		if !ip.IsLoopback() {
-			netns = 0
+			ctrsByLaddr[addrWithNS{laddr, 0}] = cid
 		}
-		ctrsByLaddr[addrWithNS{claddr, netns}] = cid
 	}
 
 	log.Tracef("ctrsByLaddr = %v", ctrsByLaddr)
 
-	// go over connections again using hash computed earlier to resolver raddr
+	// go over connections again using hashtable computed earlier to resolver raddr
 	for _, conn := range c.Conns {
-		if conn.Raddr.ContainerId != "" {
-			log.Tracef("skipping already resolved raddr %v", conn.Raddr)
-			continue
-		}
+		if conn.Raddr.ContainerId == "" {
+			raddr := translatedContainerRaddr(conn.Raddr, conn.IpTranslation, conn.Type)
+			ip := procutil.AddressFromString(raddr.Ip)
+			if ip == nil {
+				continue
+			}
 
-		ip := procutil.AddressFromString(conn.Raddr.Ip)
-		if ip == nil {
-			continue
-		}
-
-		raddr := model.ContainerAddr{
-			Ip:       conn.Raddr.Ip,
-			Port:     conn.Raddr.Port,
-			Protocol: conn.Type,
-		}
-
-		var ok bool
-		var cid string
-		netns := conn.NetNS
-		if !ip.IsLoopback() {
-			netns = 0
-		}
-
-		if cid, ok = ctrsByLaddr[addrWithNS{raddr, netns}]; ok {
-			conn.Raddr.ContainerId = cid
-			log.Tracef("resolved loopback raddr %v to %s", raddr, cid)
+			var ok bool
+			var cid string
+			// first match within net namespace
+			if cid, ok = ctrsByLaddr[addrWithNS{raddr, conn.NetNS}]; ok {
+				conn.Raddr.ContainerId = cid
+				log.Tracef("resolved raddr %v to %s, netns=%d", raddr, cid, conn.NetNS)
+			} else if !ip.IsLoopback() {
+				if cid, ok = ctrsByLaddr[addrWithNS{raddr, 0}]; ok {
+					conn.Raddr.ContainerId = cid
+					log.Tracef("resolved raddr %v to %s, netns=%d", raddr, cid, 0)
+				}
+			}
 		}
 
 		if conn.Raddr.ContainerId == "" {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
+			continue
+		}
+
+		// make sure we do not have a translation for an incoming
+		// connection that is local
+		if conn.Direction == model.ConnectionDirection_incoming {
+			log.Tracef("clearing nat translation for connection %+v", conn)
+			conn.IpTranslation = nil
 		}
 
 	}
 }
 
-func translatedLaddr(laddr *model.Addr, trans *model.IPTranslation) *model.Addr {
+func translatedContainerRaddr(raddr *model.Addr, trans *model.IPTranslation, proto model.ConnectionType) model.ContainerAddr {
 	if trans == nil {
-		return laddr
+		return model.ContainerAddr{
+			Ip:       raddr.Ip,
+			Port:     raddr.Port,
+			Protocol: proto,
+		}
 	}
 
-	return &model.Addr{
-		Ip:          trans.ReplDstIP,
-		Port:        trans.ReplDstPort,
-		HostId:      laddr.HostId,
-		ContainerId: laddr.ContainerId,
+	return model.ContainerAddr{
+		Ip:       trans.ReplSrcIP,
+		Port:     trans.ReplSrcPort,
+		Protocol: proto,
 	}
 }

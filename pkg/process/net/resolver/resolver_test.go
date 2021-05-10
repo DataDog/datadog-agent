@@ -119,7 +119,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Port: 1234,
 				},
 				IpTranslation: &model.IPTranslation{
-					ReplDstIP:   "10.1.1.1",
+					ReplDstIP:   "127.0.0.1",
 					ReplDstPort: 1234,
 					ReplSrcIP:   "10.1.1.2",
 					ReplSrcPort: 1234,
@@ -133,7 +133,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			name: "raddr resolution with nat to localhost",
 			conn: &model.Connection{
 				Pid:   2,
-				NetNS: 2,
+				NetNS: 1,
 				Laddr: &model.Addr{
 					Ip:   "10.1.1.2",
 					Port: 1234,
@@ -318,9 +318,9 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	resolver.Resolve(conns)
 
 	for _, te := range tests {
-		t.Run(te.name, func(_t *testing.T) {
-			assert.Equal(_t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
-			assert.Equal(_t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
+		t.Run(te.name, func(t *testing.T) {
+			assert.Equal(t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
+			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
 		})
 	}
 }
