@@ -79,6 +79,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
 	apiKeyEnvVar    = "DD_API_KEY"
 
+	logLevelEnvVar = "DD_LOG_LEVEL"
+
 	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
@@ -147,14 +149,20 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	// init the logger configuring it to not log in a file (the first empty string)
 	if err = config.SetupLogger(
 		loggerName,
-		config.Datadog.GetString("log_level"),
-		"",    // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",    // syslog URI
-		false, // syslog_rfc
-		true,  // log_to_console
-		false, // log_format_json
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
 	); err != nil {
 		log.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			log.Errorf("While changing the loglevel: %s", err)
+		}
 	}
 
 	// immediately starts the communication server
