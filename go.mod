@@ -236,3 +236,5 @@ replace (
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
+
+replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v4.70.1-0.20210510095646-7c405995ecd2+incompatible
