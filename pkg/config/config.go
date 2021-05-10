@@ -574,6 +574,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
 
+	// Azure
+	config.BindEnvAndSetDefault("azure_hostname_style", "os")
+
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
