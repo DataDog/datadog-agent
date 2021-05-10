@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.27.1:
+
+7.27.1 / 6.27.1
+======
+
+.. _Release Notes_7.27.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-05-07
+
+This is a Windows-only release (MSI and Chocolatey installers only).
+
+.. _Release Notes_7.27.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, exit system-probe if process-agent has not queried for connection data for 20 consecutive minutes.
+  This ensures excessive system resources are not used while connection data is not being sent to Datadog.
+
+
 .. _Release Notes_7.27.0:
 
 7.27.0 / 6.27.0
