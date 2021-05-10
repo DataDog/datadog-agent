@@ -41,7 +41,7 @@ static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
 }
 
-static __always_inline void http_enqueue(http_transaction_t *http) {
+static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t *tup) {
     // Retrieve the active batch number for this CPU
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
@@ -57,6 +57,9 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     if (batch == NULL) {
         return;
     }
+
+    // Embed tuple information in the http_transaction_t object before enqueueing it
+    __builtin_memcpy(&http->tup, tup, sizeof(conn_tuple_t));
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -98,13 +101,13 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         batch_state->pos = 0;
     }
 
-    bpf_map_delete_elem(&http_in_flight, &http->tup);
+    bpf_map_delete_elem(&http_in_flight, tup);
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
     // This can happen in the context of HTTP keep-alives;
     if (http_responding(http)) {
-        http_enqueue(http);
+        http_enqueue(http, tup);
     }
 
     http->request_method = method;
@@ -186,7 +189,6 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
 
     http_transaction_t new_entry = { 0 };
     new_entry.owned_by = src_port;
-    __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
 
     switch(packet_type) {
     case HTTP_REQUEST:
@@ -195,7 +197,7 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
         if (http == NULL || http->owned_by != src_port) {
             return 0;
         }
-        http_begin_request(http, method, buffer);
+        http_begin_request(http, method, buffer, &skb_info->tup);
         break;
     case HTTP_RESPONSE:
         bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
@@ -220,7 +222,7 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
     }
 
     if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by == src_port) {
-        http_enqueue(http);
+        http_enqueue(http, &skb_info->tup);
     }
 
     return 0;
