@@ -262,7 +262,7 @@ def kitchen_test(ctx, target=None):
     with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
         for platform, by_provider in json.load(f).items():
             if "vagrant" in by_provider:
-                for image in by_provider["vagrant"]:
+                for image in by_provider["vagrant"]["x86_64"]:
                     images[image] = platform
 
     if not (target in images):
