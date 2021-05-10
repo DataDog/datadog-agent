@@ -80,6 +80,16 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
+    // Can be called through the HTTP gateway, and entity will be returned as JSON:
+    //      TODO: add the curl code here
+    rpc DogstatsdSetTaggerState(datadog.model.TaggerState) returns (datadog.model.TaggerStateResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/dogstatsd/capture/state"
+            body: "*"
+        };
+    };
 }
 
 

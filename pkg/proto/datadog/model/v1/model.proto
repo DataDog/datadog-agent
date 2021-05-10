@@ -99,3 +99,7 @@ message UnixDogstatsdMsg {
 message TaggerState {
     map<string, Entity> state = 1;
 }
+
+message TaggerStateResponse {
+    bool loaded = 1;
+}
