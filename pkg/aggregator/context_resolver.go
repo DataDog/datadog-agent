@@ -23,7 +23,6 @@ type Context struct {
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
-	lastSeenByKey map[ckey.ContextKey]float64
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -70,6 +69,12 @@ func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
 
 func (cr *contextResolver) length() int {
 	return len(cr.contextsByKey)
+}
+
+func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
+	for _, expiredContextKey := range expiredContextKeys {
+		delete(cr.contextsByKey, expiredContextKey)
+	}
 }
 
 // updateTrackedContext updates the last seen timestamp on a given context key
@@ -123,11 +128,56 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64) []ck
 		}
 	}
 
+	cr.resolver.removeKeys(expiredContextKeys)
+
 	// Delete expired context keys
 	for _, expiredContextKey := range expiredContextKeys {
-		delete(cr.resolver.contextsByKey, expiredContextKey)
 		delete(cr.lastSeenByKey, expiredContextKey)
 	}
 
 	return expiredContextKeys
+}
+
+// countBasedContextResolver allows tracking and expiring contexts based on the number
+// of calls of `expireContexts`.
+type countBasedContextResolver struct {
+	resolver               *contextResolver
+	keyByContextCountIndex map[ckey.ContextKey]int64
+	contextCountIndex      int64
+	expireContextsCount    int64
+}
+
+func newCountBasedContextResolver(expireContextsCount int) *countBasedContextResolver {
+	return &countBasedContextResolver{
+		resolver:               newContextResolver(),
+		keyByContextCountIndex: make(map[ckey.ContextKey]int64),
+		contextCountIndex:      0,
+		expireContextsCount:    int64(expireContextsCount),
+	}
+}
+
+// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
+func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext)
+	cr.keyByContextCountIndex[contextKey] = cr.contextCountIndex
+	return contextKey
+}
+
+func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
+	return cr.resolver.get(key)
+}
+
+// expireContexts cleans up the contexts that haven't been tracked since `expirationCount`
+// call to `expireContexts` and returns the associated contextKeys
+func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
+	var keys []ckey.ContextKey
+	for key, index := range cr.keyByContextCountIndex {
+		if index <= cr.contextCountIndex-cr.expireContextsCount {
+			keys = append(keys, key)
+			delete(cr.keyByContextCountIndex, key)
+		}
+	}
+	cr.resolver.removeKeys(keys)
+	cr.contextCountIndex++
+	return keys
 }

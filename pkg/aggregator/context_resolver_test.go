@@ -14,6 +14,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -133,4 +134,28 @@ func TestExpireContexts(t *testing.T) {
 	assert.False(t, ok)
 	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
+}
+
+func TestCountBasedExpireContexts(t *testing.T) {
+	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
+	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
+	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
+	contextResolver := newCountBasedContextResolver(2)
+
+	contextKey1 := contextResolver.trackContext(&mSample1)
+	contextKey2 := contextResolver.trackContext(&mSample2)
+	require.Len(t, contextResolver.expireContexts(), 0)
+
+	contextKey3 := contextResolver.trackContext(&mSample3)
+	contextResolver.trackContext(&mSample2)
+	require.Len(t, contextResolver.expireContexts(), 0)
+
+	expiredContextKeys := contextResolver.expireContexts()
+	require.ElementsMatch(t, expiredContextKeys, []ckey.ContextKey{contextKey1})
+
+	expiredContextKeys = contextResolver.expireContexts()
+	require.ElementsMatch(t, expiredContextKeys, []ckey.ContextKey{contextKey2, contextKey3})
+
+	require.Len(t, contextResolver.expireContexts(), 0)
+	require.Len(t, contextResolver.resolver.contextsByKey, 0)
 }

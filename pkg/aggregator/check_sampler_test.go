@@ -32,7 +32,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 }
 
 func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler(60 * time.Second)
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -91,7 +91,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler(60 * time.Second)
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -140,7 +140,7 @@ func TestCheckRateSampling(t *testing.T) {
 }
 
 func TestHistogramIntervalSampling(t *testing.T) {
-	checkSampler := newCheckSampler(60 * time.Second)
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -198,7 +198,7 @@ func TestHistogramIntervalSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler(10 * time.Millisecond)
+	checkSampler := newCheckSampler(2)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -211,7 +211,6 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	}
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
@@ -242,9 +241,9 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	}
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12401.0)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 	_, flushed = checkSampler.flush()
 
 	expSketch = &quantile.Sketch{}
@@ -266,11 +265,10 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	time.Sleep(11 * time.Millisecond)
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 0)
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler(10 * time.Millisecond)
+	checkSampler := newCheckSampler(1)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
