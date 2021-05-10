@@ -167,7 +167,7 @@ require (
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
+	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
@@ -178,7 +178,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210415231046-e915ea6b2b7d
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20210415045647-66c3f260301c
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.0
@@ -232,7 +232,5 @@ replace (
 	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.5
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
 )
-
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
