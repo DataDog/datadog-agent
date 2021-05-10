@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 )
 
-func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs int) {
+func benchmarkJSONPayloadBuilderThroughput(points int, items int, tags int, runs int) { //nolint:unuse
 	series := metrics.Series{}
 	for i := 0; i < items; i++ {
 		series = append(series, &metrics.Serie{
