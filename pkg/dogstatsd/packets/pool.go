@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -71,7 +70,7 @@ func (p *Pool) Put(x interface{}) {
 		return
 	}
 
-	log.Debugf("Returning type: %T to packet pool.", x)
+	// we don't really need the assertion of the user is sensible
 	packet, ok := x.(*Packet)
 	if ok && packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
