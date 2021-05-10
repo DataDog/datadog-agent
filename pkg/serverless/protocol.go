@@ -296,7 +296,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
-		sendLogsToIntake := config.Datadog.GetBool("logs_enabled")
+		sendLogsToIntake := config.Datadog.GetBool("serverless.logs_enabled")
 		arn := aws.GetARN()
 		lastRequestID := aws.GetRequestID()
 		functionName := aws.FunctionNameFromARN()
