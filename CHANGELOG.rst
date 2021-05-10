@@ -14,6 +14,7 @@ Prelude
 
 Release on: 2021-05-07
 
+This is a Windows-only release (MSI and Chocolatey installers only).
 
 .. _Release Notes_7.27.1_Bug Fixes:
 
