@@ -6,13 +6,20 @@
 package app
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -56,6 +63,9 @@ var dogstatsdReplayCmd = &cobra.Command{
 
 func dogstatsdReplay() error {
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	_ = config.SetupLogger(
 		loggerName,
 		config.Datadog.GetString("log_level"),
@@ -72,7 +82,37 @@ func dogstatsdReplay() error {
 		return fmt.Errorf("Dogstatsd UNIX socket disabled")
 	}
 
-	// TODO: tagger state probably belogs in the replay file anyways.
+	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
+	token, err := security.FetchAuthToken()
+	if err != nil {
+		return fmt.Errorf("unable to fetch authentication token: %w", err)
+	}
+
+	md := metadata.MD{
+		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	}
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	// NOTE: we're using InsecureSkipVerify because the gRPC server only
+	// persists its TLS certs in memory, and we currently have no
+	// infrastructure to make them available to clients. This is NOT
+	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
+	// connection.
+	creds := credentials.NewTLS(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+
+	apiconn, err := grpc.DialContext(
+		ctx,
+		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		grpc.WithTransportCredentials(creds),
+	)
+	if err != nil {
+		return err
+	}
+
+	cli := pb.NewAgentSecureClient(apiconn)
+
 	// depth should be configurable....
 	// reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, dsdTaggerFilePath)
 	depth := 10
@@ -93,6 +133,19 @@ func dogstatsdReplay() error {
 	conn, err := net.Dial(addr.Network(), addr.String())
 	if err != nil {
 		return err
+	}
+
+	// let's read state before proceeding
+	state, err := reader.ReadState()
+	if err != nil {
+		fmt.Printf("Unable to load state from file, tag enrichment will be unavailable for this capture: %v\n", err)
+	}
+
+	resp, err := cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{State: state})
+	if err != nil {
+		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
+	} else if !resp.GetLoaded() {
+		fmt.Printf("API  refused to set the tagger state, tag enrichment will be unavailable for this capture: %v\n", err)
 	}
 
 	// enable reading at natural rate

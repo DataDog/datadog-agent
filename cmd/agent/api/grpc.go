@@ -23,6 +23,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -79,6 +80,25 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 	}
 
 	return &pb.CaptureTriggerResponse{Path: p}, nil
+}
+
+func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
+	// Reset and return if no state pushed
+	if req == nil || req.State == nil {
+		tagger.ResetCaptureTagger()
+		return &pb.TaggerStateResponse{Loaded: false}, nil
+	}
+
+	// FiXME: we should perhaps lock the capture processing while doing this...
+	t := replay.NewTagger()
+	if t == nil {
+		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
+	}
+	t.LoadState(req.State)
+
+	tagger.SetCaptureTagger(t)
+
+	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
 // StreamTags subscribes to added, removed, or changed entities in the Tagger
