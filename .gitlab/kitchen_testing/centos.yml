@@ -23,6 +23,9 @@
 # Used for Agent 5 upgrade tests, as Agent 5 RPMs aren't built to be
 # installable in FIPS mode.
 .kitchen_os_centos_all_non_fips:
+  variables:
+    KITCHEN_PLATFORM: "centos"
+    KITCHEN_OSVERS: "centos-69,centos-77,rhel-81"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
@@ -100,7 +103,6 @@ kitchen_centos_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_centos_install_script_agent-a7:
-  # Run install script test on branches, on a reduced number of platforms
   extends:
     - .kitchen_scenario_centos_6_7_non_fips_a7
     - .kitchen_test_install_script_agent
@@ -111,6 +113,7 @@ kitchen_centos_fips_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_centos_fips_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
   rules:
     - <<: *if_not_version_7
       when: never
