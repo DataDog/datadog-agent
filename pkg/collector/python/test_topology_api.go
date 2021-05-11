@@ -37,18 +37,18 @@ nestedobject:
 `
 
 var expectedTopoData = topology.Data{
-	"key":          "value ®",
-	"stringlist":   []interface{}{"a", "b", "c"},
-	"boollist":     []interface{}{true, false},
-	"intlist":      []interface{}{1},
-	"doublelist":   []interface{}{0.7, 1.42},
-	"emptykey":     nil,
+	"key":        "value ®",
+	"stringlist": []interface{}{"a", "b", "c"},
+	"boollist":   []interface{}{true, false},
+	"intlist":    []interface{}{1},
+	"doublelist": []interface{}{0.7, 1.42},
+	"emptykey":   nil,
 	"nestedobject": map[string]interface{}{
 		"nestedkey": "nestedValue",
 		"animals": map[string]interface{}{
-			"legs": "dog",
+			"legs":  "dog",
 			"wings": "eagle",
-			"tail": "crocodile",
+			"tail":  "crocodile",
 		},
 	},
 }
@@ -82,14 +82,14 @@ func testComponentTopology(t *testing.T) {
 			StartSnapshot: true,
 			StopSnapshot:  true,
 			Instance:      instance,
-			Components:    []topology.Component{
+			Components: []topology.Component{
 				{
 					ExternalID: "external-id",
 					Type:       topology.Type{Name: "component-type"},
-					Data: 		expectedTopoData,
+					Data:       expectedTopoData,
 				},
 			},
-			Relations:     []topology.Relation{},
+			Relations: []topology.Relation{},
 		},
 	}), expectedTopology)
 }
@@ -129,7 +129,7 @@ func testRelationTopology(t *testing.T) {
 					SourceID:   "source-id",
 					TargetID:   "target-id",
 					Type:       topology.Type{Name: "relation-type"},
-					Data: expectedTopoData,
+					Data:       expectedTopoData,
 				},
 			},
 		},

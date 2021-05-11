@@ -67,13 +67,13 @@ context:
 			ElementIdentifiers: []string{"ctx_elem_id1", "ctx_elem_id2"},
 			Source:             "ctx_source",
 			Category:           "ctx_category",
-			Data:               map[string]interface{}{
+			Data: map[string]interface{}{
 				"nestedobject": map[string]interface{}{
 					"nestedkey": "nestedValue",
 					"animals": map[string]interface{}{
-						"legs": "dog",
+						"legs":  "dog",
 						"wings": "eagle",
-						"tail": "crocodile",
+						"tail":  "crocodile",
 					},
 				},
 			},

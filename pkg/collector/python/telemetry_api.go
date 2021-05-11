@@ -42,7 +42,7 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 		return
 	}
 
-	_json := yamlDataToJson(data)
+	_json := yamlDataToJSON(data)
 
 	var topologyEvent metrics.Event
 	err = mapstructure.Decode(_json, &topologyEvent)

@@ -7,11 +7,11 @@ import (
 
 // Relation is a representation of a topology relation
 type Relation struct {
-	ExternalID string   `json:"externalId"`
-	SourceID   string   `json:"sourceId"`
-	TargetID   string   `json:"targetId"`
-	Type       Type     `json:"type"`
-	Data       Data 	`json:"data"`
+	ExternalID string `json:"externalId"`
+	SourceID   string `json:"sourceId"`
+	TargetID   string `json:"targetId"`
+	Type       Type   `json:"type"`
+	Data       Data   `json:"data"`
 }
 
 // JSONString returns a JSON string of the Relation

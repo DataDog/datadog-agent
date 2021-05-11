@@ -10,7 +10,7 @@ import "C"
 // (eg. topology component data or topology event data)
 // Here we first unmarshal the string into a map[interface]interface and then covert all
 // map keys to string (making a de facto json structure), which will be serialized without problems to json when sent.
-func yamlDataToJson(data *C.char) map[string]interface{} {
+func yamlDataToJSON(data *C.char) map[string]interface{} {
 	_data := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
 	if err != nil {

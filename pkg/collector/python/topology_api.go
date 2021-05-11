@@ -39,7 +39,7 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.ch
 
 	_externalID := C.GoString(externalID)
 	_componentType := C.GoString(componentType)
-	_json := yamlDataToJson(data)
+	_json := yamlDataToJSON(data)
 
 	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
 		_instance,
@@ -64,7 +64,7 @@ func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceID *C.char,
 	_targetID := C.GoString(targetID)
 	_relationType := C.GoString(relationType)
 	_externalID := fmt.Sprintf("%s-%s-%s", _sourceID, _relationType, _targetID)
-	_json := yamlDataToJson(data)
+	_json := yamlDataToJSON(data)
 
 	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
 		_instance,

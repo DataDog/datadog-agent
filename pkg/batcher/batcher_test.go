@@ -132,24 +132,24 @@ func TestBatchMultipleTopologies(t *testing.T) {
 	message := serializer.GetJSONToV1IntakeMessage()
 
 	assert.ObjectsAreEqualValues(map[string]interface{}{
-			"internalHostname": "myhost",
-			"topologies": []topology.Topology{
-				{
-					StartSnapshot: true,
-					StopSnapshot:  true,
-					Instance:      testInstance,
-					Components:    []topology.Component{testComponent},
-					Relations:     []topology.Relation{},
-				},
-				{
-					StartSnapshot: false,
-					StopSnapshot:  false,
-					Instance:      testInstance2,
-					Components:    []topology.Component{testComponent, testComponent, testComponent},
-					Relations:     []topology.Relation{},
-				},
+		"internalHostname": "myhost",
+		"topologies": []topology.Topology{
+			{
+				StartSnapshot: true,
+				StopSnapshot:  true,
+				Instance:      testInstance,
+				Components:    []topology.Component{testComponent},
+				Relations:     []topology.Relation{},
 			},
-		}, message)
+			{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      testInstance2,
+				Components:    []topology.Component{testComponent, testComponent, testComponent},
+				Relations:     []topology.Relation{},
+			},
+		},
+	}, message)
 
 	batcher.Shutdown()
 }
