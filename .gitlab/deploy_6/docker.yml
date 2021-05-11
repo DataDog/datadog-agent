@@ -9,80 +9,39 @@
 # Image tagging & manifest publication
 #
 
-.deploy_docker-a6:
+deploy-a6:
+  extends: .docker_job_definition
   stage: deploy6
-  dependencies: []
-  script:
-    - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
-    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
-        REPOSITORY="${REPOSITORY}-dev"
-      fi
-    - echo "Working on repsoitory ${REPOSITORY}"
-    # Platform-specific agent images
-    - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-ARCH      --dst-template ${REPOSITORY}-ARCH:${VERSION}
-    - inv -e docker.publish-bulk ${SIGNING_ARGS} --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_AGENT}:${SRC_TAG}-6-jmx-ARCH  --dst-template ${REPOSITORY}-ARCH:${VERSION}-jmx
-
-    # Manifests
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION} --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag ${VERSION}-jmx  --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
-
-deploy_docker_hub-a6:
-  extends: 
-    - .docker_tag_job_definition
-    - .deploy_docker-a6
   rules:
     !reference [.on_deploy_a6_manual]
-  variables:
-    REPOSITORY: datadog/agent
-    SIGNING_ARGS: --signed-push
-
-deploy_google_container_registry-a6:
-  extends: 
-    - .google_container_registry_tag_job_definition
-    - .deploy_docker-a6
-  rules:
-    !reference [.on_deploy_a6_manual]
-  variables:
-    REPOSITORY: gcr.io/datadoghq/agent
-    SIGNING_ARGS: ""
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}
+      - IMG_SOURCES: ${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-jmx
 
 
 #
 # Latest publication
 #
 
-.deploy_latest-a6:
+deploy_latest-a6:
+  extends: .docker_job_definition
   stage: deploy6
-  dependencies: []
-  script:
-    - VERSION=$(inv -e agent.version --major-version 6 --url-safe)
-    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
-        REPOSITORY="${REPOSITORY}-dev"
-      fi
-    - echo "Working on repsoitory ${REPOSITORY}"
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-py2 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag latest-py2-jmx --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 6 --image ${REPOSITORY}-amd64:${VERSION},linux/amd64 --image ${REPOSITORY}-arm64:${VERSION},linux/arm64
-    - inv -e docker.publish-manifest ${SIGNING_ARGS} --name ${REPOSITORY} --tag 6-jmx --image ${REPOSITORY}-amd64:${VERSION}-jmx,linux/amd64 --image ${REPOSITORY}-arm64:${VERSION}-jmx,linux/arm64
-
-deploy_latest_docker_hub-a6:
-  extends:
-    - .docker_tag_job_definition
-    - .deploy_latest-a6
   rules:
     !reference [.on_deploy_a6_manual]
-  variables:
-    REPOSITORY: datadog/agent
-    SIGNING_ARGS: --signed-push
-
-deploy_latest_google_container_registry-a6:
-  extends:
-    - .google_container_registry_tag_job_definition
-    - .deploy_latest-a6
-  rules:
-    !reference [.on_deploy_a6_manual]
-  variables:
-    REPOSITORY: gcr.io/datadoghq/agent
-    SIGNING_ARGS: ""
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:6,${REPOSITORY}:latest-py2
+      - IMG_SOURCES: ${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:6-jmx,${REPOSITORY}:latest-py2-jmx
