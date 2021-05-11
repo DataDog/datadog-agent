@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -52,7 +53,11 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	for _, c := range task.Containers {
 		// Not using c.DockerName as it's generated with ecs task name, thus probably not easy to match
 		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
-			cList = append(cList, convertMetaV2Container(c, task.Limits))
+			c, e := convertMetaV2Container(c, task.Limits)
+			cList = append(cList, c)
+			if e != "" {
+				log.Error(e)
+			}
 		}
 	}
 
@@ -93,7 +98,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 
 // convertMetaV2Container returns an internal container representation from an
 // ECS metadata v2 container object.
-func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *containers.Container {
+func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*containers.Container, string) {
 	container := &containers.Container{
 		Type:        "ECS",
 		ID:          c.DockerID,
@@ -104,17 +109,22 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *cont
 		AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 	}
 
-	createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
-	if err != nil {
-		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-	} else {
-		container.Created = createdAt.Unix()
+	dateError := ""
+	if c.KnownStatus != "PULLED" {
+		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
+		if err != nil {
+			dateError = fmt.Sprintf("Unable to determine creation time for container %s - %s", c.DockerID, err)
+		} else {
+			container.Created = createdAt.Unix()
+		}
 	}
-	startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
-	if err != nil {
-		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-	} else {
-		container.StartedAt = startedAt.Unix()
+	if c.KnownStatus != "PULLED" && c.KnownStatus != "CREATED" {
+		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
+		if err != nil {
+			dateError = fmt.Sprintf("Unable to determine start time for container %s - %s", c.DockerID, err)
+		} else {
+			container.StartedAt = startedAt.Unix()
+		}
 	}
 
 	if l, found := c.Limits[cpuKey]; found && l > 0 {
@@ -131,7 +141,7 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *cont
 		container.Limits.MemLimit = formatMemoryLimit(uint64(l))
 	}
 
-	return container
+	return container, dateError
 }
 
 func formatContainerCPULimit(val float64) float64 {
