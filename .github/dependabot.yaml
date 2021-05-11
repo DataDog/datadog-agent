@@ -57,6 +57,19 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: gomod
+    directory: /pkg/trace/export
+    labels:
+      - dependencies
+      - team/agent-apm
+      - changelog/no-changelog
+    milestone: 22
+    ignore: 
+      - dependency-name: github.com/cihub/seelog
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
     directory: /internal/tools
     labels:
       - dependencies
