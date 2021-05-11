@@ -170,10 +170,12 @@ func (l *UDSListener) Listen() {
 			t1 = time.Now()
 
 			// Extract container id from credentials
-			container, taggingErr := processUDSOrigin(oobS[:oobn])
+			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
 
 			if capBuff != nil {
 				capBuff.Pb.Timestamp = time.Now().Unix()
+				capBuff.Pb.Pid = int32(pid)
+				capBuff.Pid = pid
 				capBuff.Oob = oob
 				capBuff.Buff = packet
 				capBuff.Pb.AncillarySize = int32(oobn)
@@ -206,6 +208,7 @@ func (l *UDSListener) Listen() {
 			if capBuff != nil {
 				capBuff.Pb.Timestamp = time.Now().Unix()
 				capBuff.Buff = packet
+				capBuff.Pb.Pid = 0
 				capBuff.Pb.AncillarySize = int32(0)
 				capBuff.Pb.PayloadSize = int32(n)
 				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?

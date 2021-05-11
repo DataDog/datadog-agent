@@ -14,6 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const (
+	// GUID will be used as the GUID during capture replays
+	GUID = 999888777
+)
+
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type TrafficCapture struct {
 	Writer *TrafficCaptureWriter

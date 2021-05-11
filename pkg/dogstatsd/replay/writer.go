@@ -34,6 +34,7 @@ const (
 type CaptureBuffer struct {
 	Pb          pb.UnixDogstatsdMsg
 	Oob         *[]byte
+	Pid         int
 	ContainerID string
 	Buff        *packets.Packet
 }

@@ -92,8 +92,9 @@ message UnixDogstatsdMsg {
     int64 timestamp = 1;
     int32 payloadSize = 2;
     bytes payload = 3;
-    int32 ancillarySize = 4;
-    bytes ancillary = 5;
+    int32 pid = 4;
+    int32 ancillarySize = 5;
+    bytes ancillary = 6;
 }
 
 message TaggerState {

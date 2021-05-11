@@ -177,8 +177,7 @@ replay:
 			// TODO: for when the tagger works
 			fmt.Printf("Going to send Payload: %d bytes, and OOB: %d bytes\n", len(msg.Payload), len(msg.Ancillary))
 			n, oobn, err := conn.(*net.UnixConn).WriteMsgUnix(
-				msg.Payload[:msg.PayloadSize], msg.Ancillary[:msg.AncillarySize], addr)
-			// msg.Payload[:msg.PayloadSize], nil, addr)
+				msg.Payload[:msg.PayloadSize], replay.GetUcredsForPid(msg.Pid), addr)
 			if err != nil {
 				return err
 			}

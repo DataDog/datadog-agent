@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -53,32 +54,37 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 // it returns a string identifying the source.
 // PID is added to ancillary data by the Linux kernel if we added the
 // SO_PASSCRED to the socket, see enableUDSPassCred.
-func processUDSOrigin(ancillary []byte) (string, error) {
+func processUDSOrigin(ancillary []byte) (int, string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
 		log.Debugf("PACKET HAD NO ORIGIN CREDENTIALS: %v\n", messages)
-		return packets.NoOrigin, err
+		return 0, packets.NoOrigin, err
 	}
 	if len(messages) == 0 {
-		return packets.NoOrigin, fmt.Errorf("ancillary data empty")
+		return 0, packets.NoOrigin, fmt.Errorf("ancillary data empty")
 	}
 	cred, err := unix.ParseUnixCredentials(&messages[0])
 	if err != nil {
-		return packets.NoOrigin, err
+		return 0, packets.NoOrigin, err
 	}
 
 	log.Debugf("PACKET CREDENTIALS collected: %v\n", cred)
 
 	if cred.Pid == 0 {
-		return packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
+		return 0, packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
 			"probably to another namespace. Is the agent in host PID mode?")
+	}
+
+	pid := cred.Pid
+	if cred.Guid == replay.Guid {
+		pid = cred.Uid
 	}
 
 	entity, err := getEntityForPID(cred.Pid)
 	if err != nil {
-		return packets.NoOrigin, err
+		return pid, packets.NoOrigin, err
 	}
-	return entity, nil
+	return pid, entity, nil
 }
 
 // getEntityForPID returns the container entity name and caches the value for future lookups
