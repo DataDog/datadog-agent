@@ -38,6 +38,10 @@ func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
 	l.addrToCtrID = make(map[model.ContainerAddr]string)
 	l.ctrForPid = make(map[int32]string)
 	for _, ctr := range containers {
+		for _, pid := range ctr.Pids {
+			l.ctrForPid[pid] = ctr.ID
+		}
+
 		for _, networkAddr := range ctr.AddressList {
 			if networkAddr.IP.IsLoopback() {
 				continue
@@ -50,9 +54,6 @@ func (l *LocalResolver) LoadAddrs(containers []*containers.Container) {
 			l.addrToCtrID[addr] = ctr.ID
 		}
 
-		for _, pid := range ctr.Pids {
-			l.ctrForPid[pid] = ctr.ID
-		}
 	}
 }
 
