@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -87,10 +88,19 @@ type APIClient struct {
 	// DDInformerFactory gives access to informers for all datadoghq/ custom types
 	DDInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
-	// used to setup the APIClient
-	initRetry      retry.Retrier
-	Cl             kubernetes.Interface
-	DynamicCl      dynamic.Interface
+	// initRetry used to setup the APIClient
+	initRetry retry.Retrier
+
+	// Cl holds the main kubernetes client
+	Cl kubernetes.Interface
+
+	// DynamicCl holds a dynamic kubernetes client
+	DynamicCl dynamic.Interface
+
+	// DiscoveryCl holds kubernetes discovery client
+	DiscoveryCl discovery.DiscoveryInterface
+
+	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
 }
 
@@ -144,7 +154,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
-func getClientConfig() (*rest.Config, error) {
+func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -166,27 +176,39 @@ func getClientConfig() (*rest.Config, error) {
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+
+	clientConfig.Timeout = timeout
+
 	return clientConfig, nil
 }
 
 func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := getClientConfig()
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
+
 	return kubernetes.NewForConfig(clientConfig)
 }
 
 func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig()
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
+
 	return dynamic.NewForConfig(clientConfig)
+}
+
+func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return discovery.NewDiscoveryClientForConfig(clientConfig)
 }
 
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
@@ -201,11 +223,11 @@ func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, erro
 }
 
 func getDDClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig()
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
+
 	return dynamic.NewForConfig(clientConfig)
 }
 
@@ -254,6 +276,12 @@ func (c *APIClient) connect() error {
 			log.Infof("Could not get apiserver dynamic client: %v", err)
 			return err
 		}
+
+		c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
+		if err != nil {
+			log.Infof("Could not get apiserver discovery client: %v", err)
+			return err
+		}
 	}
 
 	// informer factory uses its own clientset with a larger timeout
@@ -287,6 +315,7 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
+
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
