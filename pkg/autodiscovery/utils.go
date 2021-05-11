@@ -8,11 +8,12 @@
 package autodiscovery
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetAutodiscoveryErrors logs the lack of support for getting AD errors on config providers other than the kubelet config provider
-func (ac *AutoConfig) GetAutodiscoveryErrors(cpName string) map[string]map[string]bool {
-	log.Errorf("Getting autodiscovery errors is unsupported for config provider %v", cpName)
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	log.Error("Getting autodiscovery errors is only supported for the kubelet config provider")
 	return nil
 }

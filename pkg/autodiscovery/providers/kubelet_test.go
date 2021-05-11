@@ -25,7 +25,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 		desc        string
 		pod         *kubelet.Pod
 		expectedCfg []integration.Config
-		expectedErr map[string]bool
+		expectedErr ErrorMsgSet
 	}{
 		{
 			desc: "No annotations",
@@ -225,7 +225,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 			desc: "Non-duplicate errors",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
-					Name: "nginx-1752f8c774-wtjql",
+					Name:      "nginx-1752f8c774-wtjql",
+					Namespace: "testNamespace",
 					Annotations: map[string]string{
 						"ad.datadoghq.com/nonmatching.check_names":  "[\"http_check\"]",
 						"ad.datadoghq.com/nonmatching.init_configs": "[{}]",
@@ -256,10 +257,10 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 			},
 			expectedCfg: nil,
-			expectedErr: map[string]bool{
-				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier":  true,
-				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier": true,
-				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier":    true,
+			expectedErr: ErrorMsgSet{
+				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier [nginx apache]":  {},
+				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier [nginx apache]": {},
+				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier [nginx apache]":    {},
 			},
 		},
 	} {
@@ -270,8 +271,8 @@ func TestParseKubeletPodlist(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, len(tc.expectedCfg), len(checks))
 			assert.EqualValues(t, tc.expectedCfg, checks)
-			assert.Equal(t, len(tc.expectedErr), len(m.(*KubeletConfigProvider).Errors[tc.pod.Metadata.Name]))
-			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).Errors[tc.pod.Metadata.Name])
+			assert.Equal(t, len(tc.expectedErr), len(m.(*KubeletConfigProvider).ConfigErrors[tc.pod.Metadata.Namespace+"/"+tc.pod.Metadata.Name]))
+			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).ConfigErrors[tc.pod.Metadata.Namespace+"/"+tc.pod.Metadata.Name])
 		})
 	}
 }

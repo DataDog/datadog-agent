@@ -142,6 +142,11 @@ func (c *FileConfigProvider) String() string {
 	return names.File
 }
 
+// GetConfigErrors is not implemented for the FileConfigProvider
+func (c *FileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}
+
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
 func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, integrationName string) configEntry {

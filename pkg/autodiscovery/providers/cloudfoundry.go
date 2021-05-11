@@ -214,3 +214,8 @@ func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integratio
 func init() {
 	RegisterProvider(names.CloudFoundryBBS, NewCloudFoundryConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the CloudFoundryConfigProvider
+func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

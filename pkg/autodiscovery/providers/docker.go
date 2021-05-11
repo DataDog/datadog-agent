@@ -198,3 +198,8 @@ func parseDockerLabels(containers map[string]map[string]string) ([]integration.C
 func init() {
 	RegisterProvider("docker", NewDockerConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the DockerConfigProvider
+func (d *DockerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

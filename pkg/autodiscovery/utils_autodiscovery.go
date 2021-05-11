@@ -7,19 +7,13 @@
 
 package autodiscovery
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-)
+import "github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 
-// GetAutodiscoveryErrors fetches AD errors from the kubelet ConfigProvider
-func (ac *AutoConfig) GetAutodiscoveryErrors(cpName string) map[string]map[string]bool {
+// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, pd := range ac.providers {
-		if pd.provider.String() == cpName {
-			if cpName == names.Kubernetes {
-				return pd.provider.(*providers.KubeletConfigProvider).Errors
-			}
-		}
+		errors[pd.provider.String()] = pd.provider.GetConfigErrors()
 	}
-	return nil
+	return errors
 }

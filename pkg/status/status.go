@@ -81,7 +81,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if config.IsKubernetes() {
-		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors(names.Kubernetes)
+		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors()[names.Kubernetes]
 	}
 
 	return stats, nil

@@ -19,24 +19,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	newPodAnnotationPrefix    = "ad.datadoghq.com/"
-	newPodAnnotationFormat    = newPodAnnotationPrefix + "%s."
-	legacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
-	legacyPodAnnotationFormat = legacyPodAnnotationPrefix + "%s."
-)
-
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
-	kubelet kubelet.KubeUtilInterface
-	Errors  map[string]map[string]bool
+	kubelet      kubelet.KubeUtilInterface
+	ConfigErrors map[string]ErrorMsgSet
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeletConfigProvider{
-		Errors: make(map[string]map[string]bool),
+		ConfigErrors: make(map[string]ErrorMsgSet),
 	}, nil
 }
 
@@ -71,20 +64,18 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 
 func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 	var configs []integration.Config
-	var ADErrors = make(map[string]map[string]bool)
+	var ADErrors = make(map[string]ErrorMsgSet)
+	var errors []error
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
 		var adExtractFormat string
-		var adPrefix string
 		for name := range pod.Metadata.Annotations {
-			if strings.HasPrefix(name, newPodAnnotationPrefix) {
-				adExtractFormat = newPodAnnotationFormat
-				adPrefix = newPodAnnotationPrefix
+			if strings.HasPrefix(name, utils.NewPodAnnotationPrefix) {
+				adExtractFormat = utils.NewPodAnnotationFormat
 				break
 			}
-			if strings.HasPrefix(name, legacyPodAnnotationPrefix) {
-				adExtractFormat = legacyPodAnnotationFormat
-				adPrefix = legacyPodAnnotationPrefix
+			if strings.HasPrefix(name, utils.LegacyPodAnnotationPrefix) {
+				adExtractFormat = utils.LegacyPodAnnotationFormat
 				// Don't break so we try to look for the new prefix
 				// which will take precedence
 			}
@@ -92,28 +83,27 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 		if adExtractFormat == "" {
 			continue
 		}
-		if adExtractFormat == legacyPodAnnotationFormat {
+		if adExtractFormat == utils.LegacyPodAnnotationFormat {
 			log.Warnf("found legacy annotations %s for %s, please use the new prefix %s",
-				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
+				utils.LegacyPodAnnotationPrefix, pod.Metadata.Name, utils.NewPodAnnotationPrefix)
 		}
 
-		adErrors := []error{}
-		containerIdentifiers := map[string]bool{}
-		containerNames := map[string]bool{}
+		containerIdentifiers := map[string]struct{}{}
+		containerNames := map[string]struct{}{}
 
 		for _, container := range pod.Status.GetAllContainers() {
 			adIdentifier := container.Name
-			containerNames[container.Name] = true
+			containerNames[container.Name] = struct{}{}
 			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, container.Name); customIDFound {
 				adIdentifier = customADIdentifier
 			}
-			containerIdentifiers[adIdentifier] = true
+			containerIdentifiers[adIdentifier] = struct{}{}
 
 			c, errors := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
 				fmt.Sprintf(adExtractFormat, adIdentifier))
 
 			for _, err := range errors {
-				adErrors = append(adErrors, err)
+				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
 			}
 
 			for idx := range c {
@@ -122,21 +112,24 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 
 			configs = append(configs, c...)
 		}
-		adErrors = append(adErrors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames, adPrefix)...)
-		for _, err := range adErrors {
-			log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
-			_, found := ADErrors[pod.Metadata.Name]
-			if !found {
-				ADErrors[pod.Metadata.Name] = map[string]bool{err.Error(): true}
+		errors = append(errors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames)...)
+		for _, err := range errors {
+			if _, found := ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name]; !found {
+				ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name] = map[string]struct{}{err.Error(): {}}
 			} else {
-				ADErrors[pod.Metadata.Name][err.Error()] = true
+				ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name][err.Error()] = struct{}{}
 			}
 		}
-		k.Errors = ADErrors
+		k.ConfigErrors = ADErrors
 	}
 	return configs, nil
 }
 
 func init() {
 	RegisterProvider("kubelet", NewKubeletConfigProvider)
+}
+
+// GetConfigErrors returns a map of configuration errors for each namespace/pod
+func (k *KubeletConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return k.ConfigErrors
 }
