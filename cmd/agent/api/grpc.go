@@ -85,6 +85,8 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
+
+		log.Debugf("API: empty request or state")
 		tagger.ResetCaptureTagger()
 		return &pb.TaggerStateResponse{Loaded: false}, nil
 	}
@@ -96,7 +98,10 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	}
 	t.LoadState(req.State)
 
+	log.Debugf("API: setting capture state tagger")
 	tagger.SetCaptureTagger(t)
+
+	log.Debugf("API: loaded state successfully")
 
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }

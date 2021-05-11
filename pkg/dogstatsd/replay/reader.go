@@ -13,8 +13,6 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	replayTagger "github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
@@ -73,20 +71,9 @@ func (tc *TrafficCaptureReader) Read() {
 	tc.offset += uint32(len(datadogHeader))
 	tc.Unlock()
 
-	state, err := tc.ReadState()
-	if err != nil {
-		log.Warnf("The state could not be loaded: %v", err)
-	} else if state != nil {
-
-		// set the tagger stuff
-		t := replayTagger.NewTagger()
-		t.LoadState(state)
-		tagger.SetCaptureTagger(t)
-		defer tagger.ResetCaptureTagger()
-	} else {
-		log.Debug("The file contained no state payload")
-	}
-
+	// The state must be read out of band, it makes zero sense in the context
+	// of the replaying process, it must be pushed to the agent. We just read
+	// and submit the packets here.
 	for {
 		msg, err := tc.ReadNext()
 		if err != nil && err == io.EOF {

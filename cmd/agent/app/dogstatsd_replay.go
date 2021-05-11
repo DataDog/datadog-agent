@@ -10,6 +10,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -77,11 +79,6 @@ func dogstatsdReplay() error {
 	)
 
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
-	s := config.Datadog.GetString("dogstatsd_socket")
-	if s == "" {
-		return fmt.Errorf("Dogstatsd UNIX socket disabled")
-	}
-
 	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
 	token, err := security.FetchAuthToken()
 	if err != nil {
@@ -125,15 +122,34 @@ func dogstatsdReplay() error {
 		return err
 	}
 
+	s := config.Datadog.GetString("dogstatsd_socket")
+	if s == "" {
+		return fmt.Errorf("Dogstatsd UNIX socket disabled")
+	}
+
 	addr, err := net.ResolveUnixAddr("unixgram", s)
 	if err != nil {
 		return err
 	}
 
-	conn, err := net.Dial(addr.Network(), addr.String())
+	sk, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_DGRAM, 0)
 	if err != nil {
 		return err
 	}
+	defer syscall.Close(sk)
+
+	err = syscall.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF,
+		config.Datadog.GetInt("dogstatsd_buffer_size"))
+	if err != nil {
+		return err
+	}
+
+	dsdSock := os.NewFile(uintptr(sk), "dogstatsd_socket")
+	conn, err := net.FileConn(dsdSock)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
 
 	// let's read state before proceeding
 	state, err := reader.ReadState()
@@ -159,11 +175,14 @@ replay:
 		select {
 		case msg := <-reader.Traffic:
 			// TODO: for when the tagger works
-			// _, _, err := conn.WriteMsgUnix(msg.Payload, msg.Ancillary, addr)
-			_, err := conn.Write(msg.Payload[:msg.PayloadSize])
+			fmt.Printf("Going to send Payload: %d bytes, and OOB: %d bytes\n", len(msg.Payload), len(msg.Ancillary))
+			n, oobn, err := conn.(*net.UnixConn).WriteMsgUnix(
+				msg.Payload[:msg.PayloadSize], msg.Ancillary[:msg.AncillarySize], addr)
+			// msg.Payload[:msg.PayloadSize], nil, addr)
 			if err != nil {
 				return err
 			}
+			fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
 		case <-reader.Shutdown:
 			break replay
 		}

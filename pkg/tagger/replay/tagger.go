@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -147,7 +145,7 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 // LoadState loads the state for the tagger from the supplied map.
 func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 
-	if state != nil {
+	if state == nil {
 		return
 	}
 
@@ -169,6 +167,8 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 
 		t.store.addEntity(id, e)
 	}
+
+	log.Debugf("Loaded %v elements into tag store", len(t.store.store))
 }
 
 // GetEntity returns the Entity for the supplied entity id..
@@ -201,8 +201,4 @@ func (t *Tagger) run() {
 
 func convertEntityID(id *pb.EntityId) string {
 	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
-}
-
-func init() {
-	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }
