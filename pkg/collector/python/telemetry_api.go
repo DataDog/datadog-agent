@@ -13,7 +13,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/yaml.v2"
 )
 
 /*
@@ -43,15 +42,10 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 		return
 	}
 
-	_data := make(map[string]interface{})
-	err = yaml.Unmarshal([]byte(C.GoString(data)), _data)
-	if err != nil {
-		log.Error(err)
-		return
-	}
+	_json := yamlDataToJson(data)
 
 	var topologyEvent metrics.Event
-	err = mapstructure.Decode(_data, &topologyEvent)
+	err = mapstructure.Decode(_json, &topologyEvent)
 	if err != nil {
 		log.Error(err)
 		return

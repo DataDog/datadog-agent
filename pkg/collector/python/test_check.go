@@ -9,6 +9,7 @@ package python
 
 import (
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"runtime"
 	"testing"
 
@@ -239,6 +240,7 @@ func testRunErrorReturn(t *testing.T) {
 func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(check.ID("testID"))
 	sender.SetupAcceptAll()
+	_ = batcher.NewMockBatcher()
 
 	c := NewPythonFakeCheck()
 

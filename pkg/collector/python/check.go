@@ -87,8 +87,8 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
 		s.Commit()
+		batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
 	}
-	batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
 
 	// grab the warnings and add them to the struct
 	c.lastWarnings = c.getPythonWarnings(gstate)

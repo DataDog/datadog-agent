@@ -133,6 +133,7 @@ func contextLike(expectedContext, actualContext *metrics.EventContext) bool {
 
 	return assert.ObjectsAreEqualValues(expectedContext.Category, actualContext.Category) &&
 		assert.ObjectsAreEqualValues(expectedContext.Source, actualContext.Source) &&
+		assert.ObjectsAreEqualValues(expectedContext.Data, actualContext.Data) &&
 		expectedInActual(expectedContext.ElementIdentifiers, actualContext.ElementIdentifiers)
 }
 

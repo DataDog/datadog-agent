@@ -36,7 +36,12 @@ context:
   source: ctx_source
   category: ctx_category
   data:
-    some: data
+    nestedobject:
+      nestedkey: nestedValue
+      animals:
+        legs: dog
+        wings: eagle
+        tail: crocodile
   source_links:
     - title: source1_title
       url: source1_url
@@ -62,12 +67,24 @@ context:
 			ElementIdentifiers: []string{"ctx_elem_id1", "ctx_elem_id2"},
 			Source:             "ctx_source",
 			Category:           "ctx_category",
-			Data:               map[string]interface{}{"some": "data"},
+			Data:               map[string]interface{}{
+				"nestedobject": map[string]interface{}{
+					"nestedkey": "nestedValue",
+					"animals": map[string]interface{}{
+						"legs": "dog",
+						"wings": "eagle",
+						"tail": "crocodile",
+					},
+				},
+			},
 			SourceLinks: []metrics.SourceLink{
 				{Title: "source1_title", URL: "source1_url"},
 				{Title: "source2_title", URL: "source2_url"},
 			},
 		},
+	}
+	for _, event := range sender.SentEvents {
+		_ = event.String()
 	}
 	sender.AssertEvent(t, expectedEvent, 0)
 }

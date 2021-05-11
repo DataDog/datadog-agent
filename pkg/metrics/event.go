@@ -111,14 +111,15 @@ type SourceLink struct {
 	URL   string `json:"url" mapstructure:"url"`
 } // [sts]
 
-// Return a JSON string or "" in case of error during the Marshaling
+// Return a JSON string
 func (e *Event) String() string {
 	s, err := json.Marshal(e)
 	if err != nil {
-		return ""
+		fmt.Println(err)
+		return fmt.Sprintf("{\"error\": \"%s\"}", err.Error())
 	}
 	return string(s)
-}
+} // [sts]
 
 // Events represents a list of events ready to be serialize
 type Events []*Event
