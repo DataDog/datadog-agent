@@ -20,8 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/traps"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/windowsevent"
@@ -61,16 +63,37 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
+	containerLaunchables := []container.ContainerLaunchable{
+		{
+			IsAvailble: docker.IsAvalible,
+			Launcher: func() restart.Restartable {
+				return docker.NewLauncher(
+					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
+					sources,
+					services,
+					pipelineProvider,
+					auditor,
+					coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
+					coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"))
+			},
+		},
+		{
+			IsAvailble: kubernetes.IsAvalible,
+			Launcher: func() restart.Restartable {
+				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
+			},
+		},
+	}
+
+	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher
+	if coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file") {
+		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
+	}
+
 	// setup the inputs
 	inputs := []restart.Restartable{
 		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
-		container.NewLauncher(
-			coreConfig.Datadog.GetBool("logs_config.container_collect_all"),
-			coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file"),
-			coreConfig.Datadog.GetBool("logs_config.docker_container_use_file"),
-			coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file"),
-			time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
-			sources, services, pipelineProvider, auditor),
+		container.NewLauncher(containerLaunchables, 10*time.Second),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),

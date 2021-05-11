@@ -51,14 +51,26 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
-// NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
+func IsAvalible() bool {
 	if !isIntegrationAvailable() {
-		return nil, fmt.Errorf("%s not found", basePath)
+		log.Errorf("Integration not avalible - %s not found", basePath)
+		return false
 	}
+	_, err := kubelet.GetKubeUtil()
+	if err == nil {
+		log.Info("KubeUtil is avalible")
+		return true
+	}
+	log.Info("KubeUtil false avalible")
+	return false
+}
+
+// NewLauncher returns a new launcher.
+func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		return nil, err
+		log.Errorf("KubeUtil not avalible, failed to create launcher", err)
+		return nil
 	}
 	launcher := &Launcher{
 		sources:            sources,
@@ -72,7 +84,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
-	return launcher, nil
+	return launcher
 }
 
 func isIntegrationAvailable() bool {

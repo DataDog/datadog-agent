@@ -58,12 +58,21 @@ type Launcher struct {
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
+func IsAvalible() bool {
+	_, err := dockerutil.GetDockerUtil()
+	if err == nil {
+		log.Info("DockerUtil is avalible")
+		return true
+	}
+	log.Info("DockerUtil not avalible")
+	return false
+}
+
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
-	if !shouldRetry {
-		if _, err := dockerutil.GetDockerUtil(); err != nil {
-			return nil, err
-		}
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+	if _, err := dockerutil.GetDockerUtil(); err != nil {
+		log.Errorf("DockerUtil not avalible, failed to create launcher", err)
+		return nil
 	}
 
 	launcher := &Launcher{
@@ -96,7 +105,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
 	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
 	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
-	return launcher, nil
+	return launcher
 }
 
 // Start starts the Launcher
