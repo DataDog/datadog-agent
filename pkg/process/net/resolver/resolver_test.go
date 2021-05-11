@@ -101,10 +101,11 @@ func TestLocalResolver(t *testing.T) {
 func TestResolveLoopbackConnections(t *testing.T) {
 
 	tests := []struct {
-		name            string
-		conn            *model.Connection
-		expectedLaddrID string
-		expectedRaddrID string
+		name                string
+		conn                *model.Connection
+		expectedLaddrID     string
+		expectedRaddrID     string
+		translationExpected bool
 	}{
 		{
 			name: "raddr resolution with nat",
@@ -124,10 +125,13 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					ReplSrcIP:   "10.1.1.2",
 					ReplSrcPort: 1234,
 				},
-				NetNS: 1,
+				NetNS:     1,
+				Direction: model.ConnectionDirection_incoming,
+				IntraHost: true,
 			},
-			expectedLaddrID: "foo1",
-			expectedRaddrID: "foo2",
+			expectedLaddrID:     "foo1",
+			expectedRaddrID:     "foo2",
+			translationExpected: false,
 		},
 		{
 			name: "raddr resolution with nat to localhost",
@@ -148,9 +152,12 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					ReplSrcIP:   "127.0.0.1",
 					ReplSrcPort: 1234,
 				},
+				Direction: model.ConnectionDirection_outgoing,
+				IntraHost: true,
 			},
-			expectedLaddrID: "foo2",
-			expectedRaddrID: "foo1",
+			expectedLaddrID:     "foo2",
+			expectedRaddrID:     "foo1",
+			translationExpected: true,
 		},
 		{
 			name: "raddr failed localhost resolution",
@@ -165,6 +172,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1234,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo3",
 			expectedRaddrID: "",
@@ -182,6 +190,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1235,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "foo3",
@@ -199,6 +208,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1235,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo5",
 			expectedRaddrID: "",
@@ -216,6 +226,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "10.1.1.1",
 					Port: 1235,
 				},
+				IntraHost: false,
 			},
 			expectedLaddrID: "",
 			expectedRaddrID: "",
@@ -233,6 +244,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1240,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "",
 			expectedRaddrID: "",
@@ -250,6 +262,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1250,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo6",
 			expectedRaddrID: "foo7",
@@ -267,6 +280,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 					Ip:   "127.0.0.1",
 					Port: 1260,
 				},
+				IntraHost: true,
 			},
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
@@ -321,6 +335,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		t.Run(te.name, func(t *testing.T) {
 			assert.Equal(t, te.expectedLaddrID, te.conn.Laddr.ContainerId, "laddr container id does not match expected value")
 			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
+			assert.Equal(t, te.translationExpected, te.conn.IpTranslation != nil, "%+v", te.conn.IpTranslation)
 		})
 	}
 }

@@ -143,16 +143,14 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 		if conn.Raddr.ContainerId == "" {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
-			continue
 		}
 
 		// make sure we do not have a translation for an incoming
 		// connection that is local
-		if conn.Direction == model.ConnectionDirection_incoming {
+		if conn.IntraHost && conn.Direction == model.ConnectionDirection_incoming {
 			log.Tracef("clearing nat translation for connection %+v", conn)
 			conn.IpTranslation = nil
 		}
-
 	}
 }
 
