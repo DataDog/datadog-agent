@@ -69,12 +69,8 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     case 3:
         batch_ptr->c3 = conn;
         batch_ptr->len++;
-        return;
-    case 4:
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
-        batch_ptr->c4 = conn;
-        batch_ptr->len++;
         return;
     }
 

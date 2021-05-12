@@ -15,11 +15,15 @@ def trigger_agent_pipeline(
     release_version_6="nightly",
     release_version_7="nightly-a7",
     branch="nightly",
-    deploy=True,
+    deploy=False,
+    all_builds=False,
+    kitchen_tests=False,
 ):
     """
-    Trigger a pipeline to deploy an Agent to staging repos
-    (as specified with the DEPLOY_AGENT arg).
+    Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
+    - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
+    - run a pipeline with all kitchen tests,
+    - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
 
     if gitlab is None:
@@ -29,6 +33,20 @@ def trigger_agent_pipeline(
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
+
+    # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
+    # disabled on pipelines where they're activated by default (master & deploy pipelines)
+    # as that would make the pipeline fail (some jobs on master and deploy pipelines depend
+    # on jobs that are only run if RUN_ALL_BUILDS is true).
+    if all_builds:
+        args["RUN_ALL_BUILDS"] = "true"
+
+    # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
+    # enabled by default (master and deploy pipelines).
+    if kitchen_tests:
+        args["RUN_KITCHEN_TESTS"] = "true"
+    else:
+        args["RUN_KITCHEN_TESTS"] = "false"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6

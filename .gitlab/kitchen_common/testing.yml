@@ -1,6 +1,6 @@
 ---
-.if_kitchen_deploy: &if_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
 .if_not_version_6: &if_not_version_6
   if: $RELEASE_VERSION_6 == ""
@@ -39,7 +39,7 @@
   rules:
     - <<: *if_not_version_6
       when: never
-    - <<: *if_kitchen_deploy
+    - <<: *if_kitchen
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -49,7 +49,7 @@
   rules:
     - <<: *if_not_version_7
       when: never
-    - <<: *if_kitchen_deploy
+    - <<: *if_kitchen
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

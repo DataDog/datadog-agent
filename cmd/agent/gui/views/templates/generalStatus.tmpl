@@ -318,7 +318,10 @@
             {{- end }}
             {{- end }}
             {{- if .inputs }}
-            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
+            Inputs:
+            {{- range $input := .inputs }}
+              {{$input}}<br>
+            {{- end }}</br>
             {{- end }}
             BytesRead: {{ .bytes_read }}</br>
             Average Latency (ms): {{ .all_time_avg_latency }}</br>

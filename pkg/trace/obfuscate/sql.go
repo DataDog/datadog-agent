@@ -106,7 +106,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		}
 	}
 	switch token {
-	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
+	case DollarQuotedString, String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return markFilteredGroupable(token), questionMark, nil
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'

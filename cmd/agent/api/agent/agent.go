@@ -250,6 +250,8 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
 			flusher.Flush()
+			// don't hog the CPU when we're not receiving log
+			time.Sleep(1 * time.Millisecond)
 		}
 	}
 }

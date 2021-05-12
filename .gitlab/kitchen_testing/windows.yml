@@ -89,14 +89,14 @@
 
 .kitchen_scenario_windows_a6:
   extends:
-    - .kitchen_os_windows
     - .kitchen_agent_a6
+    - .kitchen_os_windows
   needs: ["deploy_windows_testing-a6"]
 
 .kitchen_scenario_windows_a7:
   extends:
-    - .kitchen_os_windows
     - .kitchen_agent_a7
+    - .kitchen_os_windows
   needs: ["deploy_windows_testing-a7"]
 
 # Kitchen: final test matrix (test types * scenarios)
