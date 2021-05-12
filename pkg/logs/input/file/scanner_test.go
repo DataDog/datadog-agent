@@ -408,7 +408,9 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 
 	err := os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
 	defer func() {
+		// cleaning up after the test run
 		os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+		os.Remove("/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
 	}()
 
 	assert.NoError(err, "error while creating the temporary file")
