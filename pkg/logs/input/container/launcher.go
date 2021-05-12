@@ -16,8 +16,8 @@ import (
 )
 
 type ContainerLaunchable struct {
-	IsAvailble func() (bool, *retry.Retrier)
-	Launcher   func() restart.Restartable
+	IsAvailable func() (bool, *retry.Retrier)
+	Launcher    func() restart.Restartable
 }
 
 type Launcher struct {
@@ -47,15 +47,16 @@ func (l *Launcher) Start() {
 
 	// Try to select a launcher
 	go func() {
+		timer := time.NewTimer(0)
 		for {
 			select {
 			case <-l.stopped:
 				log.Info("Got stop signal - stopping")
 				return
-			default:
+			case <-timer.C:
 				var retryer *retry.Retrier
 				for _, launchable := range l.containerLaunchables {
-					ok, rt := launchable.IsAvailble()
+					ok, rt := launchable.IsAvailable()
 					if ok {
 						l.lock.Lock()
 						launcher := launchable.Launcher()
@@ -78,8 +79,8 @@ func (l *Launcher) Start() {
 					l.hasStopped = true
 					return
 				}
-				log.Info("Could not start a container launcher - try again later")
-				time.Sleep(time.Until(retryer.NextRetry()))
+				log.Info("Could not find an Available a container launcher - will try again later")
+				timer = time.NewTimer(time.Until(retryer.NextRetry()))
 			}
 		}
 	}()

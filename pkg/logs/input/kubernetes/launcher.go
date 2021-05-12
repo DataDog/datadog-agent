@@ -59,8 +59,10 @@ func IsAvalible() (bool, *retry.Retrier) {
 	}
 	util, retrier := kubelet.GetKubeUtilWithRetrier()
 	if util != nil {
+		log.Info("Kubernetes launcher is avalible")
 		return true, nil
 	}
+	log.Info("Kubernetes launcher is not avalible")
 	return false, retrier
 }
 

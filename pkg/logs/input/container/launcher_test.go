@@ -81,7 +81,7 @@ func (m *mockLauncher) Stop() {
 
 func (m *mockLauncher) ToLaunchable() ContainerLaunchable {
 	return ContainerLaunchable{
-		IsAvailble: m.IsAvalible,
+		IsAvailable: m.IsAvalible,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
 			return m
@@ -91,7 +91,7 @@ func (m *mockLauncher) ToLaunchable() ContainerLaunchable {
 
 func (m *mockLauncher) ToErrLaunchable() ContainerLaunchable {
 	return ContainerLaunchable{
-		IsAvailble: m.IsAvalible,
+		IsAvailable: m.IsAvalible,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
 			return nil
@@ -214,7 +214,6 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	// let it run a few times
 	time.Sleep(10 * time.Millisecond)
 	l.Stop()
-	time.Sleep(10 * time.Millisecond)
 
 	assert.False(t, l1.started)
 	assert.False(t, l1.stopped)

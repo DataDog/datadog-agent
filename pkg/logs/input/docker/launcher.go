@@ -61,7 +61,12 @@ type Launcher struct {
 
 func IsAvalible() (bool, *retry.Retrier) {
 	util, retrier := dockerutil.GetDockerUtilWithRetrier()
-	return util != nil, retrier
+	if util != nil {
+		log.Info("Docker launcher is avalible")
+		return true, nil
+	}
+	log.Info("Docker launcher is not avalible")
+	return false, retrier
 }
 
 // NewLauncher returns a new launcher

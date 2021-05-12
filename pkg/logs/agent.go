@@ -65,7 +65,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 
 	containerLaunchables := []container.ContainerLaunchable{
 		{
-			IsAvailble: docker.IsAvalible,
+			IsAvailable: docker.IsAvalible,
 			Launcher: func() restart.Restartable {
 				return docker.NewLauncher(
 					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
@@ -78,7 +78,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 			},
 		},
 		{
-			IsAvailble: kubernetes.IsAvalible,
+			IsAvailable: kubernetes.IsAvalible,
 			Launcher: func() restart.Restartable {
 				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
 			},
