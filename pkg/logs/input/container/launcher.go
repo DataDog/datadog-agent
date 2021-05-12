@@ -35,6 +35,18 @@ func NewLauncher(containerLaunchers []ContainerLaunchable) *Launcher {
 	}
 }
 
+func (l *Launcher) launch(launchable ContainerLaunchable) {
+	l.lock.Lock()
+	launcher := launchable.Launcher()
+	if launcher == nil {
+		launcher = NewNoopLauncher()
+	}
+	l.activeLauncher = launcher
+	l.activeLauncher.Start()
+	l.hasStopped = true
+	l.lock.Unlock()
+}
+
 func (l *Launcher) Start() {
 	// If we are restarting, start up the active launcher since we already picked one from a previous run
 	l.lock.Lock()
@@ -58,15 +70,7 @@ func (l *Launcher) Start() {
 				for _, launchable := range l.containerLaunchables {
 					ok, rt := launchable.IsAvailable()
 					if ok {
-						l.lock.Lock()
-						launcher := launchable.Launcher()
-						if launcher == nil {
-							launcher = NewNoopLauncher()
-						}
-						l.activeLauncher = launcher
-						l.activeLauncher.Start()
-						l.hasStopped = true
-						l.lock.Unlock()
+						l.launch(launchable)
 						return
 					}
 					// Hold on to the retrier with the longest interval
