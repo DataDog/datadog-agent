@@ -52,6 +52,7 @@ kitchen_cleanup_azure-a6:
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
   rules:
-    - when: always
+    - <<: *if_default_kitchen
+      when: always
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
