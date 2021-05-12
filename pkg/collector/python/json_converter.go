@@ -11,6 +11,8 @@ import "C"
 // Here we first unmarshal the string into a map[interface]interface and then covert all
 // map keys to string (making a de facto json structure), which will be serialized without problems to json when sent.
 func yamlDataToJSON(data *C.char) map[string]interface{} {
+	defer recoverFromPanic()
+
 	_data := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
 	if err != nil {
@@ -18,25 +20,24 @@ func yamlDataToJSON(data *C.char) map[string]interface{} {
 		return nil
 	}
 
-	return convertKeysToString(_data)
+	return convertKeysToString(_data).(map[string]interface{})
 }
 
 // Recursively cast all the keys of all maps to string
-func convertKeysToString(m map[interface{}]interface{}) map[string]interface{} {
-	defer recoverFromPanic()
-
-	res := map[string]interface{}{}
-	for k, v := range m {
-		switch v2 := v.(type) {
-		case map[interface{}]interface{}:
-			res[k.(string)] = convertKeysToString(v2)
-			//res[fmt.Sprint(k)] = convertKeysToString(v2)
-		default:
-			res[k.(string)] = v
-			//res[fmt.Sprint(k)] = v
+func convertKeysToString(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = convertKeysToString(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convertKeysToString(v)
 		}
 	}
-	return res
+	return i
 }
 
 func recoverFromPanic() {

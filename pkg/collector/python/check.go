@@ -81,13 +81,14 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
+	batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
+
 	if commitMetrics {
 		s, err := aggregator.GetSender(c.ID())
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
 		s.Commit()
-		batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
 	}
 
 	// grab the warnings and add them to the struct

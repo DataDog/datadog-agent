@@ -178,6 +178,7 @@ import "C"
 
 func testRunCheck(t *testing.T) {
 	check := NewPythonFakeCheck()
+	_ = batcher.NewMockBatcher()
 	check.instance = &C.rtloader_pyobject_t{}
 
 	C.reset_check_mock()
