@@ -24,6 +24,11 @@ import (
 // scanPeriod represents the period of time between two scans.
 const scanPeriod = 10 * time.Second
 
+// ContainersLogsDir is the directory in which we should find containers logsfile
+// with the container ID in their filename.
+// Public to be able to change it while running unit tests.
+var ContainersLogsDir = "/var/log/containers"
+
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
@@ -260,7 +265,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 // to validate that we will be reading a file for the correct container.
 func (s *Scanner) shouldIgnore(file *File) bool {
 	infos := make(map[string]string)
-	err := filepath.Walk("/var/log/containers", func(containerLogFilename string, info os.FileInfo, err error) error {
+	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
 		// we only wants to follow symlinks
 		if info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
 			// not a symlink, we are not interested in this file
