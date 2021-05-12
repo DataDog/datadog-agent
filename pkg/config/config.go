@@ -844,6 +844,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
+	// Serverless Agent
+	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 

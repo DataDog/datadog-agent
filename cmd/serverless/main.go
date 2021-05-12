@@ -76,7 +76,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	// KSM > SSM > Apikey in environment var
 	// If one is set but failing, the next will be tried
 	kmsAPIKeyEnvVar = "DD_KMS_API_KEY"
-	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	ssmAPIKeyEnvVar = "DD_API_KEY_SSM_NAME"
 	apiKeyEnvVar    = "DD_API_KEY"
 
 	logLevelEnvVar = "DD_LOG_LEVEL"
@@ -164,7 +164,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon = serverless.StartDaemon(stopTraceAgent, stopCh)
+	daemon = serverless.StartDaemon(stopTraceAgent)
 
 	// serverless parts
 	// ----------------
@@ -291,7 +291,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 			}
 		}
 	} else {
-		logsType = append(logsType, "platform", "function")
+		logsType = append(logsType, "platform", "function", "extension")
 	}
 
 	log.Debug("Enabling logs collection HTTP route")
@@ -350,6 +350,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	var ta *traceAgent.Agent
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
+		tc.Hostname = ""
 		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
 		tc.SynchronousFlushing = true
 		if confErr != nil {
@@ -366,10 +367,12 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
+		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
+			coldstart = false
 		}
 	}()
 
@@ -442,7 +445,7 @@ func readAPIKeyFromKMS() (string, error) {
 	return rv, nil
 }
 
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
+// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SSM_NAME
 // has been set.
 // If none has been set, it is returning an empty string and a nil error.
 func readAPIKeyFromSSM() (string, error) {
@@ -450,7 +453,7 @@ func readAPIKeyFromSSM() (string, error) {
 	if arn == "" {
 		return "", nil
 	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
+	log.Debug("Found DD_API_KEY_SSM_NAME value, trying to use it.")
 	ssmClient := secretsmanager.New(session.New(nil))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
