@@ -4,7 +4,9 @@ package checks
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -25,9 +27,13 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 
 	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses  = map[uint32]cachedProcess{}
-	checkCount       = 0
-	haveWarnedNoArgs = false
+	cachedProcesses = map[uint32]*cachedProcess{}
+	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
+	// So far this is the case for Process check and RTProcess check
+	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
+	cacheProcessesMutex sync.Mutex
+	checkCount          = 0
+	haveWarnedNoArgs    = false
 )
 
 type SystemProcessInformation struct {
@@ -91,6 +97,10 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 }
 
 func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error) {
+	// make sure we get the consistent snapshot by using the same OS thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
 		return nil, windows.GetLastError()
@@ -102,7 +112,14 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
 	checkCount++
-	knownPids := makePidSet()
+
+	cacheProcessesMutex.Lock()
+	defer cacheProcessesMutex.Unlock()
+
+	knownPids := make(map[uint32]struct{})
+	for pid := range cachedProcesses {
+		knownPids[pid] = struct{}{}
+	}
 
 	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
 		pid := pe32.Th32ProcessID
@@ -117,7 +134,7 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 		cp, ok := cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
-			cp = cachedProcess{}
+			cp = &cachedProcess{}
 
 			if err := cp.fillFromProcEntry(&pe32); err != nil {
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
@@ -198,7 +215,6 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 	for pid := range knownPids {
 		cp := cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
-		cp.close()
 		delete(cachedProcesses, pid)
 	}
 
@@ -276,14 +292,6 @@ func parseCmdLineArgs(cmdline string) (res []string) {
 		}
 	}
 	return res
-}
-
-func makePidSet() (pids map[uint32]bool) {
-	pids = make(map[uint32]bool)
-	for pid := range cachedProcesses {
-		pids[pid] = true
-	}
-	return
 }
 
 type cachedProcess struct {

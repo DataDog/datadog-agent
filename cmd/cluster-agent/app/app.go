@@ -277,6 +277,7 @@ func start(cmd *cobra.Command, args []string) error {
 			SecretInformers:  apiCl.CertificateSecretInformerFactory,
 			WebhookInformers: apiCl.WebhookConfigInformerFactory,
 			Client:           apiCl.Cl,
+			DiscoveryClient:  apiCl.DiscoveryCl,
 			StopCh:           stopCh,
 		}
 		err = admissionpkg.StartControllers(admissionCtx)

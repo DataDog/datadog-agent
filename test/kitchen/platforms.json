@@ -5,7 +5,7 @@
                 "centos-69": "urn,OpenLogic:CentOS:6.9:6.9.20180530",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
-                "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2020020415"
+                "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910"
             }
         },
         "ec2": {
