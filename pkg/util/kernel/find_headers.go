@@ -29,13 +29,13 @@ var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t 
 // If no directories are found, it will attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
 // which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
 // The `kheaders` module will be automatically added and removed if present and needed.
-func FindHeaderDirs() ([]string, error) {
+func FindHeaderDirs(headerDownloadDir string) ([]string, error) {
 	hv, err := HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("unable to determine host kernel version: %w", err)
 	}
 
-	dir, err := getHeaderDirs(hv)
+	dir, err := getHeaderDirs(hv, headerDownloadDir)
 	if err == nil {
 		return dir, nil
 	}
@@ -67,25 +67,25 @@ func ValidateHeaderDir(path string) error {
 	return nil
 }
 
-func getHeaderDirs(v Version) ([]string, error) {
+func getHeaderDirs(v Version, headerDownloadDir string) ([]string, error) {
 	hi := host.GetStatusInformation()
 	if hi.KernelVersion == "" {
 		return nil, fmt.Errorf("unable to get host metadata")
 	}
 
 	// KernelVersion == uname -r
-	// check KernelHeadersDownloadDir to see if we've previously downloaded kernel headers
+	// check headerDownloadDir to see if we've previously downloaded kernel headers
 	dirs := []string{
 		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(KernelHeadersDownloadDir+kernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), hi.KernelVersion),
 	}
 	if hi.Platform == "debian" {
 		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
-		dirs = append(dirs, fmt.Sprintf(KernelHeadersDownloadDir+debKernelModulesPath, hi.KernelVersion))
+		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), hi.KernelVersion))
 	}
 	if hi.Platform == "cos" {
 		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
-		dirs = append(dirs, fmt.Sprintf(KernelHeadersDownloadDir+cosKernelModulesPath, hi.KernelVersion))
+		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), hi.KernelVersion))
 	}
 
 	for _, d := range dirs {

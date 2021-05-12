@@ -31,11 +31,8 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 
 var _ types.Logger = customLogger{}
 
-// KernelHeadersDownloadDir is the folder where we'll attempt to download kernel headers
-const KernelHeadersDownloadDir = "/tmp/kernel-headers"
-
-// DownloadHeaders attempts to download kernel headers & place them in KernelHeadersDownloadDir
-func DownloadHeaders() ([]string, error) {
+// DownloadHeaders attempts to download kernel headers & place them in headerDownloadDir
+func DownloadHeaders(headerDownloadDir string) ([]string, error) {
 	var (
 		target    types.Target
 		backend   types.Backend
@@ -43,8 +40,11 @@ func DownloadHeaders() ([]string, error) {
 		err       error
 	)
 
-	if outputDir, err = createOutputDir(KernelHeadersDownloadDir); err != nil {
-		return nil, fmt.Errorf("unable create output directory %s: %s", KernelHeadersDownloadDir, err)
+	// Before downloading new kernel headers, we'll delete anything we previously downloaded (if it exists)
+	deleteDirContents(headerDownloadDir)
+
+	if outputDir, err = createOutputDir(headerDownloadDir); err != nil {
+		return nil, fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
 	}
 
 	if target, err = getHeaderDownloadTarget(); err != nil {
@@ -66,13 +66,14 @@ func DownloadHeaders() ([]string, error) {
 		return nil, fmt.Errorf("failed to download kernel headers: %s", err)
 	}
 
-	headerDirs := []string{fmt.Sprintf(KernelHeadersDownloadDir+kernelModulesPath, target.Uname.Kernel)}
-	if strings.ToLower(target.Distro.Display) == "debian" {
-		headerDirs = append(headerDirs, fmt.Sprintf(KernelHeadersDownloadDir+debKernelModulesPath, target.Uname.Kernel))
+	headerDirs := []string{fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), target.Uname.Kernel)}
+	switch strings.ToLower(target.Distro.Display) {
+	case "debian":
+		headerDirs = append(headerDirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), target.Uname.Kernel))
+	case "cos":
+		headerDirs = append(headerDirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), target.Uname.Kernel))
 	}
-	if strings.ToLower(target.Distro.Display) == "cos" {
-		headerDirs = append(headerDirs, fmt.Sprintf(KernelHeadersDownloadDir+cosKernelModulesPath, target.Uname.Kernel))
-	}
+
 	return headerDirs, nil
 }
 
@@ -112,6 +113,16 @@ func getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err 
 		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
 	}
 	return
+}
+
+func deleteDirContents(path string) {
+	contents, _ := filepath.Glob(filepath.Join(path, "*"))
+	for _, item := range contents {
+		err := os.RemoveAll(item)
+		if err != nil {
+			log.Warnf("error deleting previously downloaded kernel headers: %s", err)
+		}
+	}
 }
 
 func createOutputDir(path string) (string, error) {

@@ -134,7 +134,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.BPFDebug)
+		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.BPFDebug)
 		if err != nil {
 			a.compilationResult = newCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
