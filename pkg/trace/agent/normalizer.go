@@ -13,10 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	featuresConfig "github.com/DataDog/datadog-agent/pkg/trace/export/config/features"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,7 +55,7 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	s.Service = svc
 
-	if config.HasFeature("component2name") {
+	if featuresConfig.HasFeature("component2name") {
 		// This feature flag determines the component tag to become the span name.
 		//
 		// It works around the incompatibility between Opentracing and Datadog where the

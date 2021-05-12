@@ -12,9 +12,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
@@ -94,7 +95,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := stats.NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
 	testTrace := &Input{
 		Env:   "none",
@@ -219,7 +220,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := stats.NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
 	t.Run("ok", func(t *testing.T) {
 		testTrace := &Input{
@@ -395,7 +396,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(trace)
-	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
+	wt := stats.NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
 	testTrace := &Input{
 		Env:   "none",
@@ -450,7 +451,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 		trace = append(trace, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
 	}
 	traceutil.ComputeTopLevel(trace)
-	c.addNow(&Input{Env: "none", Trace: NewWeightedTrace(trace, traceutil.GetRoot(trace))})
+	c.addNow(&Input{Env: "none", Trace: stats.NewWeightedTrace(trace, traceutil.GetRoot(trace))})
 	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)

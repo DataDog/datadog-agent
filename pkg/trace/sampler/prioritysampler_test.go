@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
 	"github.com/cihub/seelog"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,10 @@ const (
 	testServiceA = "service-a"
 	testServiceB = "service-b"
 )
+
+func randomTraceID() uint64 {
+	return uint64(rand.Int63())
+}
 
 func getTestPrioritySampler() *PrioritySampler {
 	// Disable debug logs in these tests
@@ -42,9 +47,9 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 		&pb.Span{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
 	}
 	r := rand.Float64()
-	priority := PriorityAutoDrop
+	priority := sampler.PriorityAutoDrop
 	rates := s.ratesByService()
-	key := ServiceSignature{trace[0].Service, defaultEnv}
+	key := sampler.ServiceSignature{trace[0].Service, defaultEnv}
 	var rate float64
 	if serviceRate, ok := rates[key]; ok {
 		rate = serviceRate
@@ -53,9 +58,9 @@ func getTestTraceWithService(t *testing.T, service string, s *PrioritySampler) (
 		rate = 1
 	}
 	if r <= rate {
-		priority = PriorityAutoKeep
+		priority = sampler.PriorityAutoKeep
 	}
-	SetSamplingPriority(trace[0], priority)
+	sampler.SetSamplingPriority(trace[0], priority)
 	return trace, trace[0]
 }
 
@@ -73,7 +78,7 @@ func TestPrioritySample(t *testing.T) {
 	s = getTestPrioritySampler()
 	trace, root := getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, -1)
+	sampler.SetSamplingPriority(root, -1)
 	sampled := s.Sample(trace, root, env, false)
 	assert.False(sampled, "trace with negative priority is dropped")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority -1 trace should *NOT* impact sampler backend")
@@ -82,7 +87,7 @@ func TestPrioritySample(t *testing.T) {
 	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 0)
+	sampler.SetSamplingPriority(root, 0)
 	sampled = s.Sample(trace, root, env, false)
 	assert.False(sampled, "trace with priority 0 is dropped")
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
@@ -91,7 +96,7 @@ func TestPrioritySample(t *testing.T) {
 	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 1)
+	sampler.SetSamplingPriority(root, 1)
 	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with priority 1 is kept")
 	assert.True(0.0 < s.Sampler.Backend.GetTotalScore(), "sampling a priority 0 trace should increase total score")
@@ -100,7 +105,7 @@ func TestPrioritySample(t *testing.T) {
 	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, 2)
+	sampler.SetSamplingPriority(root, 2)
 	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with priority 2 is kept")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a priority 2 trace should *NOT* increase total score")
@@ -109,13 +114,13 @@ func TestPrioritySample(t *testing.T) {
 	s = getTestPrioritySampler()
 	trace, root = getTestTraceWithService(t, "my-service", s)
 
-	SetSamplingPriority(root, PriorityUserKeep)
+	sampler.SetSamplingPriority(root, sampler.PriorityUserKeep)
 	sampled = s.Sample(trace, root, env, false)
 	assert.True(sampled, "trace with high priority is kept")
 	assert.Equal(0.0, s.Sampler.Backend.GetTotalScore(), "sampling a high priority trace should *NOT* increase total score")
 	assert.Equal(0.0, s.Sampler.Backend.GetSampledScore(), "sampling a high priority trace should *NOT* increase sampled score")
 
-	delete(root.Metrics, KeySamplingPriority)
+	delete(root.Metrics, sampler.KeySamplingPriority)
 	sampled = s.Sample(trace, root, env, false)
 	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
 }
@@ -127,7 +132,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	s := getTestPrioritySampler()
 	for i := 0; i < 1e2; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
+		sampler.SetSamplingPriority(root, sampler.SamplingPriority(i%2))
 		sampled := s.Sample(trace, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[agentRateKey]
@@ -136,7 +141,7 @@ func TestPrioritySampleThresholdTo1(t *testing.T) {
 	}
 	for i := 0; i < 1e3; i++ {
 		trace, root := getTestTraceWithService(t, "my-service", s)
-		SetSamplingPriority(root, SamplingPriority(i%2))
+		sampler.SetSamplingPriority(root, sampler.SamplingPriority(i%2))
 		sampled := s.Sample(trace, root, env, false)
 		if sampled {
 			rate, _ := root.Metrics[agentRateKey]
@@ -176,15 +181,15 @@ func TestTargetTPSByService(t *testing.T) {
 		periods     = 500
 	)
 
-	s.Sampler.rateThresholdTo1 = 1
+	s.Sampler.RateThresholdTo1 = 1
 	for _, tc := range testCases {
 		t.Logf("testing targetTPS=%0.1f tps=%0.1f", tc.targetTPS, tc.tps)
-		s.Sampler.targetTPS = tc.targetTPS
-		periodSeconds := defaultDecayPeriod.Seconds()
+		s.Sampler.TargetTPS = tc.targetTPS
+		periodSeconds := sampler.DefaultDecayPeriod.Seconds()
 		tracesPerPeriod := tc.tps * periodSeconds
 		// Set signature score offset high enough not to kick in during the test.
-		s.Sampler.signatureScoreOffset.Store(2 * tc.tps)
-		s.Sampler.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+		s.Sampler.SignatureScoreOffset.Store(2 * tc.tps)
+		s.Sampler.SignatureScoreFactor.Store(math.Pow(s.Sampler.SignatureScoreSlope.Load(), math.Log10(s.Sampler.SignatureScoreOffset.Load())))
 
 		sampledCount := 0
 		handledCount := 0
@@ -213,7 +218,7 @@ func TestTargetTPSByService(t *testing.T) {
 		if tc.targetTPS > tc.tps {
 			targetTPS = tc.tps
 		} else {
-			relativeError = 0.1 + defaultDecayFactor - 1
+			relativeError = 0.1 + sampler.DefaultDecayFactor - 1
 		}
 
 		// Check that the sampled score is roughly equal to targetTPS. This is different from
@@ -257,15 +262,15 @@ func TestTPSClientDrop(t *testing.T) {
 		periods     = 500
 	)
 
-	s.Sampler.rateThresholdTo1 = 1
+	s.Sampler.RateThresholdTo1 = 1
 	for _, tc := range testCases {
 		t.Logf("testing targetTPS=%0.1f tps=%0.1f", tc.targetTPS, tc.tps)
-		s.Sampler.targetTPS = tc.targetTPS
-		periodSeconds := defaultDecayPeriod.Seconds()
+		s.Sampler.TargetTPS = tc.targetTPS
+		periodSeconds := sampler.DefaultDecayPeriod.Seconds()
 		tracesPerPeriod := tc.tps * periodSeconds
 		// Set signature score offset high enough not to kick in during the test.
-		s.Sampler.signatureScoreOffset.Store(2 * tc.tps)
-		s.Sampler.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+		s.Sampler.SignatureScoreOffset.Store(2 * tc.tps)
+		s.Sampler.SignatureScoreFactor.Store(math.Pow(s.Sampler.SignatureScoreSlope.Load(), math.Log10(s.Sampler.SignatureScoreOffset.Load())))
 
 		sampledCount := 0
 		handledCount := 0
@@ -276,7 +281,7 @@ func TestTPSClientDrop(t *testing.T) {
 			for i := 0; i < int(tracesPerPeriod); i++ {
 				trace, root := getTestTraceWithService(t, "service-a", s)
 				var sampled bool
-				if prio, _ := GetSamplingPriority(root); prio == 1 {
+				if prio, _ := sampler.GetSamplingPriority(root); prio == 1 {
 					sampled = s.Sample(trace, root, defaultEnv, true)
 				} else {
 					s.CountClientDroppedP0s(1)
@@ -299,7 +304,7 @@ func TestTPSClientDrop(t *testing.T) {
 		if tc.targetTPS > tc.tps {
 			targetTPS = tc.tps
 		} else {
-			relativeError = 0.1 + defaultDecayFactor - 1
+			relativeError = 0.1 + sampler.DefaultDecayFactor - 1
 		}
 
 		// Check that the sampled score is roughly equal to targetTPS. This is different from

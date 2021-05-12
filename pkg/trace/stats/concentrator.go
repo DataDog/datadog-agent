@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +41,7 @@ type Concentrator struct {
 	bufferLen     int
 	exit          chan struct{}
 	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	buckets       map[int64]*stats.RawBucket // buckets used to aggregate stats per timestamp
 	mu            sync.Mutex
 	agentEnv      string
 	agentHostname string
@@ -51,7 +52,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
-		buckets: make(map[int64]*RawBucket),
+		buckets: make(map[int64]*stats.RawBucket),
 		// At start, only allow stats for the current time bucket. Ensure we don't
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
@@ -114,7 +115,7 @@ func (c *Concentrator) Stop() {
 
 // Input contains input for the concentractor.
 type Input struct {
-	Trace WeightedTrace
+	Trace stats.WeightedTrace
 	Env   string
 }
 
@@ -148,7 +149,7 @@ func (c *Concentrator) addNow(i *Input) {
 
 		b, ok := c.buckets[btime]
 		if !ok {
-			b = NewRawBucket(uint64(btime), uint64(c.bsize))
+			b = stats.NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
 		b.HandleSpan(s, env, c.agentHostname)
@@ -161,7 +162,7 @@ func (c *Concentrator) Flush() pb.StatsPayload {
 }
 
 func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
-	m := make(map[PayloadKey][]pb.ClientStatsBucket)
+	m := make(map[stats.PayloadKey][]pb.ClientStatsBucket)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -188,9 +189,9 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	sb := make([]pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		sb = append(sb, pb.ClientStatsPayload{
-			Env:      k.env,
-			Hostname: k.hostname,
-			Version:  k.version,
+			Env:      k.Env,
+			Hostname: k.Hostname,
+			Version:  k.Version,
 			Stats:    s,
 		})
 	}

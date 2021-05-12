@@ -22,7 +22,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
 )
 
 const (
@@ -38,7 +39,7 @@ const (
 // PrioritySampler is the main component of the sampling logic
 type PrioritySampler struct {
 	// Sampler is the underlying sampler used by this engine, sharing logic among various engines.
-	Sampler *Sampler
+	Sampler *sampler.Sampler
 
 	rateByService *RateByService
 	catalog       *serviceKeyCatalog
@@ -48,12 +49,12 @@ type PrioritySampler struct {
 // NewPrioritySampler returns an initialized Sampler
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
-		Sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
+		Sampler:       sampler.NewSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
-	s.Sampler.setRateThresholdTo1(prioritySamplingRateThresholdTo1)
+	s.Sampler.SetRateThresholdTo1(prioritySamplingRateThresholdTo1)
 
 	return s
 }
@@ -89,7 +90,7 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clie
 		return false
 	}
 
-	samplingPriority, _ := GetSamplingPriority(root)
+	samplingPriority, _ := sampler.GetSamplingPriority(root)
 	// Regardless of rates, sampling here is based on the metadata set
 	// by the client library. Which, is turn, is based on agent hints,
 	// but the rule of thumb is: respect client choice.
@@ -110,7 +111,7 @@ func (s *PrioritySampler) Sample(trace pb.Trace, root *pb.Span, env string, clie
 		return sampled
 	}
 
-	signature := s.catalog.register(ServiceSignature{root.Service, env})
+	signature := s.catalog.register(sampler.ServiceSignature{root.Service, env})
 
 	// Update sampler state by counting this trace
 	s.Sampler.Backend.CountSignature(signature)
@@ -136,35 +137,35 @@ func (s *PrioritySampler) CountClientDroppedP0s(dropped int64) {
 	s.Sampler.Backend.AddTotalScore(float64(dropped))
 }
 
-func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {
+func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature sampler.Signature) float64 {
 	if root.ParentID != 0 {
 		return 1.0
 	}
 	// recent tracers annotate roots with applied priority rate
 	// agentRateKey is set when the agent computed rate is applied
-	if rate, ok := getMetric(root, agentRateKey); ok {
+	if rate, ok := sampler.GetMetric(root, agentRateKey); ok {
 		return rate
 	}
 	// ruleRateKey is set when a tracer rule rate is applied
-	if rate, ok := getMetric(root, ruleRateKey); ok {
+	if rate, ok := sampler.GetMetric(root, ruleRateKey); ok {
 		return rate
 	}
 
 	// slow path used by older tracer versions
 	// dd-trace-go used to set the rate in deprecatedRateKey
-	if rate, ok := getMetric(root, deprecatedRateKey); ok {
+	if rate, ok := sampler.GetMetric(root, deprecatedRateKey); ok {
 		return rate
 	}
 	rate := s.Sampler.GetSignatureSampleRate(signature)
 	if rate > prioritySamplingRateThresholdTo1 {
 		rate = 1
 	}
-	setMetric(root, deprecatedRateKey, rate)
+	sampler.SetMetric(root, deprecatedRateKey, rate)
 	return rate
 }
 
 // ratesByService returns all rates by service, this information is useful for
 // agents to pick the right service rate.
-func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
+func (s *PrioritySampler) ratesByService() map[sampler.ServiceSignature]float64 {
 	return s.catalog.ratesByService(s.Sampler.GetAllSignatureSampleRates(), s.Sampler.GetDefaultSampleRate())
 }

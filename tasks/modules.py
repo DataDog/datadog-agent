@@ -67,7 +67,10 @@ class GoModule:
 
 
 DEFAULT_MODULES = {
-    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil"]),
+    ".": GoModule(
+        ".", targets=["./pkg", "./cmd"], dependencies=["pkg/trace/export", "pkg/util/log", "pkg/util/winutil"]
+    ),
+    "pkg/trace/export": GoModule("pkg/trace/export", dependencies=["pkg/util/log"]),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(

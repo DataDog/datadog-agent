@@ -21,12 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/export/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -125,10 +126,10 @@ func Run(ctx context.Context) {
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
 	}
-	defer metrics.Flush()
+	defer metricsClient.Flush()
 	defer timing.Stop()
 
-	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
+	metricsClient.Count("datadog.trace_agent.started", 1, nil, 1)
 
 	rand.Seed(time.Now().UTC().UnixNano())
 

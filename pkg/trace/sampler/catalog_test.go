@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +27,7 @@ func TestCatalogRegression(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			cat.register(ServiceSignature{})
+			cat.register(sampler.ServiceSignature{})
 		}
 	}()
 
@@ -33,9 +35,9 @@ func TestCatalogRegression(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			cat.ratesByService(map[Signature]float64{
-				ServiceSignature{}.Hash():                 0.3,
-				ServiceSignature{"web", "staging"}.Hash(): 0.4,
+			cat.ratesByService(map[sampler.Signature]float64{
+				sampler.ServiceSignature{}.Hash():                 0.3,
+				sampler.ServiceSignature{"web", "staging"}.Hash(): 0.4,
 			}, 0.2)
 		}
 	}()
@@ -46,8 +48,8 @@ func TestCatalogRegression(t *testing.T) {
 func TestServiceSignatureString(t *testing.T) {
 	assert := assert.New(t)
 
-	assert.Equal(defaultServiceRateKey, ServiceSignature{}.String())
-	assert.Equal("service:mcnulty,env:test", ServiceSignature{"mcnulty", "test"}.String())
+	assert.Equal(defaultServiceRateKey, sampler.ServiceSignature{}.String())
+	assert.Equal("service:mcnulty,env:test", sampler.ServiceSignature{"mcnulty", "test"}.String())
 }
 
 func TestNewServiceLookup(t *testing.T) {
@@ -62,18 +64,18 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
-	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
+	sig1 := cat.register(sampler.ServiceSignature{root1.Service, defaultEnv})
 	assert.Equal(
-		map[ServiceSignature]Signature{
+		map[sampler.ServiceSignature]sampler.Signature{
 			{"service1", "none"}: sig1,
 		},
 		cat.lookup,
 	)
 
 	_, root2 := getTestTraceWithService(t, "service2", s)
-	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
+	sig2 := cat.register(sampler.ServiceSignature{root2.Service, defaultEnv})
 	assert.Equal(
-		map[ServiceSignature]Signature{
+		map[sampler.ServiceSignature]sampler.Signature{
 			{"service1", "none"}: sig1,
 			{"service2", "none"}: sig2,
 		},
@@ -88,18 +90,18 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	s := getTestPrioritySampler()
 
 	_, root1 := getTestTraceWithService(t, "service1", s)
-	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
+	sig1 := cat.register(sampler.ServiceSignature{root1.Service, defaultEnv})
 	_, root2 := getTestTraceWithService(t, "service2", s)
-	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
+	sig2 := cat.register(sampler.ServiceSignature{root2.Service, defaultEnv})
 
-	rates := map[Signature]float64{
+	rates := map[sampler.Signature]float64{
 		sig1: 0.3,
 		sig2: 0.7,
 	}
 	const totalRate = 0.2
 
 	rateByService := cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
+	assert.Equal(map[sampler.ServiceSignature]float64{
 		{"service1", "none"}: 0.3,
 		{"service2", "none"}: 0.7,
 		{}:                   0.2,
@@ -108,7 +110,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	delete(rates, sig1)
 
 	rateByService = cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
+	assert.Equal(map[sampler.ServiceSignature]float64{
 		{"service2", "none"}: 0.7,
 		{}:                   0.2,
 	}, rateByService)
@@ -116,7 +118,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	delete(rates, sig2)
 
 	rateByService = cat.ratesByService(rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
+	assert.Equal(map[sampler.ServiceSignature]float64{
 		{}: 0.2,
 	}, rateByService)
 }

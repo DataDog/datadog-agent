@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/traceutil"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,6 +42,12 @@ func getTestTrace() (pb.Trace, *pb.Span) {
 	return trace, trace[0]
 }
 
+func testComputeSignature(trace pb.Trace) sampler.Signature {
+	root := traceutil.GetRoot(trace)
+	env := traceutil.GetEnv(trace)
+	return sampler.ComputeSignatureWithRootAndEnv(trace, root, env)
+}
+
 func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
@@ -55,9 +63,9 @@ func TestExtraSampleRate(t *testing.T) {
 	sRate := s.GetSampleRate(trace, root, signature)
 
 	// Then turn on the extra sample rate, then ensure it affects both existing and new signatures
-	s.extraRate = 0.33
+	s.ExtraRate = 0.33
 
-	assert.Equal(s.GetSampleRate(trace, root, signature), s.extraRate*sRate)
+	assert.Equal(s.GetSampleRate(trace, root, signature), s.ExtraRate*sRate)
 }
 
 func TestErrorSampleThresholdTo1(t *testing.T) {
@@ -92,12 +100,12 @@ func TestTargetTPS(t *testing.T) {
 	initPeriods := 20
 	periods := 50
 
-	s.targetTPS = targetTPS
-	periodSeconds := defaultDecayPeriod.Seconds()
+	s.TargetTPS = targetTPS
+	periodSeconds := sampler.DefaultDecayPeriod.Seconds()
 	tracesPerPeriod := tps * periodSeconds
 	// Set signature score offset high enough not to kick in during the test.
-	s.signatureScoreOffset.Store(2 * tps)
-	s.signatureScoreFactor.Store(math.Pow(s.Sampler.signatureScoreSlope.Load(), math.Log10(s.Sampler.signatureScoreOffset.Load())))
+	s.SignatureScoreOffset.Store(2 * tps)
+	s.SignatureScoreFactor.Store(math.Pow(s.Sampler.SignatureScoreSlope.Load(), math.Log10(s.Sampler.SignatureScoreOffset.Load())))
 
 	sampledCount := 0
 
@@ -117,13 +125,13 @@ func TestTargetTPS(t *testing.T) {
 	assert.InEpsilon(tps, s.Backend.GetSampledScore(), 0.01)
 
 	// We should have kept less traces per second than targetTPS
-	assert.True(s.targetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	assert.True(s.TargetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
 
 	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
-		0.01+defaultDecayFactor-1)
+	assert.InEpsilon(s.TargetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
+		0.01+sampler.DefaultDecayFactor-1)
 }
 
 func BenchmarkSampler(b *testing.B) {

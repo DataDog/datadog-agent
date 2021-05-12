@@ -7,7 +7,8 @@ package sampler
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
 )
 
 const (
@@ -29,14 +30,14 @@ type NoPrioritySampler struct{ ScoreSampler }
 // The rates are applied on the TraceID to maximize the number of chunks with errors caught for the same traceID.
 // For a set traceID: P(chunk1 kept and chunk2 kept) = min(P(chunk1 kept), P(chunk2 kept))
 type ScoreSampler struct {
-	*Sampler
+	*sampler.Sampler
 	samplingRateKey string
 }
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
 // no priority set.
 func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
-	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:no_priority"})
+	s := sampler.NewSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:no_priority"})
 	return &NoPrioritySampler{ScoreSampler{Sampler: s, samplingRateKey: noPriorityRateKey}}
 }
 
@@ -44,8 +45,8 @@ func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
 // just like the the normal ScoreEngine except for its GetType method (useful
 // for reporting).
 func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
-	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:error"})
-	s.setRateThresholdTo1(errorSamplingRateThresholdTo1)
+	s := sampler.NewSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:error"})
+	s.SetRateThresholdTo1(errorSamplingRateThresholdTo1)
 	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey}}
 }
 
@@ -55,7 +56,7 @@ func (s ScoreSampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 	if len(trace) == 0 {
 		return false
 	}
-	signature := computeSignatureWithRootAndEnv(trace, root, env)
+	signature := sampler.ComputeSignatureWithRootAndEnv(trace, root, env)
 	// Update sampler state by counting this trace
 	s.Backend.CountSignature(signature)
 
@@ -79,12 +80,12 @@ func (s ScoreSampler) Sample(trace pb.Trace, root *pb.Span, env string) bool {
 }
 
 func (s ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
-	initialRate := GetGlobalRate(root)
+	initialRate := sampler.GetGlobalRate(root)
 	newRate := initialRate * rate
 	traceID := root.TraceID
-	sampled := SampleByRate(traceID, newRate)
+	sampled := sampler.SampleByRate(traceID, newRate)
 	if sampled {
-		setMetric(root, s.samplingRateKey, rate)
+		sampler.SetMetric(root, s.samplingRateKey, rate)
 	}
 	return sampled
 }

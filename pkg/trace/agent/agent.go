@@ -13,15 +13,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/event"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/event"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	exportSampler "github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+	exportStats "github.com/DataDog/datadog-agent/pkg/trace/export/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -226,12 +228,12 @@ func (a *Agent) Process(p *api.Payload) {
 
 		{
 			// this section sets up any necessary tags on the root:
-			clientSampleRate := sampler.GetGlobalRate(root)
-			sampler.SetClientRate(root, clientSampleRate)
+			clientSampleRate := exportSampler.GetGlobalRate(root)
+			exportSampler.SetClientRate(root, clientSampleRate)
 
 			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
 				rate := ratelimiter.RealRate()
-				sampler.SetPreSampleRate(root, rate)
+				exportSampler.SetPreSampleRate(root, rate)
 			}
 			if p.ContainerTags != "" {
 				traceutil.SetMeta(root, tagContainersTags, p.ContainerTags)
@@ -250,7 +252,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 		pt := ProcessedTrace{
 			Trace:            t,
-			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			WeightedTrace:    exportStats.NewWeightedTrace(t, root),
 			Root:             root,
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
@@ -317,9 +319,9 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 }
 
 func mergeDuplicates(s pb.ClientStatsBucket) {
-	indexes := make(map[stats.Aggregation]int, len(s.Stats))
+	indexes := make(map[exportStats.Aggregation]int, len(s.Stats))
 	for i, g := range s.Stats {
-		a := stats.NewAggregationFromGroup("", "", "", g)
+		a := exportStats.NewAggregationFromGroup("", "", "", g)
 		if j, ok := indexes[a]; ok {
 			s.Stats[j].Hits += g.Hits
 			s.Stats[j].Errors += g.Errors
@@ -341,7 +343,7 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 // sample decides whether the trace will be kept and extracts any APM events
 // from it.
 func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
-	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
+	priority, hasPriority := exportSampler.GetSamplingPriority(pt.Root)
 
 	// Depending on the sampling priority, count that trace differently.
 	stat := &ts.TracesPriorityNone

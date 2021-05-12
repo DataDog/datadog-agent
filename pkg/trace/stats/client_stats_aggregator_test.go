@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +21,7 @@ func TestNewDynamicConfig(t *testing.T) {
 	dc := NewDynamicConfig("none")
 	assert.NotNil(dc)
 
-	rates := map[ServiceSignature]float64{
+	rates := map[sampler.ServiceSignature]float64{
 		{"myservice", "myenv"}: 0.5,
 	}
 
@@ -33,11 +35,11 @@ func TestNewDynamicConfig(t *testing.T) {
 func TestRateByServiceGetSet(t *testing.T) {
 	var rbc RateByService
 	for i, tc := range []struct {
-		in  map[ServiceSignature]float64
+		in  map[sampler.ServiceSignature]float64
 		out map[string]float64
 	}{
 		{
-			in: map[ServiceSignature]float64{
+			in: map[sampler.ServiceSignature]float64{
 				{}: 0.1,
 			},
 			out: map[string]float64{
@@ -45,7 +47,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 			},
 		},
 		{
-			in: map[ServiceSignature]float64{
+			in: map[sampler.ServiceSignature]float64{
 				{}:                  0.3,
 				{"mcnulty", "dev"}:  0.2,
 				{"postgres", "dev"}: 0.1,
@@ -57,7 +59,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 			},
 		},
 		{
-			in: map[ServiceSignature]float64{
+			in: map[sampler.ServiceSignature]float64{
 				{}: 1,
 			},
 			out: map[string]float64{
@@ -68,7 +70,7 @@ func TestRateByServiceGetSet(t *testing.T) {
 			out: map[string]float64{},
 		},
 		{
-			in: map[ServiceSignature]float64{
+			in: map[sampler.ServiceSignature]float64{
 				{}: 0.2,
 			},
 			out: map[string]float64{
@@ -85,7 +87,7 @@ func TestRateByServiceLimits(t *testing.T) {
 	assert := assert.New(t)
 
 	var rbc RateByService
-	rbc.SetAll(map[ServiceSignature]float64{
+	rbc.SetAll(map[sampler.ServiceSignature]float64{
 		{"high", ""}: 2,
 		{"low", ""}:  -1,
 	})
@@ -94,7 +96,7 @@ func TestRateByServiceLimits(t *testing.T) {
 
 func TestRateByServiceDefaults(t *testing.T) {
 	rbc := RateByService{defaultEnv: "test"}
-	rbc.SetAll(map[ServiceSignature]float64{
+	rbc.SetAll(map[sampler.ServiceSignature]float64{
 		{"one", "prod"}: 0.5,
 		{"two", "test"}: 0.4,
 	})
@@ -114,11 +116,11 @@ func TestRateByServiceConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	rbc.SetAll(map[ServiceSignature]float64{{"mcnulty", "test"}: 1})
+	rbc.SetAll(map[sampler.ServiceSignature]float64{{"mcnulty", "test"}: 1})
 	go func() {
 		for i := 0; i < n; i++ {
 			rate := float64(i) / float64(n)
-			rbc.SetAll(map[ServiceSignature]float64{{"mcnulty", "test"}: rate})
+			rbc.SetAll(map[sampler.ServiceSignature]float64{{"mcnulty", "test"}: rate})
 		}
 		wg.Done()
 	}()
@@ -132,7 +134,7 @@ func TestRateByServiceConcurrency(t *testing.T) {
 	}()
 }
 
-func benchRBSGetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
+func benchRBSGetAll(sigs map[sampler.ServiceSignature]float64) func(*testing.B) {
 	return func(b *testing.B) {
 		rbs := &RateByService{defaultEnv: "test"}
 		rbs.SetAll(sigs)
@@ -146,7 +148,7 @@ func benchRBSGetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
 	}
 }
 
-func benchRBSSetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
+func benchRBSSetAll(sigs map[sampler.ServiceSignature]float64) func(*testing.B) {
 	return func(b *testing.B) {
 		rbs := &RateByService{defaultEnv: "test"}
 
@@ -160,7 +162,7 @@ func benchRBSSetAll(sigs map[ServiceSignature]float64) func(*testing.B) {
 }
 
 func BenchmarkRateByService(b *testing.B) {
-	sigs := map[ServiceSignature]float64{
+	sigs := map[sampler.ServiceSignature]float64{
 		{}:                 0.2,
 		{"two", "test"}:    0.4,
 		{"three", "test"}:  0.33,
@@ -172,7 +174,7 @@ func BenchmarkRateByService(b *testing.B) {
 	b.Run("GetAll", func(b *testing.B) {
 		for i := 1; i <= len(sigs); i++ {
 			// take first i elements
-			testSigs := make(map[ServiceSignature]float64, i)
+			testSigs := make(map[sampler.ServiceSignature]float64, i)
 			var j int
 			for k, v := range sigs {
 				j++
@@ -188,7 +190,7 @@ func BenchmarkRateByService(b *testing.B) {
 	b.Run("SetAll", func(b *testing.B) {
 		for i := 1; i <= len(sigs); i++ {
 			// take first i elements
-			testSigs := make(map[ServiceSignature]float64, i)
+			testSigs := make(map[sampler.ServiceSignature]float64, i)
 			var j int
 			for k, v := range sigs {
 				j++

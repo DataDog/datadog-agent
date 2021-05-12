@@ -14,10 +14,10 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tinylib/msgp/msgp"
