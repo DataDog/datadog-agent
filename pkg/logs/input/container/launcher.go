@@ -12,26 +12,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 type ContainerLaunchable struct {
-	IsAvailble func() bool
+	IsAvailble func() (bool, *retry.Retrier)
 	Launcher   func() restart.Restartable
 }
 
 type Launcher struct {
 	containerLaunchables []ContainerLaunchable
-	retryInterval        time.Duration
 	activeLauncher       restart.Restartable
 	stopped              chan struct{}
 	hasStopped           bool
 	lock                 sync.Mutex
 }
 
-func NewLauncher(containerLaunchers []ContainerLaunchable, retryInterval time.Duration) *Launcher {
+func NewLauncher(containerLaunchers []ContainerLaunchable) *Launcher {
 	return &Launcher{
 		containerLaunchables: containerLaunchers,
-		retryInterval:        retryInterval,
 		stopped:              make(chan struct{}),
 	}
 }
@@ -51,11 +50,13 @@ func (l *Launcher) Start() {
 		for {
 			select {
 			case <-l.stopped:
-				log.Info("Stopping")
-				return // TODO
+				log.Info("Got stop signal - stopping")
+				return
 			default:
+				var retryer *retry.Retrier
 				for _, launchable := range l.containerLaunchables {
-					if launchable.IsAvailble() {
+					ok, rt := launchable.IsAvailble()
+					if ok {
 						l.lock.Lock()
 						launcher := launchable.Launcher()
 						if launcher == nil {
@@ -67,9 +68,18 @@ func (l *Launcher) Start() {
 						l.lock.Unlock()
 						return
 					}
+					// Hold on to the retrier with the longest interval
+					if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
+						retryer = rt
+					}
+				}
+				if retryer == nil {
+					log.Info("Nothing to retry - stopping")
+					l.hasStopped = true
+					return
 				}
 				log.Info("Could not start a container launcher - try again later")
-				time.Sleep(l.retryInterval)
+				time.Sleep(time.Until(retryer.NextRetry()))
 			}
 		}
 	}()

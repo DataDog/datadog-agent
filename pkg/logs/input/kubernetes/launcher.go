@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/cenkalti/backoff"
 )
 
@@ -51,18 +52,16 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
-func IsAvalible() bool {
+func IsAvalible() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
 		log.Errorf("Integration not avalible - %s not found", basePath)
-		return false
+		return false, nil
 	}
-	_, err := kubelet.GetKubeUtil()
-	if err == nil {
-		log.Info("KubeUtil is avalible")
-		return true
+	util, retrier := kubelet.GetKubeUtilWithRetrier()
+	if util != nil {
+		return true, nil
 	}
-	log.Info("KubeUtil false avalible")
-	return false
+	return false, retrier
 }
 
 // NewLauncher returns a new launcher.

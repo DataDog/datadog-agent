@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -58,14 +59,9 @@ type Launcher struct {
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
-func IsAvalible() bool {
-	_, err := dockerutil.GetDockerUtil()
-	if err == nil {
-		log.Info("DockerUtil is avalible")
-		return true
-	}
-	log.Info("DockerUtil not avalible")
-	return false
+func IsAvalible() (bool, *retry.Retrier) {
+	util, retrier := dockerutil.GetDockerUtilWithRetrier()
+	return util != nil, retrier
 }
 
 // NewLauncher returns a new launcher
