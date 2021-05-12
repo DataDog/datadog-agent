@@ -15,7 +15,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -46,12 +45,6 @@ const (
 )
 
 const procResolveMaxDepth = 16
-
-// argsEnvsCacheEntry holds temporary args/envs info
-type argsEnvsCacheEntry struct {
-	Values      []string
-	IsTruncated bool
-}
 
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
@@ -144,17 +137,12 @@ func (p *ProcessResolver) SendStats() error {
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
+	entry := event.ArgsEnvsCacheEntry
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		entry.Values = append(entry.Values, event.Values...)
-		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
+		prevEntry := e.(*model.ArgsEnvsCacheEntry)
+		prevEntry.Next = &entry
 	} else {
-		entry := &argsEnvsCacheEntry{
-			Values:      event.Values,
-			IsTruncated: event.IsTruncated,
-		}
-		p.argsEnvsCache.Add(event.ID, entry)
+		p.argsEnvsCache.Add(event.ID, &entry)
 	}
 }
 
@@ -482,33 +470,13 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		pce.ArgsArray = entry.Values
-		if pce.ArgsTruncated {
-			pce.ArgsArray = append(pce.ArgsArray, "...")
-		}
-		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
+		pce.ArgsCacheEntry = e.(*model.ArgsEnvsCacheEntry)
 	}
 }
 
-// SetProcessEnvs set environment variables to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		// keep only keys
-		pce.EnvsArray = make([]string, len(entry.Values))
-		for i, env := range entry.Values {
-			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-				pce.EnvsArray[i] = els[0]
-			}
-		}
-
-		if pce.EnvsTruncated {
-			pce.EnvsArray = append(pce.EnvsArray, "...")
-		}
-		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
+		pce.EnvsCacheEntry = e.(*model.ArgsEnvsCacheEntry)
 	}
 }
 

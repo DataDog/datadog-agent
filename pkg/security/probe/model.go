@@ -212,23 +212,45 @@ func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
 
 // ResolveExecArgs resolves the args of the event
 func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
-	if ev.Exec.Args == "" && len(e.ArgsArray) > 0 {
-		ev.Exec.Args = strings.Join(e.ArgsArray, " ")
+	if ev.Exec.Args == "" {
+		ev.Exec.Args = strings.Join(ev.ResolveExecArgv(e), " ")
 	}
 	return ev.Exec.Args
 }
 
+// GetProcessArgv returns the args of the event as an array
+func (ev *Event) GetProcessArgv(p *model.Process) ([]string, bool) {
+	if p.ArgsCacheEntry == nil {
+		return nil, false
+	}
+
+	argv, truncated := p.ArgsCacheEntry.ToArray()
+
+	truncated = p.ArgsTruncated || truncated
+	if truncated {
+		argv = append(argv, "...")
+	}
+
+	return argv, truncated
+}
+
 // ResolveExecArgv resolves the args of the event as an array
 func (ev *Event) ResolveExecArgv(e *model.ExecEvent) []string {
-	if len(ev.Exec.Argv) == 0 && len(e.ArgsArray) > 0 {
-		ev.Exec.Argv = e.ArgsArray
+	if len(ev.Exec.Argv) == 0 && e.ArgsCacheEntry != nil {
+		ev.Exec.Argv, ev.Exec.ArgsTruncated = ev.GetProcessArgv(&e.Process)
 	}
 	return ev.Exec.Argv
 }
 
+// ResolveExecArgsTruncated returns whether the args are truncated
+func (ev *Event) ResolveExecArgsTruncated(e *model.ExecEvent) bool {
+	_ = ev.ResolveExecArgs(e)
+	return ev.Exec.ArgsTruncated
+}
+
 // ResolveExecArgsFlags resolves the arguments flags of the event
 func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
-	for _, arg := range e.ArgsArray {
+	for _, arg := range ev.ResolveExecArgv(e) {
 		if len(arg) > 1 && arg[0] == '-' {
 			isFlag := true
 			name := arg[1:]
@@ -260,7 +282,7 @@ func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
 
 // ResolveExecArgsOptions resolves the arguments options of the event
 func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
-	args := e.ArgsArray
+	args := ev.ResolveExecArgv(e)
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if len(arg) > 1 && arg[0] == '-' {
@@ -283,10 +305,44 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 	return
 }
 
+// ResolveExecEnvsTruncated returns whether the envs are truncated
+func (ev *Event) ResolveExecEnvsTruncated(e *model.ExecEvent) bool {
+	_ = ev.ResolveExecEnvs(e)
+	return ev.Exec.EnvsTruncated
+}
+
+// GetProcessEnvs returns the envs of the event
+func (ev *Event) GetProcessEnvs(p *model.Process) ([]string, bool) {
+	if p.EnvsCacheEntry == nil {
+		return nil, false
+	}
+
+	values, truncated := p.EnvsCacheEntry.ToArray()
+
+	size := len(values)
+	if truncated {
+		size++
+	}
+
+	envs := make([]string, size)
+	truncated = p.EnvsTruncated || truncated
+
+	for i, env := range values {
+		if els := strings.SplitN(env, "=", 2); len(els) > 0 {
+			envs[i] = els[0]
+		}
+	}
+
+	if truncated {
+		envs[size-1] = "..."
+	}
+	return envs, truncated
+}
+
 // ResolveExecEnvs resolves the envs of the event
 func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
-	if len(ev.Exec.Envs) == 0 && len(e.EnvsArray) > 0 {
-		ev.Exec.Envs = e.EnvsArray
+	if len(e.Envs) == 0 && e.EnvsCacheEntry != nil {
+		ev.Exec.Envs, ev.Exec.EnvsTruncated = ev.GetProcessEnvs(&e.Process)
 	}
 	return ev.Exec.Envs
 }

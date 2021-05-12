@@ -31,8 +31,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 
 func (pc *ProcessCacheEntry) compactArgsEnvs() {
 	// TODO: do not copy for the moment, need to handle memory usage properly
-	pc.ArgsArray = []string{}
-	pc.EnvsArray = []string{}
+	pc.ArgsCacheEntry = nil
+	pc.EnvsCacheEntry = nil
 }
 
 // Exec replace a process
@@ -78,3 +78,36 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	}
 	return s
 }*/
+
+// ArgsEnvsCacheEntry defines a args/envs entry
+type ArgsEnvsCacheEntry struct {
+	ID        uint32
+	Size      uint32
+	ValuesRaw [128]byte
+	Next      *ArgsEnvsCacheEntry
+}
+
+// Array returns args/envs as array
+func (p *ArgsEnvsCacheEntry) ToArray() ([]string, bool) {
+	entry := p
+
+	var values []string
+	var truncated bool
+
+	for entry != nil {
+		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
+		if err != nil || entry.Size == 128 {
+			if len(values) > 0 {
+				v[len(values)-1] = v[len(values)-1] + "..."
+			}
+			truncated = true
+		}
+		if len(v) > 0 {
+			values = append(values, v...)
+		}
+
+		entry = entry.Next
+	}
+
+	return values, truncated
+}

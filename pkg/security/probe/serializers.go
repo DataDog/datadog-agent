@@ -288,24 +288,25 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func scrubArgs(process *model.Process, e *Event) []string {
-	args := process.ArgsArray
+func scrubArgs(process *model.Process, e *Event) ([]string, bool) {
+	argv, truncated := e.GetProcessArgv(process)
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
 	if e.scrubber == nil {
-		args = []string{}
+		argv = []string{}
 	} else {
-		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
-			args = newArgs
+		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
+			argv = newArgv
 		}
 	}
 
-	return args
+	return argv, truncated
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	args := scrubArgs(&pce.Process, e)
+	argv, argvTruncated := scrubArgs(&pce.Process, e)
+	envs, EnvsTruncated := e.GetProcessEnvs(&pce.Process)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
@@ -323,10 +324,10 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
-		Args:          args,
-		ArgsTruncated: pce.Process.ArgsTruncated,
-		Envs:          pce.EnvsArray,
-		EnvsTruncated: pce.Process.EnvsTruncated,
+		Args:          argv,
+		ArgsTruncated: argvTruncated,
+		Envs:          envs,
+		EnvsTruncated: EnvsTruncated,
 	}
 
 	credsSerializer := newCredentialsSerializer(&pce.Credentials)

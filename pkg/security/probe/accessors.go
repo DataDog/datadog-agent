@@ -483,10 +483,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).Exec.ArgsTruncated
+				return (*Event)(ctx.Object).ResolveExecArgsTruncated(&(*Event)(ctx.Object).Exec)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.argv":
@@ -585,10 +585,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).Exec.EnvsTruncated
+				return (*Event)(ctx.Object).ResolveExecEnvsTruncated(&(*Event)(ctx.Object).Exec)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.euid":
@@ -4792,7 +4792,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.args_truncated":
 
-		return e.Exec.ArgsTruncated, nil
+		return e.ResolveExecArgsTruncated(&e.Exec), nil
 
 	case "exec.argv":
 
@@ -4832,7 +4832,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.envs_truncated":
 
-		return e.Exec.EnvsTruncated, nil
+		return e.ResolveExecEnvsTruncated(&e.Exec), nil
 
 	case "exec.euid":
 
