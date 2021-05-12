@@ -309,8 +309,8 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					lastRequestID = message.ObjectRecord.RequestID
 				}
 			}
-			// If the global request ID or ARN variable isn't set at this point, do not process further
-			if arn == "" || lastRequestID == "" {
+
+			if !aws.ShouldProcessLog(arn, lastRequestID, message) {
 				continue
 			}
 

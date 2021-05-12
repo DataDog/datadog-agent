@@ -152,3 +152,15 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
+	// If the global request ID or ARN variable isn't set at this point, do not process further
+	if arn == "" || lastRequestID == "" {
+		return false
+	}
+	// Making sure that we do not process empty messages
+	if message.StringRecord == "" && message.Type == "" {
+		return false
+	}
+	return true
+}
