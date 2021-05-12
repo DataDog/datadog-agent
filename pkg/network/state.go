@@ -642,10 +642,11 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		Address util.Address
 		Port    uint16
 		Type    ConnectionType
+		NetNS   uint32
 	}
 
 	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
-		key := connKey{Type: connStat.Type}
+		key := connKey{Type: connStat.Type, NetNS: connStat.NetNS}
 		if useRAddrAsKey {
 			if connStat.IPTranslation == nil {
 				key.Address = connStat.Dest
@@ -663,21 +664,33 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 
 	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
-		lAddrs[newConnKey(&conn, false)] = struct{}{}
+		k := newConnKey(&conn, false)
+		lAddrs[k] = struct{}{}
+		if !k.Address.IsLoopback() {
+			k.NetNS = 0
+			lAddrs[k] = struct{}{}
+		}
 	}
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
 	for i := range connections {
 		conn := &connections[i]
-		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
+		if conn.Source == conn.Dest ||
+			(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
+			(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
 			conn.IntraHost = true
-			continue
+		} else {
+			keyWithRAddr := newConnKey(conn, true)
+			_, conn.IntraHost = lAddrs[keyWithRAddr]
+			if !conn.IntraHost && !keyWithRAddr.Address.IsLoopback() {
+				keyWithRAddr.NetNS = 0
+				_, conn.IntraHost = lAddrs[keyWithRAddr]
+			}
 		}
 
-		keyWithRAddr := newConnKey(conn, true)
-		_, ok := lAddrs[keyWithRAddr]
-		if ok {
-			conn.IntraHost = true
+		if conn.IntraHost && conn.Direction == INCOMING {
+			// remove ip translation from incoming local connections
+			conn.IPTranslation = nil
 		}
 	}
 }
