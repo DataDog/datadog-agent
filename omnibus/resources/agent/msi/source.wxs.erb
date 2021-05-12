@@ -486,7 +486,7 @@
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
-      <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
+      <!-- TEMP DISABLE ROLLBACK <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>  -->
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -635,7 +635,7 @@
 
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 
-    <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
+    <!-- TEMP DISABLE ROLLBACK <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' /> -->
 
 
     <!--
