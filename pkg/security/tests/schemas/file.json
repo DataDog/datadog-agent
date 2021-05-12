@@ -74,8 +74,6 @@
                 "mode",
                 "mount_id",
                 "filesystem",
-                "user",
-                "group",
                 "modification_time",
                 "change_time"
             ]
