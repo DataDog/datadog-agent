@@ -8,6 +8,7 @@ package file
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -23,6 +24,12 @@ import (
 
 // scanPeriod represents the period of time between two scans.
 const scanPeriod = 10 * time.Second
+
+// rxContainerID is used in the shouldIgnore func to do a best-effort validation
+// that the file currently scanned for a source is attached to the proper container.
+// If the container ID we parse from the filename isn't matching this regexp, we *will*
+// tail the file because we prefer a false-negative than a false-positive (best-effort).
+var rxContainerID = regexp.MustCompile("^[a-fA-F0-9]{64}$")
 
 // ContainersLogsDir is the directory in which we should find containers logsfile
 // with the container ID in their filename.
@@ -301,7 +308,9 @@ func (s *Scanner) shouldIgnore(file *File) bool {
 		containerIDFromFilename = strings.TrimSuffix(parts[len(parts)-1], ext)
 	}
 
-	if containerIDFromFilename == "" {
+	// basic validation of the ID that has been parsed, if it doesn't look like
+	// an ID we don't want to compare another ID to it
+	if containerIDFromFilename == "" || !rxContainerID.Match([]byte(containerIDFromFilename)) {
 		return false
 	}
 
