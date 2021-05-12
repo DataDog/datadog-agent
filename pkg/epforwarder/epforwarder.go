@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	eventTypeDBMSamples = "dbm-samples"
-	eventTypeDBMMetrics = "dbm-metrics"
+	eventTypeDBMSamples             = "dbm-samples"
+	eventTypeDBMMetrics             = "dbm-metrics"
+	eventTypeNetworkDevicesMetadata = "network-devices-metadata"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -30,6 +31,11 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:              eventTypeDBMMetrics,
 		endpointsConfigPrefix:  "database_monitoring.metrics",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
+	},
+	{
+		eventType:              eventTypeNetworkDevicesMetadata,
+		endpointsConfigPrefix:  "network_devices.metadata",
+		hostnameEndpointPrefix: "network-devices.",
 	},
 }
 
