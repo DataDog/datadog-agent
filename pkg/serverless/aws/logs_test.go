@@ -27,17 +27,17 @@ func TestShouldProcessLog(t *testing.T) {
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	emptyARN := ""
 
-	nonEmptyRequestId := "8286a188-ba32-4475-8077-530cd35c09a9"
-	emptyRequestId := ""
+	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	emptyRequestID := ""
 
-	assert.True(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestId, validLog))
-	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestId, validLog))
-	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestId, validLog))
-	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestId, validLog))
+	assert.True(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestID, validLog))
+	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, validLog))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, validLog))
+	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, validLog))
 
-	assert.False(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestId, invalidLog))
-	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestId, invalidLog))
-	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestId, invalidLog))
-	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestId, invalidLog))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestID, invalidLog))
+	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, invalidLog))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, invalidLog))
+	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, invalidLog))
 
 }
