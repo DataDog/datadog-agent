@@ -75,12 +75,14 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 			"probably to another namespace. Is the agent in host PID mode?")
 	}
 
-	pid := cred.Pid
-	if cred.Guid == replay.Guid {
-		pid = cred.Uid
+	capture := false
+	pid := int(cred.Pid)
+	if cred.Gid == replay.GUID {
+		pid = int(cred.Uid)
+		capture = true
 	}
 
-	entity, err := getEntityForPID(cred.Pid)
+	entity, err := getEntityForPID(cred.Pid, capture)
 	if err != nil {
 		return pid, packets.NoOrigin, err
 	}
@@ -90,17 +92,19 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 // getEntityForPID returns the container entity name and caches the value for future lookups
 // As the result is cached and the lookup is really fast (parsing local files), it can be
 // called from the intake goroutine.
-func getEntityForPID(pid int32) (string, error) {
+func getEntityForPID(pid int32, capture bool) (string, error) {
 	key := cache.BuildAgentKey(pidToEntityCacheKeyPrefix, strconv.Itoa(int(pid)))
 	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
 	}
 
-	entity, err := entityForPID(pid)
+	entity, err := entityForPID(pid, capture)
 	switch err {
 	case nil:
 		// No error, yay!
-		cache.Cache.Set(key, entity, pidToEntityCacheDuration)
+		if !capture {
+			cache.Cache.Set(key, entity, pidToEntityCacheDuration)
+		}
 		return entity, nil
 	case errNoContainerMatch:
 		// No runtime detected, cache the `packets.NoOrigin` result
@@ -114,7 +118,11 @@ func getEntityForPID(pid int32) (string, error) {
 
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
-func entityForPID(pid int32) (string, error) {
+func entityForPID(pid int32, capture bool) (string, error) {
+	if capture {
+		return replay.ContainerIDForPID(pid)
+	}
+
 	cID, err := providers.ContainerImpl().ContainerIDForPID(int(pid))
 	if err != nil {
 		return "", err

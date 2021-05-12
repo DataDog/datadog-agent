@@ -135,13 +135,13 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 
 // ReadState reads the tagger state from the end of the capture file.
 // The internal offset of the reader is not modified by this operation.
-func (tc *TrafficCaptureReader) ReadState() (map[string]*pb.Entity, error) {
+func (tc *TrafficCaptureReader) ReadState() (map[int32]string, map[string]*pb.Entity, error) {
 
 	tc.Lock()
 	defer tc.Unlock()
 
 	if tc.Version < minStateVersion {
-		return nil, fmt.Errorf("The replay file is version: %v and does not contain a tagger state", tc.Version)
+		return nil, nil, fmt.Errorf("The replay file is version: %v and does not contain a tagger state", tc.Version)
 	}
 
 	length := len(tc.Contents)
@@ -149,7 +149,7 @@ func (tc *TrafficCaptureReader) ReadState() (map[string]*pb.Entity, error) {
 
 	log.Debugf("State bytes to be read: %v", sz)
 	if sz == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// pb state
@@ -157,10 +157,10 @@ func (tc *TrafficCaptureReader) ReadState() (map[string]*pb.Entity, error) {
 	err := proto.Unmarshal(tc.Contents[length-int(sz)-4:length-4], pbState)
 	if err != nil {
 		tc.Unlock()
-		return nil, err
+		return nil, nil, err
 	}
 
-	return pbState.State, err
+	return pbState.PidMap, pbState.State, err
 }
 
 // Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.

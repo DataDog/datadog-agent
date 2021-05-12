@@ -99,6 +99,7 @@ message UnixDogstatsdMsg {
 
 message TaggerState {
     map<string, Entity> state = 1;
+    map<int32, string> pidMap = 2;
 }
 
 message TaggerStateResponse {

@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -100,6 +101,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 
 	log.Debugf("API: setting capture state tagger")
 	tagger.SetCaptureTagger(t)
+	dsdReplay.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
 

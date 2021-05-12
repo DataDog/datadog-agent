@@ -152,12 +152,12 @@ func dogstatsdReplay() error {
 	defer conn.Close()
 
 	// let's read state before proceeding
-	state, err := reader.ReadState()
+	pidmap, state, err := reader.ReadState()
 	if err != nil {
 		fmt.Printf("Unable to load state from file, tag enrichment will be unavailable for this capture: %v\n", err)
 	}
 
-	resp, err := cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{State: state})
+	resp, err := cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{State: state, PidMap: pidmap})
 	if err != nil {
 		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
 	} else if !resp.GetLoaded() {

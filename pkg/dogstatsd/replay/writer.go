@@ -34,7 +34,7 @@ const (
 type CaptureBuffer struct {
 	Pb          pb.UnixDogstatsdMsg
 	Oob         *[]byte
-	Pid         int
+	Pid         int32
 	ContainerID string
 	Buff        *packets.Packet
 }
@@ -58,7 +58,7 @@ type TrafficCaptureWriter struct {
 	sharedPacketPoolManager *packets.PoolManager
 	oobPacketPoolManager    *packets.PoolManager
 
-	taggerState map[string]string
+	taggerState map[int32]string
 
 	sync.RWMutex
 }
@@ -69,7 +69,7 @@ func NewTrafficCaptureWriter(l string, depth int) *TrafficCaptureWriter {
 	return &TrafficCaptureWriter{
 		Location:    l,
 		Traffic:     make(chan *CaptureBuffer, depth),
-		taggerState: make(map[string]string),
+		taggerState: make(map[int32]string),
 	}
 }
 
@@ -151,7 +151,7 @@ process:
 			}
 
 			if msg.ContainerID != "" {
-				tc.taggerState[string(*msg.Oob)] = msg.ContainerID
+				tc.taggerState[msg.Pid] = msg.ContainerID
 			}
 
 			if tc.sharedPacketPoolManager != nil {
@@ -270,7 +270,8 @@ func (tc *TrafficCaptureWriter) WriteHeader() error {
 func (tc *TrafficCaptureWriter) WriteState() (int, error) {
 
 	pbState := pb.TaggerState{
-		State: make(map[string]*pb.Entity),
+		State:  make(map[string]*pb.Entity),
+		PidMap: tc.taggerState,
 	}
 
 	// iterate entities
