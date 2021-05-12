@@ -77,6 +77,8 @@ type telemetry struct {
 type stats struct {
 	totalSent           uint64
 	totalRecv           uint64
+	totalSentPackets    uint64
+	totalRecvPackets    uint64
 	totalRetransmits    uint32
 	totalTCPEstablished uint32
 	totalTCPClosed      uint32
@@ -469,6 +471,9 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 
 		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
 		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
+		closed.LastSentPackets = closed.MonotonicSentPackets - st.totalSentPackets
+		closed.LastRecvPackets = closed.MonotonicRecvPackets - st.totalRecvPackets
+
 		closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
 		closed.LastTCPEstablished = closed.LastTCPEstablished - st.totalTCPEstablished
 		closed.LastTCPClosed = closed.LastTCPClosed - st.totalTCPClosed
@@ -476,12 +481,17 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 		// Update stats object with latest values
 		st.totalSent = active.MonotonicSentBytes
 		st.totalRecv = active.MonotonicRecvBytes
+		st.totalRecvPackets = active.MonotonicRecvPackets
+		st.totalSentPackets = active.MonotonicSentBytes
 		st.totalRetransmits = active.MonotonicRetransmits
 		st.totalTCPEstablished = active.MonotonicTCPEstablished
 		st.totalTCPClosed = active.MonotonicTCPClosed
 	} else {
 		closed.LastSentBytes = closed.MonotonicSentBytes
 		closed.LastRecvBytes = closed.MonotonicRecvBytes
+		closed.LastRecvPackets = closed.MonotonicRecvPackets
+		closed.LastSentPackets = closed.MonotonicSentPackets
+
 		closed.LastRetransmits = closed.MonotonicRetransmits
 		closed.LastTCPEstablished = closed.MonotonicTCPEstablished
 		closed.LastTCPClosed = closed.MonotonicTCPClosed
@@ -495,6 +505,8 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 
 		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
 		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
+		c.LastSentPackets = c.MonotonicSentPackets - st.totalSentPackets
+		c.LastRecvPackets = c.MonotonicRecvPackets - st.totalRecvPackets
 		c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
 		c.LastTCPEstablished = c.MonotonicTCPEstablished - st.totalTCPEstablished
 		c.LastTCPClosed = c.MonotonicTCPClosed - st.totalTCPClosed
@@ -502,12 +514,16 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 		// Update stats object with latest values
 		st.totalSent = c.MonotonicSentBytes
 		st.totalRecv = c.MonotonicRecvBytes
+		st.totalSentPackets = c.MonotonicSentPackets
+		st.totalRecvPackets = c.MonotonicRecvPackets
 		st.totalRetransmits = c.MonotonicRetransmits
 		st.totalTCPEstablished = c.MonotonicTCPEstablished
 		st.totalTCPClosed = c.MonotonicTCPClosed
 	} else {
 		c.LastSentBytes = c.MonotonicSentBytes
 		c.LastRecvBytes = c.MonotonicRecvBytes
+		c.LastRecvPackets = c.MonotonicRecvPackets
+		c.LastSentPackets = c.MonotonicSentPackets
 		c.LastRetransmits = c.MonotonicRetransmits
 		c.LastTCPEstablished = c.MonotonicTCPEstablished
 		c.LastTCPClosed = c.MonotonicTCPClosed
