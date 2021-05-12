@@ -38,6 +38,7 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 				BilledDurationMs: 100,
 				MemorySizeMB:     128,
 				MaxMemoryUsedMB:  128,
+				InitDurationMs:   0.00,
 			},
 		},
 	}
