@@ -1,11 +1,11 @@
 package module
 
 import (
-	"net/http"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
@@ -22,14 +22,17 @@ func init() {
 // * Module termination;
 // * Module telemetry consolidation;
 type loader struct {
-	once    sync.Once
+	sync.Mutex
 	modules map[config.ModuleName]Module
+	cfg     *config.Config
+	httpMux *mux.Router
+	closed  bool
 }
 
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func Register(cfg *config.Config, httpMux *http.ServeMux, factories []Factory) error {
+func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
@@ -55,6 +58,8 @@ func Register(cfg *config.Config, httpMux *http.ServeMux, factories []Factory) e
 		log.Infof("module: %s started", factory.Name)
 	}
 
+	l.httpMux = httpMux
+	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
 	}
@@ -64,6 +69,9 @@ func Register(cfg *config.Config, httpMux *http.ServeMux, factories []Factory) e
 
 // GetStats returns the stats from all modules, namespaced by their names
 func GetStats() map[config.ModuleName]interface{} {
+	l.Lock()
+	defer l.Unlock()
+
 	stats := make(map[config.ModuleName]interface{})
 	for name, module := range l.modules {
 		stats[name] = module.GetStats()
@@ -71,11 +79,37 @@ func GetStats() map[config.ModuleName]interface{} {
 	return stats
 }
 
+// RestartModule triggers a module restart
+func RestartModule(factory Factory) error {
+	l.Lock()
+	defer l.Unlock()
+
+	_, ok := l.modules[factory.Name]
+	if !ok {
+		return errors.New("module not started")
+	}
+
+	moduleInstance, err := factory.Fn(l.cfg)
+	if err != nil {
+		return err
+	}
+
+	moduleInstance.Register(l.httpMux)
+	l.modules[factory.Name] = moduleInstance
+	return nil
+}
+
 // Close each registered module
 func Close() {
-	l.once.Do(func() {
-		for _, module := range l.modules {
-			module.Close()
-		}
-	})
+	l.Lock()
+	defer l.Unlock()
+
+	if l.closed == true {
+		return
+	}
+
+	l.closed = true
+	for _, module := range l.modules {
+		module.Close()
+	}
 }
