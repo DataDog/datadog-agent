@@ -212,13 +212,13 @@ func (c *AgentConfig) acquireHostname() error {
 	if err != nil {
 		host, err2 := fallbackHostnameFunc()
 		if err2 != nil {
-			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var.", err, err2)
+			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q); try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
 		}
 		c.Hostname = host
-		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Infof("acquired hostname from OS: %q; core agent was unreachable at %q: %v", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Infof("acquired hostname from core agent (%s): %q", c.DDAgentBin, c.Hostname)
 	return nil
 }
 
