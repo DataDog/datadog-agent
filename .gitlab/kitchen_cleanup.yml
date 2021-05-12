@@ -8,8 +8,11 @@
 # include:
 #   - /.gitlab/kitchen_common/cleanup.yml
 
-.if_not_kitchen: &if_not_kitchen
-  if: ($CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true") || $RUN_KITCHEN_TESTS == "false"
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
+
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
 
 .if_not_version_6: &if_not_version_6
   if: $RELEASE_VERSION_6 == ""
@@ -22,9 +25,8 @@ kitchen_cleanup_s3-a6:
   rules:
     - <<: *if_not_version_6
       when: never
-    - <<: *if_not_kitchen
-      when: never
-    - when: on_success
+    - <<: *if_kitchen
+      when: on_success
   dependencies: ["agent_deb-x64-a6"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -35,7 +37,8 @@ kitchen_cleanup_s3-a7:
   rules:
     - <<: *if_not_version_7
       when: never
-    - when: on_success
+    - <<: *if_default_kitchen
+      when: on_success
   dependencies: ["agent_deb-x64-a7"]
   variables:
     AGENT_MAJOR_VERSION: 7
