@@ -128,6 +128,7 @@ tags:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -141,6 +142,16 @@ tags:
 				Name:  "1.3.6.1.2.1.1.5.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("dev_desc"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4.5.6.7.8.9",
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.1",
@@ -265,6 +276,7 @@ metrics:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -328,6 +340,7 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -463,6 +476,7 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
@@ -599,6 +613,7 @@ ip_address: 1.2.3.4
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	err = check.Run()
@@ -781,6 +796,7 @@ ip_address: 1.2.3.4
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 			sender.On("Commit").Return()
 
 			err = check.Run()
@@ -831,6 +847,7 @@ metrics:
 		Variables: []gosnmp.SnmpPDU{},
 	}
 	session.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.SetupAcceptAll()
 
 	err = check.Run()

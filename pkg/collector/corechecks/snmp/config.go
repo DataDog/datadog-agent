@@ -2,13 +2,13 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var defaultOidBatchSize = 60
@@ -23,47 +23,53 @@ type snmpInitConfig struct {
 }
 
 type snmpInstanceConfig struct {
-	IPAddress        string            `yaml:"ip_address"`
-	Port             Number            `yaml:"port"`
-	CommunityString  string            `yaml:"community_string"`
-	SnmpVersion      string            `yaml:"snmp_version"`
-	Timeout          Number            `yaml:"timeout"`
-	Retries          Number            `yaml:"retries"`
-	OidBatchSize     Number            `yaml:"oid_batch_size"`
-	User             string            `yaml:"user"`
-	AuthProtocol     string            `yaml:"authProtocol"`
-	AuthKey          string            `yaml:"authKey"`
-	PrivProtocol     string            `yaml:"privProtocol"`
-	PrivKey          string            `yaml:"privKey"`
-	ContextName      string            `yaml:"context_name"`
-	Metrics          []metricsConfig   `yaml:"metrics"`
-	MetricTags       []metricTagConfig `yaml:"metric_tags"`
-	Profile          string            `yaml:"profile"`
-	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
-	ExtraTags        string            `yaml:"extra_tags"` // comma separated tags
+	IPAddress             string            `yaml:"ip_address"`
+	Port                  Number            `yaml:"port"`
+	CommunityString       string            `yaml:"community_string"`
+	SnmpVersion           string            `yaml:"snmp_version"`
+	Timeout               Number            `yaml:"timeout"`
+	Retries               Number            `yaml:"retries"`
+	OidBatchSize          Number            `yaml:"oid_batch_size"`
+	User                  string            `yaml:"user"`
+	AuthProtocol          string            `yaml:"authProtocol"`
+	AuthKey               string            `yaml:"authKey"`
+	PrivProtocol          string            `yaml:"privProtocol"`
+	PrivKey               string            `yaml:"privKey"`
+	ContextName           string            `yaml:"context_name"`
+	Metrics               []metricsConfig   `yaml:"metrics"`
+	MetricTags            []metricTagConfig `yaml:"metric_tags"`
+	Profile               string            `yaml:"profile"`
+	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
+	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
+	Tags                  []string          `yaml:"tags"`       // used for device metadata
+	CollectDeviceMetadata bool              `yaml:"collect_device_metadata"`
 }
 
 type snmpConfig struct {
-	ipAddress         string
-	port              uint16
-	communityString   string
-	snmpVersion       string
-	timeout           int
-	retries           int
-	user              string
-	authProtocol      string
-	authKey           string
-	privProtocol      string
-	privKey           string
-	contextName       string
-	oidConfig         oidConfig
-	metrics           []metricsConfig
-	metricTags        []metricTagConfig
-	oidBatchSize      int
-	profiles          profileDefinitionMap
-	profileTags       []string
-	uptimeMetricAdded bool
-	extraTags         []string
+	ipAddress             string
+	port                  uint16
+	communityString       string
+	snmpVersion           string
+	timeout               int
+	retries               int
+	user                  string
+	authProtocol          string
+	authKey               string
+	privProtocol          string
+	privKey               string
+	contextName           string
+	oidConfig             oidConfig
+	metrics               []metricsConfig
+	metricTags            []metricTagConfig
+	oidBatchSize          int
+	profiles              profileDefinitionMap
+	profileTags           []string
+	profile               string
+	profileDef            *profileDefinition
+	uptimeMetricAdded     bool
+	extraTags             []string
+	instanceTags          []string
+	collectDeviceMetadata bool
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -73,11 +79,15 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
+	c.profileDef = &definition
+	c.profile = profile // TODO: TEST ME
 
 	c.metrics = append(c.metrics, definition.Metrics...)
 	c.metricTags = append(c.metricTags, definition.MetricTags...)
 	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, parseScalarOids(definition.Metrics, definition.MetricTags)...)
+	c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, metadataScalarOIDs...) // TODO: TEST ME
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
+	c.oidConfig.columnOids = append(c.oidConfig.columnOids, metadataColumnOIDs...)
 
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
@@ -145,6 +155,8 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
 	c.port = uint16(instance.Port)
+	c.collectDeviceMetadata = instance.CollectDeviceMetadata
+
 	if instance.ExtraTags != "" {
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
 	}
@@ -194,6 +206,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 	normalizeMetrics(c.metrics)
 
+	c.instanceTags = instance.Tags
 	c.metricTags = instance.MetricTags
 
 	c.oidConfig.scalarOids = parseScalarOids(c.metrics, c.metricTags)
