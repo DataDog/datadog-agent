@@ -267,7 +267,7 @@ func (s *Scanner) shouldIgnore(file *File) bool {
 	infos := make(map[string]string)
 	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
 		// we only wants to follow symlinks
-		if info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
 			// not a symlink, we are not interested in this file
 			return nil
 		}
