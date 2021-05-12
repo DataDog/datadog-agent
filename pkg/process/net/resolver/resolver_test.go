@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -99,6 +101,9 @@ func TestLocalResolver(t *testing.T) {
 }
 
 func TestResolveLoopbackConnections(t *testing.T) {
+
+	rootNs, err := util.GetNetNsInoFromPid("/proc", 1)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name            string
@@ -282,6 +287,54 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
 		},
+		{
+			name: "cross namespace with dnat to loopback",
+			conn: &model.Connection{
+				Pid:   20,
+				NetNS: 20,
+				Laddr: &model.Addr{
+					Ip:   "10.10.10.10",
+					Port: 22222,
+				},
+				Raddr: &model.Addr{
+					Ip:   "169.254.169.254.169",
+					Port: 80,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "10.10.10.10",
+					ReplDstPort: 22222,
+					ReplSrcIP:   "127.0.0.1",
+					ReplSrcPort: 8181,
+				},
+			},
+			expectedLaddrID: "foo20",
+			expectedRaddrID: "foo21",
+		},
+		{
+			name: "cross namespace with dnat to loopback",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: rootNs,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "10.10.10.10",
+					Port: 22222,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstIP:   "169.254.169.254",
+					ReplDstPort: 80,
+					ReplSrcIP:   "10.10.10.10",
+					ReplSrcPort: 22222,
+				},
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "foo20",
+		},
 	}
 
 	resolver := &LocalResolver{}
@@ -318,6 +371,14 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			{
 				ID:   "bar",
 				Pids: []int32{20},
+			},
+			{
+				ID:   "foo20",
+				Pids: []int32{20},
+			},
+			{
+				ID:   "foo21",
+				Pids: []int32{21},
 			},
 		},
 	)

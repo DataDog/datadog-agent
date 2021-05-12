@@ -1418,6 +1418,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 				SPort:     12345,
 				DPort:     80,
 				Direction: OUTGOING,
+				NetNS:     1212,
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
 					ReplDstIP:   util.AddressFromString("1.1.1.1"),
@@ -1435,6 +1436,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 				SPort:     8181,
 				DPort:     12345,
 				Direction: INCOMING,
+				NetNS:     1233,
 				IPTranslation: &IPTranslation{
 					ReplSrcIP:   util.AddressFromString("1.1.1.1"),
 					ReplDstIP:   util.AddressFromString("169.254.169.254"),
