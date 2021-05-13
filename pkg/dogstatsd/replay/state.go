@@ -8,13 +8,15 @@ package replay
 import (
 	"errors"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	mux    sync.RWMutex
 	pidMap map[int32]string
 
-	errPidMapUnavailable    = errors.New("no Pid map has been set for this replay")
+	errPidMapUnavailable    = errors.New("no pid map has been set for this replay")
 	errContainerUnavailable = errors.New("specified pid is not associated to any container")
 )
 
@@ -38,6 +40,7 @@ func ContainerIDForPID(pid int32) (string, error) {
 		return "", errPidMapUnavailable
 	}
 
+	log.Debugf("SEARCHING for pid: %d in map: %v", pidMap)
 	cID, found := pidMap[pid]
 	if !found {
 		return "", errContainerUnavailable
