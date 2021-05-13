@@ -15,15 +15,15 @@ import (
 func TestShouldProcessLog(t *testing.T) {
 
 	validLog := LogMessage{
-		Type:         LogTypePlatformReport,
+		Type: LogTypePlatformReport,
 	}
 
 	invalidLog0 := LogMessage{
-		Type:         LogTypePlatformLogsSubscription,
+		Type: LogTypePlatformLogsSubscription,
 	}
 
 	invalidLog1 := LogMessage{
-		Type:         LogTypePlatformExtension,
+		Type: LogTypePlatformExtension,
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"

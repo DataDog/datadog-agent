@@ -159,7 +159,6 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-
 // ShouldProcessLog returns whether or not the log should be further processed.
 func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
