@@ -40,7 +40,7 @@ func ContainerIDForPID(pid int32) (string, error) {
 		return "", errPidMapUnavailable
 	}
 
-	log.Debugf("SEARCHING for pid: %d in map: %v", pidMap)
+	log.Debugf("SEARCHING for pid: %d - %v", pid, pidMap[pid])
 	cID, found := pidMap[pid]
 	if !found {
 		return "", errContainerUnavailable

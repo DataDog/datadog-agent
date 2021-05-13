@@ -76,17 +76,17 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 	}
 
 	capture := false
-	pid := int(cred.Pid)
+	pid := cred.Pid
 	if cred.Gid == replay.GUID {
-		pid = int(cred.Uid)
+		pid = int32(cred.Uid)
 		capture = true
 	}
 
-	entity, err := getEntityForPID(cred.Pid, capture)
+	entity, err := getEntityForPID(pid, capture)
 	if err != nil {
-		return pid, packets.NoOrigin, err
+		return int(pid), packets.NoOrigin, err
 	}
-	return pid, entity, nil
+	return int(pid), entity, nil
 }
 
 // getEntityForPID returns the container entity name and caches the value for future lookups
