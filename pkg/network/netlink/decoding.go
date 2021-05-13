@@ -47,10 +47,12 @@ func (c Con) String() string {
 	return fmt.Sprintf("netns=%d src=%s dst=%s sport=%d dport=%d src=%s dst=%s sport=%d dport=%d proto=%d", c.NetNS, c.Origin.Src, c.Origin.Dst, *c.Origin.Proto.SrcPort, *c.Origin.Proto.DstPort, c.Reply.Src, c.Reply.Dst, *c.Reply.Proto.SrcPort, *c.Reply.Proto.DstPort, *c.Con.Origin.Proto.Number)
 }
 
+// Decoder is responsible for decoding netlink messages
 type Decoder struct {
 	scanner *AttributeScanner
 }
 
+// NewDecoder returns a new netlink message Decoder
 func NewDecoder() *Decoder {
 	return &Decoder{
 		scanner: NewAttributeScanner(),
