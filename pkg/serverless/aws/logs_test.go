@@ -15,7 +15,7 @@ import (
 func TestShouldProcessLog(t *testing.T) {
 
 	validLog := LogMessage{
-		Type:         LogTypePlatformReport
+		Type:         LogTypePlatformReport,
 	}
 
 	invalidLog0 := LogMessage{

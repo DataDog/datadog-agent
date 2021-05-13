@@ -167,7 +167,7 @@ func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool
 		return false
 	}
 	// Making sure that we do not process these kind of logs since there are not tied to invovations but to API registrations
-	if message.Type == LogTypePlatformExtension || message.Type == LogTypePlatformLogsSubscription == "" {
+	if message.Type == LogTypePlatformExtension || message.Type == LogTypePlatformLogsSubscription {
 		return false
 	}
 	return true
