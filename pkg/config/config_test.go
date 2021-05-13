@@ -123,9 +123,9 @@ unknown_key.unknown_subkey: true
 }
 
 func TestSiteEnvVar(t *testing.T) {
-	resetApiKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetSite := setEnvForTest("DD_SITE", "datadoghq.eu")
-	defer resetApiKey()
+	defer resetAPIKey()
 	defer resetSite()
 	testConfig := setupConfFromYAML("")
 
@@ -144,12 +144,12 @@ func TestSiteEnvVar(t *testing.T) {
 }
 
 func TestDDURLEnvVar(t *testing.T) {
-	resetApiKey := setEnvForTest("DD_API_KEY", "fakeapikey")
-	resetUrl := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
-	resetExternalUrl := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	defer resetApiKey()
-	defer resetUrl()
-	defer resetExternalUrl()
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
+	resetExternalURL := setEnvForTest("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
+	defer resetAPIKey()
+	defer resetURL()
+	defer resetExternalURL()
 	testConfig := setupConfFromYAML("")
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
@@ -248,9 +248,9 @@ additional_endpoints:
 }
 
 func TestGetMultipleEndpointsEnvVar(t *testing.T) {
-	resetApiKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetAdditionalEndpoints := setEnvForTest("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
-	defer resetApiKey()
+	defer resetAPIKey()
 	defer resetAdditionalEndpoints()
 
 	testConfig := setupConf()
@@ -571,11 +571,11 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	config.Set("use_proxy_for_cloud_metadata", true)
 
 	// uppercase
-	resetHttpProxyUpper := setEnvForTest("HTTP_PROXY", "http_url")
-	resetHttpsProxyUpper := setEnvForTest("HTTPS_PROXY", "https_url")
+	resetHTTPProxyUpper := setEnvForTest("HTTP_PROXY", "http_url")
+	resetHTTPSProxyUpper := setEnvForTest("HTTPS_PROXY", "https_url")
 	resetNoProxyUpper := setEnvForTest("NO_PROXY", "a,b,c") // comma-separated list
-	defer resetHttpProxyUpper()
-	defer resetHttpsProxyUpper()
+	defer resetHTTPProxyUpper()
+	defer resetHTTPSProxyUpper()
 	defer resetNoProxyUpper()
 
 	loadProxyFromEnv(config)
@@ -594,11 +594,11 @@ func TestLoadProxyStdEnvOnly(t *testing.T) {
 	config.Set("proxy", nil)
 
 	// lowercase
-	resetHttpProxyLower := setEnvForTest("http_proxy", "http_url2")
-	resetHttpsProxyLower := setEnvForTest("https_proxy", "https_url2")
+	resetHTTPProxyLower := setEnvForTest("http_proxy", "http_url2")
+	resetHTTPSProxyLower := setEnvForTest("https_proxy", "https_url2")
 	resetNoProxyLower := setEnvForTest("no_proxy", "1,2,3") // comma-separated list
-	defer resetHttpProxyLower()
-	defer resetHttpsProxyLower()
+	defer resetHTTPProxyLower()
+	defer resetHTTPSProxyLower()
 	defer resetNoProxyLower()
 
 	loadProxyFromEnv(config)
@@ -616,11 +616,11 @@ func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetHttpProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
-	resetHttpsProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
+	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
+	resetHTTPSProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
 	resetNoProxy := setEnvForTest("DD_PROXY_NO_PROXY", "a b c") // space-separated list
-	defer resetHttpProxy()
-	defer resetHttpsProxy()
+	defer resetHTTPProxy()
+	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
@@ -639,17 +639,17 @@ func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetDdHttpProxy := setEnvForTest("DD_PROXY_HTTP", "dd_http_url")
-	resetDdHttpsProxy := setEnvForTest("DD_PROXY_HTTPS", "dd_https_url")
+	resetDdHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "dd_http_url")
+	resetDdHTTPSProxy := setEnvForTest("DD_PROXY_HTTPS", "dd_https_url")
 	resetDdNoProxy := setEnvForTest("DD_PROXY_NO_PROXY", "a b c")
-	resetHttpProxy := setEnvForTest("HTTP_PROXY", "env_http_url")
-	resetHttpsProxy := setEnvForTest("HTTPS_PROXY", "env_https_url")
+	resetHTTPProxy := setEnvForTest("HTTP_PROXY", "env_http_url")
+	resetHTTPSProxy := setEnvForTest("HTTPS_PROXY", "env_https_url")
 	resetNoProxy := setEnvForTest("NO_PROXY", "d,e,f")
-	defer resetDdHttpProxy()
-	defer resetDdHttpsProxy()
+	defer resetDdHTTPProxy()
+	defer resetDdHTTPSProxy()
 	defer resetDdNoProxy()
-	defer resetHttpProxy()
-	defer resetHttpsProxy()
+	defer resetHTTPProxy()
+	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
@@ -668,10 +668,10 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetHttpProxy := setEnvForTest("HTTP_PROXY", "http_env")
+	resetHTTPProxy := setEnvForTest("HTTP_PROXY", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
-	defer resetHttpProxy()
+	defer resetHTTPProxy()
 
 	loadProxyFromEnv(config)
 	proxies := GetProxies()
@@ -688,10 +688,10 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetHttpProxy := setEnvForTest("DD_PROXY_HTTP", "http_env")
+	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_env")
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
-	defer resetHttpProxy()
+	defer resetHTTPProxy()
 
 	loadProxyFromEnv(config)
 	proxies := GetProxies()
@@ -708,16 +708,16 @@ func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetDdHttpProxy := setEnvForTest("DD_PROXY_HTTP", "")
+	resetDdHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "")
 	resetDdNoProxy := setEnvForTest("DD_PROXY_NO_PROXY", "a b c")
-	resetHttpProxy := setEnvForTest("HTTP_PROXY", "env_http_url")
-	resetHttpsProxy := setEnvForTest("HTTPS_PROXY", "")
+	resetHTTPProxy := setEnvForTest("HTTP_PROXY", "env_http_url")
+	resetHTTPSProxy := setEnvForTest("HTTPS_PROXY", "")
 	resetNoProxy := setEnvForTest("NO_PROXY", "")
 	config.Set("proxy.https", "https_conf")
-	defer resetDdHttpProxy()
+	defer resetDdHTTPProxy()
 	defer resetDdNoProxy()
-	defer resetHttpProxy()
-	defer resetHttpsProxy()
+	defer resetHTTPProxy()
+	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
@@ -737,11 +737,11 @@ func TestLoadProxyWithoutNoProxy(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetHttpProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
-	resetHttpsProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
+	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
+	resetHTTPSProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
 	resetNoProxy := setEnvForTest("NO_PROXY", "")
-	defer resetHttpProxy()
-	defer resetHttpsProxy()
+	defer resetHTTPProxy()
+	defer resetHTTPSProxy()
 	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
