@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.4.0
+install_script_version=1.5.0
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -177,6 +177,14 @@ else
   echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
 fi
 
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+  # Examples:
+  #  - 20   = defaults to highest patch version x.20.2
+  #  - 20.0 = sets explicit patch version x.20.0
+  # Note: invalid versions will terminate the script
+  agent_minor_version=$DD_AGENT_MINOR_VERSION
+fi
+
 agent_flavor="datadog-agent"
 if [ -n "$DD_AGENT_FLAVOR" ]; then
     agent_flavor=$DD_AGENT_FLAVOR #Eg: datadog-iot-agent
@@ -310,6 +318,35 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
+    # Example: datadog-agent-7.20.2-1
+    pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
+    full_agent_version="$(yum list --showduplicates datadog-agent | grep -E $pkg_pattern -om1)" || true
+    if [ ! -z $agent_minor_version ]; then
+        if [ -z $full_agent_version ]; then
+            echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version;. Exiting.\033[0m"
+            fallback_msg
+            report
+            exit 1;
+            ## If version invalid, prompt to cancel; otherwise continue installing the latest
+            # while true; do
+            #     read -t 10 -p  "Warning: Specified version not found: $agent_major_version.$agent_minor_version; latest will be installed instead. Do you wish to cancel? (y/[n]) " -r yn || on_read_error
+            #     case $yn in
+            #       [Yy]* )
+            #         fallback_msg
+            #         exit 1;;
+            #       [Nn]*|"" )
+            #         fallback_msg
+            #         break;;
+            #       * )
+            #         printf "Please answer yes or no.\n"
+            #         ;;
+            #     esac
+            # done
+        else
+            agent_flavor+="-$full_agent_version"
+        fi
+    fi
+
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
@@ -363,6 +400,37 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
+
+    # Example: datadog-agent=1:7.20.2-1
+    pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
+    full_agent_version="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
+    if [ ! -z $agent_minor_version ]; then
+        if [ -z $full_agent_version ]; then
+
+            echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version;. Exiting.\033[0m"
+            fallback_msg
+            report
+            exit 1;
+            ## If version invalid, prompt to cancel; otherwise continue installing the latest
+            # while true; do
+            #     read -t 10 -p  "Warning: Specified version not found: $agent_major_version.$agent_minor_version; latest will be installed instead. Do you wish to cancel? (y/[n]) " -r yn || on_read_error
+            #     case $yn in
+            #       [Yy]* )
+            #         fallback_msg
+            #         exit 1;;
+            #       [Nn]*|"" )
+            #         fallback_msg
+            #         break;;
+            #       * )
+            #         printf "Please answer yes or no.\n"
+            #         ;;
+            #     esac
+            # done
+        else
+            agent_flavor+="=$full_agent_version"
+        fi
+    fi
+
     $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
@@ -432,6 +500,35 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
 
+  # Example: datadog-agent=1:7.20.2-1
+  pkg_pattern="[[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
+  full_agent_version="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
+  if [ ! -z $agent_minor_version ]; then
+      if [ -z $full_agent_version ]; then
+          echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version;. Exiting.\033[0m"
+          fallback_msg
+          report
+          exit 1;
+          ## If version invalid, prompt to cancel; otherwise continue installing the latest
+          # while true; do
+          #     read -t 10 -p  "Warning: Specified version not found: $agent_major_version.$agent_minor_version; latest will be installed instead. Do you wish to cancel? (y/[n]) " -r yn || on_read_error
+          #     case $yn in
+          #       [Yy]* )
+          #         fallback_msg
+          #         exit 1;;
+          #       [Nn]*|"" )
+          #         fallback_msg
+          #         break;;
+          #       * )
+          #         printf "Please answer yes or no.\n"
+          #         ;;
+          #     esac
+          # done
+      else
+          agent_flavor+="-$full_agent_version"
+      fi
+  fi
+  
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
   $sudo_cmd zypper --non-interactive install "$agent_flavor"
 
