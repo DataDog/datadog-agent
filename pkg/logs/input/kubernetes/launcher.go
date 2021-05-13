@@ -52,6 +52,7 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
+// IsAvalible retrues true if the launcher is avalible and a retrier otherwise
 func IsAvalible() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
 		log.Errorf("Integration not avalible - %s not found", basePath)

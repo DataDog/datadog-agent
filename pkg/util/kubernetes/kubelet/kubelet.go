@@ -128,7 +128,7 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 		log.Debugf("Kube util init error: %s", err)
 		return nil, &globalKubeUtil.initRetry
 	}
-	return globalKubeUtil, &globalKubeUtil.initRetry
+	return globalKubeUtil, nil
 }
 
 // GetKubeUtil returns an instance of KubeUtil.

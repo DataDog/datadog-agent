@@ -59,6 +59,7 @@ type Launcher struct {
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
+// IsAvalible retrues true if the launcher is avalible and a retrier otherwise
 func IsAvalible() (bool, *retry.Retrier) {
 	util, retrier := dockerutil.GetDockerUtilWithRetrier()
 	if util != nil {

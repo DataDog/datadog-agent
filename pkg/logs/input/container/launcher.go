@@ -15,27 +15,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-type ContainerLaunchable struct {
+// Launchable is a retryable wrapper for a restartable
+type Launchable struct {
 	IsAvailable func() (bool, *retry.Retrier)
 	Launcher    func() restart.Restartable
 }
 
+// Launcher tries to select a container launcher and retry on failure
 type Launcher struct {
-	containerLaunchables []ContainerLaunchable
+	containerLaunchables []Launchable
 	activeLauncher       restart.Restartable
 	stopped              chan struct{}
 	hasStopped           bool
 	lock                 sync.Mutex
 }
 
-func NewLauncher(containerLaunchers []ContainerLaunchable) *Launcher {
+// NewLauncher creates a new launcher
+func NewLauncher(containerLaunchers []Launchable) *Launcher {
 	return &Launcher{
 		containerLaunchables: containerLaunchers,
 		stopped:              make(chan struct{}),
 	}
 }
 
-func (l *Launcher) launch(launchable ContainerLaunchable) {
+func (l *Launcher) launch(launchable Launchable) {
 	l.lock.Lock()
 	launcher := launchable.Launcher()
 	if launcher == nil {
@@ -47,6 +50,7 @@ func (l *Launcher) launch(launchable ContainerLaunchable) {
 	l.lock.Unlock()
 }
 
+// Start starts the launcher
 func (l *Launcher) Start() {
 	// If we are restarting, start up the active launcher since we already picked one from a previous run
 	l.lock.Lock()
@@ -90,6 +94,7 @@ func (l *Launcher) Start() {
 	}()
 }
 
+// Stop stops the launcher
 func (l *Launcher) Stop() {
 	defer l.lock.Unlock()
 	l.lock.Lock()

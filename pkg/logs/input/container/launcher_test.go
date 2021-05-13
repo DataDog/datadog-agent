@@ -26,7 +26,8 @@ type mockLauncher struct {
 	attempt    uint
 }
 
-func NewMockLauncher(isAvalible bool) *mockLauncher {
+// Creates
+func newMockLauncher(isAvalible bool) *mockLauncher {
 	l := &mockLauncher{isAvalible: isAvalible}
 	l.retrier.SetupRetrier(&retry.Config{
 		Name:          "testing",
@@ -38,12 +39,12 @@ func NewMockLauncher(isAvalible bool) *mockLauncher {
 	return l
 }
 
-func NewMockLauncherBecomesAvalible(avalibleAfterRetries uint) *mockLauncher {
+func newMockLauncherBecomesAvalible(avalibleAfterRetries uint) *mockLauncher {
 	l := &mockLauncher{isAvalible: false}
 	l.retrier.SetupRetrier(&retry.Config{
 		Name: "testing",
 		AttemptMethod: func() error {
-			l.attempt += 1
+			l.attempt++
 			if l.attempt > avalibleAfterRetries {
 				l.isAvalible = true
 				l.wg.Done()
@@ -79,8 +80,8 @@ func (m *mockLauncher) Stop() {
 	m.stopped = true
 }
 
-func (m *mockLauncher) ToLaunchable() ContainerLaunchable {
-	return ContainerLaunchable{
+func (m *mockLauncher) ToLaunchable() Launchable {
+	return Launchable{
 		IsAvailable: m.IsAvalible,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
@@ -89,8 +90,8 @@ func (m *mockLauncher) ToLaunchable() ContainerLaunchable {
 	}
 }
 
-func (m *mockLauncher) ToErrLaunchable() ContainerLaunchable {
-	return ContainerLaunchable{
+func (m *mockLauncher) ToErrLaunchable() Launchable {
+	return Launchable{
 		IsAvailable: m.IsAvalible,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
@@ -100,11 +101,11 @@ func (m *mockLauncher) ToErrLaunchable() ContainerLaunchable {
 }
 
 func TestSelectFirst(t *testing.T) {
-	l1 := NewMockLauncher(true)
-	l2 := NewMockLauncher(false)
+	l1 := newMockLauncher(true)
+	l2 := newMockLauncher(false)
 
 	l1.wg.Add(2)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	l1.wg.Wait()
@@ -114,11 +115,11 @@ func TestSelectFirst(t *testing.T) {
 }
 
 func TestSelectSecond(t *testing.T) {
-	l1 := NewMockLauncher(false)
-	l2 := NewMockLauncher(true)
+	l1 := newMockLauncher(false)
+	l2 := newMockLauncher(true)
 
 	l2.wg.Add(2)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	l2.wg.Wait()
@@ -128,11 +129,11 @@ func TestSelectSecond(t *testing.T) {
 }
 
 func TestFailsThenSucceeds(t *testing.T) {
-	l1 := NewMockLauncher(false)
-	l2 := NewMockLauncher(false)
+	l1 := newMockLauncher(false)
+	l2 := newMockLauncher(false)
 
 	l2.wg.Add(2)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	// let it run a few times
@@ -151,11 +152,11 @@ func TestFailsThenSucceeds(t *testing.T) {
 }
 
 func TestFailsThenSucceedsRetrier(t *testing.T) {
-	l1 := NewMockLauncherBecomesAvalible(3)
-	l2 := NewMockLauncher(false)
+	l1 := newMockLauncherBecomesAvalible(3)
+	l2 := newMockLauncher(false)
 
 	l1.wg.Add(3)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	l1.wg.Wait()
@@ -166,11 +167,11 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 }
 
 func TestAvalibleLauncherReturnsNil(t *testing.T) {
-	l1 := NewMockLauncher(false)
-	l2 := NewMockLauncher(true)
+	l1 := newMockLauncher(false)
+	l2 := newMockLauncher(true)
 
 	l2.wg.Add(1)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToErrLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToErrLaunchable()})
 	l.Start()
 
 	l2.wg.Wait()
@@ -181,11 +182,11 @@ func TestAvalibleLauncherReturnsNil(t *testing.T) {
 }
 
 func TestRestartUsesPreviousLauncher(t *testing.T) {
-	l1 := NewMockLauncher(true)
-	l2 := NewMockLauncher(false)
+	l1 := newMockLauncher(true)
+	l2 := newMockLauncher(false)
 
 	l1.wg.Add(2)
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	l1.wg.Wait()
@@ -205,10 +206,10 @@ func TestRestartUsesPreviousLauncher(t *testing.T) {
 }
 
 func TestRestartFindLauncherLater(t *testing.T) {
-	l1 := NewMockLauncher(false)
-	l2 := NewMockLauncher(false)
+	l1 := newMockLauncher(false)
+	l2 := newMockLauncher(false)
 
-	l := NewLauncher([]ContainerLaunchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
 	l.Start()
 
 	// let it run a few times

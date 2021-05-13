@@ -63,7 +63,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
-	containerLaunchables := []container.ContainerLaunchable{
+	containerLaunchables := []container.Launchable{
 		{
 			IsAvailable: docker.IsAvalible,
 			Launcher: func() restart.Restartable {
