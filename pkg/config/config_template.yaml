@@ -12,7 +12,8 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
-## You also may set to 'us.datadoghq.com' to send data to Azure, or set to 'app.ddog-gov.com' if using US1-FED.
+## Set to 'us.datadoghq.com' to send data to the US3 site. 
+## Set to 'app.ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
 
