@@ -111,7 +111,6 @@ func TestSelectFirst(t *testing.T) {
 	l1.wg.Wait()
 	assert.True(t, l1.started)
 	assert.False(t, l2.started)
-	assert.NotNil(t, l.activeLauncher)
 }
 
 func TestSelectSecond(t *testing.T) {
@@ -125,7 +124,6 @@ func TestSelectSecond(t *testing.T) {
 	l2.wg.Wait()
 	assert.False(t, l1.started)
 	assert.True(t, l2.started)
-	assert.NotNil(t, l.activeLauncher)
 }
 
 func TestFailsThenSucceeds(t *testing.T) {
@@ -141,14 +139,12 @@ func TestFailsThenSucceeds(t *testing.T) {
 
 	assert.False(t, l1.started)
 	assert.False(t, l2.started)
-	assert.Nil(t, l.activeLauncher)
 
 	l2.SetAvalible(true)
 	l2.wg.Wait()
 
 	assert.False(t, l1.started)
 	assert.True(t, l2.started)
-	assert.NotNil(t, l.activeLauncher)
 }
 
 func TestFailsThenSucceedsRetrier(t *testing.T) {
@@ -163,7 +159,6 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 
 	assert.True(t, l1.started)
 	assert.False(t, l2.started)
-	assert.NotNil(t, l.activeLauncher)
 }
 
 func TestAvalibleLauncherReturnsNil(t *testing.T) {
@@ -177,7 +172,9 @@ func TestAvalibleLauncherReturnsNil(t *testing.T) {
 	l2.wg.Wait()
 	assert.False(t, l1.started)
 	assert.False(t, l2.started)
+	l.lock.Lock()
 	_, ok := l.activeLauncher.(*noopLauncher)
+	l.lock.Unlock()
 	assert.True(t, ok)
 }
 
