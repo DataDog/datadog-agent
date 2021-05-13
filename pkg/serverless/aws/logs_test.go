@@ -15,13 +15,15 @@ import (
 func TestShouldProcessLog(t *testing.T) {
 
 	validLog := LogMessage{
-		Type:         LogTypePlatformReport,
-		StringRecord: "toto",
+		Type:         LogTypePlatformReport
 	}
 
-	invalidLog := LogMessage{
-		Type:         "",
-		StringRecord: "",
+	invalidLog0 := LogMessage{
+		Type:         LogTypePlatformLogsSubscription,
+	}
+
+	invalidLog1 := LogMessage{
+		Type:         LogTypePlatformExtension,
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
@@ -35,9 +37,14 @@ func TestShouldProcessLog(t *testing.T) {
 	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, validLog))
 	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, validLog))
 
-	assert.False(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestID, invalidLog))
-	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, invalidLog))
-	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, invalidLog))
-	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, invalidLog))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestID, invalidLog0))
+	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, invalidLog0))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, invalidLog0))
+	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, invalidLog0))
+
+	assert.False(t, ShouldProcessLog(nonEmptyARN, nonEmptyRequestID, invalidLog1))
+	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, invalidLog1))
+	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, invalidLog1))
+	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, invalidLog1))
 
 }

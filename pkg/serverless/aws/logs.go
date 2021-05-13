@@ -28,6 +28,10 @@ const (
 	LogTypePlatformReport = "platform.report"
 	// LogTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	LogTypePlatformLogsDropped = "platform.logsDropped"
+	// LogTypePlatformLogsSubscription is used for the log messages about Logs API registration
+	LogTypePlatformLogsSubscription = "platform.logsSubscription"
+	// LogTypePlatformExtension is used for the log messages about Extension API registration
+	LogTypePlatformExtension = "platform.extension"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -85,6 +89,8 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	switch typ {
 	case LogTypeExtension:
 		fallthrough
+	case LogTypePlatformLogsSubscription, LogTypePlatformExtension:
+		l.Type = typ
 	case LogTypeFunction:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
@@ -160,8 +166,8 @@ func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool
 	if arn == "" || lastRequestID == "" {
 		return false
 	}
-	// Making sure that we do not process empty messages
-	if message.StringRecord == "" && message.Type == "" {
+	// Making sure that we do not process these kind of logs since there are not tied to invovations but to API registrations
+	if message.Type == LogTypePlatformExtension || message.Type == LogTypePlatformLogsSubscription == "" {
 		return false
 	}
 	return true
