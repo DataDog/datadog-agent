@@ -87,8 +87,9 @@ func (l *Launcher) Start() {
 					l.hasStopped = true
 					return
 				}
-				log.Info("Could not find an Available a container launcher - will try again later")
-				timer = time.NewTimer(time.Until(retryer.NextRetry()))
+				nextRetry := time.Until(retryer.NextRetry())
+				timer = time.NewTimer(nextRetry)
+				log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
 			}
 		}
 	}()

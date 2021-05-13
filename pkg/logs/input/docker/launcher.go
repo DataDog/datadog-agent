@@ -66,7 +66,7 @@ func IsAvalible() (bool, *retry.Retrier) {
 		log.Info("Docker launcher is avalible")
 		return true, nil
 	}
-	log.Info("Docker launcher is not avalible")
+	log.Infof("Docker launcher is not avalible: %v", retrier.LastError())
 	return false, retrier
 }
 

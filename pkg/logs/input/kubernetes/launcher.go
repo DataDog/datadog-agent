@@ -55,7 +55,7 @@ type Launcher struct {
 // IsAvalible retrues true if the launcher is avalible and a retrier otherwise
 func IsAvalible() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
-		log.Errorf("Integration not avalible - %s not found", basePath)
+		log.Errorf("Kubernetes launcher is not avalible. Integration not avalible - %s not found", basePath)
 		return false, nil
 	}
 	util, retrier := kubelet.GetKubeUtilWithRetrier()
@@ -63,7 +63,7 @@ func IsAvalible() (bool, *retry.Retrier) {
 		log.Info("Kubernetes launcher is avalible")
 		return true, nil
 	}
-	log.Info("Kubernetes launcher is not avalible")
+	log.Infof("Kubernetes launcher is not avalible: %v", retrier.LastError())
 	return false, retrier
 }
 
