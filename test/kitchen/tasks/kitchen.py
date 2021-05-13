@@ -3,6 +3,7 @@ import json
 import os.path
 import re
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -15,7 +16,7 @@ def genconfig(
     osversions="all",
     testfiles=None,
     uservars=None,
-    platformfile="platforms.json",
+    platformfile=None,
     platlist=None,
     fips=False,
     arch="x86_64",
@@ -37,7 +38,23 @@ def genconfig(
     if not platlist and not provider:
         provider = "azure"
 
-    platforms = load_platforms(ctx, platformfile=platformfile)
+    if platformfile is not None:
+        platforms = load_platforms(ctx, platformfile=platformfile)
+    else:
+        try:
+            print(
+                "Fetching the latest kitchen platforms.json from Github. Use --platformfile=platforms.json to override with a local file."
+            )
+            r = requests.get(
+                'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
+                allow_redirects=True,
+            )
+            open('/tmp/platforms.json', 'wb').write(r.content)
+            platforms = load_platforms(ctx, platformfile='/tmp/platforms.json')
+        except Exception as e:
+            print(e)
+            print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
+            platforms = load_platforms(ctx, platformfile='platforms.json')
 
     # create the TEST_PLATFORMS environment variable
     testplatformslist = []
