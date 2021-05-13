@@ -94,7 +94,11 @@ func RestartModule(factory Factory) error {
 		return err
 	}
 
-	moduleInstance.Register(l.httpMux)
+	err = moduleInstance.Register(l.httpMux)
+	if err != nil {
+		return err
+	}
+
 	l.modules[factory.Name] = moduleInstance
 	return nil
 }
