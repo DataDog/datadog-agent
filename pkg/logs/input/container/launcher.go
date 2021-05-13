@@ -25,8 +25,7 @@ type Launchable struct {
 type Launcher struct {
 	containerLaunchables []Launchable
 	activeLauncher       restart.Restartable
-	stopped              chan struct{}
-	hasStopped           bool
+	stop                 bool
 	lock                 sync.Mutex
 }
 
@@ -34,20 +33,17 @@ type Launcher struct {
 func NewLauncher(containerLaunchers []Launchable) *Launcher {
 	return &Launcher{
 		containerLaunchables: containerLaunchers,
-		stopped:              make(chan struct{}),
 	}
 }
 
 func (l *Launcher) launch(launchable Launchable) {
-	l.lock.Lock()
 	launcher := launchable.Launcher()
 	if launcher == nil {
 		launcher = NewNoopLauncher()
 	}
 	l.activeLauncher = launcher
 	l.activeLauncher.Start()
-	l.hasStopped = true
-	l.lock.Unlock()
+	l.stop = true
 }
 
 // Start starts the launcher
@@ -55,42 +51,47 @@ func (l *Launcher) Start() {
 	// If we are restarting, start up the active launcher since we already picked one from a previous run
 	l.lock.Lock()
 	if l.activeLauncher != nil {
+		l.stop = true
 		l.activeLauncher.Start()
 		l.lock.Unlock()
 		return
 	}
+	l.stop = false
 	l.lock.Unlock()
 
 	// Try to select a launcher
 	go func() {
 		timer := time.NewTimer(0)
 		for {
-			select {
-			case <-l.stopped:
-				log.Info("Got stop signal - stopping")
+			<-timer.C
+			l.lock.Lock()
+			if l.stop {
+				l.lock.Unlock()
 				return
-			case <-timer.C:
-				var retryer *retry.Retrier
-				for _, launchable := range l.containerLaunchables {
-					ok, rt := launchable.IsAvailable()
-					if ok {
-						l.launch(launchable)
-						return
-					}
-					// Hold on to the retrier with the longest interval
-					if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
-						retryer = rt
-					}
-				}
-				if retryer == nil {
-					log.Info("Nothing to retry - stopping")
-					l.hasStopped = true
+			}
+			var retryer *retry.Retrier
+			for _, launchable := range l.containerLaunchables {
+				ok, rt := launchable.IsAvailable()
+				if ok {
+					l.launch(launchable)
+					l.lock.Unlock()
 					return
 				}
-				nextRetry := time.Until(retryer.NextRetry())
-				timer = time.NewTimer(nextRetry)
-				log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
+				// Hold on to the retrier with the longest interval
+				if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
+					retryer = rt
+				}
 			}
+			if retryer == nil {
+				log.Info("Nothing to retry - stopping")
+				l.stop = true
+				l.lock.Unlock()
+				return
+			}
+			nextRetry := time.Until(retryer.NextRetry())
+			timer = time.NewTimer(nextRetry)
+			log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
+			l.lock.Unlock()
 		}
 	}()
 }
@@ -99,9 +100,7 @@ func (l *Launcher) Start() {
 func (l *Launcher) Stop() {
 	defer l.lock.Unlock()
 	l.lock.Lock()
-	if !l.hasStopped {
-		l.stopped <- struct{}{}
-	}
+	l.stop = true
 	if l.activeLauncher != nil {
 		l.activeLauncher.Stop()
 	}

@@ -158,7 +158,6 @@ func (a *RegistryAuditor) run() {
 
 	var fileError sync.Once
 	for {
-		a.chansMutex.Lock()
 		select {
 		case <-a.health.C:
 		case msg, isOpen := <-a.inputChan:
@@ -184,7 +183,6 @@ func (a *RegistryAuditor) run() {
 				}
 			}
 		}
-		a.chansMutex.Unlock()
 	}
 }
 

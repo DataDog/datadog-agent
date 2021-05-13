@@ -218,9 +218,35 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	assert.False(t, l2.started)
 	assert.False(t, l2.stopped)
 
-	l1.isAvalible = true
+	l1.SetAvalible(true)
 
 	l1.wg.Add(2)
+	l.Start()
+	l1.wg.Wait()
+
+	assert.True(t, l1.started)
+	assert.False(t, l2.started)
+}
+
+func TestRestartSameLauncher(t *testing.T) {
+	l1 := newMockLauncher(true)
+	l2 := newMockLauncher(false)
+
+	l1.wg.Add(2)
+	l := NewLauncher([]Launchable{l1.ToLaunchable(), l2.ToLaunchable()})
+	l.Start()
+
+	// let it run a few times
+	time.Sleep(10 * time.Millisecond)
+	l.Stop()
+	l1.wg.Wait()
+
+	assert.True(t, l1.started)
+	assert.True(t, l1.stopped)
+	assert.False(t, l2.started)
+	assert.False(t, l2.stopped)
+
+	l1.wg.Add(1)
 	l.Start()
 	l1.wg.Wait()
 
