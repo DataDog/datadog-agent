@@ -86,7 +86,7 @@ DWORD TargetMachine::DetectMachineType()
         {
             // NetServerGetInfo will fail if the Server service isn't running,
             // but in that case it's safe to assume we are a workstation.
-            WcaLog(LOGMSG_STANDARD, "Failed to get server info: %S", FormatErrorMessage(status));
+            WcaLog(LOGMSG_STANDARD, "Failed to get server info: %S", FormatErrorMessage(status).c_str());
             WcaLog(LOGMSG_STANDARD, "Continuing assuming machine type is SV_TYPE_WORKSTATION.");
             _serverType = SV_TYPE_WORKSTATION;
             return ERROR_SUCCESS;

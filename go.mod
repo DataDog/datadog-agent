@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.3
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf v0.0.0-20210413153524-9a23964443ad
+	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-ini/ini v1.55.0
+	github.com/go-ini/ini v1.62.0
 	github.com/go-ole/go-ole v1.2.5
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/h2non/filetype v1.1.1
-	github.com/hashicorp/consul/api v1.4.0
+	github.com/hashicorp/consul/api v1.8.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
@@ -146,12 +146,11 @@ require (
 	github.com/opencontainers/runtime-spec v1.0.3-0.20200929063507-e6143ca7d51d
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.3 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.10.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v3.21.2+incompatible
+	github.com/shirou/gopsutil v3.21.4+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v3.6.1+incompatible
 	github.com/spf13/afero v1.2.2
@@ -161,13 +160,12 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
-	github.com/tinylib/msgp v1.1.2
+	github.com/tinylib/msgp v1.1.5
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
-	github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31 // indirect
 	github.com/twmb/murmur3 v1.1.3
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
-	github.com/vishvananda/netlink v1.1.1-0.20201206203632-88079d98e65d
+	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.11
@@ -178,7 +176,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210415231046-e915ea6b2b7d
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/sys v0.0.0-20210415045647-66c3f260301c
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.0
@@ -233,8 +231,4 @@ replace (
 	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
 )
 
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20210423142224-2a6feccc042d
-
-replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.23.1
-
-replace github.com/DataDog/agent-payload => github.com/DataDog/agent-payload v4.70.1-0.20210510095646-7c405995ecd2+incompatible
+replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
