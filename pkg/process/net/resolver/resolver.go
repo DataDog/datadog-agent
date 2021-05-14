@@ -136,11 +136,11 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			if ok {
 				// done
 			} else if !ip.IsLoopback() {
-				cid, ok = ctrsByLaddr[addrWithNS{raddr, 0}]
+				cid, _ = ctrsByLaddr[addrWithNS{raddr, 0}]
 			} else {
 				// raddr is loopback, try the root NS (already tried the local
 				// NS above)
-				cid, ok = ctrsByLaddr[addrWithNS{raddr, rootNs}]
+				cid, _ = ctrsByLaddr[addrWithNS{raddr, rootNs}]
 			}
 
 			conn.Raddr.ContainerId = cid
