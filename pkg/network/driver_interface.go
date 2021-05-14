@@ -470,20 +470,23 @@ func (dh *DriverHandle) getStatsForHandle() (map[string]int64, error) {
 	// A FlowHandle handle returns the flow stats specific to this handle
 	case FlowHandle:
 		return map[string]int64{
-			"read_calls":             int64(stats.handle.handle_stats.read_calls),
-			"read_calls_outstanding": int64(stats.handle.handle_stats.read_calls_outstanding),
-			"read_calls_completed":   int64(stats.handle.handle_stats.read_calls_completed),
-			"read_calls_cancelled":   int64(stats.handle.handle_stats.read_calls_cancelled),
-			"write_calls":            int64(stats.handle.handle_stats.write_calls),
-			"write_bytes":            int64(stats.handle.handle_stats.write_bytes),
-			"ioctl_calls":            int64(stats.handle.handle_stats.ioctl_calls),
-			"packets_observed":       int64(stats.handle.flow_stats.packets_observed),
-			"packets_processed_flow": int64(stats.handle.flow_stats.packets_processed),
-			"open_flows":             int64(stats.handle.flow_stats.open_flows),
-			"total_flows":            int64(stats.handle.flow_stats.total_flows),
-			"num_flow_searches":      int64(stats.handle.flow_stats.num_flow_searches),
-			"num_flow_search_misses": int64(stats.handle.flow_stats.num_flow_search_misses),
-			"num_flow_collisions":    int64(stats.handle.flow_stats.num_flow_collisions),
+			"read_calls":                    int64(stats.handle.handle_stats.read_calls),
+			"read_calls_outstanding":        int64(stats.handle.handle_stats.read_calls_outstanding),
+			"read_calls_completed":          int64(stats.handle.handle_stats.read_calls_completed),
+			"read_calls_cancelled":          int64(stats.handle.handle_stats.read_calls_cancelled),
+			"write_calls":                   int64(stats.handle.handle_stats.write_calls),
+			"write_bytes":                   int64(stats.handle.handle_stats.write_bytes),
+			"ioctl_calls":                   int64(stats.handle.handle_stats.ioctl_calls),
+			"packets_observed":              int64(stats.handle.flow_stats.packets_observed),
+			"packets_processed_flow":        int64(stats.handle.flow_stats.packets_processed),
+			"open_flows":                    int64(stats.handle.flow_stats.open_flows),
+			"total_flows":                   int64(stats.handle.flow_stats.total_flows),
+			"num_flow_searches":             int64(stats.handle.flow_stats.num_flow_searches),
+			"num_flow_search_misses":        int64(stats.handle.flow_stats.num_flow_search_misses),
+			"num_flow_collisions":           int64(stats.handle.flow_stats.num_flow_collisions),
+			"num_flow_structures":           int64(stats.handle.flow_stats.num_flow_structures),
+			"peak_num_flow_structures":      int64(stats.handle.flow_stats.peak_num_flow_structures),
+			"num_flows_missed_max_exceeded": int64(stats.handle.flow_stats.num_flows_missed_max_exceeded),
 		}, nil
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:
