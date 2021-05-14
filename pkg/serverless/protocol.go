@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -216,7 +216,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 
 	log.Debug("Adaptive flush is enabled")
 
-
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
@@ -297,9 +296,9 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 	} else {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
+		metricTags := getTagsForEnhancedMetrics()
 		sendLogsToIntake := config.Datadog.GetBool("serverless.logs_enabled")
 		computeEnhancedMetrics := config.Datadog.GetBool("enhanced_metrics")
-		metricTags := getTagsForEnhancedMetrics()
 		arn := aws.GetARN()
 		lastRequestID := aws.GetRequestID()
 		functionName := aws.FunctionNameFromARN()
