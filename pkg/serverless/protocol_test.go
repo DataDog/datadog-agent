@@ -67,30 +67,30 @@ func TestEnhanceMessage(t *testing.T) {
 			},
 		},
 	}
-	arn:= "arn:aws:lambda:us-east-1:123456789012:function:test-function"
-	lastRequestID:= "8286a188-ba32-4475-8077-530cd35c09a9"
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	functionName := "test-function"
 	metricTags := []string{"functionname:test-function"}
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
-	computeEnhancedMetrics:= true
+	computeEnhancedMetrics := true
 	go enhanceMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
-		case received := <-metricsChan:
+	case received := <-metricsChan:
 		assert.Equal(t, len(received), 6)
-		case <-time.After(time.Second):
+	case <-time.After(time.Second):
 		assert.Fail(t, "We should have received metrics")
 	}
 
-	metricsChan := make(chan []metrics.MetricSample, 1)
+	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
 	go enhanceMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
-		case <-metricsChan:
+	case <-metricsChan:
 		assert.Fail(t, "We should not have received metrics")
-		case <-time.After(time.Second):
+	case <-time.After(time.Second):
 		//nothing to do here
 	}
 }
