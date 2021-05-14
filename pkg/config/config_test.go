@@ -36,12 +36,20 @@ func setupConfFromYAML(yamlConfig string) Config {
 
 func setEnvForTest(env, value string) (reset func()) {
 	oldValue, ok := os.LookupEnv(env)
+	os.Setenv(env, value)
 
-	if len(value) == 0 {
-		os.Unsetenv(env)
-	} else {
-		os.Setenv(env, value)
+	return func() {
+		if !ok {
+			os.Unsetenv(env)
+		} else {
+			os.Setenv(env, oldValue)
+		}
 	}
+}
+
+func unsetEnvForTest(env string) (reset func()) {
+	oldValue, ok := os.LookupEnv(env)
+	os.Unsetenv(env)
 
 	return func() {
 		if !ok {
@@ -537,7 +545,7 @@ func TestEnvNestedConfig(t *testing.T) {
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	config := setupConf()
 
-	resetEnv := setEnvForTest("NO_PROXY", "")
+	resetEnv := unsetEnvForTest("NO_PROXY")
 	defer resetEnv()
 
 	loadProxyFromEnv(config)
@@ -556,7 +564,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetEnv := setEnvForTest("NO_PROXY", "")
+	resetEnv := unsetEnvForTest("NO_PROXY")
 	defer resetEnv()
 
 	loadProxyFromEnv(config)
@@ -739,7 +747,7 @@ func TestLoadProxyWithoutNoProxy(t *testing.T) {
 
 	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
 	resetHTTPSProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
-	resetNoProxy := setEnvForTest("NO_PROXY", "")
+	resetNoProxy := unsetEnvForTest("NO_PROXY")
 	defer resetHTTPProxy()
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
