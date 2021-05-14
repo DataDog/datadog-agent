@@ -74,6 +74,7 @@ func dogstatsdReplay() error {
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		_ = <-sigs
 		done <- true
 	}()
 
