@@ -51,7 +51,15 @@
                     "type": "object",
                     "required": [
                         "destination"
-                    ]
+                    ],
+                    "properties": {
+                        "destination": {
+                            "type": "object",
+                            "required": [
+                                "mode"
+                            ]
+                        }
+                    }
                 }
             }
         }
