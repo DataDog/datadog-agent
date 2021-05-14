@@ -2,6 +2,7 @@ import glob
 import json
 import os.path
 import re
+import traceback
 
 import requests
 from invoke import task
@@ -38,8 +39,9 @@ def genconfig(
     if not platlist and not provider:
         provider = "azure"
 
-    if platformfile is not None:
-        platforms = load_platforms(ctx, platformfile=platformfile)
+    if platformfile:
+        with open(platformfile, "r") as f:
+            platforms = json.load(f)
     else:
         try:
             print(
@@ -49,12 +51,12 @@ def genconfig(
                 'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
                 allow_redirects=True,
             )
-            open('/tmp/platforms.json', 'wb').write(r.content)
-            platforms = load_platforms(ctx, platformfile='/tmp/platforms.json')
-        except Exception as e:
-            print(e)
+            platforms = json.loads(r.content)
+        except Exception:
+            traceback.print_exc()
             print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
-            platforms = load_platforms(ctx, platformfile='platforms.json')
+            with open("platforms.json", "r") as f:
+                platforms = json.load(f)
 
     # create the TEST_PLATFORMS environment variable
     testplatformslist = []
@@ -157,12 +159,6 @@ def genconfig(
     if fips:
         env['FIPS'] = 'true'
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
-
-
-def load_platforms(_, platformfile):
-    with open(platformfile, "r") as f:
-        platforms = json.load(f)
-    return platforms
 
 
 def load_targets(_, targethash, selections):
