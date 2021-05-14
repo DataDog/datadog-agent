@@ -13,8 +13,7 @@ require (
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
-	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181 // indirect
-	golang.org/x/tools v0.1.0
+	golang.org/x/tools v0.1.1
 	gotest.tools/gotestsum v1.6.4
 	honnef.co/go/tools v0.1.4
 )
