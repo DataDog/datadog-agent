@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 )
 
 // SetupConfig fires up the configuration system

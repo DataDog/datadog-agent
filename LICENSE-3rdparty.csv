@@ -45,6 +45,7 @@ core,"github.com/DataDog/sketches-go/ddsketch",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/mapping",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/store",Apache-2.0
+core,"github.com/DataDog/viper",MIT
 core,"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1",Apache-2.0
 core,"github.com/DataDog/zstd_0",BSD-3-Clause
 core,"github.com/Masterminds/goutils",Apache-2.0
@@ -495,7 +496,6 @@ core,"github.com/spf13/cast",MIT
 core,"github.com/spf13/cobra",Apache-2.0
 core,"github.com/spf13/jwalterweatherman",MIT
 core,"github.com/spf13/pflag",BSD-3-Clause
-core,"github.com/spf13/viper",MIT
 core,"github.com/stretchr/objx",MIT
 core,"github.com/stretchr/testify/assert",MIT
 core,"github.com/stretchr/testify/mock",MIT
