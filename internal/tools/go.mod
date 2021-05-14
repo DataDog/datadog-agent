@@ -10,7 +10,7 @@ require (
 	github.com/golangci/golangci-lint v1.39.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 	github.com/goware/modvendor v0.3.0
-	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
+	github.com/mgechev/revive v1.0.6
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20200918155509-d949658356f9
 	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181 // indirect
