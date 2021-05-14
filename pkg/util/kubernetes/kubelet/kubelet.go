@@ -109,7 +109,7 @@ func ResetCache() {
 	cache.Cache.Delete(podListCacheKey)
 }
 
-// GetKubeUtil returns an instance of KubeUtil.
+// GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier
 func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 	globalKubeUtilMutex.Lock()
 	defer globalKubeUtilMutex.Unlock()

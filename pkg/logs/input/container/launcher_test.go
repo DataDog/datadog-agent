@@ -26,7 +26,6 @@ type mockLauncher struct {
 	attempt    uint
 }
 
-// Creates
 func newMockLauncher(isAvalible bool) *mockLauncher {
 	l := &mockLauncher{isAvalible: isAvalible}
 	l.retrier.SetupRetrier(&retry.Config{

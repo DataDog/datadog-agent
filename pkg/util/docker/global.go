@@ -23,7 +23,7 @@ var (
 	invalidationInterval  = 5 * time.Minute
 )
 
-// GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
+// GetDockerUtilWithRetrier returns a ready to use DockerUtil or a retrier
 func GetDockerUtilWithRetrier() (*DockerUtil, *retry.Retrier) {
 	globalDockerUtilMutex.Lock()
 	defer globalDockerUtilMutex.Unlock()

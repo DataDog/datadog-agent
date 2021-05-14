@@ -85,7 +85,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		},
 	}
 
-	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher
+	// when k8s_container_use_file is true, always attempt to use the kubernetes launcher first
 	if coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file") {
 		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
 	}
