@@ -51,7 +51,8 @@ def genconfig(
                 'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
                 allow_redirects=True,
             )
-            platforms = json.loads(r.content)
+            r.raise_for_status()
+            platforms = r.json()
         except Exception:
             traceback.print_exc()
             print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
