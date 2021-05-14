@@ -2,6 +2,7 @@ package epforwarder
 
 import (
 	"fmt"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"strings"
 	"sync"
 
@@ -22,14 +23,18 @@ const (
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
-		eventType:              eventTypeDBMSamples,
-		endpointsConfigPrefix:  "database_monitoring.samples",
-		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		eventType:                     eventTypeDBMSamples,
+		endpointsConfigPrefix:         "database_monitoring.samples",
+		hostnameEndpointPrefix:        "dbquery-http-intake.logs.",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 	},
 	{
-		eventType:              eventTypeDBMMetrics,
-		endpointsConfigPrefix:  "database_monitoring.metrics",
-		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		eventType:                     eventTypeDBMMetrics,
+		endpointsConfigPrefix:         "database_monitoring.metrics",
+		hostnameEndpointPrefix:        "dbm-metrics-intake.",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
 	},
 }
 
@@ -111,9 +116,11 @@ type passthroughPipeline struct {
 }
 
 type passthroughPipelineDesc struct {
-	eventType              string
-	endpointsConfigPrefix  string
-	hostnameEndpointPrefix string
+	eventType                     string
+	endpointsConfigPrefix         string
+	hostnameEndpointPrefix        string
+	defaultBatchMaxConcurrentSend int
+	defaultBatchMaxContentSize    int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
@@ -139,7 +146,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	// since some of these pipelines can be potentially very high throughput we increase the default batch send concurrency
 	// to ensure they are able to support 1000s of events per second
 	if endpoints.BatchMaxConcurrentSend <= 0 {
-		endpoints.BatchMaxConcurrentSend = 10
+		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
 	}
 	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 	additionals := []client.Destination{}
@@ -148,7 +155,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(main, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend)
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, desc.defaultBatchMaxContentSize)
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d", desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend)
 	return &passthroughPipeline{

@@ -32,14 +32,10 @@ type batchStrategy struct {
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
 }
 
-// NewBatchStrategy returns a new batch concurrent strategy
+// NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int) Strategy {
-	return newBatchStrategyWithSize(serializer, batchWait, maxConcurrent, maxBatchSize, maxContentSize)
-}
-
-func newBatchStrategyWithSize(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int) *batchStrategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
@@ -119,7 +115,9 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		s.buffer.AddMessage(m)
+		if !s.buffer.AddMessage(m) {
+			log.Warnf("dropped message Content-Length: %d", len(m.Content))
+		}
 	}
 }
 

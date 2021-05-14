@@ -86,6 +86,9 @@ func errorToTag(err error) string {
 func (d *Destination) Send(payload []byte) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
+		if err != nil {
+			log.Warnf("failed to send payload to %s: %v", d.host, err)
+		}
 	}()
 
 	ctx := d.destinationsContext.Context()
@@ -117,7 +120,7 @@ func (d *Destination) Send(payload []byte) (err error) {
 	}
 
 	defer resp.Body.Close()
-	_, err = ioutil.ReadAll(resp.Body)
+	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
@@ -127,8 +130,10 @@ func (d *Destination) Send(payload []byte) (err error) {
 	if resp.StatusCode >= 500 {
 		// the server could not serve the request,
 		// most likely because of an internal error
+		log.Warnf("error 5xx for %s: %s", d.host, string(response))
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
+		log.Warnf("error 4xx for %s: %s", d.host, string(response))
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		return errClient
