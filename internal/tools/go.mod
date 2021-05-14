@@ -16,5 +16,5 @@ require (
 	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181 // indirect
 	golang.org/x/tools v0.1.0
 	gotest.tools/gotestsum v1.6.4
-	honnef.co/go/tools v0.1.3
+	honnef.co/go/tools v0.1.4
 )
