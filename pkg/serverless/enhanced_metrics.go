@@ -130,3 +130,13 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) floa
 	// on some arch. (i.e. 1.00000000000002 values)
 	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
 }
+
+// generateEnhancedMetrics generates enhanced metrics from logs and dispatch them to the chan
+func generateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
+	switch message.Type {
+	case aws.LogTypeFunction:
+		generateEnhancedMetricsFromFunctionLog(message, tags, metricsChan)
+	case aws.LogTypePlatformReport:
+		generateEnhancedMetricsFromReportLog(message, tags, metricsChan)
+	}
+}
