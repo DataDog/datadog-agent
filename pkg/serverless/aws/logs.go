@@ -160,6 +160,8 @@ func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool
 		return false
 	}
 	return true
+}
+
 func createStringRecordForReportLog(l *LogMessage) string {
 	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
 		l.ObjectRecord.RequestID,

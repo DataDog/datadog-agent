@@ -45,6 +45,7 @@ func TestShouldProcessLog(t *testing.T) {
 	assert.False(t, ShouldProcessLog(emptyARN, emptyRequestID, invalidLog1))
 	assert.False(t, ShouldProcessLog(nonEmptyARN, emptyRequestID, invalidLog1))
 	assert.False(t, ShouldProcessLog(emptyARN, nonEmptyRequestID, invalidLog1))
+}
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 	var sampleLogMessage = LogMessage{
