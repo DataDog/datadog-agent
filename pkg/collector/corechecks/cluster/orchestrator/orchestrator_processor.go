@@ -63,7 +63,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 	chunked := chunkDaemonSets(daemonSetMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorDaemonset{
+		messages = append(messages, &model.CollectorDaemonSet{
 			ClusterName: cfg.KubeClusterName,
 			DaemonSets:  chunked[i],
 			GroupId:     groupID,
