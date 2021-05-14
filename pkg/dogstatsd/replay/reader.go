@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
@@ -24,7 +25,8 @@ type TrafficCaptureReader struct {
 	Contents []byte
 	Version  int
 	Traffic  chan *pb.UnixDogstatsdMsg
-	Shutdown chan struct{}
+	Done     chan struct{}
+	fuse     chan struct{}
 	offset   uint32
 	last     int64
 
@@ -62,7 +64,9 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 
 // Read reads the contents of the traffic capture and writes each packet to a channel
 func (tc *TrafficCaptureReader) Read() {
-	defer close(tc.Shutdown)
+	tc.Done = make(chan struct{})
+	tc.fuse = make(chan struct{})
+	defer close(tc.Done)
 
 	log.Debugf("Processing capture file of size: %d", len(tc.Contents))
 
@@ -71,6 +75,7 @@ func (tc *TrafficCaptureReader) Read() {
 	tc.offset += uint32(len(datadogHeader))
 	tc.Unlock()
 
+iterate:
 	// The state must be read out of band, it makes zero sense in the context
 	// of the replaying process, it must be pushed to the agent. We just read
 	// and submit the packets here.
@@ -87,18 +92,33 @@ func (tc *TrafficCaptureReader) Read() {
 		// TODO: ensure proper cadence
 		if tc.last != 0 {
 			if msg.Timestamp > tc.last {
-				time.Sleep(time.Second * time.Duration(msg.Timestamp-tc.last))
+				util.Wait(time.Second * time.Duration(msg.Timestamp-tc.last))
 			}
 		}
 
 		tc.last = msg.Timestamp
 		tc.Traffic <- msg
+
+		select {
+		case <-tc.fuse:
+			break iterate
+		default:
+			continue
+		}
 	}
 }
 
 // Close cleans up any resources used by the TrafficCaptureReader
 func (tc *TrafficCaptureReader) Close() error {
 	return unmapFile(tc.Contents)
+}
+
+// Shutdown triggers the fuse if there's an ongoing read routine, and closes the reader.
+func (tc *TrafficCaptureReader) Shutdown() error {
+	if tc.fuse != nil {
+		close(tc.fuse)
+	}
+	return tc.Close()
 }
 
 // ReadNext reads the next packet found in the file and returns the protobuf representation and an error if any.

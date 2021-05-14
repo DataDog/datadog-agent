@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 
@@ -68,15 +69,13 @@ func dogstatsdReplay() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	_ = config.SetupLogger(
-		loggerName,
-		config.Datadog.GetString("log_level"),
-		"",
-		"",
-		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetBool("log_to_console"),
-		config.Datadog.GetBool("log_format_json"),
-	)
+	// setup sig handlers
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		done <- true
+	}()
 
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
@@ -161,7 +160,7 @@ func dogstatsdReplay() error {
 	if err != nil {
 		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
 	} else if !resp.GetLoaded() {
-		fmt.Printf("API  refused to set the tagger state, tag enrichment will be unavailable for this capture: %v\n", err)
+		fmt.Printf("API refused to set the tagger state, tag enrichment will be unavailable for this capture.\n")
 	}
 
 	// enable reading at natural rate
@@ -182,11 +181,26 @@ replay:
 				return err
 			}
 			fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
-		case <-reader.Shutdown:
+		case <-reader.Done:
+			break replay
+		case <-done:
 			break replay
 		}
 	}
 
-	fmt.Println("replay done....")
-	return nil
+	fmt.Println("clearing agent replay states...")
+	resp, err = cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{})
+	if err != nil {
+		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
+	} else if resp.GetLoaded() {
+		fmt.Printf("The capture state and pid map have been successfully cleared from the agent\n")
+	}
+
+	err = reader.Shutdown()
+	if err != nil {
+		fmt.Printf("There was an issue shutting down the replay: %v\n", err)
+	}
+
+	fmt.Println("replay done")
+	return err
 }
