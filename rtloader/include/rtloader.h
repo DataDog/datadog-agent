@@ -494,6 +494,29 @@ public:
     */
     virtual void setSubmitTopologyEventCb(cb_submit_topology_event_t) = 0;
 
+    //! setSubmitHealthCheckDataCb member.
+    /*!
+      \param A cb_submit_health_check_data_t function pointer to the CGO callback.
+
+      Actual check data is submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHealthCheckDataCb(cb_submit_health_check_data_t) = 0;
+
+    //! setSubmitHealthStartSnapshotCb member.
+    /*!
+      \param A cb_submit_health_start_snapshot_t function pointer to the CGO callback.
+
+      Actual start health snapshot is submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHealthStartSnapshotCb(cb_submit_health_start_snapshot_t) = 0;
+
+    //! setSubmitHealthStopSnapshotCb member.
+    /*!
+      \param A cb_submit_health_stop_snapshot_t function pointer to the CGO callback.
+
+      Actual stop health snapshot is submitted from go-land, this allows us to set the CGO callback.
+    */
+    virtual void setSubmitHealthStopSnapshotCb(cb_submit_health_stop_snapshot_t) = 0;
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */

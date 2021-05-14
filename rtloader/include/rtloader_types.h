@@ -179,6 +179,20 @@ typedef void (*cb_submit_stop_snapshot_t)(char *, instance_key_t *);
 // (check_id, topology_event)
 typedef void (*cb_submit_topology_event_t)(char *, char *);
 
+// [sts] health
+//
+typedef struct health_stream_s {
+    char *urn;
+    char *sub_stream;
+} health_stream_t;
+
+// (check_id, stream, data)
+typedef void (*cb_submit_health_check_data_t)(char *, health_stream_t *, char *);
+// (check_id, stream, expiry_seconds, repeat_seconds)
+typedef void (*cb_submit_health_start_snapshot_t)(char *, health_stream_t *, int, int);
+// (check_id, stream)
+typedef void (*cb_submit_health_stop_snapshot_t)(char *, health_stream_t *);
+
 #ifdef __cplusplus
 }
 #endif

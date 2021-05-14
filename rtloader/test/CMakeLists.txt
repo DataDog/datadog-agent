@@ -13,6 +13,7 @@ set(PKGS
 	"../../test/containers/..."
 	"../../test/topology/..."
 	"../../test/telemetry/..."
+	"../../test/health/..."
 )
 
 if (WIN32)

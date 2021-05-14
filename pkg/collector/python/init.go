@@ -188,6 +188,19 @@ void initTelemetryModule(rtloader_t *rtloader) {
 	set_submit_topology_event_cb(rtloader, SubmitTopologyEvent);
 }
 
+//
+// [sts] health module
+//
+
+void SubmitHealthCheckData(char *, health_stream_t *, char *);
+void SubmitHealthStartSnapshot(char *, health_stream_t *, int, int);
+void SubmitHealthStopSnapshot(char *, health_stream_t *);
+
+void initHealthModule(rtloader_t *rtloader) {
+	set_submit_health_check_data_cb(rtloader, SubmitHealthCheckData);
+	set_submit_health_start_snapshot_cb(rtloader, SubmitHealthStartSnapshot);
+	set_submit_health_stop_snapshot_cb(rtloader, SubmitHealthStopSnapshot);
+}
 */
 import "C"
 
@@ -372,6 +385,7 @@ func Initialize(paths ...string) error {
 	// [sts]
 	C.initTopologyModule(rtloader)
 	C.initTelemetryModule(rtloader)
+	C.initHealthModule(rtloader)
 	// [sts]
 
 	// Init RtLoader machinery
