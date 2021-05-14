@@ -1,10 +1,4 @@
 ---
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 .setup_rpm_signing_key: &setup_rpm_signing_key
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
@@ -14,9 +8,7 @@
 # deploy debian packages to apt staging repo
 deploy_staging_deb-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -46,9 +38,7 @@ deploy_staging_deb-6:
 
 deploy_staging_rpm-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -65,9 +55,7 @@ deploy_staging_rpm-6:
 # NOTE: no SuSE ARM builds currently.
 deploy_staging_suse_rpm-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: suse_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -84,9 +72,7 @@ deploy_staging_suse_rpm-6:
 deploy_staging_dmg-a6:
   allow_failure: true
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

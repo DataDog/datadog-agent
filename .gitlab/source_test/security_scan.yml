@@ -1,6 +1,4 @@
 ---
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
 
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
@@ -9,7 +7,7 @@
 # Scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
   rules:
-    - <<: *if_master_branch
+    !reference [.on_master_or_release_branch]
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v3523070-7400854-next
   tags: ["runner:main", "size:large"]

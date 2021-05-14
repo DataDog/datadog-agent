@@ -1,10 +1,4 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p /gomodcache && tar xzf modcache.tar.gz -C /gomodcache
   rm -f modcache.tar.gz
@@ -51,7 +45,7 @@
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
-    - <<: *if_version_6
+    !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:2xlarge"]
@@ -69,7 +63,7 @@ agent_suse-x64-a6:
 agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:2xlarge"]
@@ -85,7 +79,7 @@ agent_suse-x64-a7:
 
 iot_agent_suse-x64:
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:2xlarge"]
@@ -119,7 +113,7 @@ iot_agent_suse-x64:
 
 dogstatsd_suse-x64:
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

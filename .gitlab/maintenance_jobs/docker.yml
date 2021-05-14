@@ -33,9 +33,7 @@
 revert_latest_6_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -50,9 +48,7 @@ revert_latest_6_docker_hub:
 revert_latest_7_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -105,9 +101,7 @@ revert_latest_7_docker_hub:
 revert_latest_6_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -122,9 +116,7 @@ revert_latest_6_google_container_registry:
 revert_latest_7_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -181,9 +173,7 @@ revert_latest_7_google_container_registry:
 # - in the gitlab pipeline view, trigger the step (in the first column)
 delete_docker_tag:
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   tags: ["runner:docker", "size:large"]
