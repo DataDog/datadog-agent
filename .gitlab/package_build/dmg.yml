@@ -8,8 +8,8 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .agent_build_common_dmg:
   script:
@@ -34,7 +34,7 @@ agent_dmg-x64-a6:
   rules:
     - <<: *if_not_version_6
       when: never
-    - <<: *if_master_branch
+    - <<: *if_run_all_builds
     - <<: *if_deploy
   allow_failure: true
   stage: package_build

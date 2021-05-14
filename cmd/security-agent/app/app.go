@@ -115,12 +115,15 @@ func init() {
 }
 
 func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix); err == nil {
-		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
+	if err != nil {
+		endpoints, err = config.BuildHTTPEndpoints()
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = config.BuildEndpoints(httpConnectivity)
+		}
 	}
 
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}

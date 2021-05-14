@@ -239,12 +239,8 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 
 	// extra tags to append to all logs / metrics
-	extraTags := config.Datadog.GetStringSlice("tags")
+	extraTags := config.GetConfiguredTags(true)
 	extraTags = append(extraTags, aws.GetARNTags()...)
-
-	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
-		extraTags = append(extraTags, dsdTags...)
-	}
 	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration

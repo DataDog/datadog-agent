@@ -509,6 +509,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 // OnRuleMatch is called when a rule matches just before sending
 func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
 	// ensure that all the fields are resolved before sending
+	event.ResolveContainerID(&event.ContainerContext)
 	event.ResolveContainerTags(&event.ContainerContext)
 }
 
