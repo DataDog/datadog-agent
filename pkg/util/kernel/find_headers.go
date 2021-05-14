@@ -25,84 +25,69 @@ const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
-// FindHeaderDirs finds kernel header base directories that contain a `LINUX_VERSION_CODE` matching the running kernel.
-// If no directories are found, it will attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
-// which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
-// The `kheaders` module will be automatically added and removed if present and needed.
-func FindHeaderDirs(headerDownloadDir string) ([]string, error) {
-	hv, err := HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("unable to determine host kernel version: %w", err)
+// GetKernelHeaders attempts to find kernel headers on the
+func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, error) {
+	hv, hvErr := HostVersion()
+	if hvErr != nil {
+		return nil, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
 	}
 
-	dir, err := getHeaderDirs(hv, headerDownloadDir)
-	if err == nil {
-		return dir, nil
-	}
-
-	if os.IsNotExist(err) {
-		// as last resort, look for sysfs headers
-		if dir, syserr := getSysfsHeaderDirs(hv); syserr == nil {
-			return dir, nil
+	var err error
+	var dirs []string
+	if len(headerDirs) > 0 {
+		if err = validateHeaderDirs(hv, headerDirs); err == nil {
+			return headerDirs, nil
 		}
-	}
-	return nil, err
-}
-
-// ValidateHeaderDir verifies that the kernel headers in the directory match the kernel version of the running host
-func ValidateHeaderDir(path string) error {
-	hv, err := HostVersion()
-	if err != nil {
-		return err
-	}
-
-	dirv, err := getHeaderVersion(path)
-	if err != nil {
-		return err
-	}
-
-	if dirv != hv {
-		return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
-	}
-	return nil
-}
-
-func getHeaderDirs(v Version, headerDownloadDir string) ([]string, error) {
-	hi := host.GetStatusInformation()
-	if hi.KernelVersion == "" {
-		return nil, fmt.Errorf("unable to get host metadata")
-	}
-
-	// KernelVersion == uname -r
-	// check headerDownloadDir to see if we've previously downloaded kernel headers
-	dirs := []string{
-		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), hi.KernelVersion),
-	}
-	if hi.Platform == "debian" {
-		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
-		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), hi.KernelVersion))
-	}
-	if hi.Platform == "cos" {
-		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
-		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), hi.KernelVersion))
-	}
-
-	for _, d := range dirs {
-		hv, err := getHeaderVersion(d)
-		if err != nil {
-			// if version.h is not found in this directory, keep going
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, fmt.Errorf("error validating headers version: %w", err)
-		}
-		if hv == v {
-			log.Debugf("found valid kernel headers at %s", d)
+		log.Debugf("unable to find configured kernel headers: %s", err)
+	} else {
+		dirs = getDefaultHeaderDirs()
+		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, nil
 		}
+		log.Debugf("unable to find default kernel headers: %s", err)
+
+		// If no valid directories are found, attempt a fallback to extracting from `/sys/kernel/kheaders.tar.xz`
+		// which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
+		// The `kheaders` module will be automatically added and removed if present and needed.
+		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
+			return dirs, nil
+		}
+		log.Debugf("unable to find system kernel headers: %s", err)
 	}
-	return nil, os.ErrNotExist
+
+	dirs = getDownloadedHeaderDirs(headerDownloadDir)
+	if err = validateHeaderDirs(hv, dirs); err == nil {
+		return dirs, nil
+	}
+	log.Debugf("unable to find downloaded kernel headers: %s", err)
+
+	if dirs, err = downloadHeaders(headerDownloadDir); err == nil {
+		log.Infof("successfully downloaded kernel headers to %s", dirs)
+		return dirs, nil
+	}
+	return nil, fmt.Errorf("unable to download kernel headers: %w", err)
+}
+
+// validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
+func validateHeaderDirs(hv Version, dirs []string) error {
+	for _, d := range dirs {
+		dirv, err := getHeaderVersion(d)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// if version.h is not found in this directory, keep going
+				continue
+			}
+			return fmt.Errorf("error validating headers version: %w", err)
+		}
+		if dirv != hv {
+			return fmt.Errorf("header version %s does not match host version %s", dirv, hv)
+		}
+		// as long as one directory passes, validate the entire set
+		log.Debugf("found valid kernel headers at %s", d)
+		return nil
+	}
+
+	return fmt.Errorf("no valid kernel headers found")
 }
 
 func getHeaderVersion(path string) (Version, error) {
@@ -130,6 +115,43 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 		return 0, err
 	}
 	return 0, fmt.Errorf("no kernel version found")
+}
+
+func getDefaultHeaderDirs() []string {
+	// KernelVersion == uname -r
+	hi := host.GetStatusInformation()
+	if hi.KernelVersion == "" {
+		return []string{}
+	}
+
+	dirs := []string{
+		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
+	}
+	switch hi.Platform {
+	case "debian":
+		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
+	case "cos":
+		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
+	}
+	return dirs
+}
+
+func getDownloadedHeaderDirs(headerDownloadDir string) []string {
+	hi := host.GetStatusInformation()
+	if hi.KernelVersion == "" {
+		return []string{}
+	}
+
+	dirs := []string{
+		fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), hi.KernelVersion),
+	}
+	switch hi.Platform {
+	case "debian":
+		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), hi.KernelVersion))
+	case "cos":
+		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), hi.KernelVersion))
+	}
+	return dirs
 }
 
 func getSysfsHeaderDirs(v Version) ([]string, error) {
@@ -164,6 +186,7 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 	if err = txz.Unarchive(sysfsHeadersPath, tmpPath); err != nil {
 		return nil, fmt.Errorf("unable to extract kernel headers: %w", err)
 	}
+	log.Debugf("found valid kernel headers at %s", tmpPath)
 	return []string{tmpPath}, nil
 }
 

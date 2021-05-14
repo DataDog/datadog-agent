@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFindHeaderDirs(t *testing.T) {
+func TestGetKernelHeaders(t *testing.T) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
-	dirs, err := FindHeaderDirs()
+	dirs, err := GetKernelHeaders([]string{}, "")
 	require.NoError(t, err)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)

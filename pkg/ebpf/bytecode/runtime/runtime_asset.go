@@ -134,7 +134,11 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.BPFDebug)
+		dirs, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		if err != nil {
+			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+		}
+		comp, err := compiler.NewEBPFCompiler(dirs, config.BPFDebug)
 		if err != nil {
 			a.compilationResult = newCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)

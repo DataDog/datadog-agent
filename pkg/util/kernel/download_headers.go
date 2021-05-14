@@ -31,8 +31,8 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 
 var _ types.Logger = customLogger{}
 
-// DownloadHeaders attempts to download kernel headers & place them in headerDownloadDir
-func DownloadHeaders(headerDownloadDir string) ([]string, error) {
+// downloadHeaders attempts to download kernel headers & place them in headerDownloadDir
+func downloadHeaders(headerDownloadDir string) ([]string, error) {
 	var (
 		target    types.Target
 		backend   types.Backend

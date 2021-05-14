@@ -22,12 +22,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 	"runtime"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EBPFCompiler struct {
@@ -107,7 +105,7 @@ func (e *EBPFCompiler) Close() {
 	e.compiler = nil
 }
 
-func NewEBPFCompiler(headerDirs []string, headerDownloadDir string, verbose bool) (*EBPFCompiler, error) {
+func NewEBPFCompiler(headerDirs []string, verbose bool) (*EBPFCompiler, error) {
 	ebpfCompiler := &EBPFCompiler{
 		compiler: C.new_bpf_compiler(),
 		verbose:  verbose,
@@ -121,37 +119,7 @@ func NewEBPFCompiler(headerDirs []string, headerDownloadDir string, verbose bool
 		e.Close()
 	})
 
-	var err error
-	var dirs []string
-	if len(headerDirs) > 0 {
-		for _, d := range headerDirs {
-			err = kernel.ValidateHeaderDir(d)
-			if err != nil {
-				if os.IsNotExist(err) {
-					// allow missing version.h errors
-					continue
-				}
-				ebpfCompiler.Close()
-				return nil, fmt.Errorf("error validating kernel header directories: %w", err)
-			}
-			// as long as one directory passes, use the entire set
-			dirs = headerDirs
-			break
-		}
-	} else {
-		dirs, err = kernel.FindHeaderDirs(headerDownloadDir)
-		if err != nil {
-			log.Infof("unable to find kernel headers: %s. Attempting to download kernel headers", err)
-			dirs, err = kernel.DownloadHeaders(headerDownloadDir)
-			if err != nil {
-				ebpfCompiler.Close()
-				return nil, fmt.Errorf("unable to download kernel headers: %w", err)
-			}
-			log.Infof("successfully downloaded kernel headers to %s", dirs)
-		}
-	}
-
-	if len(dirs) == 0 {
+	if len(headerDirs) == 0 {
 		ebpfCompiler.Close()
 		return nil, fmt.Errorf("unable to find kernel headers")
 	}
@@ -162,7 +130,7 @@ func NewEBPFCompiler(headerDirs []string, headerDownloadDir string, verbose bool
 	}
 
 	var cflags []string
-	for _, d := range dirs {
+	for _, d := range headerDirs {
 		cflags = append(cflags,
 			fmt.Sprintf("-isystem%s/arch/%s/include", d, arch),
 			fmt.Sprintf("-isystem%s/arch/%s/include/generated", d, arch),
