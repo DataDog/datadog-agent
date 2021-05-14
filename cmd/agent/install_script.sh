@@ -320,10 +320,10 @@ if [ "$OS" = "RedHat" ]; then
 
     # Example: datadog-agent-7.20.2-1
     pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
-    full_agent_version="$(yum list --showduplicates datadog-agent | grep -E $pkg_pattern -om1)" || true
+    full_agent_version="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
     if [ ! -z $agent_minor_version ]; then
         if [ -z $full_agent_version ]; then
-            echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version;. Exiting.\033[0m"
+            echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version; Exiting.\033[0m"
             fallback_msg
             report
             exit 1;
@@ -403,7 +403,7 @@ If the cause is unclear, please contact Datadog support.
 
     # Example: datadog-agent=1:7.20.2-1
     pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
-    full_agent_version="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
+    full_agent_version="$(apt-cache madison datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
     if [ ! -z $agent_minor_version ]; then
         if [ -z $full_agent_version ]; then
 
@@ -501,8 +501,8 @@ elif [ "$OS" = "SUSE" ]; then
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
 
   # Example: datadog-agent=1:7.20.2-1
-  pkg_pattern="[[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
-  full_agent_version="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
+  pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+)?(-[[:digit:]])?"
+  full_agent_version="$(zypper search -s datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
   if [ ! -z $agent_minor_version ]; then
       if [ -z $full_agent_version ]; then
           echo -e "\033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version;. Exiting.\033[0m"
