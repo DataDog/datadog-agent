@@ -545,7 +545,7 @@ func TestEnvNestedConfig(t *testing.T) {
 func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
 	config := setupConf()
 
-	resetEnv := unsetEnvForTest("NO_PROXY")
+	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
 	loadProxyFromEnv(config)
@@ -564,7 +564,7 @@ func TestLoadProxyConfOnly(t *testing.T) {
 	// Don't include cloud metadata URL's in no_proxy
 	config.Set("use_proxy_for_cloud_metadata", true)
 
-	resetEnv := unsetEnvForTest("NO_PROXY")
+	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetEnv()
 
 	loadProxyFromEnv(config)
@@ -677,9 +677,11 @@ func TestLoadProxyStdEnvAndConf(t *testing.T) {
 	config.Set("use_proxy_for_cloud_metadata", true)
 
 	resetHTTPProxy := setEnvForTest("HTTP_PROXY", "http_env")
+	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
 	defer resetHTTPProxy()
+	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
 	proxies := GetProxies()
@@ -697,9 +699,11 @@ func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
 	config.Set("use_proxy_for_cloud_metadata", true)
 
 	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_env")
+	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
 	config.Set("proxy.http", "http_conf")
 	defer resetHTTPProxy()
+	defer resetNoProxy()
 
 	loadProxyFromEnv(config)
 	proxies := GetProxies()
@@ -747,7 +751,7 @@ func TestLoadProxyWithoutNoProxy(t *testing.T) {
 
 	resetHTTPProxy := setEnvForTest("DD_PROXY_HTTP", "http_url")
 	resetHTTPSProxy := setEnvForTest("DD_PROXY_HTTPS", "https_url")
-	resetNoProxy := unsetEnvForTest("NO_PROXY")
+	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
 	defer resetHTTPProxy()
 	defer resetHTTPSProxy()
 	defer resetNoProxy()
