@@ -680,7 +680,16 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		}
 
 		if conn.IntraHost && conn.Direction == INCOMING {
-			// remove ip translation from incoming local connections
+			// Remove ip translation from incoming local connections
+			// this is necessary for local connections because of
+			// the way we store conntrack entries in the conntrack
+			// cache in the system-probe. For local connections
+			// that are DNAT'ed, system-probe will tack on the
+			// translation on the incoming source side as well,
+			// even though there is no SNAT on the incoming side.
+			// This is because we store both the origin and reply
+			// (and map them to each other) in the conntrack cache
+			// in system-probe.
 			conn.IPTranslation = nil
 		}
 	}
