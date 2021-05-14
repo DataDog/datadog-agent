@@ -44,6 +44,16 @@
                     }
                 }
             }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ]
+                }
+            }
         }
     ]
 }
