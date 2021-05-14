@@ -219,3 +219,5 @@
 /tools/gdb/                             @DataDog/agent-core
 /tools/retry_file_dump/                 @DataDog/agent-core
 /tools/windows/                         @DataDog/agent-platform
+
+/internal/tools/                        @DataDog/agent-platform
