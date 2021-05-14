@@ -43,7 +43,29 @@ func (l *Launcher) launch(launchable Launchable) {
 	}
 	l.activeLauncher = launcher
 	l.activeLauncher.Start()
-	l.stop = true
+}
+
+func (l *Launcher) shouldRetry() (bool, time.Duration) {
+	var retryer *retry.Retrier
+	for _, launchable := range l.containerLaunchables {
+		ok, rt := launchable.IsAvailable()
+		if ok {
+			l.launch(launchable)
+			return false, 0
+		}
+		// Hold on to the retrier with the longest interval
+		if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
+			retryer = rt
+		}
+	}
+	if retryer == nil {
+		log.Info("Nothing to retry - stopping")
+		return false, 0
+	}
+	nextRetry := time.Until(retryer.NextRetry())
+	log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
+	return true, nextRetry
+
 }
 
 // Start starts the launcher
@@ -57,11 +79,11 @@ func (l *Launcher) Start() {
 		return
 	}
 	l.stop = false
+	timer := time.NewTimer(0)
 	l.lock.Unlock()
 
 	// Try to select a launcher
 	go func() {
-		timer := time.NewTimer(0)
 		for {
 			<-timer.C
 			l.lock.Lock()
@@ -69,28 +91,13 @@ func (l *Launcher) Start() {
 				l.lock.Unlock()
 				return
 			}
-			var retryer *retry.Retrier
-			for _, launchable := range l.containerLaunchables {
-				ok, rt := launchable.IsAvailable()
-				if ok {
-					l.launch(launchable)
-					l.lock.Unlock()
-					return
-				}
-				// Hold on to the retrier with the longest interval
-				if retryer == nil || (rt != nil && retryer.NextRetry().Before(rt.NextRetry())) {
-					retryer = rt
-				}
-			}
-			if retryer == nil {
-				log.Info("Nothing to retry - stopping")
-				l.stop = true
+			shouldRetry, nextRetry := l.shouldRetry()
+			l.stop = !shouldRetry
+			if !shouldRetry {
 				l.lock.Unlock()
 				return
 			}
-			nextRetry := time.Until(retryer.NextRetry())
 			timer = time.NewTimer(nextRetry)
-			log.Infof("Could not find an available a container launcher - will try again in %s", nextRetry.Truncate(time.Second))
 			l.lock.Unlock()
 		}
 	}()

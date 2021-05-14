@@ -21,8 +21,8 @@ type mockLauncher struct {
 	m          sync.Mutex
 	retrier    retry.Retrier
 	isAvalible bool
-	started    bool
-	stopped    bool
+	startCount int
+	stopCount  int
 	attempt    uint
 }
 
@@ -33,7 +33,7 @@ func newMockLauncher(isAvalible bool) *mockLauncher {
 		Name:          "testing",
 		AttemptMethod: func() error { return nil },
 		Strategy:      retry.JustTesting,
-		RetryCount:    5,
+		RetryCount:    0,
 		RetryDelay:    time.Millisecond,
 	})
 	return l
@@ -73,11 +73,11 @@ func (m *mockLauncher) SetAvalible(avalible bool) {
 }
 
 func (m *mockLauncher) Start() {
-	m.started = true
+	m.startCount++
 	m.wg.Done()
 }
 func (m *mockLauncher) Stop() {
-	m.stopped = true
+	m.stopCount++
 }
 
 func (m *mockLauncher) ToLaunchable() Launchable {
@@ -109,8 +109,8 @@ func TestSelectFirst(t *testing.T) {
 	l.Start()
 
 	l1.wg.Wait()
-	assert.True(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 1, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 }
 
 func TestSelectSecond(t *testing.T) {
@@ -122,8 +122,8 @@ func TestSelectSecond(t *testing.T) {
 	l.Start()
 
 	l2.wg.Wait()
-	assert.False(t, l1.started)
-	assert.True(t, l2.started)
+	assert.Equal(t, 0, l1.startCount)
+	assert.Equal(t, 1, l2.startCount)
 }
 
 func TestFailsThenSucceeds(t *testing.T) {
@@ -137,14 +137,14 @@ func TestFailsThenSucceeds(t *testing.T) {
 	// let it run a few times
 	time.Sleep(10 * time.Millisecond)
 
-	assert.False(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 0, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 
 	l2.SetAvalible(true)
 	l2.wg.Wait()
 
-	assert.False(t, l1.started)
-	assert.True(t, l2.started)
+	assert.Equal(t, 0, l1.startCount)
+	assert.Equal(t, 1, l2.startCount)
 }
 
 func TestFailsThenSucceedsRetrier(t *testing.T) {
@@ -157,8 +157,8 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 
 	l1.wg.Wait()
 
-	assert.True(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 1, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 }
 
 func TestAvalibleLauncherReturnsNil(t *testing.T) {
@@ -170,8 +170,8 @@ func TestAvalibleLauncherReturnsNil(t *testing.T) {
 	l.Start()
 
 	l2.wg.Wait()
-	assert.False(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 0, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 	l.lock.Lock()
 	_, ok := l.activeLauncher.(*noopLauncher)
 	l.lock.Unlock()
@@ -188,18 +188,17 @@ func TestRestartUsesPreviousLauncher(t *testing.T) {
 
 	l1.wg.Wait()
 	l.Stop()
-	assert.True(t, l1.started)
-	assert.True(t, l1.stopped)
-	assert.False(t, l2.stopped)
-
-	l1.started = false
+	assert.Equal(t, 1, l1.startCount)
+	assert.Equal(t, 1, l1.stopCount)
+	assert.Equal(t, 0, l2.startCount)
+	assert.Equal(t, 0, l2.stopCount)
 
 	l1.wg.Add(1)
 	l.Start()
 	l1.wg.Wait()
 
-	assert.True(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 2, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 }
 
 func TestRestartFindLauncherLater(t *testing.T) {
@@ -213,10 +212,10 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	l.Stop()
 
-	assert.False(t, l1.started)
-	assert.False(t, l1.stopped)
-	assert.False(t, l2.started)
-	assert.False(t, l2.stopped)
+	assert.Equal(t, 0, l1.startCount)
+	assert.Equal(t, 0, l1.stopCount)
+	assert.Equal(t, 0, l2.startCount)
+	assert.Equal(t, 0, l2.stopCount)
 
 	l1.SetAvalible(true)
 
@@ -224,8 +223,8 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	l.Start()
 	l1.wg.Wait()
 
-	assert.True(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 1, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 }
 
 func TestRestartSameLauncher(t *testing.T) {
@@ -241,15 +240,15 @@ func TestRestartSameLauncher(t *testing.T) {
 	l.Stop()
 	l1.wg.Wait()
 
-	assert.True(t, l1.started)
-	assert.True(t, l1.stopped)
-	assert.False(t, l2.started)
-	assert.False(t, l2.stopped)
+	assert.Equal(t, 1, l1.startCount)
+	assert.Equal(t, 1, l1.stopCount)
+	assert.Equal(t, 0, l2.startCount)
+	assert.Equal(t, 0, l2.stopCount)
 
 	l1.wg.Add(1)
 	l.Start()
 	l1.wg.Wait()
 
-	assert.True(t, l1.started)
-	assert.False(t, l2.started)
+	assert.Equal(t, 2, l1.startCount)
+	assert.Equal(t, 0, l2.startCount)
 }
