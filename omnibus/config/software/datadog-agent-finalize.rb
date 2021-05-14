@@ -202,6 +202,9 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
+            
+            # remove docker configuration
+            delete "#{install_dir}/etc/conf.d/docker.d"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
