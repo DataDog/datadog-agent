@@ -47,17 +47,21 @@ useful and we will do our very best to help you solve your problem.\n"
 }
 
 function report(){
-  if curl -f -s \
-    --data-urlencode "os=${OS}" \
-    --data-urlencode "version=${agent_major_version}" \
-    --data-urlencode "log=$(cat $logfile)" \
-    --data-urlencode "email=${email}" \
-    --data-urlencode "apikey=${apikey}" \
-    "$report_failure_url"; then
-   printf "A notification has been sent to Datadog with the contents of $logfile\n"
+  if [ ! -z $email ]; then
+    if curl -f -s \
+      --data-urlencode "os=${OS}" \
+      --data-urlencode "version=${agent_major_version}" \
+      --data-urlencode "log=$(cat $logfile)" \
+      --data-urlencode "email=${email}" \
+      --data-urlencode "apikey=${apikey}" \
+      "$report_failure_url"; then
+     printf "A notification has been sent to Datadog with the contents of $logfile\n"
+    else
+      printf "Unable to send the notification (curl v7.18 or newer is required)"
+      fallback_msg
+    fi
   else
-    printf "Unable to send the notification (curl v7.18 or newer is required)"
-    fallback_msg
+    printf "No email provided; skipping report.\n"
   fi
 }
 
