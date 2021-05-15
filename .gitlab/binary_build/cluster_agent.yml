@@ -1,8 +1,4 @@
 ---
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 .cluster_agent-build_common:
   stage: binary_build
   needs: ["go_mod_tidy_check"]
@@ -24,7 +20,7 @@ cluster_agent-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
 
 cluster_agent-build_arm64:
@@ -37,7 +33,7 @@ cluster_agent-build_arm64:
   variables:
     ARCH: arm64
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog

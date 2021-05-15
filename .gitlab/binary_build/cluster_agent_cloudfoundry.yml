@@ -1,8 +1,4 @@
 ---
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 cluster_agent_cloudfoundry-build_amd64:
   rules:
     !reference [.on_a7]
@@ -17,7 +13,7 @@ cluster_agent_cloudfoundry-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv -e cluster-agent-cloudfoundry.build

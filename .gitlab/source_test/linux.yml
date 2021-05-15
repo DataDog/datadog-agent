@@ -1,12 +1,8 @@
 ---
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 .rtloader_tests:
   stage: source_test
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV
     - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
@@ -128,7 +124,7 @@ go_mod_tidy_check:
   tags: ["runner:main", "size:large"]
   needs: ["linux_x64_go_deps"]
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:

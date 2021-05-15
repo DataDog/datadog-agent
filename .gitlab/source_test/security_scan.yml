@@ -1,9 +1,4 @@
 ---
-
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 # Scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
   rules:
@@ -13,9 +8,7 @@ security_scan_test:
   tags: ["runner:main", "size:large"]
   needs: ["linux_x64_go_deps"]
   before_script:
-    # this image isn't built in the datadog-agent-builders repo
-    # it doesn't have invoke so we install the dependencies without invoke
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent

@@ -1,8 +1,4 @@
 ---
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 .retrieve_sysprobe_deps: &retrieve_sysprobe_deps |
   $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz /tmp/libbcc.tar.xz
   $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz /tmp/clang.tar.xz
@@ -41,7 +37,7 @@ tests_ebpf_x64:
   variables:
     ARCH: amd64
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     - cd $SRC_PATH
     - *retrieve_sysprobe_deps
@@ -69,7 +65,7 @@ tests_ebpf_arm64:
   variables:
     ARCH: arm64
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf
     # Hack to work around the cloning issue with arm runners
     - mkdir -p $GOPATH/src/github.com/DataDog

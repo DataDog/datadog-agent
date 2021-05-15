@@ -3,6 +3,10 @@
 # Contains jobs which fetch go dependencies for various Linux platforms, in order
 # to reuse them in further jobs that need them.
 
+.retrieve_linux_go_deps:
+  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
+  - rm -f modcache.tar.gz
+
 .go_deps:
   stage: deps_fetch
   needs: []
