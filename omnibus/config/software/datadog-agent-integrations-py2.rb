@@ -80,6 +80,9 @@ blacklist_packages = Array.new
 blacklist_packages.push(/^aerospike==/)
 blacklist_packages.push(/^snowflake-connector-python==/)
 
+# Python 3 check only
+blacklist_folders.push('ibm_i')
+
 if suse?
   blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
 end
