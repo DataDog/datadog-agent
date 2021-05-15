@@ -16,19 +16,6 @@
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
-# anchor to trigger test kitchen setup, run, and cleanup (so all stages
-# are run if one stage is run).  Triggers as defined:
-# - master
-# - tags (a tagged build)
-# - deploys (as above)
-# - web (when the build is triggered by a specific build request through the
-#        web interface.  This way, if a kitchen run is desired on a specific branch,
-#        it can be triggered by requesting a specific build)
-# - api (when the build is triggered by an API call)
-#
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
 deploy_deb_testing-a6:
   rules:
     !reference [.on_kitchen_tests_a6]
