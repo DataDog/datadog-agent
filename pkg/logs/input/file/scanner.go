@@ -271,6 +271,11 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 // shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
 // to validate that we will be reading a file for the correct container.
 func (s *Scanner) shouldIgnore(file *File) bool {
+	// this method needs a source config to detect whether we should ignore that file or not
+	if file == nil || file.Source == nil || file.Source.Config == nil {
+		return false
+	}
+
 	infos := make(map[string]string)
 	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
 		// we only wants to follow symlinks
@@ -314,8 +319,7 @@ func (s *Scanner) shouldIgnore(file *File) bool {
 		return false
 	}
 
-	if file.Source != nil && file.Source.Config != nil &&
-		file.Source.Config.Identifier != "" && containerIDFromFilename != "" {
+	if file.Source.Config.Identifier != "" && containerIDFromFilename != "" {
 		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config.Identifier)) {
 			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
 				containerIDFromFilename, file.Source.Config.Identifier)
