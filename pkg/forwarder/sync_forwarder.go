@@ -42,6 +42,9 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
 			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			// Retry once after error
+			log.Debug("Retrying transaction")
+			t.Process(context.Background(), f.client)
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
