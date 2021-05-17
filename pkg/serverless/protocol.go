@@ -404,9 +404,5 @@ func areEnhancedMetricsEnabled() bool {
 		}
 		return config.Datadog.GetBool(priorityEnv)
 	}
-	if config.Datadog.IsSet(nonPriorityEnv) {
-		return config.Datadog.GetBool(nonPriorityEnv)
-	}
-	// default value
-	return true
+	return config.Datadog.GetBool(nonPriorityEnv)
 }
