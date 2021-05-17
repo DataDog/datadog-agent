@@ -19,12 +19,14 @@ type SyncForwarder struct {
 	client           *http.Client
 }
 
+var forwarderTimeout = config.Datadog.GetDuration("forwarder_timeout") * time.Second
+
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(keysPerDomains map[string][]string, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(keysPerDomains map[string][]string) *SyncForwarder {
 	return &SyncForwarder{
 		defaultForwarder: NewDefaultForwarder(NewOptions(keysPerDomains)),
 		client: &http.Client{
-			Timeout:   timeout,
+			Timeout:   forwarderTimeout,
 			Transport: utilhttp.CreateHTTPTransport(),
 		},
 	}
@@ -43,14 +45,15 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
 			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
-			// After error, instantiate a new client and retry once
+
+			// If there is an error, instantiate a new HTTP client and retry one time
+			// The new HTTP client is instantiated in case the connection has been closed
+			log.Debug("Retrying transaction")
 			forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-			log.Debug("Instantiating new HTTP client")
 			f.client = &http.Client{
 				Timeout:   forwarderTimeout,
 				Transport: utilhttp.CreateHTTPTransport(),
 			}
-			log.Debug("Retrying transaction")
 			t.Process(context.Background(), f.client)
 		}
 	}

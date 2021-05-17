@@ -325,7 +325,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
-	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
+	f := forwarder.NewSyncForwarder(keysPerDomain)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
 
