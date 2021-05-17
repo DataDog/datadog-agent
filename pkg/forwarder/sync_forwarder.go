@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,6 +43,15 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
 			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			// After error, instantiate a new client and retry once
+			forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+			log.Debug("Instantiating new HTTP client")
+			f.client = &http.Client{
+				Timeout:   forwarderTimeout,
+				Transport: utilhttp.CreateHTTPTransport(),
+			}
+			log.Debug("Retrying")
+			t.Process(context.Background(), f.client)
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
