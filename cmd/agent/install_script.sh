@@ -206,7 +206,7 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
 fi
 
 if [ -n "$DD_FALLBACK_LATEST" ]; then
-  # Used in conjuntion with DD_AGENT_MINOR_VERSION.
+  # Used in conjunction with DD_AGENT_MINOR_VERSION.
   # When an invalid value is provided for DD_AGENT_MINOR_VERSION, setting this to true will instruct the script
   # to proceed installing the latest minor.patch version available.
   fallback_latest=true
