@@ -23,9 +23,10 @@ const (
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
-		eventType:                     eventTypeDBMSamples,
-		endpointsConfigPrefix:         "database_monitoring.samples.",
-		hostnameEndpointPrefix:        "dbquery-http-intake.logs.",
+		eventType:              eventTypeDBMSamples,
+		endpointsConfigPrefix:  "database_monitoring.samples.",
+		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		// ensures pipelines can support 1000s of events per second
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 	},
@@ -133,10 +134,12 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if !endpoints.UseHTTP {
 		return nil, fmt.Errorf("endpoints must be http")
 	}
-	// since some of these pipelines can be potentially very high throughput we increase the default batch send concurrency
-	// to ensure they are able to support 1000s of events per second
+	// epforwarder pipelines apply their own defaults on top of the hardcoded logs defaults
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
+	}
+	if endpoints.BatchMaxContentSize <= pkgconfig.DefaultBatchMaxContentSize {
+		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
 	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 	additionals := []client.Destination{}
@@ -145,10 +148,6 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(main, additionals)
 	inputChan := make(chan *message.Message, 100)
-	// ep forwarder pipelines have their own size defaults
-	if endpoints.BatchMaxContentSize <= pkgconfig.DefaultBatchMaxContentSize {
-		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
-	}
 	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType)
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d",
