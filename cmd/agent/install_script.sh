@@ -62,6 +62,7 @@ function report(){
     fi
   else
     printf "No email provided; skipping report.\n"
+    fallback_msg
   fi
 }
 
