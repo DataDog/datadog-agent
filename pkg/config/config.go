@@ -70,6 +70,18 @@ const (
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+
+	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
+	DefaultLogsSenderBackoffFactor = 2.0
+
+	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
+	DefaultLogsSenderBackoffBase = 0.05
+
+	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
+	DefaultLogsSenderBackoffMax = 1.0
+
+	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
+	DefaultLogsSenderBackoffRecoveryInterval = 2
 )
 
 // Datadog is the global configuration object
@@ -1104,6 +1116,11 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
 	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
 	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
