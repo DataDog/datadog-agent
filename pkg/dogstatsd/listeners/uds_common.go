@@ -173,7 +173,7 @@ func (l *UDSListener) Listen() {
 			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
 
 			if capBuff != nil {
-				capBuff.Pb.Timestamp = time.Now().Unix()
+				capBuff.Pb.Timestamp = time.Now().UnixNano()
 				capBuff.Pid = int32(pid)
 				capBuff.Oob = oob
 				capBuff.Buff = packet
@@ -206,7 +206,7 @@ func (l *UDSListener) Listen() {
 			t1 = time.Now()
 
 			if capBuff != nil {
-				capBuff.Pb.Timestamp = time.Now().Unix()
+				capBuff.Pb.Timestamp = time.Now().UnixNano()
 				capBuff.Buff = packet
 				capBuff.Pb.Pid = 0
 				capBuff.Pb.AncillarySize = int32(0)
