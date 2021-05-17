@@ -1,10 +1,13 @@
+import io
 import os
 import re
+import traceback
 from collections import defaultdict
 
 from invoke import task
 from invoke.exceptions import Exit
 
+from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
 from .libs.pipeline_notifications import (
     base_message,
@@ -21,23 +24,12 @@ from .libs.types import SlackMessage, TeamMessage
 ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
-@task
-def trigger(_, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch):
     """
-    Trigger a deploy pipeline on the given git ref.
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
-    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
-
-    Example:
-    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
+    Run checks to verify a deploy pipeline is valid:
+    - it targets a valid repo branch
+    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
     """
-
-    #
-    # Create gitlab instance and make sure we have access.
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab()
-    gitlab.test_project_found(project_name)
 
     # Check that the target repo branch is valid
     if repo_branch not in ALLOWED_REPO_BRANCHES:
@@ -82,35 +74,116 @@ def trigger(_, git_ref="master", release_version_6="nightly", release_version_7=
 
             print("Successfully cross checked v7 tag {} and git ref {}".format(tag_name, git_ref))
 
-    pipeline_id = trigger_agent_pipeline(
-        gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch, deploy=True
+
+@task
+def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+    """
+    DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
+
+    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
+    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
+
+    Example:
+    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
+    """
+    print(
+        color_message(
+            "WARNING: the pipeline.trigger invoke task is deprecated and will be removed in the future.\n"
+            + "         Use pipeline.run with the --deploy option instead.",
+            "orange",
+        )
     )
-    wait_for_pipeline(gitlab, project_name, pipeline_id)
+
+    run(
+        ctx,
+        git_ref=git_ref,
+        release_version_6=release_version_6,
+        release_version_7=release_version_7,
+        repo_branch=repo_branch,
+        deploy=True,
+        all_builds=True,
+        kitchen_tests=True,
+    )
 
 
 @task
-def run_all_tests(ctx, git_ref="master", here=False, release_version_6="nightly", release_version_7="nightly-a7"):
+def run(
+    ctx,
+    git_ref="master",
+    here=False,
+    release_version_6="nightly",
+    release_version_7="nightly-a7",
+    repo_branch="nightly",
+    deploy=False,
+    all_builds=True,
+    kitchen_tests=True,
+):
     """
-    Trigger a pipeline on the given git ref, or on the current branch if --here is given.
-    This pipeline will run all tests, including kitchen tests.
-    The packages built won't be deployed to the staging repository. Use invoke pipeline.trigger if you want to
-    deploy them.
+    Run a pipeline on the given git ref, or on the current branch if --here is given.
+    By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
+    Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
+    Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
+
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
     To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
-    Examples:
-    inv pipeline.run-all-tests --git-ref my-branch
-    inv pipeline.run-all-tests --here
+    Examples
+    Run a pipeline on my-branch:
+      inv pipeline.run --git-ref my-branch
+
+    Run a pipeline on the current branch:
+      inv pipeline.run --here
+
+    Run a pipeline without kitchen tests on the current branch:
+      inv pipeline.run --here --no-kitchen-tests
+
+    Run a deploy pipeline on the 7.28.0 tag, uploading the artifacts to the stable branch of the staging repositories:
+      inv pipeline.run --deploy --git-ref 7.28.0 --release-version-6 "6.28.0" --release-version-7 "7.28.0" --repo-branch "stable"
     """
 
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
+    if deploy:
+        # Check the validity of the deploy pipeline
+        check_deploy_pipeline(
+            gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch,
+        )
+        # Force all builds and kitchen tests to be run
+        if not all_builds:
+            print(
+                color_message(
+                    "WARNING: ignoring --no-all-builds option, RUN_ALL_BUILDS is automatically set to true on deploy pipelines",
+                    "orange",
+                )
+            )
+            all_builds = True
+        if not kitchen_tests:
+            print(
+                color_message(
+                    "WARNING: ignoring --no-kitchen-tests option, RUN_KITCHEN_TESTS is automatically set to true on deploy pipelines",
+                    "orange",
+                )
+            )
+            kitchen_tests = True
+
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
     pipeline_id = trigger_agent_pipeline(
-        gitlab, project_name, git_ref, release_version_6, release_version_7, "none", deploy=False
+        gitlab,
+        project_name,
+        git_ref,
+        release_version_6,
+        release_version_7,
+        repo_branch,
+        deploy=deploy,
+        all_builds=all_builds,
+        kitchen_tests=kitchen_tests,
     )
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
@@ -157,7 +230,7 @@ GITHUB_SLACK_MAP = {
     "@DataDog/agent-platform": "#agent-platform",
     "@DataDog/container-integrations": "#container-integration",
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
-    "@DataDog/networks": "#networks",
+    "@DataDog/agent-network": "#network-agent",
     "@DataDog/agent-security": "#security-and-compliance-agent",
     "@DataDog/agent-apm": "#apm-agent",
     "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
@@ -173,24 +246,10 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 
 
-@task
-def notify_failure(_, notification_type="merge", print_to_stdout=False):
-    """
-    Send failure notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
-    real slack messages.
-    """
-    header = ""
-    if notification_type == "merge":
-        header = ":host-red: :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = ":host-red: :rocket: datadog-agent deploy"
-
+def generate_failure_messages(base):
     project_name = "DataDog/datadog-agent"
     all_teams = "@DataDog/agent-all"
     failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
-    base = base_message(header)
-
     # Generate messages for each team
     messages_to_send = defaultdict(lambda: TeamMessage(base))
     messages_to_send[all_teams] = SlackMessage(base, jobs=failed_jobs)
@@ -214,6 +273,39 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             pass
             # TODO: enable also jobs
             # messages_to_send[owner].failed_jobs = jobs
+
+    return messages_to_send
+
+
+@task
+def notify_failure(_, notification_type="merge", print_to_stdout=False):
+    """
+    Send failure notifications for the current pipeline. CI-only task.
+    Use the --print-to-stdout option to test this locally, without sending
+    real slack messages.
+    """
+
+    header = ""
+    if notification_type == "merge":
+        header = ":host-red: :merged: datadog-agent merge"
+    elif notification_type == "deploy":
+        header = ":host-red: :rocket: datadog-agent deploy"
+    base = base_message(header)
+
+    try:
+        messages_to_send = generate_failure_messages(base)
+    except Exception as e:
+        buffer = io.StringIO()
+        print(base, file=buffer)
+        print("Found exception when generating notification:", file=buffer)
+        traceback.print_exc(limit=-1, file=buffer)
+        print("See the job log for the full exception traceback.", file=buffer)
+        messages_to_send = {
+            "@DataDog/agent-all": SlackMessage(buffer.getvalue()),
+        }
+        # Print traceback on job log
+        print(e)
+        traceback.print_exc()
 
     # Send messages
     for owner, message in messages_to_send.items():

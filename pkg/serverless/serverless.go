@@ -37,8 +37,8 @@ const (
 	headerExtErrType  string = "Lambda-Extension-Function-Error-Type"
 	headerContentType string = "Content-Type"
 
-	requestTimeout      time.Duration = 5 * time.Second
-	arbitraryShortDelay time.Duration = 10 * time.Millisecond
+	requestTimeout     time.Duration = 5 * time.Second
+	clientReadyTimeout time.Duration = 2 * time.Second
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
@@ -233,7 +233,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id ID, coldstart bool) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
@@ -267,6 +267,16 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	if payload.EventType == "INVOKE" {
 		log.Debug("Received invocation event")
 		aws.SetARN(payload.InvokedFunctionArn)
+		daemon.StartInvocation()
+		if coldstart {
+			ready := daemon.WaitUntilClientReady(clientReadyTimeout)
+			if ready {
+				log.Debug("Client library registered with extension")
+			} else {
+				log.Debug("Timed out waiting for client library to register with extension.")
+			}
+			daemon.UpdateStrategy()
+		}
 
 		// immediately check if we should flush data
 		// note that since we're flushing synchronously here, there is a scenario
@@ -284,26 +294,17 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		} else {
 			log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
 		}
+		daemon.WaitForDaemon()
 	}
 	if payload.EventType == "SHUTDOWN" {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 
-		err := aws.PersistCurrentStateToFile()
-		if err != nil {
-			log.Error("Unable to persist current state to file while shutting down")
-		}
-
 		if strings.ToLower(payload.ShutdownReason) == "timeout" {
 			metricTags := getTagsForEnhancedMetrics()
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
-			// Ensure that timeout metric has been received by the statsdServer before flushing
-			time.Sleep(arbitraryShortDelay)
 		}
 
-		// Always flush when shutting down, regardless of flushing strategy
-		daemon.TriggerFlush(context.Background(), true)
-
-		// shutdown the serverless agent
+		daemon.Stop()
 		stopCh <- struct{}{}
 	}
 

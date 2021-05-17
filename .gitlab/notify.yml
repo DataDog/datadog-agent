@@ -24,6 +24,7 @@ notify-on-success:
   rules:
     - <<: *if_master_branch
     - <<: *if_deploy
+  dependencies: []
   script: |
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
 
@@ -43,6 +44,7 @@ notify-on-tagged-success:
   rules:
     - <<: *if_deploy_on_tag_6
     - <<: *if_deploy_on_tag_7
+  dependencies: []
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."

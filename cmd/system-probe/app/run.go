@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -21,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
 var (
@@ -148,7 +147,6 @@ func StartSystemProbe() error {
 		if err := enableProfiling(cfg); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		}
-		defer profiling.Stop()
 	}
 
 	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
@@ -174,7 +172,7 @@ func StartSystemProbe() error {
 // StopSystemProbe Tears down the system-probe process
 func StopSystemProbe() {
 	module.Close()
-	profiler.Stop()
+	profiling.Stop()
 	_ = os.Remove(pidfilePath)
 	log.Flush()
 }
@@ -198,6 +196,8 @@ func enableProfiling(cfg *config.Config) error {
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",
+		cfg.ProfilingPeriod,
+		cfg.ProfilingCPUDuration,
 		fmt.Sprintf("version:%v", v),
 	)
 }

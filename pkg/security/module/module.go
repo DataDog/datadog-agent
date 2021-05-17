@@ -77,6 +77,9 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 		}
 	}()
 
+	// start api server
+	m.apiServer.Start(m.ctx)
+
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(m.statsdClient); err != nil {
@@ -250,7 +253,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event)
+	m.SendEvent(rule, event, func() []string { return nil })
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -258,13 +261,18 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// prepare the event
 	m.probe.OnRuleMatch(rule, event.(*probe.Event))
 
-	m.SendEvent(rule, event)
+	id := event.(*probe.Event).ContainerContext.ID
+	extTagsCb := func() []string {
+		return m.probe.GetResolvers().TagsResolver.Resolve(id)
+	}
+
+	m.SendEvent(rule, event, extTagsCb)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (m *Module) SendEvent(rule *rules.Rule, event Event) {
+func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event)
+		m.apiServer.SendEvent(rule, event, extTagsCb)
 	} else {
 		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}

@@ -6,6 +6,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -120,4 +121,10 @@ func TestConnectivityCheck(t *testing.T) {
 	connectivity = CheckConnectivity(server.endpoint)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.stop()
+}
+
+func TestErrorToTag(t *testing.T) {
+	assert.Equal(t, errorToTag(nil), "none")
+	assert.Equal(t, errorToTag(errors.New("fail")), "non-retryable")
+	assert.Equal(t, errorToTag(client.NewRetryableError(errors.New("fail"))), "retryable")
 }

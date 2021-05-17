@@ -58,8 +58,20 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param host_aliases - list of strings - optional
+## List of host aliases to report in addition to any aliases collected
+## automatically from cloud providers.
+## More information at
+## https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#host-aliases
+#
+# host_aliases:
+#   - <ALIAS-1>
+#   - <ALIAS-2>
+
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
@@ -297,6 +309,18 @@ api_key:
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
 # gce_metadata_timeout: 1000
+
+## @param azure_hostname_style - string - optional - default: "os"
+## Changes how agent hostname is set on Azure virtual machines.
+##
+## Possible values:
+##   "os" - use the hostname reported by the operating system (default)
+##   "name" - use the instance name
+##   "name_and_resource_group" - use a combination of the instance name and resource group name
+##   "full" - use a combination of the instance name, resource group name and subscription id
+##   "vmid" - use the instance id
+#
+# azure_hostname_style: "os"
 
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
@@ -1209,7 +1233,7 @@ api_key:
 #
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
-
+#
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.

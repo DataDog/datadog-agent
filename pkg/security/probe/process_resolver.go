@@ -534,9 +534,6 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
-		if tty == "" {
-			tty = "null"
-		}
 		pce.TTYName = tty
 	}
 	return pce.TTYName

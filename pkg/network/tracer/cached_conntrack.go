@@ -3,7 +3,9 @@
 package tracer
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -49,6 +51,10 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	ctrk, err := cache.ensureConntrack(c.NetNS(), int(c.Pid()))
 	if err != nil {
 		return false, err
+	}
+
+	if ctrk == nil {
+		return false, nil
 	}
 
 	var protoNumber uint8 = unix.IPPROTO_UDP
@@ -118,6 +124,10 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	ns, err := util.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
 		log.Errorf("could not get net ns for pid %d: %s", pid, err)
 		return nil, err
 	}

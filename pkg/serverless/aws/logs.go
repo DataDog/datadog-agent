@@ -28,6 +28,10 @@ const (
 	LogTypePlatformReport = "platform.report"
 	// LogTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	LogTypePlatformLogsDropped = "platform.logsDropped"
+	// LogTypePlatformLogsSubscription is used for the log messages about Logs API registration
+	LogTypePlatformLogsSubscription = "platform.logsSubscription"
+	// LogTypePlatformExtension is used for the log messages about Extension API registration
+	LogTypePlatformExtension = "platform.extension"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -85,6 +89,8 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	switch typ {
 	case LogTypeExtension:
 		fallthrough
+	case LogTypePlatformLogsSubscription, LogTypePlatformExtension:
+		l.Type = typ
 	case LogTypeFunction:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
@@ -111,37 +117,27 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 					l.ObjectRecord.RequestID,
 				)
 			case LogTypePlatformReport:
-				// only logTypePlatformReport has what we call "enhanced metrics"
-				if typ == LogTypePlatformReport {
-					if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
-						if v, ok := metrics["durationMs"].(float64); ok {
-							l.ObjectRecord.Metrics.DurationMs = v
-						}
-						if v, ok := metrics["billedDurationMs"].(float64); ok {
-							l.ObjectRecord.Metrics.BilledDurationMs = int(v)
-						}
-						if v, ok := metrics["memorySizeMB"].(float64); ok {
-							l.ObjectRecord.Metrics.MemorySizeMB = int(v)
-						}
-						if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
-							l.ObjectRecord.Metrics.MaxMemoryUsedMB = int(v)
-						}
-						if v, ok := metrics["initDurationMs"].(float64); ok {
-							l.ObjectRecord.Metrics.InitDurationMs = v
-						}
-						log.Debugf("Enhanced metrics: %+v\n", l.ObjectRecord.Metrics)
-					} else {
-						log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["durationMs"].(float64); ok {
+						l.ObjectRecord.Metrics.DurationMs = v
 					}
-					l.StringRecord = fmt.Sprintf("REPORT RequestId: %s	Duration: %.2f ms    	Billed Duration: %d ms	Memory Size: %d MB	Max Memory Used: %d MB	Init Duration: %.2f ms",
-						l.ObjectRecord.RequestID,
-						l.ObjectRecord.Metrics.DurationMs,
-						l.ObjectRecord.Metrics.BilledDurationMs,
-						l.ObjectRecord.Metrics.MemorySizeMB,
-						l.ObjectRecord.Metrics.MaxMemoryUsedMB,
-						l.ObjectRecord.Metrics.InitDurationMs,
-					)
+					if v, ok := metrics["billedDurationMs"].(float64); ok {
+						l.ObjectRecord.Metrics.BilledDurationMs = int(v)
+					}
+					if v, ok := metrics["memorySizeMB"].(float64); ok {
+						l.ObjectRecord.Metrics.MemorySizeMB = int(v)
+					}
+					if v, ok := metrics["maxMemoryUsedMB"].(float64); ok {
+						l.ObjectRecord.Metrics.MaxMemoryUsedMB = int(v)
+					}
+					if v, ok := metrics["initDurationMs"].(float64); ok {
+						l.ObjectRecord.Metrics.InitDurationMs = v
+					}
+					log.Debugf("Enhanced metrics: %+v\n", l.ObjectRecord.Metrics)
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
+				l.StringRecord = createStringRecordForReportLog(l)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -151,4 +147,32 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+// ShouldProcessLog returns whether or not the log should be further processed.
+func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
+	// If the global request ID or ARN variable isn't set at this point, do not process further
+	if arn == "" || lastRequestID == "" {
+		return false
+	}
+	// Making sure that we do not process these types of logs since they are not tied to specific invovations
+	if message.Type == LogTypePlatformExtension || message.Type == LogTypePlatformLogsSubscription {
+		return false
+	}
+	return true
+}
+
+func createStringRecordForReportLog(l *LogMessage) string {
+	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
+		l.ObjectRecord.RequestID,
+		l.ObjectRecord.Metrics.DurationMs,
+		l.ObjectRecord.Metrics.BilledDurationMs,
+		l.ObjectRecord.Metrics.MemorySizeMB,
+		l.ObjectRecord.Metrics.MaxMemoryUsedMB,
+	)
+	if l.ObjectRecord.Metrics.InitDurationMs > 0 {
+		stringRecord = stringRecord + fmt.Sprintf("\tInit Duration: %.2f ms", l.ObjectRecord.Metrics.InitDurationMs)
+	}
+
+	return stringRecord
 }

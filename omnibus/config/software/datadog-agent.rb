@@ -102,7 +102,15 @@ build do
       move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
-  copy 'bin/agent', "#{install_dir}/bin/"
+
+  unless windows?
+    copy 'bin/agent', "#{install_dir}/bin/"
+  else
+    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+    mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
+    copy 'bin/agent/customaction.pdb', "#{Omnibus::Config.package_dir()}/"
+  end
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated

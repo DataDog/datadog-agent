@@ -34,7 +34,19 @@
             "type": "integer"
         },
         "tty": {
-            "type": "string"
+            "allOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "not": {
+                        "type": "string",
+                        "enum": [
+                            "null"
+                        ]
+                    }
+                }
+            ]
         },
         "credentials": {
             "type": "object",

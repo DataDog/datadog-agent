@@ -146,11 +146,6 @@ and build dependencies, so you need a recent `ruby` environment with `bundler`
 installed. See [how to build Agent packages with Omnibus][agent-omnibus] for more
 details.
 
-If you want to perform an Embedded build, you need to set the `use_system_libs`
-boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
-changing the `invoke.yaml` file or passing the corresponding arg to the build and
-test tasks, like `invoke build --use-system-libs=false`.
-
 ### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.

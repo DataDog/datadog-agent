@@ -7,5 +7,4 @@ include:
   - /.gitlab/deploy_7/docker.yml
   - /.gitlab/deploy_7/install_script.yml
   - /.gitlab/deploy_7/nix.yml
-  - /.gitlab/deploy_7/windows_cloudfoundry.yml
   - /.gitlab/deploy_7/windows.yml
