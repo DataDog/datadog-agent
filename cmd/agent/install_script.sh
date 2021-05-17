@@ -102,7 +102,6 @@ Troubleshooting and basic usage information for the Agent are available at:
 trap on_error ERR
 
 function verify_agent_version(){
-  agent_version_final=$agent_version_latest
   if [ ! -z $agent_minor_version ]; then
       if [ -z $agent_version_custom ]; then
           echo -e "
@@ -111,12 +110,10 @@ function verify_agent_version(){
           if [ $fallback_latest ]; then
             echo -e "  \033[33mDD_FALLBACK_LATEST is set. Installing latest minor version available.\n\033[0m"
           else
-            echo -e "\033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
+            echo -e "  \033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
             fallback_msg
             exit 1;
           fi
-      else
-          agent_version_final=$agent_version_custom
       fi
   fi
 }
@@ -350,14 +347,13 @@ if [ "$OS" = "RedHat" ]; then
     fi
 
     # Example: datadog-agent-7.20.2-1
-    pkg_pattern="$agent_major_version(\.[[:digit:]]+){1,2}(-[[:digit:]])?"
-    agent_version_latest="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
-
     pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
     agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
 
     verify_agent_version
-    agent_flavor+="-$agent_version_final"
+    if [ ! -z $agent_version_custom ]; then
+      agent_flavor+="-$agent_version_custom"
+    fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
@@ -415,14 +411,13 @@ If the cause is unclear, please contact Datadog support.
 "
 
     # Example: datadog-agent=1:7.20.2-1
-    pkg_pattern="([[:digit:]]:)?$agent_major_version(\.[[:digit:]]+){1,2}(-[[:digit:]])?"
-    agent_version_latest="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
-
     pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
     agent_version_custom="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
 
     verify_agent_version
-    agent_flavor+="=$agent_version_final"
+    if [ ! -z $agent_version_custom ]; then
+      agent_flavor+="=$agent_version_custom"
+    fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
     $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
@@ -497,14 +492,13 @@ elif [ "$OS" = "SUSE" ]; then
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
   # Example: datadog-agent-1:7.20.2-1
-  pkg_pattern="([[:digit:]]:)?$agent_major_version(\.[[:digit:]]+){1,2}(-[[:digit:]])?"
-  agent_version_latest="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
-
   pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
   agent_version_custom="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
 
   verify_agent_version
-  agent_flavor+="-$agent_version_final"
+  if [ ! -z $agent_version_custom ]; then
+    agent_flavor+="-$agent_version_custom"
+  fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
   $sudo_cmd zypper --non-interactive install "$agent_flavor"
