@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockSession struct {
@@ -128,7 +128,6 @@ tags:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -276,7 +275,6 @@ metrics:
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -325,6 +323,7 @@ func TestProfile(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 profile: f5-big-ip
+collect_device_metadata: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -340,7 +339,7 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -354,6 +353,16 @@ profiles:
 				Name:  "1.3.6.1.2.1.1.5.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("my_desc"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
 			},
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
@@ -381,6 +390,26 @@ profiles:
 				Value: 141,
 			},
 			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
 				Type:  gosnmp.OctetString,
 				Value: []byte("nameRow1"),
@@ -399,6 +428,26 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.2",
 				Type:  gosnmp.Integer,
 				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
 			},
 			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
@@ -430,11 +479,50 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
+	session.On("Get", []string{
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.2.3.4.5",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	}).Return(&packet, nil)
+	session.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -450,6 +538,10 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
+
+	// language=json
+	event := `{"subnet":"","devices":[{"id":"abc123","id_tags":null,"name":"foo_sys_name","description":"my_desc","ip_address":"1.2.3.4","sys_object_id":"1.2.3.4","profile":"f5-big-ip","vendor":"f5","subnet":"","tags":["device_vendor:f5","prefix:f","snmp_device:1.2.3.4","snmp_host:foo_sys_name","snmp_profile:f5-big-ip","some_tag:some_tag_value","suffix:oo_sys_name"]}],"interfaces":[{"device_id":"abc123","index":1,"name":"nameRow1","alias":"descRow1","description":"ifDescRow1","macAddress":"00:00:00:00:00:01","adminStatus":1,"operStatus":1},{"device_id":"abc123","index":2,"name":"nameRow2","alias":"descRow2","description":"ifDescRow2","macAddress":"00:00:00:00:00:02","adminStatus":1,"operStatus":1}]}`
+	sender.AssertEventPlatformEvent(t, event, "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 }
@@ -476,7 +568,6 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
@@ -613,7 +704,6 @@ ip_address: 1.2.3.4
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	err = check.Run()
@@ -796,7 +886,6 @@ ip_address: 1.2.3.4
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-			sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 			sender.On("Commit").Return()
 
 			err = check.Run()
@@ -847,7 +936,6 @@ metrics:
 		Variables: []gosnmp.SnmpPDU{},
 	}
 	session.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
-	sender.On("NetworkDevicesMetadata", mock.Anything, mock.Anything).Return()
 	sender.SetupAcceptAll()
 
 	err = check.Run()

@@ -4,6 +4,7 @@ import (
 	json "encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"sort"
 	"strconv"
 )
 
@@ -36,7 +37,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceId string, config snmpC
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
 	}
-
+	sort.Strings(tags)
 	return DeviceMetadata{
 		Id:          deviceId,
 		Name:        sysName,
@@ -70,10 +71,16 @@ func (ms *metricSender) buildNetworkInterfacesMetadata(deviceId string, config s
 		}
 	}
 
-	for fullIndex, interfaceOidValues := range valuesByIndex {
-		index, err := strconv.Atoi(fullIndex)
+	var indexes []string
+	for index := range valuesByIndex {
+		indexes = append(indexes, index)
+	}
+	sort.Strings(indexes)
+	for _, strIndex := range indexes {
+		interfaceOidValues := valuesByIndex[strIndex]
+		index, err := strconv.Atoi(strIndex)
 		if err != nil {
-			log.Warnf("interface metadata: invalid index: %s", fullIndex)
+			log.Warnf("interface metadata: invalid index: %s", index)
 			continue
 		}
 
