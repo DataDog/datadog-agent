@@ -297,16 +297,16 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
-		sendLogsToIntake := config.Datadog.GetBool("serverless.logs_enabled")
-		computeEnhancedMetrics := config.Datadog.GetBool("enhanced_metrics")
+		logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
+		enhancedMetricsEnabled := areEnhancedMetricsEnabled()
 		arn := aws.GetARN()
 		lastRequestID := aws.GetRequestID()
 		functionName := aws.FunctionNameFromARN()
 		for _, message := range messages {
-			enhanceMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
+			processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
 			// We always collect and process logs for the purpose of extracting enhanced metrics.
 			// However, if logs are not enabled, we do not send them to the intake.
-			if sendLogsToIntake {
+			if logsEnabled {
 				logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
 				l.ch <- logMessage
 			}
@@ -316,7 +316,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // processMessage performs logic about metrics and tags on the message
-func enhanceMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	// First, if the log has a Request ID, set the global Request ID variable
 	if message.Type == aws.LogTypePlatformStart {
@@ -393,4 +393,20 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}()
 
+}
+
+func areEnhancedMetricsEnabled() bool {
+	priorityEnv := "serverless.enhanced_metrics"
+	nonPriorityEnv := "enhanced_metrics"
+	if config.Datadog.IsSet(priorityEnv) {
+		if config.Datadog.IsSet(nonPriorityEnv) {
+			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", nonPriorityEnv, priorityEnv)
+		}
+		return config.Datadog.GetBool(priorityEnv)
+	}
+	if config.Datadog.IsSet(nonPriorityEnv) {
+		return config.Datadog.GetBool(nonPriorityEnv)
+	}
+	// default value
+	return true
 }

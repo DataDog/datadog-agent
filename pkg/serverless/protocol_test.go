@@ -7,6 +7,7 @@ package serverless
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func TestWaitUntilReady(t *testing.T) {
 	assert.Equal(ready, false, "client was ready")
 }
 
-func TestEnhanceMessage(t *testing.T) {
+func TestProcessMessage(t *testing.T) {
 	message := aws.LogMessage{
 		Type: aws.LogTypePlatformReport,
 		Time: time.Now(),
@@ -74,7 +75,7 @@ func TestEnhanceMessage(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go enhanceMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case received := <-metricsChan:
@@ -85,7 +86,7 @@ func TestEnhanceMessage(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go enhanceMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case <-metricsChan:
@@ -93,4 +94,40 @@ func TestEnhanceMessage(t *testing.T) {
 	case <-time.After(time.Second):
 		//nothing to do here
 	}
+}
+
+func TestAreEnhancedMetricsEnabled(t *testing.T) {
+	priorityEnv := "DD_SERVERLESS_ENHANCED_METRICS"
+	nonPriorityEnv := "DD_ENHANCED_METRICS"
+
+	os.Setenv(priorityEnv, "true")
+	os.Setenv(nonPriorityEnv, "true")
+	assert.True(t, areEnhancedMetricsEnabled())
+
+	os.Setenv(priorityEnv, "false")
+	os.Setenv(nonPriorityEnv, "false")
+	assert.False(t, areEnhancedMetricsEnabled())
+
+	os.Setenv(priorityEnv, "true")
+	os.Setenv(nonPriorityEnv, "false")
+	assert.True(t, areEnhancedMetricsEnabled())
+
+	os.Setenv(priorityEnv, "false")
+	os.Setenv(nonPriorityEnv, "true")
+	assert.False(t, areEnhancedMetricsEnabled())
+
+	os.Unsetenv(priorityEnv)
+	os.Setenv(nonPriorityEnv, "true")
+	assert.True(t, areEnhancedMetricsEnabled())
+	os.Setenv(nonPriorityEnv, "false")
+	assert.False(t, areEnhancedMetricsEnabled())
+
+	os.Unsetenv(nonPriorityEnv)
+	os.Setenv(priorityEnv, "true")
+	assert.True(t, areEnhancedMetricsEnabled())
+	os.Setenv(priorityEnv, "false")
+	assert.False(t, areEnhancedMetricsEnabled())
+
+	os.Unsetenv(priorityEnv)
+	os.Unsetenv(nonPriorityEnv)
 }
