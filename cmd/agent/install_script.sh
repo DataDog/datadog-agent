@@ -101,14 +101,9 @@ function verify_agent_version(){
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
-  Check available versions in: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\n\033[0m"
-        if [ "$fallback_latest" ]; then
-          echo -e "  \033[33mDD_FALLBACK_LATEST is set. Installing latest minor version available.\n\033[0m"
-        else
-          echo -e "  \033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
-          fallback_msg
-          exit 1;
-        fi
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+        fallback_msg
+        exit 1;
     fi
 }
 
@@ -196,15 +191,8 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20   = defaults to highest patch version x.20.2
   #  - 20.0 = sets explicit patch version x.20.0
-  # Note: Specifying an invalid minor version will terminate the script unless DD_FALLBACK_LATEST is true
+  # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=$DD_AGENT_MINOR_VERSION
-fi
-
-if [ -n "$DD_FALLBACK_LATEST" ]; then
-  # Used in conjunction with DD_AGENT_MINOR_VERSION.
-  # When an invalid value is provided for DD_AGENT_MINOR_VERSION, setting this to true will instruct the script
-  # to proceed installing the latest minor.patch version available.
-  fallback_latest=true
 fi
 
 agent_flavor="datadog-agent"
