@@ -27,7 +27,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (interface{}, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -63,11 +63,15 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 	}
 
 	if len(instances) == 1 {
-		return instances[0], nil
+		return &resolvedInstance{
+			Instance: instances[0],
+		}, nil
 	}
 
-	return &instanceIterator{
-		instances: instances,
+	return &resolvedIterator{
+		Iterator: &instanceIterator{
+			instances: instances,
+		},
 	}, nil
 }
 

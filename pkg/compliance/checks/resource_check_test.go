@@ -59,7 +59,7 @@ func TestResourceCheck(t *testing.T) {
 	tests := []struct {
 		name              string
 		resourceCondition string
-		resourceResolved  interface{}
+		resourceResolved  resolved
 		fallbackCondition string
 		fallback          checkable
 		reportedFields    []string
@@ -70,10 +70,12 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "no fallback provided",
 			resourceCondition: "a > 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 4,
-					"b": 8,
+			resourceResolved: &resolvedInstance{
+				Instance: &eval.Instance{
+					Vars: map[string]interface{}{
+						"a": 4,
+						"b": 8,
+					},
 				},
 			},
 			reportedFields: []string{"a"},
@@ -89,9 +91,11 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "fallback not used",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 4,
+			resourceResolved: &resolvedInstance{
+				Instance: &eval.Instance{
+					Vars: map[string]interface{}{
+						"a": 4,
+					},
 				},
 			},
 			fallbackCondition: "a == 3",
@@ -109,9 +113,11 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "fallback used",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 3,
+			resourceResolved: &resolvedInstance{
+				Instance: &eval.Instance{
+					Vars: map[string]interface{}{
+						"a": 3,
+					},
 				},
 			},
 			fallbackCondition: "a == 3",
@@ -121,11 +127,13 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "cannot use fallback",
 			resourceCondition: "a >= 3",
-			resourceResolved: &instanceIterator{
-				instances: []*eval.Instance{
-					{
-						Vars: map[string]interface{}{
-							"a": 3,
+			resourceResolved: &resolvedIterator{
+				Iterator: &instanceIterator{
+					instances: []*eval.Instance{
+						{
+							Vars: map[string]interface{}{
+								"a": 3,
+							},
 						},
 					},
 				},
@@ -143,9 +151,11 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "fallback missing",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 3,
+			resourceResolved: &resolvedInstance{
+				Instance: &eval.Instance{
+					Vars: map[string]interface{}{
+						"a": 3,
+					},
 				},
 			},
 			fallbackCondition: "a == 3",
@@ -160,8 +170,10 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "iterator partially passed",
 			resourceCondition: "a > 10",
-			resourceResolved:  iterator,
-			reportedFields:    []string{"a"},
+			resourceResolved: &resolvedIterator{
+				Iterator: iterator,
+			},
+			reportedFields: []string{"a"},
 			expectReports: []*compliance.Report{
 				{
 					Passed: true,
@@ -212,7 +224,7 @@ func TestResourceCheck(t *testing.T) {
 				}
 			}
 
-			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.Resource) (interface{}, error) {
+			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.Resource) (resolved, error) {
 				return test.resourceResolved, nil
 			}
 

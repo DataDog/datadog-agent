@@ -30,7 +30,7 @@ var kubeResourceReportedFields = []string{
 	compliance.KubeResourceFieldKind,
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -89,8 +89,10 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 
 	log.Debugf("%s: Got %d resources", ruleID, len(resources))
 
-	return &kubeResourceIterator{
-		resources: resources,
+	return &resolvedIterator{
+		Iterator: &kubeResourceIterator{
+			resources: resources,
+		},
 	}, nil
 }
 

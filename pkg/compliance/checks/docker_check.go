@@ -32,7 +32,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -42,20 +42,38 @@ func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance
 		return nil, fmt.Errorf("docker client not configured")
 	}
 
+	var (
+		iterator eval.Iterator
+		instance *eval.Instance
+		err      error
+	)
+
 	switch res.Docker.Kind {
 	case "image":
-		return newDockerImageIterator(ctx, client)
+		if iterator, err = newDockerImageIterator(ctx, client); err == nil {
+			return &resolvedIterator{Iterator: iterator}, nil
+		}
 	case "container":
-		return newDockerContainerIterator(ctx, client)
+		if iterator, err = newDockerContainerIterator(ctx, client); err == nil {
+			return &resolvedIterator{Iterator: iterator}, nil
+		}
 	case "network":
-		return newDockerNetworkIterator(ctx, client)
+		if iterator, err = newDockerNetworkIterator(ctx, client); err == nil {
+			return &resolvedIterator{Iterator: iterator}, nil
+		}
 	case "info":
-		return newDockerInfoInstance(ctx, client)
+		if instance, err = newDockerInfoInstance(ctx, client); err == nil {
+			return &resolvedInstance{Instance: instance}, nil
+		}
 	case "version":
-		return newDockerVersionInstance(ctx, client)
+		if instance, err = newDockerVersionInstance(ctx, client); err == nil {
+			return &resolvedInstance{Instance: instance}, nil
+		}
 	default:
 		return nil, dockerKindNotSupported(res.Docker.Kind)
 	}
+
+	return nil, err
 }
 
 func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (*eval.Instance, error) {

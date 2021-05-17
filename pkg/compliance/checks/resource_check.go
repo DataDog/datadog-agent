@@ -29,7 +29,67 @@ var (
 	ErrResourceFailedToResolve = errors.New("failed to resolve resource")
 )
 
-type resolveFunc func(ctx context.Context, e env.Env, ruleID string, resource compliance.Resource) (interface{}, error)
+type resolved interface {
+	Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report
+}
+type resolvedInstance struct {
+	*eval.Instance
+	ResourceID   string
+	ResourceType string
+}
+
+func (ri *resolvedInstance) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
+	if c.resource.Fallback != nil {
+		if c.fallback == nil {
+			return []*compliance.Report{compliance.BuildReportForError(ErrResourceFallbackMissing)}
+		}
+
+		fallbackExpression, err := eval.Cache.ParseExpression(c.resource.Fallback.Condition)
+		if err != nil {
+			return []*compliance.Report{compliance.BuildReportForError(err)}
+		}
+
+		useFallback, err := fallbackExpression.BoolEvaluate(ri.Instance)
+		if err != nil {
+			return []*compliance.Report{compliance.BuildReportForError(err)}
+		}
+		if useFallback {
+			return c.fallback.check(env)
+		}
+	}
+
+	passed, err := conditionExpression.Evaluate(ri.Instance)
+	if err != nil {
+		return []*compliance.Report{compliance.BuildReportForError(err)}
+	}
+	report := instanceToReport(ri.Instance, passed, c.reportedFields)
+	return []*compliance.Report{report}
+}
+
+type resolvedIterator struct {
+	eval.Iterator
+}
+
+func (ri *resolvedIterator) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
+	if c.resource.Fallback != nil {
+		return []*compliance.Report{compliance.BuildReportForError(ErrResourceCannotUseFallback)}
+	}
+
+	results, err := conditionExpression.EvaluateIterator(ri.Iterator, globalInstance)
+	if err != nil {
+		return []*compliance.Report{compliance.BuildReportForError(err)}
+	}
+
+	var reports []*compliance.Report
+	for _, result := range results {
+		report := instanceResultToReport(result, c.reportedFields)
+		reports = append(reports, report)
+	}
+
+	return reports
+}
+
+type resolveFunc func(ctx context.Context, e env.Env, ruleID string, resource compliance.Resource) (resolved, error)
 
 type resourceCheck struct {
 	ruleID   string
@@ -50,63 +110,12 @@ func (c *resourceCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	return c.evaluate(env, resolved)
-}
-
-func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) []*compliance.Report {
 	conditionExpression, err := eval.Cache.ParseIterable(c.resource.Condition)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	switch resolved := resolved.(type) {
-	case *eval.Instance:
-		if c.resource.Fallback != nil {
-			if c.fallback == nil {
-				return []*compliance.Report{compliance.BuildReportForError(ErrResourceFallbackMissing)}
-			}
-
-			fallbackExpression, err := eval.Cache.ParseExpression(c.resource.Fallback.Condition)
-			if err != nil {
-				return []*compliance.Report{compliance.BuildReportForError(err)}
-			}
-
-			useFallback, err := fallbackExpression.BoolEvaluate(resolved)
-			if err != nil {
-				return []*compliance.Report{compliance.BuildReportForError(err)}
-			}
-			if useFallback {
-				return c.fallback.check(env)
-			}
-		}
-
-		passed, err := conditionExpression.Evaluate(resolved)
-		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
-		}
-		report := instanceToReport(resolved, passed, c.reportedFields)
-		return []*compliance.Report{report}
-
-	case eval.Iterator:
-		if c.resource.Fallback != nil {
-			return []*compliance.Report{compliance.BuildReportForError(ErrResourceCannotUseFallback)}
-		}
-
-		results, err := conditionExpression.EvaluateIterator(resolved, globalInstance)
-		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
-		}
-
-		var reports []*compliance.Report
-		for _, result := range results {
-			report := instanceResultToReport(result, c.reportedFields)
-			reports = append(reports, report)
-		}
-
-		return reports
-	default:
-		return []*compliance.Report{compliance.BuildReportForError(ErrResourceFailedToResolve)}
-	}
+	return resolved.Evaluate(conditionExpression, c, env)
 }
 
 func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) (checkable, error) {

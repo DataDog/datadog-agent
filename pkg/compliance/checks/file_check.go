@@ -24,7 +24,7 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -84,8 +84,10 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
-	return &instanceIterator{
-		instances: instances,
+	return &resolvedIterator{
+		Iterator: &instanceIterator{
+			instances: instances,
+		},
 	}, nil
 }
 
