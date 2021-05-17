@@ -63,10 +63,7 @@ func (in *MyObj) DeepCopy() *MyObj {
 }
 
 func (in *MyObj) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
+	return in.DeepCopy()
 }
 
 func (in *MyObjList) DeepCopy() *MyObjList {
@@ -92,10 +89,7 @@ func (in *MyObjList) DeepCopyInto(out *MyObjList) {
 }
 
 func (in *MyObjList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
+	return in.DeepCopy()
 }
 
 func addKnownTypes(scheme *runtime.Scheme) error {

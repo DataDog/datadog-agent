@@ -33,8 +33,5 @@ func (c *DockerConfig) Parse(data []byte) error {
 	c.CollectEvent = true
 	c.CollectContainerSizeFreq = 5
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, c)
 }
