@@ -47,7 +47,7 @@ useful and we will do our very best to help you solve your problem.\n"
 }
 
 function report(){
-  if [ ! -z $email ]; then
+  if [ ! -z "$email" ]; then
     if curl -f -s \
       --data-urlencode "os=${OS}" \
       --data-urlencode "version=${agent_major_version}" \
@@ -107,7 +107,7 @@ function verify_agent_version(){
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
   Check available versions in: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\n\033[0m"
-        if [ $fallback_latest ]; then
+        if [ "$fallback_latest" ]; then
           echo -e "  \033[33mDD_FALLBACK_LATEST is set. Installing latest minor version available.\n\033[0m"
         else
           echo -e "  \033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
@@ -348,7 +348,7 @@ if [ "$OS" = "RedHat" ]; then
     if [ -n "$agent_minor_version" ]; then
         # Example: datadog-agent-7.20.2-1
         pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-        agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
+        agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E "$pkg_pattern" -om1)" || true
 
         verify_agent_version
         if [ -n "$agent_version_custom" ]; then
@@ -414,7 +414,7 @@ If the cause is unclear, please contact Datadog support.
     if [ -n "$agent_minor_version" ]; then
         # Example: datadog-agent=1:7.20.2-1
         pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-        agent_version_custom="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
+        agent_version_custom="$(apt-cache madison datadog-agent | grep -E "$pkg_pattern" -om1)" || true
 
         verify_agent_version
         if [ -n "$agent_version_custom" ]; then
@@ -497,7 +497,7 @@ elif [ "$OS" = "SUSE" ]; then
   if [ -n "$agent_minor_version" ]; then
       # Example: datadog-agent-1:7.20.2-1
       pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-      agent_version_custom="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
+      agent_version_custom="$(zypper search -s datadog-agent | grep -E "$pkg_pattern" -om1)" || true
 
       verify_agent_version
       if [ -n "$agent_version_custom" ]; then
