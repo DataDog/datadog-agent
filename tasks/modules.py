@@ -69,6 +69,7 @@ class GoModule:
 DEFAULT_MODULES = {
     ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil"]),
     "pkg/util/log": GoModule("pkg/util/log"),
+    "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
     ),
