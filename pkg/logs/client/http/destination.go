@@ -86,9 +86,6 @@ func errorToTag(err error) string {
 func (d *Destination) Send(payload []byte) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
-		if err != nil {
-			log.Warnf("failed to send payload to %s: %v", d.host, err)
-		}
 	}()
 
 	ctx := d.destinationsContext.Context()
@@ -126,14 +123,14 @@ func (d *Destination) Send(payload []byte) (err error) {
 		// *after* serving the request.
 		return err
 	}
-
+	if resp.StatusCode >= 400 {
+		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
+	}
 	if resp.StatusCode >= 500 {
 		// the server could not serve the request,
 		// most likely because of an internal error
-		log.Warnf("error 5xx for %s: %s", d.host, string(response))
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
-		log.Warnf("error 4xx for %s: %s", d.host, string(response))
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		return errClient

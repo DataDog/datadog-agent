@@ -332,10 +332,10 @@ func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Durati
 	return (time.Duration(batchWait) * time.Second)
 }
 
-func batchMaxConcurrentSendFromKey(batchMaxConcurrentSendKey string) int {
-	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(batchMaxConcurrentSendKey)
+func batchMaxConcurrentSendFromKey(key string) int {
+	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(key)
 	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid batch_max_concurrent_send: %v should be >= 0, fallback on %v", batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
+		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
 		return coreConfig.DefaultBatchMaxConcurrentSend
 	}
 	return batchMaxConcurrentSend
@@ -344,7 +344,10 @@ func batchMaxConcurrentSendFromKey(batchMaxConcurrentSendKey string) int {
 func batchMaxSizeFromKey(key string) int {
 	batchMaxSize := coreConfig.Datadog.GetInt(key)
 	if batchMaxSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
+		// since zero is the default initialized value we don't want to log a warning for it
+		if batchMaxSize < 0 {
+			log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
+		}
 		return coreConfig.DefaultBatchMaxSize
 	}
 	return batchMaxSize
@@ -353,7 +356,10 @@ func batchMaxSizeFromKey(key string) int {
 func batchMaxContentSizeFromKey(key string) int {
 	batchMaxContentSize := coreConfig.Datadog.GetInt(key)
 	if batchMaxContentSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
+		// since zero is the default initialized value we don't want to log a warning for it
+		if batchMaxContentSize < 0 {
+			log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
+		}
 		return coreConfig.DefaultBatchMaxContentSize
 	}
 	return batchMaxContentSize

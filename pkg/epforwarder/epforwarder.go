@@ -24,14 +24,14 @@ const (
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:                     eventTypeDBMSamples,
-		endpointsConfigPrefix:         "database_monitoring.samples",
+		endpointsConfigPrefix:         "database_monitoring.samples.",
 		hostnameEndpointPrefix:        "dbquery-http-intake.logs.",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 	},
 	{
 		eventType:                     eventTypeDBMMetrics,
-		endpointsConfigPrefix:         "database_monitoring.metrics",
+		endpointsConfigPrefix:         "database_monitoring.metrics.",
 		hostnameEndpointPrefix:        "dbm-metrics-intake.",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
@@ -126,17 +126,7 @@ type passthroughPipelineDesc struct {
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
-	configKeys := config.LogsConfigKeys{
-		CompressionLevel:        desc.endpointsConfigPrefix + ".compression_level",
-		ConnectionResetInterval: desc.endpointsConfigPrefix + ".connection_reset_interval",
-		LogsDDURL:               desc.endpointsConfigPrefix + ".logs_dd_url",
-		DDURL:                   desc.endpointsConfigPrefix + ".dd_url",
-		DevModeNoSSL:            desc.endpointsConfigPrefix + ".dev_mode_no_ssl",
-		AdditionalEndpoints:     desc.endpointsConfigPrefix + ".additional_endpoints",
-		BatchWait:               desc.endpointsConfigPrefix + ".batch_wait",
-		BatchMaxConcurrentSend:  desc.endpointsConfigPrefix + ".batch_max_concurrent_send",
-	}
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(config.NewLogsConfigKeys(desc.endpointsConfigPrefix), desc.hostnameEndpointPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -155,9 +145,14 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(main, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, desc.defaultBatchMaxContentSize)
+	// ep forwarder pipelines have their own size defaults
+	if endpoints.BatchMaxContentSize <= pkgconfig.DefaultBatchMaxContentSize {
+		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
+	}
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType)
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d", desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d",
+		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize)
 	return &passthroughPipeline{
 		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
 		in:      inputChan,

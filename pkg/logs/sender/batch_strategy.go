@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"sync"
 	"time"
 
@@ -16,14 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-const (
-	maxBatchSize   = 200
-	maxContentSize = 1000000
+var (
+	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	buffer           *MessageBuffer
+	buffer *MessageBuffer
+	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
+	pipelineName     string
 	serializer       Serializer
 	batchWait        time.Duration
 	climit           chan struct{}  // semaphore for limiting concurrent sends
@@ -35,7 +37,7 @@ type batchStrategy struct {
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int) Strategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
@@ -46,6 +48,7 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		climit:           make(chan struct{}, maxConcurrent),
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
+		pipelineName:     pipelineName,
 	}
 
 }
@@ -116,7 +119,8 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
 		if !s.buffer.AddMessage(m) {
-			log.Warnf("dropped message Content-Length: %d", len(m.Content))
+			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.Content), s.buffer.ContentSizeLimit())
+			tlmDroppedTooLarge.Inc(s.pipelineName)
 		}
 	}
 }
