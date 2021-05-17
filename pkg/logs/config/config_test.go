@@ -178,7 +178,8 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		UseCompression:   true,
 		CompressionLevel: 2}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
@@ -264,7 +265,8 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		UseCompression:   true,
 		CompressionLevel: 2}
 
-	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
 	endpoints, err := BuildHTTPEndpoints()
 
 	suite.Nil(err)
@@ -330,6 +332,9 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 			UseCompression:   true,
 			CompressionLevel: 6,
 		},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
 	suite.Nil(err)
@@ -361,6 +366,9 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 			UseCompression:   true,
 			CompressionLevel: 6,
 		},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
 	suite.Nil(err)
