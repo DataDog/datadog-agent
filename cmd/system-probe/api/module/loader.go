@@ -1,6 +1,7 @@
 package module
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -86,13 +87,15 @@ func RestartModule(factory Factory) error {
 
 	_, ok := l.modules[factory.Name]
 	if !ok {
-		return errors.New("module not started")
+		return fmt.Errorf("module %s not started", factory.Name)
 	}
 
 	moduleInstance, err := factory.Fn(l.cfg)
 	if err != nil {
 		return err
 	}
+
+	log.Infof("module: %s restarted", factory.Name)
 
 	err = moduleInstance.Register(l.httpMux)
 	if err != nil {
