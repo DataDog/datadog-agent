@@ -143,16 +143,6 @@ tags:
 				Value: []byte("foo_sys_name"),
 			},
 			{
-				Name:  "1.3.6.1.2.1.1.1.0",
-				Type:  gosnmp.OctetString,
-				Value: []byte("dev_desc"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.1.2.0",
-				Type:  gosnmp.ObjectIdentifier,
-				Value: "1.2.3.4.5.6.7.8.9",
-			},
-			{
 				Name:  "1.3.6.1.2.1.2.1",
 				Type:  gosnmp.Integer,
 				Value: 30,
