@@ -61,9 +61,7 @@ kitchen_debian_install_script_agent-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_kitchen
-      when: on_success
     - <<: *if_default_kitchen
-      when: on_success
       variables:
         KITCHEN_OSVERS: "debian-10"
   extends:

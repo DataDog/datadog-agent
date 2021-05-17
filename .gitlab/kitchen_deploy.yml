@@ -62,8 +62,8 @@ deploy_deb_testing-a7:
   rules:
     - <<: *if_not_version_7
       when: never
+    - <<: *if_kitchen
     - <<: *if_default_kitchen
-      when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -101,8 +101,8 @@ deploy_rpm_testing-a7:
   rules:
     - <<: *if_not_version_7
       when: never
+    - <<: *if_kitchen
     - <<: *if_default_kitchen
-      when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -138,8 +138,8 @@ deploy_suse_rpm_testing-a7:
   rules:
     - <<: *if_not_version_7
       when: never
+    - <<: *if_kitchen
     - <<: *if_default_kitchen
-      when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -171,8 +171,8 @@ deploy_windows_testing-a7:
   rules:
     - <<: *if_not_version_7
       when: never
+    - <<: *if_kitchen
     - <<: *if_default_kitchen
-      when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

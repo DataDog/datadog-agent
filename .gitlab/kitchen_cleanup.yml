@@ -26,7 +26,6 @@ kitchen_cleanup_s3-a6:
     - <<: *if_not_version_6
       when: never
     - <<: *if_kitchen
-      when: on_success
   dependencies: ["agent_deb-x64-a6"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -37,8 +36,8 @@ kitchen_cleanup_s3-a7:
   rules:
     - <<: *if_not_version_7
       when: never
+    - <<: *if_kitchen
     - <<: *if_default_kitchen
-      when: on_success
   dependencies: ["agent_deb-x64-a7"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -52,6 +51,8 @@ kitchen_cleanup_azure-a6:
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
   rules:
+    - <<: *if_kitchen
+      when: always
     - <<: *if_default_kitchen
       when: always
   variables:
