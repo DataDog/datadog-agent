@@ -85,24 +85,24 @@ func RestartModule(factory Factory) error {
 	l.Lock()
 	defer l.Unlock()
 
-	_, ok := l.modules[factory.Name]
-	if !ok {
-		return fmt.Errorf("module %s not started", factory.Name)
+	currentModule := l.modules[factory.Name]
+	if currentModule == nil {
+		return fmt.Errorf("module %s is not running", factory.Name)
 	}
+	currentModule.Close()
 
-	moduleInstance, err := factory.Fn(l.cfg)
+	newModule, err := factory.Fn(l.cfg)
+	if err != nil {
+		return err
+	}
+	log.Infof("module %s restarted", factory.Name)
+
+	err = newModule.Register(l.httpMux)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("module: %s restarted", factory.Name)
-
-	err = moduleInstance.Register(l.httpMux)
-	if err != nil {
-		return err
-	}
-
-	l.modules[factory.Name] = moduleInstance
+	l.modules[factory.Name] = newModule
 	return nil
 }
 
