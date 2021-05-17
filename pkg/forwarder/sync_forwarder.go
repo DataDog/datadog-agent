@@ -50,7 +50,7 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 				Timeout:   forwarderTimeout,
 				Transport: utilhttp.CreateHTTPTransport(),
 			}
-			log.Debug("Retrying")
+			log.Debug("Retrying transaction")
 			t.Process(context.Background(), f.client)
 		}
 	}
