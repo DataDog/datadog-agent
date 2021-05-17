@@ -98,12 +98,15 @@ Troubleshooting and basic usage information for the Agent are available at:
 trap on_error ERR
 
 function verify_agent_version(){
+    local ver_separator="$1"
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
   Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
         fallback_msg
         exit 1;
+    else
+        agent_flavor+="$ver_separator$agent_version_custom"
     fi
 }
 
@@ -332,11 +335,7 @@ if [ "$OS" = "RedHat" ]; then
         # Example: datadog-agent-7.20.2-1
         pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
         agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E "$pkg_pattern" -om1)" || true
-
-        verify_agent_version
-        if [ -n "$agent_version_custom" ]; then
-          agent_flavor+="-$agent_version_custom"
-        fi
+        verify_agent_version "-"
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
@@ -398,11 +397,7 @@ If the cause is unclear, please contact Datadog support.
         # Example: datadog-agent=1:7.20.2-1
         pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
         agent_version_custom="$(apt-cache madison datadog-agent | grep -E "$pkg_pattern" -om1)" || true
-
-        verify_agent_version
-        if [ -n "$agent_version_custom" ]; then
-          agent_flavor+="=$agent_version_custom"
-        fi
+        verify_agent_version "="
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
@@ -481,11 +476,7 @@ elif [ "$OS" = "SUSE" ]; then
       # Example: datadog-agent-1:7.20.2-1
       pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
       agent_version_custom="$(zypper search -s datadog-agent | grep -E "$pkg_pattern" -om1)" || true
-
-      verify_agent_version
-      if [ -n "$agent_version_custom" ]; then
-        agent_flavor+="-$agent_version_custom"
-      fi
+      verify_agent_version "-"
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
