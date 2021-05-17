@@ -90,43 +90,9 @@ func validateRenameSchema(t *testing.T, event *sprobe.Event) bool {
 }
 
 func validateChmodSchema(t *testing.T, event *sprobe.Event) bool {
-	fs := NewAssetFileSystem()
-
-	documentLoader := gojsonschema.NewStringLoader(event.String())
-	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///chmod.schema.json", fs)
-
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Errorf("%s", desc)
-		}
-		return false
-	}
-
-	return true
+	return validateSchema(t, event, "file:///chmod.schema.json")
 }
 
 func validateChownSchema(t *testing.T, event *sprobe.Event) bool {
-	fs := NewAssetFileSystem()
-
-	documentLoader := gojsonschema.NewStringLoader(event.String())
-	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///chown.schema.json", fs)
-
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Errorf("%s", desc)
-		}
-		return false
-	}
-
-	return true
+	return validateSchema(t, event, "file:///chown.schema.json")
 }
