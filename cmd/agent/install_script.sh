@@ -102,20 +102,18 @@ Troubleshooting and basic usage information for the Agent are available at:
 trap on_error ERR
 
 function verify_agent_version(){
-  if [ ! -z $agent_minor_version ]; then
-      if [ -z $agent_version_custom ]; then
-          echo -e "
+    if [ -z "$agent_version_custom" ]; then
+        echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
   Check available versions in: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\n\033[0m"
-          if [ $fallback_latest ]; then
-            echo -e "  \033[33mDD_FALLBACK_LATEST is set. Installing latest minor version available.\n\033[0m"
-          else
-            echo -e "  \033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
-            fallback_msg
-            exit 1;
-          fi
-      fi
-  fi
+        if [ $fallback_latest ]; then
+          echo -e "  \033[33mDD_FALLBACK_LATEST is set. Installing latest minor version available.\n\033[0m"
+        else
+          echo -e "  \033[33mDD_FALLBACK_LATEST not set. Exiting.\033[0m"
+          fallback_msg
+          exit 1;
+        fi
+    fi
 }
 
 echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
@@ -346,13 +344,15 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
-    # Example: datadog-agent-7.20.2-1
-    pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-    agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent-7.20.2-1
+        pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E $pkg_pattern -om1)" || true
 
-    verify_agent_version
-    if [ ! -z $agent_version_custom ]; then
-      agent_flavor+="-$agent_version_custom"
+        verify_agent_version
+        if [ -n "$agent_version_custom" ]; then
+          agent_flavor+="-$agent_version_custom"
+        fi
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
@@ -409,14 +409,16 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
+    
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent=1:7.20.2-1
+        pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
 
-    # Example: datadog-agent=1:7.20.2-1
-    pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-    agent_version_custom="$(apt-cache madison datadog-agent | grep -E $pkg_pattern -om1)" || true
-
-    verify_agent_version
-    if [ ! -z $agent_version_custom ]; then
-      agent_flavor+="=$agent_version_custom"
+        verify_agent_version
+        if [ -n "$agent_version_custom" ]; then
+          agent_flavor+="=$agent_version_custom"
+        fi
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
@@ -491,13 +493,15 @@ elif [ "$OS" = "SUSE" ]; then
   
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
 
-  # Example: datadog-agent-1:7.20.2-1
-  pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
-  agent_version_custom="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
+  if [ -n "$agent_minor_version" ]; then
+      # Example: datadog-agent-1:7.20.2-1
+      pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+      agent_version_custom="$(zypper search -s datadog-agent | grep -E $pkg_pattern -om1)" || true
 
-  verify_agent_version
-  if [ ! -z $agent_version_custom ]; then
-    agent_flavor+="-$agent_version_custom"
+      verify_agent_version
+      if [ -n "$agent_version_custom" ]; then
+        agent_flavor+="-$agent_version_custom"
+      fi
   fi
   echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
