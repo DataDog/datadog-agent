@@ -22,13 +22,10 @@ var moduleRestartCommand = &cobra.Command{
 	Short: "Restart a given system-probe module",
 	Long:  ``,
 	RunE:  moduleRestart,
+	Args:  cobra.ExactArgs(1),
 }
 
 func moduleRestart(_ *cobra.Command, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("module-restart: wrong number of arguments")
-	}
-
 	cfg, err := setupConfig()
 	if err != nil {
 		return err
