@@ -2,17 +2,18 @@ package batcher
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 )
 
 // MockBatcher mocks implementation of a batcher
 type MockBatcher struct {
-	CollectedTopology TopologyBuilder
+	CollectedTopology BatchBuilder
 }
 
 func createMockBatcher() MockBatcher {
 	return MockBatcher{
-		CollectedTopology: NewTopologyBuilder(1000),
+		CollectedTopology: NewBatchBuilder(1000),
 	}
 }
 
@@ -34,6 +35,21 @@ func (batcher MockBatcher) SubmitStartSnapshot(checkID check.ID, instance topolo
 // SubmitStopSnapshot mock
 func (batcher MockBatcher) SubmitStopSnapshot(checkID check.ID, instance topology.Instance) {
 	batcher.CollectedTopology.StopSnapshot(checkID, instance)
+}
+
+// SubmitHealthCheckData mock
+func (batcher MockBatcher) SubmitHealthCheckData(checkID check.ID, stream health.Stream, data health.CheckData) {
+	batcher.CollectedTopology.AddHealthCheckData(checkID, stream, data)
+}
+
+// SubmitHealthStartSnapshot mock
+func (batcher MockBatcher) SubmitHealthStartSnapshot(checkID check.ID, stream health.Stream, intervalSeconds int, repeatSeconds int) {
+	batcher.CollectedTopology.HealthStartSnapshot(checkID, stream, intervalSeconds, repeatSeconds)
+}
+
+// SubmitHealthStopSnapshot mock
+func (batcher MockBatcher) SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream) {
+	batcher.CollectedTopology.HealthStopSnapshot(checkID, stream)
 }
 
 // SubmitComplete mock

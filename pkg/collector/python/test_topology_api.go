@@ -5,6 +5,7 @@ package python
 import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -15,7 +16,7 @@ import "C"
 
 const yamlData = `
 key: value ®
-stringlist: 
+stringlist:
   - a
   - b
   - c
@@ -72,24 +73,27 @@ func testComponentTopology(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	for _, topos := range expectedTopology {
-		for _, c := range topos.Components {
+	for _, state := range expectedTopology {
+		for _, c := range state.Topology.Components {
 			c.JSONString()
 		}
 	}
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"check-id": {
-			StartSnapshot: true,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components: []topology.Component{
-				{
-					ExternalID: "external-id",
-					Type:       topology.Type{Name: "component-type"},
-					Data:       expectedTopoData,
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
+		"check-id": batcher.CheckInstanceBatchState{
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: true,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components: []topology.Component{
+					{
+						ExternalID: "external-id",
+						Type:       topology.Type{Name: "component-type"},
+						Data:       expectedTopoData,
+					},
 				},
+				Relations: []topology.Relation{},
 			},
-			Relations: []topology.Relation{},
 		},
 	}), expectedTopology)
 }
@@ -112,24 +116,27 @@ func testRelationTopology(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	for _, topos := range expectedTopology {
-		for _, r := range topos.Relations {
+	for _, state := range expectedTopology {
+		for _, r := range state.Topology.Relations {
 			r.JSONString()
 		}
 	}
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"check-id": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations: []topology.Relation{
-				{
-					ExternalID: "source-id-relation-type-target-id",
-					SourceID:   "source-id",
-					TargetID:   "target-id",
-					Type:       topology.Type{Name: "relation-type"},
-					Data:       expectedTopoData,
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
+		"check-id": batcher.CheckInstanceBatchState{
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations: []topology.Relation{
+					{
+						ExternalID: "source-id-relation-type-target-id",
+						SourceID:   "source-id",
+						TargetID:   "target-id",
+						Type:       topology.Type{Name: "relation-type"},
+						Data:       expectedTopoData,
+					},
 				},
 			},
 		},
@@ -148,13 +155,16 @@ func testStartSnapshotCheck(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"check-id": {
-			StartSnapshot: true,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
+		"check-id": batcher.CheckInstanceBatchState{
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: true,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
 		},
 	}), expectedTopology)
 }
@@ -171,13 +181,16 @@ func testStopSnapshotCheck(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
-		"check-id": {
-			StartSnapshot: false,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
+		"check-id": batcher.CheckInstanceBatchState{
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
 		},
 	}), expectedTopology)
 }

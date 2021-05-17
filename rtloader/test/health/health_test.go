@@ -1,4 +1,4 @@
-package health
+package testhealth
 
 import (
 	"fmt"
