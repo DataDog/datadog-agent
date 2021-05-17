@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: The obfuscator adds two new features (`dollar_quoted_func` and `keep_sql_alias`). They are off by default. For more details see PR 8071.
+    We do not recommend using these features unless you have a good reason or have been recommended by support for your specific use-case.
