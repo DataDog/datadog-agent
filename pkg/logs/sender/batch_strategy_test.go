@@ -162,7 +162,7 @@ func TestBatchStrategyConcurrentSends(t *testing.T) {
 		return nil
 	}
 
-	strategy := NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 1, 100, "")
+	strategy := NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 1, 100, "test")
 	done := make(chan bool)
 	go func() {
 		strategy.Send(input, output, stuckSend)
