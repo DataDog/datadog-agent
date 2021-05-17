@@ -141,6 +141,11 @@ func instanceResultToReports(result *eval.InstanceResult, allowedFields []string
 	if len(result.Instances) > 0 {
 		for _, instance := range result.Instances {
 			reports = append(reports, instanceToReport(instance, result.Passed, allowedFields))
+
+			// report only one success instance
+			if result.Passed {
+				break
+			}
 		}
 	} else {
 		reports = append(reports, &compliance.Report{Passed: false})

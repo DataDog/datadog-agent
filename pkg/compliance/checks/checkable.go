@@ -26,7 +26,7 @@ func (list checkableList) check(env env.Env) []*compliance.Report {
 	var (
 		reports []*compliance.Report
 		last    *compliance.Report
-		succeed bool = true
+		succeed = true
 	)
 
 	for _, c := range list {

@@ -191,6 +191,32 @@ func TestResourceCheck(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:              "count equals to zero multiple reports",
+			resourceCondition: "count(_) == 0",
+			resourceResolved:  iterator,
+			reportedFields:    []string{"a"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 14,
+					},
+				},
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 6,
+					},
+				},
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 4,
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

@@ -154,12 +154,11 @@ func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, tot
 
 func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool, maxInstances int) (*InstanceResult, error) {
 	var (
-		first     *Instance
 		instance  *Instance
 		instances []*Instance
 		err       error
 		passed    bool
-		succeed   bool = !it.Done()
+		succeed   = !it.Done()
 	)
 
 	for !it.Done() {
@@ -168,27 +167,28 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 			return nil, err
 		}
 
-		if first == nil {
-			first = instance
-		}
-
 		passed, err = e.evaluateSubExpression(instance, expression)
 		if err != nil {
 			return nil, err
 		}
 
-		if !checkResult(instance, passed) {
-			succeed = false
+		result := checkResult(instance, passed)
+		if !result {
+			// previously success instances, reset to collect failed instances
+			if succeed {
+				instances = instances[0:0]
+			}
+			succeed = result
+
 			instances = append(instances, instance)
+			if len(instances) >= maxInstances {
+				break
+			}
+		} else if succeed {
+			if len(instances) < maxInstances {
+				instances = append(instances, instance)
+			}
 		}
-
-		if len(instances) >= maxInstances {
-			break
-		}
-	}
-
-	if succeed {
-		instances = []*Instance{first}
 	}
 
 	return &InstanceResult{
