@@ -846,8 +846,7 @@ func InitConfig(config Config) {
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
-	config.BindEnvAndSetDefault("enhanced_metrics", true) //deprecated, use serverless.enhanced_metrics instead
-	config.BindEnv("serverless.enhanced_metrics")         //nolint:errcheck
+	config.BindEnvAndSetDefault("enhanced_metrics", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

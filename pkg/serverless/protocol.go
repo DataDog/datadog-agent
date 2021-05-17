@@ -298,7 +298,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
 		logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
-		enhancedMetricsEnabled := areEnhancedMetricsEnabled()
+		enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 		arn := aws.GetARN()
 		lastRequestID := aws.GetRequestID()
 		functionName := aws.FunctionNameFromARN()
@@ -393,16 +393,4 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	}()
 
-}
-
-func areEnhancedMetricsEnabled() bool {
-	priorityEnv := "serverless.enhanced_metrics"
-	nonPriorityEnv := "enhanced_metrics"
-	if config.Datadog.IsSet(priorityEnv) {
-		if config.Datadog.IsSet(nonPriorityEnv) {
-			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", nonPriorityEnv, priorityEnv)
-		}
-		return config.Datadog.GetBool(priorityEnv)
-	}
-	return config.Datadog.GetBool(nonPriorityEnv)
 }
