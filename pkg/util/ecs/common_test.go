@@ -166,7 +166,7 @@ func TestConvertMetaV2Container(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			data, dateError := convertMetaV2Container(tt.c, tt.taskLimits)
 			assert.Equal(t, tt.want, data)
-			assert.Equal(t, "", dateError)
+			assert.Equal(t, nil, dateError)
 		})
 	}
 }

@@ -55,7 +55,7 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
 			c, e := convertMetaV2Container(c, task.Limits)
 			cList = append(cList, c)
-			if e != "" {
+			if e != nil {
 				log.Error(e)
 			}
 		}
@@ -98,7 +98,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 
 // convertMetaV2Container returns an internal container representation from an
 // ECS metadata v2 container object.
-func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*containers.Container, string) {
+func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*containers.Container, error) {
 	container := &containers.Container{
 		Type:        "ECS",
 		ID:          c.DockerID,
@@ -116,7 +116,7 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*con
 	if c.KnownStatus != "PULLED" {
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
 		if err != nil {
-			dateError = dateError = fmt.Errorf("Unable to determine creation time for container %s - %w", c.DockerID, err)
+			dateError = fmt.Errorf("Unable to determine creation time for container %s - %w", c.DockerID, err)
 		} else {
 			container.Created = createdAt.Unix()
 		}
