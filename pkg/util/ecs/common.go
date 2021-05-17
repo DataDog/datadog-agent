@@ -109,19 +109,23 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*con
 		AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 	}
 
-	dateError := ""
+	var dateError error
+	// enum of the status is here: https://github.com/awslabs/amazon-ecs-local-container-endpoints/blob/mainline/vendor/github.com/aws/amazon-ecs-agent/agent/api/container/status/containerstatus.go#L55-L65
+	// explanation of the status is here: https://github.com/awslabs/amazon-ecs-local-container-endpoints/blob/mainline/vendor/github.com/aws/amazon-ecs-agent/agent/api/container/status/containerstatus.go#L21-L41
+	// based on this code and comments and based on my testing, the PULLED state doesn't have any dates.
 	if c.KnownStatus != "PULLED" {
 		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
 		if err != nil {
-			dateError = fmt.Sprintf("Unable to determine creation time for container %s - %s", c.DockerID, err)
+			dateError = dateError = fmt.Errorf("Unable to determine creation time for container %s - %w", c.DockerID, err)
 		} else {
 			container.Created = createdAt.Unix()
 		}
 	}
+	// the CREATED status have a created date but no started date
 	if c.KnownStatus != "PULLED" && c.KnownStatus != "CREATED" {
 		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
 		if err != nil {
-			dateError = fmt.Sprintf("Unable to determine start time for container %s - %s", c.DockerID, err)
+			dateError = fmt.Errorf("Unable to determine start time for container %s - %w", c.DockerID, err)
 		} else {
 			container.StartedAt = startedAt.Unix()
 		}
