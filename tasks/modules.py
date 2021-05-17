@@ -7,11 +7,12 @@ from invoke import task
 class GoModule:
     """A Go module abstraction."""
 
-    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None):
+    def __init__(self, path, targets=None, condition=lambda: True, dependencies=None, should_tag=True):
         self.path = path
         self.targets = targets if targets else ["."]
         self.dependencies = dependencies if dependencies else []
         self.condition = condition
+        self.should_tag = should_tag
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
