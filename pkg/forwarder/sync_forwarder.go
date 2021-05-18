@@ -41,10 +41,12 @@ func (f *SyncForwarder) Stop() {
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 			// Retry once after error
 			log.Debug("Retrying transaction")
-			t.Process(context.Background(), f.client)
+			if err := t.Process(context.Background(), f.client); err != nil {
+				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+			}
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
