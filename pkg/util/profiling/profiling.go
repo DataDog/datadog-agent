@@ -7,6 +7,7 @@ package profiling
 
 import (
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,6 +26,8 @@ const (
 	ProfileCoreService = "datadog-agent"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
+	// DefaultProfilingPeriod defines the default profiling period
+	DefaultProfilingPeriod = 5 * time.Minute
 )
 
 // Active returns a boolean indicating whether profiling is active or not;
@@ -38,7 +41,7 @@ func Active() bool {
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(apiKey, site, env, service string, tags ...string) error {
+func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, tags ...string) error {
 	if Active() {
 		return nil
 	}
@@ -48,6 +51,9 @@ func Start(apiKey, site, env, service string, tags ...string) error {
 		profiler.WithEnv(env),
 		profiler.WithService(service),
 		profiler.WithURL(site),
+		profiler.WithPeriod(period),
+		profiler.WithProfileTypes(profiler.CPUProfile, profiler.HeapProfile, profiler.MutexProfile),
+		profiler.CPUDuration(cpuDuration),
 		profiler.WithTags(tags...),
 	)
 	if err == nil {

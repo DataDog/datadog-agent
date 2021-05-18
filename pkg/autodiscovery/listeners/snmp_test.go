@@ -54,7 +54,6 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
 	assert.Equal(t, "public", job.subnet.config.Community)
-	assert.Equal(t, "public", job.subnet.defaultParams.Community)
 
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())

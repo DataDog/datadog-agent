@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Agent can now set hostname based on Azure instance metadata. See the new
+    ``azure_hostname_style`` configuration option.
+
+

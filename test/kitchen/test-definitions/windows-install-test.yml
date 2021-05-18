@@ -1,4 +1,27 @@
 suites:
+  - name: win-repair
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-install::_stop_windows_agent]"
+      - "recipe[dd-agent-install::_damage_windows_install]"
+      - "recipe[dd-agent-install::_repair_windows_install]"
+    attributes:
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: false
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
+      dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
   - name: win-installopts
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"

@@ -24,10 +24,10 @@ func TestCPULow(t *testing.T) {
 	assert := assert.New(t)
 	runtime.GC()
 
-	c := CPU(time.Now())
+	_ = CPU(time.Now())
 	globalCurrentInfo.cacheDelay = testDuration
 	time.Sleep(testDuration)
-	c = CPU(time.Now())
+	c := CPU(time.Now())
 	t.Logf("CPU (sleep): %v", c)
 
 	// checking that CPU is low enough, this is theorically flaky,

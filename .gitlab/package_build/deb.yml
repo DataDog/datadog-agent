@@ -12,6 +12,9 @@
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+
 .retrieve_linux_go_deps: &retrieve_linux_go_deps |
   mkdir -p /gomodcache && tar xzf modcache.tar.gz -C /gomodcache
   rm -f modcache.tar.gz
@@ -90,6 +93,8 @@ agent_deb-x64-a7:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_6
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -108,6 +113,8 @@ agent_deb-arm64-a6:
 agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -124,8 +131,6 @@ agent_deb-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 .iot_agent_build_common_deb:
-  rules:
-    - <<: *if_version_7
   script:
     - *retrieve_linux_go_deps
     - echo "About to build for $RELEASE_VERSION_7"
@@ -148,6 +153,8 @@ agent_deb-arm64-a7:
 
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
+  rules:
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
@@ -158,6 +165,10 @@ iot_agent_deb-x64:
 
 iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
+  rules:
+    - <<: *if_not_run_all_builds
+      when: never
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -168,6 +179,10 @@ iot_agent_deb-arm64:
 
 iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
+  rules:
+    - <<: *if_not_run_all_builds
+      when: never
+    - <<: *if_version_7
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible

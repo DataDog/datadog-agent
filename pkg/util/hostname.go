@@ -268,6 +268,21 @@ func GetHostnameData() (HostnameData, error) {
 		}
 	}
 
+	if getAzureHostname, found := hostname.ProviderCatalog["azure"]; found {
+		log.Debug("GetHostname trying Azure metadata...")
+
+		azureHostname, err := getAzureHostname()
+		if err == nil {
+			hostName = azureHostname
+			provider = "azure"
+		} else {
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("azure", expErr)
+			log.Debugf("unable to get hostname from Azure: %s", err)
+		}
+	}
+
 	h, err := os.Hostname()
 	// We have a FQDN not equals to the resolved hostname, and the configuration
 	// field `hostname_fqdn` isn't set -> we display a warning message about

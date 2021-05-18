@@ -71,6 +71,8 @@ api_key:
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
+## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
+##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
@@ -307,6 +309,18 @@ api_key:
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
 # gce_metadata_timeout: 1000
+
+## @param azure_hostname_style - string - optional - default: "os"
+## Changes how agent hostname is set on Azure virtual machines.
+##
+## Possible values:
+##   "os" - use the hostname reported by the operating system (default)
+##   "name" - use the instance name
+##   "name_and_resource_group" - use a combination of the instance name and resource group name
+##   "full" - use a combination of the instance name, resource group name and subscription id
+##   "vmid" - use the instance id
+#
+# azure_hostname_style: "os"
 
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
