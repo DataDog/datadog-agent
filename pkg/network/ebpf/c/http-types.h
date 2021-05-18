@@ -61,8 +61,8 @@ typedef struct {
 
     // this field is used exclusively in the kernel side to prevent a TCP segment
     // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the source port of the TCP segment containing the beginning
-    // of a given HTTP request
+    // be populated with the "original" (pre-normalization) source port number of
+    // the TCP segment containing the beginning of a given HTTP request
     __u16 owned_by_src_port;
 } http_transaction_t;
 
