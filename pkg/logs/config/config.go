@@ -270,7 +270,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 
 	batchWait := batchWaitFromKey(coreConfig.Datadog, logsConfig.BatchWait)
 	batchMaxConcurrentSend := batchMaxConcurrentSendFromKey(logsConfig.BatchMaxConcurrentSend)
-	batchMaxSize := batchMaxSizeFromKey(logsConfig.BatchMaxConcurrentSend)
+	batchMaxSize := batchMaxSizeFromKey(logsConfig.BatchMaxSize)
 	batchMaxContentSize := batchMaxContentSizeFromKey(logsConfig.BatchMaxContentSize)
 
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
@@ -344,10 +344,7 @@ func batchMaxConcurrentSendFromKey(key string) int {
 func batchMaxSizeFromKey(key string) int {
 	batchMaxSize := coreConfig.Datadog.GetInt(key)
 	if batchMaxSize <= 0 {
-		// since zero is the default initialized value we don't want to log a warning for it
-		if batchMaxSize < 0 {
-			log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
-		}
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
 		return coreConfig.DefaultBatchMaxSize
 	}
 	return batchMaxSize
@@ -356,10 +353,7 @@ func batchMaxSizeFromKey(key string) int {
 func batchMaxContentSizeFromKey(key string) int {
 	batchMaxContentSize := coreConfig.Datadog.GetInt(key)
 	if batchMaxContentSize <= 0 {
-		// since zero is the default initialized value we don't want to log a warning for it
-		if batchMaxContentSize < 0 {
-			log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
-		}
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
 		return coreConfig.DefaultBatchMaxContentSize
 	}
 	return batchMaxContentSize
