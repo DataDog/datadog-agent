@@ -145,6 +145,9 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	if endpoints.BatchMaxContentSize <= pkgconfig.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
+	if endpoints.BatchMaxSize <= pkgconfig.DefaultBatchMaxSize {
+		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
+	}
 	main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 	additionals := []client.Destination{}
 	for _, endpoint := range endpoints.Additionals {
