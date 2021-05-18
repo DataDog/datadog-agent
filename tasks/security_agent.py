@@ -25,6 +25,7 @@ from .utils import (
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}'"
 
 
 def get_go_env(ctx, go_version):
@@ -165,6 +166,21 @@ def run_functional_tests(
     ctx.run(cmd.format(**args))
 
 
+def build_syscall_tester(ctx, build_dir):
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
+
+    ctx.run(
+        CLANG_EXE_CMD.format(
+            flags="-m32",
+            c_file=syscall_tester_c_file,
+            out_file=syscall_tester_exe_file,
+        )
+    )
+    return syscall_tester_exe_file
+
+
 @task
 def build_functional_tests(
     ctx,
@@ -192,6 +208,9 @@ def build_functional_tests(
     if static:
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
+
+    if arch == "x64":
+        build_syscall_tester(ctx, os.path.join(".", "bin"))
 
     bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
     bundle_files(
