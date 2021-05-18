@@ -7,7 +7,7 @@
 # because of a pipeline failure, even when retrying the pipeline.
 trigger_release_6:
   rules:
-    !reference [.on_deploy_tag_a6_always]
+    !reference [.on_deploy_stable_or_beta_repo_branch_a6_always]
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_6-1
@@ -17,7 +17,7 @@ trigger_release_6:
 
 trigger_release_7:
   rules:
-    !reference [.on_deploy_tag_a7_always]
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7_always]
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7-1

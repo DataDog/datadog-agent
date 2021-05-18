@@ -1,7 +1,7 @@
 ---
 deploy_staging_windows_master-a6:
   rules:
-    !reference [.on_deploy_no_tag_a6]
+    !reference [.on_deploy_nightly_repo_branch_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -14,7 +14,7 @@ deploy_staging_windows_master-a6:
 
 deploy_staging_windows_master-latest-a6:
   rules:
-    !reference [.on_deploy_no_tag_a6]
+    !reference [.on_deploy_nightly_repo_branch_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -26,7 +26,7 @@ deploy_staging_windows_master-latest-a6:
 
 deploy_staging_windows_tags-a6:
   rules:
-    !reference [.on_deploy_tag_a6]
+    !reference [.on_deploy_stable_or_beta_repo_branch_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

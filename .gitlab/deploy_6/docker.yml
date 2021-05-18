@@ -72,7 +72,7 @@ deploy_latest_docker_hub-a6:
     - .docker_tag_job_definition
     - .deploy_latest-a6
   rules:
-    !reference [.on_deploy_tag_a6_manual]
+    !reference [.on_deploy_a6_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -82,7 +82,7 @@ deploy_latest_google_container_registry-a6:
     - .google_container_registry_tag_job_definition
     - .deploy_latest-a6
   rules:
-    !reference [.on_deploy_tag_a6_manual]
+    !reference [.on_deploy_a6_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""

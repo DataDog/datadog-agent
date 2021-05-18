@@ -27,7 +27,7 @@ notify-on-success:
 notify-on-tagged-success:
   extends: .slack-notifier-base
   rules:
-    !reference [.on_deploy_tag]
+    !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.

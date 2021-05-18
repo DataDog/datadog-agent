@@ -176,11 +176,11 @@ variables:
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
 
-.if_not_tagged_commit: &if_not_tagged_commit
-  if: $CI_COMMIT_TAG == null
-
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
   if: $DEB_RPM_BUCKET_BRANCH != "nightly"
+
+.if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
+  if: $DEB_RPM_BUCKET_BRANCH != "beta" && $DEB_RPM_BUCKET_BRANCH != "stable"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -346,20 +346,6 @@ variables:
     when: manual
     allow_failure: true
 
-.on_deploy_no_tag_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_no_tag_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - <<: *if_deploy
-
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
     when: never
@@ -374,55 +360,55 @@ variables:
     when: never
   - <<: *if_deploy
 
-.on_deploy_tag:
-  - <<: *if_not_tagged_commit
+.on_deploy_stable_or_beta_repo_branch:
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
 
-.on_deploy_tag_a6:
+.on_deploy_stable_or_beta_repo_branch_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
 
-.on_deploy_tag_a6_manual:
+.on_deploy_stable_or_beta_repo_branch_a6_manual:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
     when: manual
     allow_failure: true
 
-.on_deploy_tag_a6_always:
+.on_deploy_stable_or_beta_repo_branch_a6_always:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
     when: always
 
-.on_deploy_tag_a7:
+.on_deploy_stable_or_beta_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
 
-.on_deploy_tag_a7_manual:
+.on_deploy_stable_or_beta_repo_branch_a7_manual:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
     when: manual
     allow_failure: true
 
-.on_deploy_tag_a7_always:
+.on_deploy_stable_or_beta_repo_branch_a7_always:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_tagged_commit
+  - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
     when: always

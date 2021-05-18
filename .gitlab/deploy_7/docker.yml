@@ -276,7 +276,7 @@ deploy_latest_manifests_docker_hub-a7:
     - .docker_tag_job_definition
     - .deploy_latest_manifests-a7
   rules:
-    !reference [.on_deploy_tag_a7_manual]
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -286,7 +286,7 @@ deploy_latest_manifests_google_container_registry-a7:
     - .google_container_registry_tag_job_definition
     - .deploy_latest_manifests-a7
   rules:
-    !reference [.on_deploy_tag_a7_manual]
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""
@@ -308,7 +308,7 @@ deploy_latest_docker_hub-dogstatsd:
     - .docker_tag_job_definition
     - .deploy_latest-dogstatsd
   rules:
-    !reference [.on_deploy_tag_a7_manual]
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/dogstatsd
     SIGNING_ARGS: --signed-push
@@ -318,7 +318,7 @@ deploy_latest_google_container_registry-dogstatsd:
     - .google_container_registry_tag_job_definition
     - .deploy_latest-dogstatsd
   rules:
-    !reference [.on_deploy_tag_a7_manual]
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/dogstatsd
     SIGNING_ARGS: ""
