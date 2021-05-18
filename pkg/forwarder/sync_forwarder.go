@@ -45,7 +45,7 @@ func (f *SyncForwarder) Stop() {
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			log.Errorf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 
 			// If there is an error, instantiate a new HTTP client and retry one time
 			// The new HTTP client is instantiated in case the connection has been closed
@@ -54,7 +54,9 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 				Timeout:   forwarderTimeout,
 				Transport: utilhttp.CreateHTTPTransport(),
 			}
-			t.Process(context.Background(), f.client)
+			if err:= t.Process(context.Background(), f.client); err != nil {
+				log.("SyncForwarder.sendHTTPTransactions second attempt: %s", err)
+			}
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
