@@ -338,7 +338,10 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var segments []string
 
 	i := 0
+	depth := 0
 	for i < dr.erpcSegmentSize-17 {
+		depth++
+
 		// parse the path_key_t structure
 		key.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
 		key.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
@@ -346,7 +349,11 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		i += 16
 
 		if dr.erpcSegment[i] == 0 {
-			resolutionErr = errTruncatedParents
+			if depth < model.MaxPathDepth{
+				resolutionErr = errTruncatedParents
+			} else {
+				resolutionErr = errERPCResolution
+			}
 			break
 		}
 
@@ -462,13 +469,17 @@ func (err ErrTruncatedParents) Error() string {
 
 var errTruncatedParents ErrTruncatedParents
 
+// ErrERPCResolution is used to notify that the eRPC resolution failed
+type ErrERPCResolution struct{}
+
+func (err ErrERPCResolution) Error() string {
+	return "erpc_resolution"
+}
+
+var errERPCResolution ErrERPCResolution
+
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
-	erpcClient, err := NewERPC()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize eRPC client")
-	}
-
 	// We need at least 7 memory pages for the eRPC segment method to work.
 	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
 	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
@@ -481,7 +492,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	return &DentryResolver{
 		probe:           probe,
 		cache:           make(map[uint32]*lru.Cache),
-		erpc:            erpcClient,
+		erpc:            probe.erpc,
 		erpcSegment:     segment,
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},

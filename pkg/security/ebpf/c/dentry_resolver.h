@@ -260,7 +260,7 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
 
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
         if (state->ret < 0)
-           goto exit;
+            goto exit;
 
         state->cursor += map_value->len;
 
