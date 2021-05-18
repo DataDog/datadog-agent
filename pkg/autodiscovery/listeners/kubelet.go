@@ -406,7 +406,7 @@ func (s *KubeContainerService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeContainerService) GetTaggerEntity() string {
 	taggerEntity, err := kubelet.KubeContainerIDToTaggerEntityID(s.entity)
 	if err != nil {
@@ -482,7 +482,7 @@ func (s *KubePodService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubePodService) GetTaggerEntity() string {
 	taggerEntity, err := kubelet.KubePodUIDToTaggerEntityID(s.entity)
 	if err != nil {

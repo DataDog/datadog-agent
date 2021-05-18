@@ -21,7 +21,7 @@ import (
 
 type serviceMapper apiv1.NamespacesPodsStringsSet
 
-func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper {
+func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper { //nolint:revive
 	return serviceMapper(m)
 }
 
