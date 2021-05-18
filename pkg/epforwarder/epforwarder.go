@@ -26,16 +26,19 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
 		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
-		// ensures pipelines can support 1000s of events per second
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
-		eventType:                     eventTypeDBMMetrics,
-		endpointsConfigPrefix:         "database_monitoring.metrics.",
-		hostnameEndpointPrefix:        "dbm-metrics-intake.",
+		eventType:              eventTypeDBMMetrics,
+		endpointsConfigPrefix:  "database_monitoring.metrics.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }
 
@@ -122,6 +125,7 @@ type passthroughPipelineDesc struct {
 	hostnameEndpointPrefix        string
 	defaultBatchMaxConcurrentSend int
 	defaultBatchMaxContentSize    int
+	defaultBatchMaxSize           int
 }
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
