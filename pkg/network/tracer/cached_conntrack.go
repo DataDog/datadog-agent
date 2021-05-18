@@ -47,8 +47,16 @@ func (cache *cachedConntrack) Close() error {
 	return nil
 }
 
+func (cache *cachedConntrack) ExistsInRootNS(c *ConnTuple) (bool, error) {
+	return cache.exists(c, 0, 1)
+}
+
 func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
-	ctrk, err := cache.ensureConntrack(c.NetNS(), int(c.Pid()))
+	return cache.exists(c, c.NetNS(), int(c.Pid()))
+}
+
+func (cache *cachedConntrack) exists(c *ConnTuple, netns uint64, pid int) (bool, error) {
+	ctrk, err := cache.ensureConntrack(netns, pid)
 	if err != nil {
 		return false, err
 	}
@@ -82,7 +90,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	ok, err := ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(c.NetNS())
+		cache.removeConntrack(netns)
 		return false, err
 	}
 
@@ -95,7 +103,7 @@ func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(c.NetNS())
+		cache.removeConntrack(netns)
 		return false, err
 	}
 

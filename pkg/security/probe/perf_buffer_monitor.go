@@ -466,8 +466,5 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		return err
 	}
 
-	if err := pbm.sendLostEventsReadStats(pbm.statsdClient); err != nil {
-		return err
-	}
-	return nil
+	return pbm.sendLostEventsReadStats(pbm.statsdClient)
 }

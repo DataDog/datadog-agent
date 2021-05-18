@@ -34,6 +34,18 @@ func fetchEc2Tags() ([]string, error) {
 		return nil, err
 	}
 
+	// First, try automatic credentials detection. This works in most scenarios,
+	// except when a more specific role (e.g. task role in ECS) does not have
+	// EC2:DescribeTags permission, but a more general role (e.g. instance role)
+	// does have it.
+	tags, err := getTagsWithCreds(instanceIdentity, nil)
+	if err == nil {
+		return tags, nil
+	}
+	log.Warnf("unable to get tags using default credentials (falling back to instance role): %s", err)
+
+	// If the above fails, for backward compatibility, fall back to our legacy
+	// behavior, where we explicitly query instance role to get credentials.
 	iamParams, err := getSecurityCreds()
 	if err != nil {
 		return nil, err
@@ -43,6 +55,10 @@ func fetchEc2Tags() ([]string, error) {
 		iamParams.SecretAccessKey,
 		iamParams.Token)
 
+	return getTagsWithCreds(instanceIdentity, awsCreds)
+}
+
+func getTagsWithCreds(instanceIdentity *ec2Identity, awsCreds *credentials.Credentials) ([]string, error) {
 	awsSess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(instanceIdentity.Region),
 		Credentials: awsCreds,

@@ -78,7 +78,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
 @task
 def lint(ctx, targets):
     """
-    Run golint on targets. If targets are not specified,
+    Run revive (the fork of golint) on targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
 
     Example invokation:
@@ -91,7 +91,7 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("golint {}".format(' '.join(targets_list)))
+    result = ctx.run("revive {}".format(' '.join(targets_list)))
     if result.stdout:
         files = []
         skipped_files = set()
@@ -110,7 +110,7 @@ def lint(ctx, targets):
             for skipped in skipped_files:
                 print("Allowed errors in whitelisted file {}".format(skipped))
 
-    print("golint found no issues")
+    print("revive found no issues")
 
 
 @task

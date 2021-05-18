@@ -66,6 +66,47 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
 
+func TestKeepSQLAlias(t *testing.T) {
+	q := `SELECT username AS person FROM users WHERE id=4`
+
+	t.Run("off", func(t *testing.T) {
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT username FROM users WHERE id = ?", oq.Query)
+	})
+
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("keep_sql_alias")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT username AS person FROM users WHERE id = ?", oq.Query)
+	})
+}
+
+func TestDollarQuotedFunc(t *testing.T) {
+	q := `SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users`
+
+	t.Run("off", func(t *testing.T) {
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT ? FROM users", oq.Query)
+	})
+
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("dollar_quoted_func")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, `SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users`, oq.Query)
+	})
+
+	t.Run("AS", func(t *testing.T) {
+		defer testutil.WithFeatures("keep_sql_alias,dollar_quoted_func")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`)
+		assert.NoError(t, err)
+		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
+	})
+}
+
 func TestScanDollarQuotedString(t *testing.T) {
 	for _, tt := range []struct {
 		in  string
@@ -73,19 +114,41 @@ func TestScanDollarQuotedString(t *testing.T) {
 		err bool
 	}{
 		{`$tag$abc$tag$`, `abc`, false},
+		{`$func$abc$func$`, `abc`, false},
 		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `textwith\n\rnewlinesand\r\\\`, false},
 		{`$tag$ab$tactac$tx$tag$`, `ab$tactac$tx`, false},
 		{`$$abc$$`, `abc`, false},
 		{`$$abc`, `abc`, true},
 		{`$$abc$`, `abc`, true},
 	} {
-		tok := NewSQLTokenizer(tt.in, false)
-		kind, str := tok.Scan()
-		if tt.err && kind != LexError {
-			t.Fatalf("Expected error, got %s", kind)
-		}
-		assert.Equal(t, string(str), tt.out)
+		t.Run("", func(t *testing.T) {
+			tok := NewSQLTokenizer(tt.in, false)
+			kind, str := tok.Scan()
+			if tt.err {
+				if kind != LexError {
+					t.Fatalf("Expected error, got %s", kind)
+				}
+				return
+			}
+			assert.Equal(t, string(str), tt.out)
+			assert.Equal(t, DollarQuotedString, kind)
+		})
 	}
+
+	t.Run("dollar_quoted_func", func(t *testing.T) {
+		t.Run("off", func(t *testing.T) {
+			tok := NewSQLTokenizer("$func$abc$func$", false)
+			kind, _ := tok.Scan()
+			assert.Equal(t, DollarQuotedString, kind)
+		})
+
+		t.Run("on", func(t *testing.T) {
+			defer testutil.WithFeatures("dollar_quoted_func")()
+			tok := NewSQLTokenizer("$func$abc$func$", false)
+			kind, _ := tok.Scan()
+			assert.Equal(t, DollarQuotedFunc, kind)
+		})
+	})
 }
 
 func TestSQLResourceWithError(t *testing.T) {
