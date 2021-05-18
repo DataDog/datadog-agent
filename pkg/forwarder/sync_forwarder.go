@@ -49,7 +49,6 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 			// If there is an error, instantiate a new HTTP client and retry one time
 			// The new HTTP client is instantiated in case the connection has been closed
 			log.Debug("Retrying transaction")
-			forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 			f.client = &http.Client{
 				Timeout:   forwarderTimeout,
 				Transport: utilhttp.CreateHTTPTransport(),
