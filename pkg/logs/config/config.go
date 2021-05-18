@@ -27,7 +27,7 @@ const SnmpTraps = "snmp_traps"
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
 	httpEndpointPrefix           = "agent-http-intake.logs."
-	serverlessHttpEndpointPrefix = "lambda-http-intake.logs."
+	serverlessHTTPEndpointPrefix = "lambda-http-intake.logs."
 )
 
 // logs-intake endpoints depending on the site and environment.
@@ -230,7 +230,7 @@ func BuildHTTPEndpoints() (*Endpoints, error) {
 
 // BuildServerlessHTTPEndpoints returns the HTTP endpoints to send logs to for the Serverless Agent.
 func BuildServerlessHTTPEndpoints() (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHttpEndpointPrefix)
+	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHTTPEndpointPrefix)
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
