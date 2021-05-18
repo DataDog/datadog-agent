@@ -78,7 +78,12 @@ func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 
 	otherHalf, ok := h.incomplete[key]
 	if !ok {
-		h.incomplete[key] = tx
+		if len(h.incomplete) >= h.maxEntries {
+			atomic.AddInt64(&h.telemetry.dropped, 1)
+		} else {
+			h.incomplete[key] = tx
+		}
+
 		return
 	}
 
