@@ -65,6 +65,10 @@ func (h *httpStatKeeper) add(tx httpTX) {
 	h.stats[key] = stats
 }
 
+// handleIncomplete is responsible for handling incomplete transactions
+// (eg. httpTX objects that have either only the request or response information)
+// this happens only in the context of localhost traffic with NAT and these disjoint
+// parts of the transactions are joined here by src port
 func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
 	key := Key{
 		SrcIPHigh: uint64(tx.tup.saddr_h),

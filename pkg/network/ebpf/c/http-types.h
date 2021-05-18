@@ -63,7 +63,7 @@ typedef struct {
     // to be processed twice in the context of localhost traffic. The field will
     // be populated with the source port of the TCP segment containing the beginning
     // of a given HTTP request
-    __u16 owned_by;
+    __u16 owned_by_src_port;
 } http_transaction_t;
 
 typedef struct {
