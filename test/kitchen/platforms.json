@@ -39,8 +39,8 @@
     "suse" : {
         "azure": {
             "x86_64": {
-                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21",
-                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2021.03.03",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2021.03.03"
             }
         },
         "ec2": {

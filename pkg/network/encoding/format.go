@@ -43,6 +43,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
+	c.LastPacketsSent = conn.LastSentPackets
+	c.LastPacketsReceived = conn.LastRecvPackets
 	c.LastRetransmits = conn.LastRetransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS

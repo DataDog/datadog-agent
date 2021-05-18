@@ -55,10 +55,7 @@ func SetRuntimeSetting(setting string, value interface{}) error {
 	if _, ok := runtimeSettings[setting]; !ok {
 		return &SettingNotFoundError{name: setting}
 	}
-	if err := runtimeSettings[setting].Set(value); err != nil {
-		return err
-	}
-	return nil
+	return runtimeSettings[setting].Set(value)
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
