@@ -714,3 +714,84 @@ func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 	expectedTags := []string{"extratag1:val1", "extratag2", "instancetag1:val1", "instancetag2", "snmp_device:1.2.3.4"}
 	assert.Equal(t, expectedTags, actualTags)
 }
+
+func Test_snmpConfig_refreshWithProfile(t *testing.T) {
+	metrics := []metricsConfig{
+		{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+		{
+			Symbols: []symbolConfig{
+				{
+					OID:  "1.2.3.4.6",
+					Name: "abc",
+				},
+			},
+			MetricTags: metricTagConfigList{
+				metricTagConfig{
+					Column: symbolConfig{
+						OID: "1.2.3.4.7",
+					},
+				},
+			},
+		},
+	}
+	profile1 := profileDefinition{
+		Device: deviceMeta{
+			Vendor: "a-vendor",
+		},
+		Metrics: metrics,
+		MetricTags: []metricTagConfig{
+			{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+		},
+		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+	}
+	mockProfiles := profileDefinitionMap{
+		"profile1": profile1,
+	}
+	c := &snmpConfig{
+		ipAddress: "1.2.3.4",
+		profiles:  mockProfiles,
+	}
+	err := c.refreshWithProfile("f5")
+	assert.EqualError(t, err, "unknown profile `f5`")
+
+	err = c.refreshWithProfile("profile1")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "profile1", c.profile)
+	assert.Equal(t, profile1, *c.profileDef)
+	assert.Equal(t, metrics, c.metrics)
+	assert.Equal(t, []metricTagConfig{
+		{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+	}, c.metricTags)
+	assert.Equal(t, oidConfig{
+		scalarOids: []string{"1.2.3.4.5"},
+		columnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
+	}, c.oidConfig)
+	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
+
+	c = &snmpConfig{
+		ipAddress:             "1.2.3.4",
+		profiles:              mockProfiles,
+		collectDeviceMetadata: true,
+	}
+	err = c.refreshWithProfile("profile1")
+	assert.NoError(t, err)
+	assert.Equal(t, oidConfig{
+		scalarOids: []string{
+			"1.2.3.4.5",
+			"1.3.6.1.2.1.1.5.0",
+			"1.3.6.1.2.1.1.1.0",
+			"1.3.6.1.2.1.1.2.0",
+		},
+		columnOids: []string{
+			"1.2.3.4.6",
+			"1.2.3.4.7",
+			"1.3.6.1.2.1.31.1.1.1.1",
+			"1.3.6.1.2.1.31.1.1.1.18",
+			"1.3.6.1.2.1.2.2.1.2",
+			"1.3.6.1.2.1.2.2.1.6",
+			"1.3.6.1.2.1.2.2.1.7",
+			"1.3.6.1.2.1.2.2.1.8",
+		},
+	}, c.oidConfig)
+}

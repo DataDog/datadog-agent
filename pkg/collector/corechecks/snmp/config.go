@@ -90,7 +90,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
 
 	if c.collectDeviceMetadata {
-		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, device_metadata.MetadataScalarOIDs...) // TODO: TEST ME
+		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, device_metadata.MetadataScalarOIDs...)
 		c.oidConfig.columnOids = append(c.oidConfig.columnOids, device_metadata.MetadataColumnOIDs...)
 	}
 

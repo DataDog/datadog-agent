@@ -99,7 +99,6 @@ func (v *resultValueStore) getColumnValueAsFloat(oid string, index string) float
 	return floatValue
 }
 
-
 // TODO: TEST ME
 func (v *resultValueStore) getColumnIndexes(columnOid string) ([]string, error) {
 	indexesMap := make(map[string]struct{})
