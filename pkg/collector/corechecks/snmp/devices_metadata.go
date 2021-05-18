@@ -30,27 +30,30 @@ var metadataColumnOIDs = []string{
 	ifOperStatusOID,
 }
 
+// NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
 	Subnet     string              `json:"subnet"`
 	Devices    []DeviceMetadata    `json:"devices"`
 	Interfaces []InterfaceMetadata `json:"interfaces"`
 }
 
+// DeviceMetadata contains device metadata
 type DeviceMetadata struct {
-	Id          string   `json:"id"`
-	IdTags      []string `json:"id_tags"`
+	ID          string   `json:"id"`
+	IDTags      []string `json:"id_tags"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	IpAddress   string   `json:"ip_address"`
-	SysObjectId string   `json:"sys_object_id"`
+	IPAddress   string   `json:"ip_address"`
+	SysObjectID string   `json:"sys_object_id"`
 	Profile     string   `json:"profile"`
 	Vendor      string   `json:"vendor"`
 	Subnet      string   `json:"subnet"`
 	Tags        []string `json:"tags"`
 }
 
+// InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
-	DeviceId    string `json:"device_id"`
+	DeviceID    string `json:"device_id"`
 	Index       int32  `json:"index"` // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
 	Name        string `json:"name"`
 	Alias       string `json:"alias"`

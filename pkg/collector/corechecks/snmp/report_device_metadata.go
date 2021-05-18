@@ -11,10 +11,10 @@ import (
 func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
 	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
 
-	deviceId := "abc123"
+	deviceID := "abc123"
 
-	device := ms.buildNetworkDeviceMetadata(deviceId, config, store, tags)
-	interfaces := ms.buildNetworkInterfacesMetadata(deviceId, config, store, tags)
+	device := ms.buildNetworkDeviceMetadata(deviceID, config, store, tags)
+	interfaces := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
 	metadata := NetworkDevicesMetadata{
 		Devices: []DeviceMetadata{
 			device,
@@ -28,7 +28,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	ms.sender.EventPlatformEvent(string(metadataBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
-func (ms *metricSender) buildNetworkDeviceMetadata(deviceId string, config snmpConfig, store *resultValueStore, tags []string) DeviceMetadata {
+func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) DeviceMetadata {
 	var vendor string
 	sysName := getScalarValueAsString(store, sysNameOID)
 	sysDescr := getScalarValueAsString(store, sysDescrOID)
@@ -39,18 +39,18 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceId string, config snmpC
 	}
 	sort.Strings(tags)
 	return DeviceMetadata{
-		Id:          deviceId,
+		ID:          deviceID,
 		Name:        sysName,
 		Description: sysDescr,
-		IpAddress:   config.ipAddress,
-		SysObjectId: sysObjectID,
+		IPAddress:   config.ipAddress,
+		SysObjectID: sysObjectID,
 		Profile:     config.profile,
 		Vendor:      vendor,
 		Tags:        tags,
 	}
 }
 
-func (ms *metricSender) buildNetworkInterfacesMetadata(deviceId string, config snmpConfig, store *resultValueStore, tags []string) []InterfaceMetadata {
+func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) []InterfaceMetadata {
 	var interfaces []InterfaceMetadata
 
 	// valuesByIndex is a map[<INDEX>][<OID>]snmpValueType
@@ -85,7 +85,7 @@ func (ms *metricSender) buildNetworkInterfacesMetadata(deviceId string, config s
 		}
 
 		networkInterface := InterfaceMetadata{
-			DeviceId:    deviceId,
+			DeviceID:    deviceID,
 			Index:       int32(index),
 			Name:        getColumnValueAsString(interfaceOidValues, ifNameOID),
 			Alias:       getColumnValueAsString(interfaceOidValues, ifAliasOID),
