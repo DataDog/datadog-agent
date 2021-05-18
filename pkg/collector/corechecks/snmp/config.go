@@ -116,6 +116,12 @@ func (c *snmpConfig) getStaticTags() []string {
 	return tags
 }
 
+func (c *snmpConfig) getDeviceIDTags() []string {
+	tags := c.getStaticTags()
+	tags = append(tags, c.instanceTags...)
+	return tags
+}
+
 // toString used for logging snmpConfig without sensitive information
 func (c *snmpConfig) toString() string {
 	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+

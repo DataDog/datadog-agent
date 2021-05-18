@@ -14,9 +14,9 @@ import (
 func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
 	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
 
-	deviceID := "abc123"
+	deviceID, deviceIDTags := buildDeviceID(config.getDeviceIDTags())
 
-	device := ms.buildNetworkDeviceMetadata(deviceID, config, store, tags)
+	device := ms.buildNetworkDeviceMetadata(deviceID, deviceIDTags, config, store, tags)
 
 	interfaces, err := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
 	if err != nil {
@@ -36,7 +36,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	ms.sender.EventPlatformEvent(string(metadataBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
-func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) device_metadata.DeviceMetadata {
+func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string) device_metadata.DeviceMetadata {
 	var vendor string
 	sysName := store.getScalarValueAsString(device_metadata.SysNameOID)
 	sysDescr := store.getScalarValueAsString(device_metadata.SysDescrOID)
@@ -48,6 +48,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpC
 	sort.Strings(tags)
 	return device_metadata.DeviceMetadata{
 		ID:          deviceID,
+		IDTags:      idTags,
 		Name:        sysName,
 		Description: sysDescr,
 		IPAddress:   config.ipAddress,

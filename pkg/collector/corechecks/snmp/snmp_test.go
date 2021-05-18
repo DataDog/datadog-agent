@@ -314,6 +314,8 @@ func TestProfile(t *testing.T) {
 ip_address: 1.2.3.4
 profile: f5-big-ip
 collect_device_metadata: true
+tags:
+  - "mytag:val1"
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -530,7 +532,7 @@ profiles:
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
 	// language=json
-	event := `{"subnet":"","devices":[{"id":"abc123","id_tags":null,"name":"foo_sys_name","description":"my_desc","ip_address":"1.2.3.4","sys_object_id":"1.2.3.4","profile":"f5-big-ip","vendor":"f5","subnet":"","tags":["device_vendor:f5","prefix:f","snmp_device:1.2.3.4","snmp_host:foo_sys_name","snmp_profile:f5-big-ip","some_tag:some_tag_value","suffix:oo_sys_name"]}],"interfaces":[{"device_id":"abc123","index":1,"name":"nameRow1","alias":"descRow1","description":"ifDescRow1","mac_address":"00:00:00:00:00:01","admin_status":1,"oper_status":1},{"device_id":"abc123","index":2,"name":"nameRow2","alias":"descRow2","description":"ifDescRow2","mac_address":"00:00:00:00:00:02","admin_status":1,"oper_status":1}]}`
+	event := `{"subnet":"","devices":[{"id":"466153773ae4924c","id_tags":["mytag:val1","snmp_device:1.2.3.4"],"name":"foo_sys_name","description":"my_desc","ip_address":"1.2.3.4","sys_object_id":"1.2.3.4","profile":"f5-big-ip","vendor":"f5","subnet":"","tags":["device_vendor:f5","mytag:val1","prefix:f","snmp_device:1.2.3.4","snmp_host:foo_sys_name","snmp_profile:f5-big-ip","some_tag:some_tag_value","suffix:oo_sys_name"]}],"interfaces":[{"device_id":"466153773ae4924c","index":1,"name":"nameRow1","alias":"descRow1","description":"ifDescRow1","mac_address":"00:00:00:00:00:01","admin_status":1,"oper_status":1},{"device_id":"466153773ae4924c","index":2,"name":"nameRow2","alias":"descRow2","description":"ifDescRow2","mac_address":"00:00:00:00:00:02","admin_status":1,"oper_status":1}]}`
 	sender.AssertEventPlatformEvent(t, event, "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
