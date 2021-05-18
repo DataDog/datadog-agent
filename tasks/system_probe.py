@@ -250,7 +250,7 @@ def kitchen_prepare(ctx):
 
 
 @task
-def kitchen_test(ctx, target=None):
+def kitchen_test(ctx, target=None, arch="x86_64"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
@@ -262,7 +262,7 @@ def kitchen_test(ctx, target=None):
     with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
         for platform, by_provider in json.load(f).items():
             if "vagrant" in by_provider:
-                for image in by_provider["vagrant"]:
+                for image in by_provider["vagrant"][arch]:
                     images[image] = platform
 
     if not (target in images):
