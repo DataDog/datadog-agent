@@ -52,7 +52,6 @@ func (v *resultValueStore) getColumnValue(oid string, index string) (snmpValueTy
 	return value, nil
 }
 
-// TODO: TEST ME
 func (v *resultValueStore) getScalarValueAsString(oid string) string {
 	value, err := v.getScalarValue(oid)
 	if err != nil {
@@ -67,7 +66,6 @@ func (v *resultValueStore) getScalarValueAsString(oid string) string {
 	return str
 }
 
-// TODO: TEST ME
 // getColumnValueAsString look for oid/index in resultValueStore and returns a string
 func (v *resultValueStore) getColumnValueAsString(oid string, index string) string {
 	value, err := v.getColumnValue(oid, index)
@@ -83,7 +81,6 @@ func (v *resultValueStore) getColumnValueAsString(oid string, index string) stri
 	return str
 }
 
-// TODO: TEST ME
 // getColumnValueAsFloat look for oid/index in resultValueStore and returns a float64
 func (v *resultValueStore) getColumnValueAsFloat(oid string, index string) float64 {
 	value, err := v.getColumnValue(oid, index)
@@ -104,7 +101,6 @@ func (v *resultValueStore) getColumnIndexes(columnOid string) ([]string, error) 
 	indexesMap := make(map[string]struct{})
 	metricValues, err := v.getColumnValues(columnOid)
 	if err != nil {
-		// TODO: TEST ME
 		return nil, fmt.Errorf("error getting column value oid=%s: %s", columnOid, err)
 	}
 	for fullIndex := range metricValues {
