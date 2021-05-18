@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/device_metadata"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -90,8 +90,8 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
 
 	if c.collectDeviceMetadata {
-		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, device_metadata.MetadataScalarOIDs...)
-		c.oidConfig.columnOids = append(c.oidConfig.columnOids, device_metadata.MetadataColumnOIDs...)
+		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, metadata.ScalarOIDs...)
+		c.oidConfig.columnOids = append(c.oidConfig.columnOids, metadata.ColumnOIDs...)
 	}
 
 	if definition.Device.Vendor != "" {

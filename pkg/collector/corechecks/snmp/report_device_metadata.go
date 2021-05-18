@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/device_metadata"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
 func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
@@ -23,8 +23,8 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 		log.Errorf("Error building interfaces metadata: %s", err)
 	}
 
-	metadata := device_metadata.NetworkDevicesMetadata{
-		Devices: []device_metadata.DeviceMetadata{
+	metadata := metadata.NetworkDevicesMetadata{
+		Devices: []metadata.DeviceMetadata{
 			device,
 		},
 		Interfaces: interfaces,
@@ -36,17 +36,17 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	ms.sender.EventPlatformEvent(string(metadataBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
-func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string) device_metadata.DeviceMetadata {
+func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string) metadata.DeviceMetadata {
 	var vendor string
-	sysName := store.getScalarValueAsString(device_metadata.SysNameOID)
-	sysDescr := store.getScalarValueAsString(device_metadata.SysDescrOID)
-	sysObjectID := store.getScalarValueAsString(device_metadata.SysObjectIDOID)
+	sysName := store.getScalarValueAsString(metadata.SysNameOID)
+	sysDescr := store.getScalarValueAsString(metadata.SysDescrOID)
+	sysObjectID := store.getScalarValueAsString(metadata.SysObjectIDOID)
 
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
 	}
 	sort.Strings(tags)
-	return device_metadata.DeviceMetadata{
+	return metadata.DeviceMetadata{
 		ID:          deviceID,
 		IDTags:      idTags,
 		Name:        sysName,
@@ -59,13 +59,13 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []str
 	}
 }
 
-func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) ([]device_metadata.InterfaceMetadata, error) {
-	indexes, err := store.getColumnIndexes(device_metadata.IfNameOID)
+func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) ([]metadata.InterfaceMetadata, error) {
+	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting indexes: %s", err)
 	}
 
-	var interfaces []device_metadata.InterfaceMetadata
+	var interfaces []metadata.InterfaceMetadata
 	for _, strIndex := range indexes {
 		index, err := strconv.Atoi(strIndex)
 		if err != nil {
@@ -73,15 +73,15 @@ func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config s
 			continue
 		}
 
-		networkInterface := device_metadata.InterfaceMetadata{
+		networkInterface := metadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
-			Name:        store.getColumnValueAsString(device_metadata.IfNameOID, strIndex),
-			Alias:       store.getColumnValueAsString(device_metadata.IfAliasOID, strIndex),
-			Description: store.getColumnValueAsString(device_metadata.IfDescrOID, strIndex),
-			MacAddress:  store.getColumnValueAsString(device_metadata.IfPhysAddressOID, strIndex),
-			AdminStatus: int32(store.getColumnValueAsFloat(device_metadata.IfAdminStatusOID, strIndex)),
-			OperStatus:  int32(store.getColumnValueAsFloat(device_metadata.IfOperStatusOID, strIndex)),
+			Name:        store.getColumnValueAsString(metadata.IfNameOID, strIndex),
+			Alias:       store.getColumnValueAsString(metadata.IfAliasOID, strIndex),
+			Description: store.getColumnValueAsString(metadata.IfDescrOID, strIndex),
+			MacAddress:  store.getColumnValueAsString(metadata.IfPhysAddressOID, strIndex),
+			AdminStatus: int32(store.getColumnValueAsFloat(metadata.IfAdminStatusOID, strIndex)),
+			OperStatus:  int32(store.getColumnValueAsFloat(metadata.IfOperStatusOID, strIndex)),
 		}
 		interfaces = append(interfaces, networkInterface)
 	}

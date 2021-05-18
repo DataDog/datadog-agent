@@ -1,4 +1,4 @@
-package device_metadata
+package metadata
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
