@@ -443,6 +443,8 @@ build_win:
     expire_in: 2 weeks
     paths:
       - ./*.msi
+      - ./*agent.exe
+      - ./*.dll
       - "version.txt"
   tags:
     - windows_agent7_ps1

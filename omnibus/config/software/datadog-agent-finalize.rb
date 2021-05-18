@@ -18,6 +18,11 @@ build do
     block do
         # Conf files
         if windows?
+            # Temp copying files over to create artifacts from it
+            copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "/libdatadog-agent-three.dll"
+            copy "#{install_dir}/bin/agent/libdatadog-agent-two.dll", "/libdatadog-agent-two.dll"
+            copy "#{install_dir}/bin/agent/customaction.dll", "/customaction.dll"
+
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
@@ -188,7 +193,7 @@ build do
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else 
+            else
                 hardened_runtime = ""
             end
 
