@@ -154,8 +154,8 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	inputChan := make(chan *message.Message, 100)
 	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType)
 	a := auditor.NewNullAuditor()
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d",
-		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize)
+	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
+		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
 	return &passthroughPipeline{
 		sender:  sender.NewSender(inputChan, a.Channel(), destinations, strategy),
 		in:      inputChan,
