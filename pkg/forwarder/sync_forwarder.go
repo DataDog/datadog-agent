@@ -12,7 +12,6 @@ import (
 
 // SyncForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
-// It doesn't ship any retry mechanism for now.
 type SyncForwarder struct {
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
