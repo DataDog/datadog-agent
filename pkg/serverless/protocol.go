@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -296,42 +297,48 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 		metricTags := getTagsForEnhancedMetrics()
-		sendLogsToIntake := config.Datadog.GetBool("serverless.logs_enabled")
+		logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
+		enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 		arn := aws.GetARN()
 		lastRequestID := aws.GetRequestID()
 		functionName := aws.FunctionNameFromARN()
 		for _, message := range messages {
-			// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-			// First, if the log has a Request ID, set the global Request ID variable
-			if message.Type == aws.LogTypePlatformStart {
-				if len(message.ObjectRecord.RequestID) > 0 {
-					aws.SetRequestID(message.ObjectRecord.RequestID)
-					lastRequestID = message.ObjectRecord.RequestID
-				}
-			}
-
-			if !aws.ShouldProcessLog(arn, lastRequestID, message) {
-				continue
-			}
-
-			switch message.Type {
-			case aws.LogTypeFunction:
-				generateEnhancedMetricsFromFunctionLog(message, metricTags, metricsChan)
-			case aws.LogTypePlatformReport:
-				generateEnhancedMetricsFromReportLog(message, metricTags, metricsChan)
-				aws.SetColdStart(false)
-			case aws.LogTypePlatformLogsDropped:
-				log.Debug("Logs were dropped by the AWS Lambda Logs API")
-			}
-
+			processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
 			// We always collect and process logs for the purpose of extracting enhanced metrics.
 			// However, if logs are not enabled, we do not send them to the intake.
-			if sendLogsToIntake {
+			if logsEnabled {
 				logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
 				l.ch <- logMessage
 			}
 		}
 		w.WriteHeader(200)
+	}
+}
+
+// processMessage performs logic about metrics and tags on the message
+func processMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
+	// First, if the log has a Request ID, set the global Request ID variable
+	if message.Type == aws.LogTypePlatformStart {
+		if len(message.ObjectRecord.RequestID) > 0 {
+			aws.SetRequestID(message.ObjectRecord.RequestID)
+			lastRequestID = message.ObjectRecord.RequestID
+		}
+	}
+
+	if !aws.ShouldProcessLog(arn, lastRequestID, message) {
+		return
+	}
+
+	if computeEnhancedMetrics {
+		generateEnhancedMetrics(message, metricTags, metricsChan)
+	}
+
+	switch message.Type {
+	case aws.LogTypePlatformReport:
+		aws.SetColdStart(false)
+	case aws.LogTypePlatformLogsDropped:
+		log.Debug("Logs were dropped by the AWS Lambda Logs API")
 	}
 }
 
