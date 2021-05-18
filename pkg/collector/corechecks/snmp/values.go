@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type resultValueStore struct {
@@ -34,4 +35,24 @@ func (v *resultValueStore) getColumnValues(oid string) (map[string]snmpValueType
 	}
 
 	return retValues, nil
+}
+
+func (v *resultValueStore) getColumnValuesByIndex(columnOids []string) map[string]map[string]snmpValueType {
+	// valuesByIndex is a map[<INDEX>][<OID>]snmpValueType
+	valuesByIndex := make(map[string]map[string]snmpValueType)
+	for _, oid := range columnOids {
+		metricValues, err := v.getColumnValues(oid)
+		if err != nil {
+			log.Debugf("error getting column value oid=%s error=%v", oid, err)
+			continue
+		}
+		for fullIndex, value := range metricValues {
+			_, ok := valuesByIndex[fullIndex]
+			if !ok {
+				valuesByIndex[fullIndex] = make(map[string]snmpValueType)
+			}
+			valuesByIndex[fullIndex][oid] = value
+		}
+	}
+	return valuesByIndex
 }

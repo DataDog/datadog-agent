@@ -6,6 +6,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/device_metadata"
 )
 
 func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
@@ -15,8 +17,8 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 
 	device := ms.buildNetworkDeviceMetadata(deviceID, config, store, tags)
 	interfaces := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
-	metadata := NetworkDevicesMetadata{
-		Devices: []DeviceMetadata{
+	metadata := device_metadata.NetworkDevicesMetadata{
+		Devices: []device_metadata.DeviceMetadata{
 			device,
 		},
 		Interfaces: interfaces,
@@ -28,17 +30,17 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	ms.sender.EventPlatformEvent(string(metadataBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
 
-func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) DeviceMetadata {
+func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) device_metadata.DeviceMetadata {
 	var vendor string
-	sysName := getScalarValueAsString(store, sysNameOID)
-	sysDescr := getScalarValueAsString(store, sysDescrOID)
-	sysObjectID := getScalarValueAsString(store, sysObjectIDOID)
+	sysName := getScalarValueAsString(store, device_metadata.SysNameOID)
+	sysDescr := getScalarValueAsString(store, device_metadata.SysDescrOID)
+	sysObjectID := getScalarValueAsString(store, device_metadata.SysObjectIDOID)
 
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
 	}
 	sort.Strings(tags)
-	return DeviceMetadata{
+	return device_metadata.DeviceMetadata{
 		ID:          deviceID,
 		Name:        sysName,
 		Description: sysDescr,
@@ -50,32 +52,17 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpC
 	}
 }
 
-func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) []InterfaceMetadata {
-	var interfaces []InterfaceMetadata
+func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) []device_metadata.InterfaceMetadata {
 
-	// valuesByIndex is a map[<INDEX>][<OID>]snmpValueType
-	valuesByIndex := make(map[string]map[string]snmpValueType)
-
-	for _, oid := range metadataColumnOIDs {
-		metricValues, err := store.getColumnValues(oid)
-		if err != nil {
-			log.Debugf("interface metadata: error getting column value: %v", err)
-			continue
-		}
-		for fullIndex, value := range metricValues {
-			_, ok := valuesByIndex[fullIndex]
-			if !ok {
-				valuesByIndex[fullIndex] = make(map[string]snmpValueType)
-			}
-			valuesByIndex[fullIndex][oid] = value
-		}
-	}
+	valuesByIndex := store.getColumnValuesByIndex(device_metadata.MetadataColumnOIDs)
 
 	var indexes []string
 	for index := range valuesByIndex {
 		indexes = append(indexes, index)
 	}
 	sort.Strings(indexes)
+
+	var interfaces []device_metadata.InterfaceMetadata
 	for _, strIndex := range indexes {
 		interfaceOidValues := valuesByIndex[strIndex]
 		index, err := strconv.Atoi(strIndex)
@@ -84,15 +71,15 @@ func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config s
 			continue
 		}
 
-		networkInterface := InterfaceMetadata{
+		networkInterface := device_metadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
-			Name:        getColumnValueAsString(interfaceOidValues, ifNameOID),
-			Alias:       getColumnValueAsString(interfaceOidValues, ifAliasOID),
-			Description: getColumnValueAsString(interfaceOidValues, ifDescrOID),
-			MacAddress:  getColumnValueAsString(interfaceOidValues, ifPhysAddressOID),
-			AdminStatus: int32(getColumnValueAsFloat(interfaceOidValues, ifAdminStatusOID)),
-			OperStatus:  int32(getColumnValueAsFloat(interfaceOidValues, ifOperStatusOID)),
+			Name:        getColumnValueAsString(interfaceOidValues, device_metadata.IfNameOID),
+			Alias:       getColumnValueAsString(interfaceOidValues, device_metadata.IfAliasOID),
+			Description: getColumnValueAsString(interfaceOidValues, device_metadata.IfDescrOID),
+			MacAddress:  getColumnValueAsString(interfaceOidValues, device_metadata.IfPhysAddressOID),
+			AdminStatus: int32(getColumnValueAsFloat(interfaceOidValues, device_metadata.IfAdminStatusOID)),
+			OperStatus:  int32(getColumnValueAsFloat(interfaceOidValues, device_metadata.IfOperStatusOID)),
 		}
 		interfaces = append(interfaces, networkInterface)
 	}

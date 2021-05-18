@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/device_metadata"
 )
 
 var defaultOidBatchSize = 60
@@ -80,7 +81,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.profiles[profile]
 	c.profileDef = &definition
-	c.profile = profile // TODO: TEST ME
+	c.profile = profile
 
 	c.metrics = append(c.metrics, definition.Metrics...)
 	c.metricTags = append(c.metricTags, definition.MetricTags...)
@@ -88,8 +89,8 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	c.oidConfig.columnOids = append(c.oidConfig.columnOids, parseColumnOids(definition.Metrics)...)
 
 	if c.collectDeviceMetadata {
-		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, metadataScalarOIDs...) // TODO: TEST ME
-		c.oidConfig.columnOids = append(c.oidConfig.columnOids, metadataColumnOIDs...)
+		c.oidConfig.scalarOids = append(c.oidConfig.scalarOids, device_metadata.MetadataScalarOIDs...) // TODO: TEST ME
+		c.oidConfig.columnOids = append(c.oidConfig.columnOids, device_metadata.MetadataColumnOIDs...)
 	}
 
 	if definition.Device.Vendor != "" {
