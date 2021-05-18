@@ -5,8 +5,8 @@ import "encoding/json"
 
 // Stream is a representation of a health stream for health synchronization
 type Stream struct {
-	Urn string `json:"urn"`
-	SubStream  string `json:"sub_stream,omitempty"`
+	Urn       string `json:"urn"`
+	SubStream string `json:"sub_stream,omitempty"`
 }
 
 // GoString prints as string, can also be used in maps

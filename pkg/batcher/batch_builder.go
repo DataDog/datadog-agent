@@ -6,12 +6,13 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 )
 
+// CheckInstanceBatchState is the type representing batched data per check instance
 type CheckInstanceBatchState struct {
 	Topology *topology.Topology
 	Health   map[string]health.Health
 }
 
-// CheckInstanceBatchStates is the type representingbatched data per check instance
+// CheckInstanceBatchStates is the type representing batched data for all check instances
 type CheckInstanceBatchStates map[check.ID]CheckInstanceBatchState
 
 // BatchBuilder is a helper class to build Topology based on submitted data, this data structure is not thread safe
@@ -26,7 +27,7 @@ type BatchBuilder struct {
 // NewBatchBuilder constructs a BatchBuilder
 func NewBatchBuilder(maxCapacity int) BatchBuilder {
 	return BatchBuilder{
-		states:   make(map[check.ID]CheckInstanceBatchState),
+		states:       make(map[check.ID]CheckInstanceBatchState),
 		elementCount: 0,
 		maxCapacity:  maxCapacity,
 	}
@@ -37,7 +38,7 @@ func (builder *BatchBuilder) getState(checkID check.ID) CheckInstanceBatchState 
 		return value
 	}
 
-	state := CheckInstanceBatchState {
+	state := CheckInstanceBatchState{
 		Topology: nil,
 		Health:   make(map[string]health.Health),
 	}
@@ -52,7 +53,7 @@ func (builder *BatchBuilder) getTopology(checkID check.ID, instance topology.Ins
 		return state.Topology
 	}
 
-	builder.states[checkID] = CheckInstanceBatchState {
+	builder.states[checkID] = CheckInstanceBatchState{
 		Topology: &topology.Topology{
 			StartSnapshot: false,
 			StopSnapshot:  false,
@@ -72,16 +73,16 @@ func (builder *BatchBuilder) getHealth(checkID check.ID, stream health.Stream) h
 		return value
 	}
 
-	builder.states[checkID] = CheckInstanceBatchState {
-		Topology: nil,
+	builder.states[checkID] = CheckInstanceBatchState{
+		Topology: state.Topology,
 		Health:   make(map[string]health.Health),
 	}
 
 	builder.states[checkID].Health[stream.GoString()] = health.Health{
 		StartSnapshot: nil,
-		StopSnapshot: nil,
-		Stream: stream,
-		CheckStates: make([]health.CheckData, 0),
+		StopSnapshot:  nil,
+		Stream:        stream,
+		CheckStates:   make([]health.CheckData, 0),
 	}
 
 	return builder.states[checkID].Health[stream.GoString()]
@@ -117,7 +118,7 @@ func (builder *BatchBuilder) StopSnapshot(checkID check.ID, instance topology.In
 }
 
 // AddHealthCheckData adds a component
-func (builder *BatchBuilder) AddHealthCheckData(checkID check.ID, stream health.Stream,  data health.CheckData) CheckInstanceBatchStates {
+func (builder *BatchBuilder) AddHealthCheckData(checkID check.ID, stream health.Stream, data health.CheckData) CheckInstanceBatchStates {
 	healthData := builder.getHealth(checkID, stream)
 	healthData.CheckStates = append(healthData.CheckStates, data)
 	builder.states[checkID].Health[stream.GoString()] = healthData
@@ -127,7 +128,7 @@ func (builder *BatchBuilder) AddHealthCheckData(checkID check.ID, stream health.
 // HealthStartSnapshot starts a Health snapshot
 func (builder *BatchBuilder) HealthStartSnapshot(checkID check.ID, stream health.Stream, repeatIntervalSeconds int, expirySeconds int) CheckInstanceBatchStates {
 	healthData := builder.getHealth(checkID, stream)
-	healthData.StartSnapshot = &health.StartSnapshotMetadata {
+	healthData.StartSnapshot = &health.StartSnapshotMetadata{
 		RepeatIntervalS: repeatIntervalSeconds,
 		ExpiryIntervalS: expirySeconds,
 	}
@@ -138,7 +139,7 @@ func (builder *BatchBuilder) HealthStartSnapshot(checkID check.ID, stream health
 // HealthStopSnapshot stops a Health snapshot. This will always flush
 func (builder *BatchBuilder) HealthStopSnapshot(checkID check.ID, stream health.Stream) CheckInstanceBatchStates {
 	healthData := builder.getHealth(checkID, stream)
-	healthData.StopSnapshot = &health.StopSnapshotMetadata {}
+	healthData.StopSnapshot = &health.StopSnapshotMetadata{}
 	builder.states[checkID].Health[stream.GoString()] = healthData
 	// We always flush after a StopSnapshot to limit latency
 	return builder.Flush()

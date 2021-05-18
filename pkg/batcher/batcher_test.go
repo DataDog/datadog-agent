@@ -3,6 +3,7 @@ package batcher
 import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	serializer2 "github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
@@ -34,9 +35,15 @@ var (
 		TargetID:   "target",
 		Data:       map[string]interface{}{},
 	}
+
+	testStream        = health.Stream{Urn: "urn", SubStream: "bla"}
+	testStream2       = health.Stream{Urn: "urn"}
+	testStartSnapshot = health.StartSnapshotMetadata{ExpiryIntervalS: 0, RepeatIntervalS: 1}
+	testStopSnapshot  = health.StopSnapshotMetadata{}
+	testCheckData     = map[string]interface{}{}
 )
 
-func TestBatchFlushOnStop(t *testing.T) {
+func TestBatchFlushOnStopSnapshot(t *testing.T) {
 	serializer := serializer2.NewAgentV1MockSerializer()
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
 
@@ -56,6 +63,31 @@ func TestBatchFlushOnStop(t *testing.T) {
 					Relations:     []topology.Relation{},
 				},
 			},
+			"health": []health.Health{},
+		})
+
+	batcher.Shutdown()
+}
+
+func TestBatchFlushOnStopHealthSnapshot(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
+
+	batcher.SubmitHealthStopSnapshot(testID, testStream)
+
+	message := serializer.GetJSONToV1IntakeMessage()
+
+	assert.Equal(t, message,
+		map[string]interface{}{
+			"internalHostname": "myhost",
+			"topologies":       []topology.Topology{},
+			"health": []health.Health{
+				{
+					StopSnapshot: &testStopSnapshot,
+					Stream:       testStream,
+					CheckStates:  []health.CheckData{},
+				},
+			},
 		})
 
 	batcher.Shutdown()
@@ -66,6 +98,7 @@ func TestBatchFlushOnComplete(t *testing.T) {
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
 
 	batcher.SubmitComponent(testID, testInstance, testComponent)
+	batcher.SubmitHealthCheckData(testID, testStream, testCheckData)
 
 	batcher.SubmitComplete(testID)
 
@@ -81,6 +114,12 @@ func TestBatchFlushOnComplete(t *testing.T) {
 					Instance:      testInstance,
 					Components:    []topology.Component{testComponent},
 					Relations:     []topology.Relation{},
+				},
+			},
+			"health": []health.Health{
+				{
+					Stream:      testStream,
+					CheckStates: []health.CheckData{testCheckData},
 				},
 			},
 		})
@@ -113,12 +152,13 @@ func TestBatchNoDataNoComplete(t *testing.T) {
 					Relations:     []topology.Relation{},
 				},
 			},
+			"health": []health.Health{},
 		})
 
 	batcher.Shutdown()
 }
 
-func TestBatchMultipleTopologies(t *testing.T) {
+func TestBatchMultipleTopologiesAndHealthStreams(t *testing.T) {
 	serializer := serializer2.NewAgentV1MockSerializer()
 	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
 
@@ -127,11 +167,14 @@ func TestBatchMultipleTopologies(t *testing.T) {
 	batcher.SubmitComponent(testID2, testInstance2, testComponent)
 	batcher.SubmitComponent(testID2, testInstance2, testComponent)
 	batcher.SubmitComponent(testID2, testInstance2, testComponent)
+	batcher.SubmitHealthStartSnapshot(testID, testStream, 1, 0)
+	batcher.SubmitHealthCheckData(testID, testStream, testCheckData)
+	batcher.SubmitHealthCheckData(testID2, testStream2, testCheckData)
 	batcher.SubmitStopSnapshot(testID, testInstance)
 
 	message := serializer.GetJSONToV1IntakeMessage()
 
-	assert.ObjectsAreEqualValues(map[string]interface{}{
+	assert.EqualValues(t, message, map[string]interface{}{
 		"internalHostname": "myhost",
 		"topologies": []topology.Topology{
 			{
@@ -147,6 +190,17 @@ func TestBatchMultipleTopologies(t *testing.T) {
 				Instance:      testInstance2,
 				Components:    []topology.Component{testComponent, testComponent, testComponent},
 				Relations:     []topology.Relation{},
+			},
+		},
+		"health": []health.Health{
+			{
+				StartSnapshot: &testStartSnapshot,
+				Stream:        testStream,
+				CheckStates:   []health.CheckData{testCheckData},
+			},
+			{
+				Stream:      testStream2,
+				CheckStates: []health.CheckData{testCheckData},
 			},
 		},
 	}, message)
@@ -173,6 +227,31 @@ func TestBatchFlushOnMaxElements(t *testing.T) {
 					Instance:      testInstance,
 					Components:    []topology.Component{testComponent, testComponent2},
 					Relations:     []topology.Relation{},
+				},
+			},
+			"health": []health.Health{},
+		})
+
+	batcher.Shutdown()
+}
+
+func TestBatchFlushOnMaxHealthElements(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 2)
+
+	batcher.SubmitHealthCheckData(testID, testStream, testCheckData)
+	batcher.SubmitHealthCheckData(testID, testStream, testCheckData)
+
+	message := serializer.GetJSONToV1IntakeMessage()
+
+	assert.Equal(t, message,
+		map[string]interface{}{
+			"internalHostname": "myhost",
+			"topologies":       []topology.Topology{},
+			"health": []health.Health{
+				{
+					Stream:      testStream,
+					CheckStates: []health.CheckData{testCheckData, testCheckData},
 				},
 			},
 		})
@@ -202,6 +281,7 @@ func TestBatchFlushOnMaxElementsEnv(t *testing.T) {
 					Relations:     []topology.Relation{},
 				},
 			},
+			"health": []health.Health{},
 		})
 
 	batcher.Shutdown()
@@ -229,6 +309,7 @@ func TestBatcherStartSnapshot(t *testing.T) {
 					Relations:     []topology.Relation{},
 				},
 			},
+			"health": []health.Health{},
 		})
 
 	batcher.Shutdown()
@@ -253,6 +334,32 @@ func TestBatcherRelation(t *testing.T) {
 					Instance:      testInstance,
 					Components:    []topology.Component{},
 					Relations:     []topology.Relation{testRelation},
+				},
+			},
+			"health": []health.Health{},
+		})
+
+	batcher.Shutdown()
+}
+
+func TestBatcherHealthStartSnapshot(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
+
+	batcher.SubmitHealthStartSnapshot(testID, testStream, 1, 0)
+	batcher.SubmitComplete(testID)
+
+	message := serializer.GetJSONToV1IntakeMessage()
+
+	assert.Equal(t, message,
+		map[string]interface{}{
+			"internalHostname": "myhost",
+			"topologies":       []topology.Topology{},
+			"health": []health.Health{
+				{
+					StartSnapshot: &testStartSnapshot,
+					Stream:        testStream,
+					CheckStates:   []health.CheckData{},
 				},
 			},
 		})

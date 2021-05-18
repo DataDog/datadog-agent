@@ -97,21 +97,21 @@ type submitStopSnapshot struct {
 }
 
 type submitHealthCheckData struct {
-	checkID   check.ID
-	stream    health.Stream
-	data	  health.CheckData
+	checkID check.ID
+	stream  health.Stream
+	data    health.CheckData
 }
 
 type submitHealthStartSnapshot struct {
-	checkID  check.ID
-	stream    health.Stream
+	checkID         check.ID
+	stream          health.Stream
 	intervalSeconds int
-	expirySeconds int
+	expirySeconds   int
 }
 
 type submitHealthStopSnapshot struct {
-	checkID  check.ID
-	stream    health.Stream
+	checkID check.ID
+	stream  health.Stream
 }
 
 type submitComplete struct {
@@ -124,11 +124,11 @@ func (batcher *AsynchronousBatcher) sendState(states CheckInstanceBatchStates) {
 	if states != nil {
 
 		// Create the topologies
-		topologies := make([]topology.Topology, len(states))
-		idx := 0
+		topologies := make([]topology.Topology, 0)
 		for _, state := range states {
-			topologies[idx] = *state.Topology
-			idx++
+			if state.Topology != nil {
+				topologies = append(topologies, *state.Topology)
+			}
 		}
 
 		// Create the healthData payload
@@ -142,7 +142,7 @@ func (batcher *AsynchronousBatcher) sendState(states CheckInstanceBatchStates) {
 		payload := map[string]interface{}{
 			"internalHostname": batcher.hostname,
 			"topologies":       topologies,
-			"Health":           healthData,
+			"health":           healthData,
 		}
 
 		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
@@ -223,9 +223,9 @@ func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance
 func (batcher AsynchronousBatcher) SubmitHealthCheckData(checkID check.ID, stream health.Stream, data health.CheckData) {
 	log.Debugf("Submitting Health check data for check [%s] stream [%s]: %s", checkID, stream.GoString(), data.JSONString())
 	batcher.input <- submitHealthCheckData{
-		checkID:   checkID,
+		checkID: checkID,
 		stream:  stream,
-		data: data,
+		data:    data,
 	}
 }
 
@@ -233,19 +233,19 @@ func (batcher AsynchronousBatcher) SubmitHealthCheckData(checkID check.ID, strea
 func (batcher AsynchronousBatcher) SubmitHealthStartSnapshot(checkID check.ID, stream health.Stream, intervalSeconds int, expirySeconds int) {
 	log.Debugf("Submitting start of Health snapshot for check [%s] stream [%s]", checkID, stream.GoString())
 	batcher.input <- submitHealthStartSnapshot{
-		checkID:  checkID,
-		stream: stream,
+		checkID:         checkID,
+		stream:          stream,
 		intervalSeconds: intervalSeconds,
-		expirySeconds: expirySeconds,
+		expirySeconds:   expirySeconds,
 	}
 }
 
 // SubmitHealthStopSnapshot submits a stop of a Health snapshot. This always causes a flush of the data downstream
-func (batcher AsynchronousBatcher) SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream,) {
+func (batcher AsynchronousBatcher) SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream) {
 	log.Debugf("Submitting stop Health snapshot for check [%s] stream [%s]", checkID, stream.GoString())
 	batcher.input <- submitHealthStopSnapshot{
-		checkID:  checkID,
-		stream: stream,
+		checkID: checkID,
+		stream:  stream,
 	}
 }
 

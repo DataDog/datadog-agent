@@ -60,10 +60,9 @@ func convertStream(healthStream *C.health_stream_t) health.Stream {
 		return health.Stream{
 			Urn: C.GoString(healthStream.urn),
 		}
-	} else {
-		return health.Stream{
-			Urn:       C.GoString(healthStream.urn),
-			SubStream: _subStream,
-		}
+	}
+	return health.Stream{
+		Urn:       C.GoString(healthStream.urn),
+		SubStream: _subStream,
 	}
 }

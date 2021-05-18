@@ -79,7 +79,7 @@ func testComponentTopology(t *testing.T) {
 		}
 	}
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
-		"check-id": batcher.CheckInstanceBatchState{
+		"check-id": {
 			Health: make(map[string]health.Health),
 			Topology: &topology.Topology{
 				StartSnapshot: true,
@@ -122,7 +122,7 @@ func testRelationTopology(t *testing.T) {
 		}
 	}
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
-		"check-id": batcher.CheckInstanceBatchState{
+		"check-id": {
 			Health: make(map[string]health.Health),
 			Topology: &topology.Topology{
 				StartSnapshot: false,
@@ -156,7 +156,7 @@ func testStartSnapshotCheck(t *testing.T) {
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
-		"check-id": batcher.CheckInstanceBatchState{
+		"check-id": {
 			Health: make(map[string]health.Health),
 			Topology: &topology.Topology{
 				StartSnapshot: true,
@@ -182,7 +182,7 @@ func testStopSnapshotCheck(t *testing.T) {
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
-		"check-id": batcher.CheckInstanceBatchState{
+		"check-id": {
 			Health: make(map[string]health.Health),
 			Topology: &topology.Topology{
 				StartSnapshot: false,

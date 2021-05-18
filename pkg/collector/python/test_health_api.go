@@ -104,8 +104,7 @@ func testHealthStartSnapshot(t *testing.T) {
 				expectedStream.GoString(): {
 					StartSnapshot: &health.StartSnapshotMetadata{RepeatIntervalS: 1, ExpiryIntervalS: 0},
 					Stream:        expectedStream,
-					CheckStates: []health.CheckData{
-					},
+					CheckStates:   []health.CheckData{},
 				},
 			},
 		},
@@ -128,9 +127,9 @@ func testHealthStopSnapshot(t *testing.T) {
 		"check-id": {
 			Health: map[string]health.Health{
 				expectedStream.GoString(): {
-					StopSnapshot:  &health.StopSnapshotMetadata{},
-					Stream:        expectedStream,
-					CheckStates: []health.CheckData{},
+					StopSnapshot: &health.StopSnapshotMetadata{},
+					Stream:       expectedStream,
+					CheckStates:  []health.CheckData{},
 				},
 			},
 		},
@@ -155,8 +154,7 @@ func testNoSubStream(t *testing.T) {
 				expectedStream.GoString(): {
 					StartSnapshot: &health.StartSnapshotMetadata{RepeatIntervalS: 1, ExpiryIntervalS: 0},
 					Stream:        expectedStream,
-					CheckStates: []health.CheckData{
-					},
+					CheckStates:   []health.CheckData{},
 				},
 			},
 		},
