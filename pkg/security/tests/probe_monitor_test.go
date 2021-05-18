@@ -59,7 +59,7 @@ func TestRulesetLoaded(t *testing.T) {
 
 func truncatedParents(t *testing.T, opts testOpts) {
 	var truncatedParents string
-	for i := 0; i <= model.MaxPathDepth; i++ {
+	for i := 0; i < model.MaxPathDepth; i++ {
 		truncatedParents += "a/"
 	}
 
@@ -93,6 +93,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		customEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
 		if err != nil {
 			t.Error(err)
+			return
 		} else {
 			assert.Equal(t, customEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
 		}
@@ -104,7 +105,13 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			// check the length of the filepath that triggered the custom event
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {
-				assert.Assert(t, len(strings.Split(filepath.(string), "/")) >= model.MaxPathDepth, "invalid path depth")
+				splittedFilepath := strings.Split(filepath.(string), "/")
+				if len(splittedFilepath) > 1 && splittedFilepath[0] == "" {
+					splittedFilepath = splittedFilepath[1:]
+				}
+				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")
+				assert.Equal(t, splittedFilepath[0], "a", "invalid path resolution at the left edge")
+				assert.Equal(t, splittedFilepath[len(splittedFilepath)-1], "a", "invalid path resolution at the right edge")
 			}
 		}
 	})

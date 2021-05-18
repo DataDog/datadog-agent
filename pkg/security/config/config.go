@@ -71,6 +71,8 @@ type Config struct {
 	CustomSensitiveWords []string
 	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
 	ERPCDentryResolutionEnabled bool
+	// MapDentryResolutionEnabled determines if the map resolution is enabled
+	MapDentryResolutionEnabled bool
 	// RemoteTaggerEnabled defines whether the remote tagger is enabled
 	RemoteTaggerEnabled bool
 }
@@ -106,6 +108,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
 		ERPCDentryResolutionEnabled:        aconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 	}
 

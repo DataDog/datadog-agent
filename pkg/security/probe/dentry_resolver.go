@@ -35,6 +35,7 @@ type DentryResolver struct {
 	erpcSegmentSize int
 	erpcRequest     ERPCRequest
 	erpcEnabled     bool
+	mapEnabled      bool
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -175,7 +176,7 @@ func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) s
 	if err != nil && dr.erpcEnabled {
 		name, err = dr.GetNameFromERPC(mountID, inode, pathID)
 	}
-	if err != nil {
+	if err != nil && dr.mapEnabled {
 		name, _ = dr.GetNameFromMap(mountID, inode, pathID)
 	}
 	return name
@@ -339,6 +340,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	i := 0
 	depth := 0
+	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
 		depth++
 
@@ -349,7 +351,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		i += 16
 
 		if dr.erpcSegment[i] == 0 {
-			if depth < model.MaxPathDepth{
+			if depth < model.MaxPathDepth {
 				resolutionErr = errTruncatedParents
 			} else {
 				resolutionErr = errERPCResolution
@@ -406,7 +408,7 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (
 	if err != nil && dr.erpcEnabled {
 		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
 	}
-	if err != nil && err != errTruncatedParents {
+	if err != nil && err != errTruncatedParents && dr.mapEnabled {
 		path, err = dr.ResolveFromMap(mountID, inode, pathID)
 	}
 	return path, err
@@ -497,5 +499,6 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		mapEnabled:      probe.config.MapDentryResolutionEnabled,
 	}, nil
 }

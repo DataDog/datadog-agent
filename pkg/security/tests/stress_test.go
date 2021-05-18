@@ -319,7 +319,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -378,7 +378,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
