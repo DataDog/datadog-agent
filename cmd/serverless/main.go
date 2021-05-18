@@ -323,8 +323,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		// of reporting non-critical init errors.
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	f := forwarder.NewSyncForwarder(keysPerDomain)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)

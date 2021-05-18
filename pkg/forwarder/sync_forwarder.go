@@ -23,6 +23,7 @@ var forwarderTimeout = config.Datadog.GetDuration("forwarder_timeout") * time.Se
 
 // NewSyncForwarder returns a new synchronous forwarder.
 func NewSyncForwarder(keysPerDomains map[string][]string) *SyncForwarder {
+	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	return &SyncForwarder{
 		defaultForwarder: NewDefaultForwarder(NewOptions(keysPerDomains)),
 		client: &http.Client{
