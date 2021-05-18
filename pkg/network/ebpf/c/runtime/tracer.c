@@ -355,28 +355,20 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
 // skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs* ctx) {
-    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
-    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM2(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
-    if (sk) {
-        bpf_probe_read(&t.sk, sizeof(t.sk), &sk);
-    }
-    if (msg) {
-        bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
-    }
-
-    // Store pointer to the socket using the pid/tgid
-    bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
-    log_debug("kprobe/udp_recvmsg: pid_tgid: %d\n", pid_tgid);
-
-    return 0;
-}
-
-SEC("kprobe/udp_recvmsg/pre_4_1_0")
-int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
     struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
-    struct msghdr* msg = (struct msghdr*) PT_REGS_PARM3(ctx);
+    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM3(ctx);
+    int flags = (int)PT_REGS_PARM6(ctx);
+#else
+    struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
+    struct msghdr* msg = (struct msghdr*)PT_REGS_PARM2(ctx);
+    int flags = (int)PT_REGS_PARM5(ctx);
+#endif
+    log_debug("kprobe/udp_recvmsg: flags: %x\n", flags);
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
     udp_recv_sock_t t = { .sk = NULL, .msg = NULL };
     if (sk) {
@@ -386,10 +378,7 @@ int kprobe__udp_recvmsg_pre_4_1_0(struct pt_regs* ctx) {
         bpf_probe_read(&t.msg, sizeof(t.msg), &msg);
     }
 
-    // Store pointer to the socket using the pid/tgid
     bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &t, BPF_ANY);
-    log_debug("kprobe/udp_recvmsg/pre_4_1_0: pid_tgid: %d\n", pid_tgid);
-
     return 0;
 }
 
