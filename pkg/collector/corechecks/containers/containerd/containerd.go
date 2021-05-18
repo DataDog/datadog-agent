@@ -40,7 +40,7 @@ const (
 	containerdCheckName = "containerd"
 )
 
-// ContainerCheck grabs containerd metrics and events
+// ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig

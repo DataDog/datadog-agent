@@ -39,6 +39,11 @@ issues:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/docker/
       text: "name will be used as .* by other packages, and that stutters"
+    - path: pkg/util/containers/cri
+      text: "name will be used as .* by other packages, and that stutters"
+    - path: pkg/util/containerd
+      text: "name will be used as .* by other packages, and that stutters"
+
 linters:
   disable-all: true
   enable:

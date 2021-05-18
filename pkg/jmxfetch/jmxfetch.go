@@ -78,7 +78,7 @@ type JMXFetch struct {
 	stopped            chan struct{}
 }
 
-// JMXFetch supports different way of reporting the data it has fetched.
+// JMXReporter supports different way of reporting the data it has fetched.
 type JMXReporter string
 
 var (
@@ -399,7 +399,7 @@ func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
 	return nil
 }
 
-// ConfigureFromInitConfig configures various options from the instance
+// ConfigureFromInstance configures various options from the instance
 // section of the configuration
 func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 
