@@ -334,10 +334,15 @@ func TestChown(t *testing.T) {
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
+		f, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
 		// fchown syscall
 		if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN32, f.Fd(), 101, 201); errno != 0 {
 			t.Fatal(err)
 		}
+		defer f.Close()
 
 		event, _, err := test.GetEvent()
 		if err != nil {
