@@ -2,6 +2,7 @@ package snmp
 
 import (
 	json "encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
@@ -16,7 +17,12 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	deviceID := "abc123"
 
 	device := ms.buildNetworkDeviceMetadata(deviceID, config, store, tags)
-	interfaces := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
+
+	interfaces, err := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
+	if err != nil {
+		log.Errorf("Error building interfaces metadata: %s", err)
+	}
+
 	metadata := device_metadata.NetworkDevicesMetadata{
 		Devices: []device_metadata.DeviceMetadata{
 			device,
@@ -32,9 +38,9 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 
 func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) device_metadata.DeviceMetadata {
 	var vendor string
-	sysName := getScalarValueAsString(store, device_metadata.SysNameOID)
-	sysDescr := getScalarValueAsString(store, device_metadata.SysDescrOID)
-	sysObjectID := getScalarValueAsString(store, device_metadata.SysObjectIDOID)
+	sysName := store.getScalarValueAsString(device_metadata.SysNameOID)
+	sysDescr := store.getScalarValueAsString(device_metadata.SysDescrOID)
+	sysObjectID := store.getScalarValueAsString(device_metadata.SysObjectIDOID)
 
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
@@ -52,19 +58,14 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, config snmpC
 	}
 }
 
-func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) []device_metadata.InterfaceMetadata {
-
-	valuesByIndex := store.getColumnValuesByIndex(device_metadata.MetadataColumnOIDs)
-
-	var indexes []string
-	for index := range valuesByIndex {
-		indexes = append(indexes, index)
+func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) ([]device_metadata.InterfaceMetadata, error) {
+	indexes, err := store.getColumnIndexes(device_metadata.IfNameOID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting indexes: %s", err)
 	}
-	sort.Strings(indexes)
 
 	var interfaces []device_metadata.InterfaceMetadata
 	for _, strIndex := range indexes {
-		interfaceOidValues := valuesByIndex[strIndex]
 		index, err := strconv.Atoi(strIndex)
 		if err != nil {
 			log.Warnf("interface metadata: invalid index: %s", index)
@@ -74,54 +75,14 @@ func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config s
 		networkInterface := device_metadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
-			Name:        getColumnValueAsString(interfaceOidValues, device_metadata.IfNameOID),
-			Alias:       getColumnValueAsString(interfaceOidValues, device_metadata.IfAliasOID),
-			Description: getColumnValueAsString(interfaceOidValues, device_metadata.IfDescrOID),
-			MacAddress:  getColumnValueAsString(interfaceOidValues, device_metadata.IfPhysAddressOID),
-			AdminStatus: int32(getColumnValueAsFloat(interfaceOidValues, device_metadata.IfAdminStatusOID)),
-			OperStatus:  int32(getColumnValueAsFloat(interfaceOidValues, device_metadata.IfOperStatusOID)),
+			Name:        store.getColumnValueAsString(device_metadata.IfNameOID, strIndex),
+			Alias:       store.getColumnValueAsString(device_metadata.IfAliasOID, strIndex),
+			Description: store.getColumnValueAsString(device_metadata.IfDescrOID, strIndex),
+			MacAddress:  store.getColumnValueAsString(device_metadata.IfPhysAddressOID, strIndex),
+			AdminStatus: int32(store.getColumnValueAsFloat(device_metadata.IfAdminStatusOID, strIndex)),
+			OperStatus:  int32(store.getColumnValueAsFloat(device_metadata.IfOperStatusOID, strIndex)),
 		}
 		interfaces = append(interfaces, networkInterface)
 	}
-	return interfaces
-}
-
-func getColumnValueAsString(values map[string]snmpValueType, oid string) string {
-	value, ok := values[oid]
-	if !ok {
-		return ""
-	}
-	str, err := value.toString()
-	if err != nil {
-		log.Debugf("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
-}
-
-func getColumnValueAsFloat(values map[string]snmpValueType, oid string) float64 {
-	value, ok := values[oid]
-	if !ok {
-		return 0
-	}
-	floatValue, err := value.toFloat64()
-	if err != nil {
-		log.Debugf("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return 0
-	}
-	return floatValue
-}
-
-func getScalarValueAsString(store *resultValueStore, oid string) string {
-	value, err := store.getScalarValue(oid)
-	if err != nil {
-		log.Debugf("failed to get value for OID %s: %s", oid, err)
-		return ""
-	}
-	str, err := value.toString()
-	if err != nil {
-		log.Debugf("failed to convert to string for OID %s with value %v: %s", oid, value, err)
-		return ""
-	}
-	return str
+	return interfaces, err
 }
