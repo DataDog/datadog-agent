@@ -2,14 +2,15 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/device_metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var defaultOidBatchSize = 60
@@ -110,15 +111,20 @@ func (c *snmpConfig) addUptimeMetric() {
 	c.uptimeMetricAdded = true
 }
 
+// getStaticTags return static tags built from configuration
+// warning: changing getStaticTags logic might lead to different deviceID
 func (c *snmpConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
 	tags = append(tags, c.extraTags...)
 	return tags
 }
 
+// getDeviceIDTags return sorted tags used for generating device id
+// warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *snmpConfig) getDeviceIDTags() []string {
 	tags := c.getStaticTags()
 	tags = append(tags, c.instanceTags...)
+	sort.Strings(tags)
 	return tags
 }
 

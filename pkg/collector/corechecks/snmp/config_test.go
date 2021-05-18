@@ -702,3 +702,15 @@ extra_tags: "extratag1:val1,extratag2:val2"
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, check.config.getStaticTags())
 }
+
+func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
+	c := &snmpConfig{
+		ipAddress:    "1.2.3.4",
+		extraTags:    []string{"extratag1:val1", "extratag2"},
+		instanceTags: []string{"instancetag1:val1", "instancetag2"},
+	}
+	actualTags := c.getDeviceIDTags()
+
+	expectedTags := []string{"extratag1:val1", "extratag2", "instancetag1:val1", "instancetag2", "snmp_device:1.2.3.4"}
+	assert.Equal(t, expectedTags, actualTags)
+}
