@@ -38,7 +38,7 @@ func NewContainer(container types.ContainerJSON, service *service.Service) *Cont
 	}
 }
 
-// findSource returns the source that most likely matches the container,
+// FindSource returns the source that most likely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var bestMatch *config.LogSource

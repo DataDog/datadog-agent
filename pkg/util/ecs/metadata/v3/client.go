@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// Default environment variable used to hold the metadata endpoint URI.
+	// DefaultMetadataURIEnvVariable is the default environment variable used to hold the metadata endpoint URI.
 	DefaultMetadataURIEnvVariable = "ECS_CONTAINER_METADATA_URI"
 
 	// Metadata v3 API paths
