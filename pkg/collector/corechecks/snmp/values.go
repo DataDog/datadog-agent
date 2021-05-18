@@ -2,8 +2,9 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type resultValueStore struct {
