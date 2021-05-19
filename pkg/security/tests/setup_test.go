@@ -41,6 +41,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -894,6 +895,33 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 
 		test(t, syscallNB)
 	}
+}
+
+func loadSyscallTester(t *testing.T) (string, error) {
+	testerBin, err := syscall_tester.Asset("/syscall_tester")
+	if err != nil {
+		return "", err
+	}
+
+	binPath := filepath.Join(t.TempDir(), "syscall_tester")
+	f, err := os.Create(binPath)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err = f.Write(testerBin); err != nil {
+		return "", err
+	}
+
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
+	if err := os.Chmod(binPath, 0700); err != nil {
+		return "", err
+	}
+
+	return binPath, nil
 }
 
 // waitForProbeEvent returns the first open event with the provided filename.
