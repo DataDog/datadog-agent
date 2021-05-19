@@ -440,6 +440,7 @@ build_win:
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent"
+    - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent-backup"
   artifacts:
     expire_in: 2 weeks
     paths:
