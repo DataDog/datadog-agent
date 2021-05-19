@@ -114,16 +114,16 @@ build do
     end
   end
 
-  if windows?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-  else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", :env => env
-    copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-  end
+  # [STS] Do not want to build the DD Agent Process Agent
+  # if windows?
+  #   platform = windows_arch_i386? ? "x86" : "x64"
+  #   # Build the process-agent with the correct go version for windows
+  #   command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform}", :env => env
+  #   copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  # else
+  #   command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", :env => env
+  #   copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+  # end
 
   # Add SELinux policy for system-probe
   if debian? || redhat?
