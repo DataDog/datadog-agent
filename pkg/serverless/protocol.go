@@ -289,16 +289,16 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	messages, err := aws.ProcessLogMessages(data)
+	messages, err := aws.ParseLogsAPIPayload(data)
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogsAPIPayload(l, messages)
+		processLogMessages(l, messages)
 		w.WriteHeader(200)
 	}
 }
 
-func processLogsAPIPayload(l *LogsCollection, messages []aws.LogMessage) {
+func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 	metricTags := getTagsForEnhancedMetrics()
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
