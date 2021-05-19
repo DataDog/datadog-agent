@@ -6,10 +6,30 @@
 package aws
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestUnmarshalExtensionLog(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
+	require.NoError(t, err)
+	var messages []LogMessage
+	err = json.Unmarshal(raw, &messages)
+	require.NoError(t, err)
+
+	expectedTime, _ := time.Parse(logMessageTimeLayout, "2020-08-20T12:31:32.123Z")
+	expectedLogMessage := LogMessage{
+		Type:         LogTypeExtension,
+		Time:         expectedTime,
+		StringRecord: "sample extension log",
+	}
+	assert.Equal(t, expectedLogMessage, messages[0])
+}
 
 func TestShouldProcessLog(t *testing.T) {
 
