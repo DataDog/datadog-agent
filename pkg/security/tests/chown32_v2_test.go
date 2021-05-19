@@ -47,7 +47,7 @@ func TestChown32(t *testing.T) {
 	}
 
 	t.Run("chown32", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "chown", testFile, "100", "200")
+		sideTester := exec.Command(syscallTester, "chown32", testFile, "100", "200")
 		if output, err := sideTester.CombinedOutput(); err != nil {
 			t.Error(string(output))
 			t.Error(err)

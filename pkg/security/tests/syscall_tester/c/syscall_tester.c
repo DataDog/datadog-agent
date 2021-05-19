@@ -4,7 +4,7 @@
 #include <sys/syscall.h>
 #include <string.h>
 
-int chown_syscall(int argc, char **argv) {
+int chown32_syscall(int argc, char **argv) {
     if (argc != 4) {
         printf("Please pass a file path, destination uid and destination gid to chown\n");
         return EXIT_FAILURE;
@@ -25,8 +25,8 @@ int main(int argc, char **argv) {
 
     char* cmd = argv[1];
 
-    if (strcmp(cmd, "chown") == 0) {
-        return chown_syscall(argc - 1, argv + 1);
+    if (strcmp(cmd, "chown32") == 0) {
+        return chown32_syscall(argc - 1, argv + 1);
     } else {
         printf("Unknown command `%s`\n", cmd);
     }
