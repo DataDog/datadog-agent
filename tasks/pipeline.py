@@ -104,8 +104,11 @@ def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=Fa
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, project_name, git_ref, sha)
 
-    print("Found {} running pipeline(s) matching the request.".format(len(pipelines)))
-    print("They are ordered from the newest one to the oldest one.\n")
+    print(
+        "Found {} running pipeline(s) matching the request.".format(len(pipelines)),
+        "They are ordered from the newest one to the oldest one.\n",
+        sep='\n',
+    )
     cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
 
@@ -213,14 +216,13 @@ def run(
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, project_name, git_ref)
 
-    if len(pipelines) != 0:
+    if pipelines:
         print(
-            (
-                "There are already {} pipeline(s) running on the target git ref.\n"
-                "For each of them, you'll be asked whether you want to cancel them or not.\n"
-                "If you don't need these pipelines, please cancel them to save CI resources.\n"
-                "They are ordered from the newest one to the oldest one.\n"
-            ).format(len(pipelines))
+            "There are already {} pipeline(s) running on the target git ref.".format(len(pipelines)),
+            "For each of them, you'll be asked whether you want to cancel them or not.",
+            "If you don't need these pipelines, please cancel them to save CI resources.",
+            "They are ordered from the newest one to the oldest one.\n",
+            sep='\n',
         )
         cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
