@@ -92,10 +92,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	switch typ {
 	case LogTypePlatformLogsSubscription, LogTypePlatformExtension:
 		l.Type = typ
-	case LogTypeFunction:
-		l.Type = typ
-		l.StringRecord = j["record"].(string)
-	case LogTypeExtension:
+	case LogTypeFunction, LogTypeExtension:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
 	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport:
