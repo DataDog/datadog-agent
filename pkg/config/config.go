@@ -55,6 +55,13 @@ const (
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
 	DefaultBatchMaxConcurrentSend = 0
 
+	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
+	DefaultBatchMaxSize = 100
+
+	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
+	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
+	DefaultBatchMaxContentSize = 1000000
+
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
@@ -655,6 +662,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1093,6 +1102,8 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
 	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

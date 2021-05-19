@@ -117,13 +117,15 @@ func (d *Destination) Send(payload []byte) (err error) {
 	}
 
 	defer resp.Body.Close()
-	_, err = ioutil.ReadAll(resp.Body)
+	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.
 		return err
 	}
-
+	if resp.StatusCode >= 400 {
+		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
+	}
 	if resp.StatusCode >= 500 {
 		// the server could not serve the request,
 		// most likely because of an internal error
