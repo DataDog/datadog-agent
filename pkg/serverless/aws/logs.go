@@ -189,9 +189,8 @@ func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 		sanitizedData := removeInvalidTracingItem(data)
 		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
 			return nil, errors.New("can't read log message")
-		} else {
-			return messages, nil
 		}
+		return messages, nil
 	} else {
 		return messages, nil
 	}
