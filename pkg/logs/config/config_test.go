@@ -367,10 +367,9 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.Equal(expectedEndpoints, endpoints)
 }
 
-func (suite *ConfigTestSuite) TestBuildServerlessHTTPEndpoints() {
+func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.batch_wait", 1)
-	suite.config.Set("logs_config.logs_no_ssl", false)
 
 	expectedEndpoints := &Endpoints{
 		UseHTTP:   true,
@@ -385,7 +384,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessHTTPEndpoints() {
 		},
 	}
 
-	endpoints, err := BuildServerlessHTTPEndpoints()
+	endpoints, err := BuildServerlessEndpoints()
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)

@@ -44,7 +44,7 @@ func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*co
 		endpoints, err = config.BuildHTTPEndpoints()
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, false)
+			endpoints, err = config.BuildEndpoints(httpConnectivity)
 		}
 	}
 

@@ -102,21 +102,24 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 }
 
 // BuildEndpoints returns the endpoints to send logs.
-func BuildEndpoints(httpConnectivity HTTPConnectivity, serverless bool) (*Endpoints, error) {
+func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
 	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
 	}
 	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet() || hasAdditionalEndpoints())) {
-		if serverless {
-			return BuildServerlessHTTPEndpoints()
-		}
 		return BuildHTTPEndpoints()
 	}
 	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
 		"To benefit from increased reliability and better network performances, " +
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
+}
+
+// BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
+func BuildServerlessEndpoints() (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
+	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHTTPEndpointPrefix)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
@@ -226,11 +229,6 @@ func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints() (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, httpEndpointPrefix)
-}
-
-// BuildServerlessHTTPEndpoints returns the HTTP endpoints to send logs to for the Serverless Agent.
-func BuildServerlessHTTPEndpoints() (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHTTPEndpointPrefix)
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
