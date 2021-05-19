@@ -156,5 +156,21 @@ var (
 			"statefulset.count",
 			[]string{"namespace"},
 		),
+		"kube_cronjob_labels": newCountObjectsAggregator(
+			"cronjob.count",
+			[]string{"namespace"},
+		),
+		"kube_endpoint_labels": newCountObjectsAggregator(
+			"endpoint.count",
+			[]string{"namespace", "endpoint"},
+		),
+		"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
+			"hpa.count",
+			[]string{"namespace", "horizontalpodautoscaler"},
+		),
+		"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
+			"vpa.count",
+			[]string{"namespace", "verticalpodautoscaler"},
+		),
 	}
 )
