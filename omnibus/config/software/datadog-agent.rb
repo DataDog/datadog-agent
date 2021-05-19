@@ -114,7 +114,7 @@ build do
     end
   end
 
-  # [STS] Do not want to build the DD Agent Process Agent
+  # [STS] Do not want to build the DD Process Agent
   # if windows?
   #   platform = windows_arch_i386? ? "x86" : "x64"
   #   # Build the process-agent with the correct go version for windows
@@ -131,16 +131,16 @@ build do
     command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
   end
 
-  # Security agent
-  if windows?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
-
-    copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-  else
-    command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
-    copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-  end
+  # [STS] Do not want to build the DD Security Agent
+  # # Security agent
+  # if windows?
+  #   platform = windows_arch_i386? ? "x86" : "x64"
+  #   command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+  #   copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  # else
+  #   command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+  #   copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+  # end
 
   if linux?
     if debian?
