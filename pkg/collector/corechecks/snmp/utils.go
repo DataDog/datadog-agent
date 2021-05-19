@@ -3,8 +3,9 @@ package snmp
 import (
 	"fmt"
 	"hash/fnv"
-	"sort"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func createStringBatches(elements []string, size int) ([][]string, error) {
@@ -32,13 +33,13 @@ func copyStrings(tags []string) []string {
 	return newTags
 }
 
-func buildDeviceID(tags []string) (string, []string) {
+func buildDeviceID(origTags []string) (string, []string) {
 	h := fnv.New64()
-	idTags := copyStrings(tags)
-	sort.Strings(idTags)
+	tags := copyStrings(origTags)
+	tags = util.SortUniqInPlace(tags)
 	for _, tag := range tags {
 		// the implementation of h.Write never returns a non-nil error
 		_, _ = h.Write([]byte(tag))
 	}
-	return strconv.FormatUint(h.Sum64(), 16), idTags
+	return strconv.FormatUint(h.Sum64(), 16), tags
 }

@@ -121,9 +121,15 @@ func Test_buildDeviceID(t *testing.T) {
 			expectedIDTags:   []string{"snmp_device:2.2.3.4"},
 		},
 		{
-			name:             "many tag",
+			name:             "many tags",
 			tags:             []string{"zoo", "snmp_device:1.2.3.4", "foo"},
-			expectedDeviceID: "1f21f8cf4bda174c",
+			expectedDeviceID: "e413dc66fbaf23f4",
+			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
+		},
+		{
+			name:             "many tags with duplicate",
+			tags:             []string{"zoo", "snmp_device:1.2.3.4", "zoo", "foo"},
+			expectedDeviceID: "e413dc66fbaf23f4",
 			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
 		},
 	}

@@ -316,6 +316,7 @@ profile: f5-big-ip
 collect_device_metadata: true
 tags:
   - "mytag:val1"
+  - "mytag:val1" # add duplicate tag for testing deduplication
 `)
 	// language=yaml
 	rawInitConfig := []byte(`

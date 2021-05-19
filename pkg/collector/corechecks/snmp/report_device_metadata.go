@@ -4,21 +4,24 @@ import (
 	json "encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"sort"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, tags []string) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string) {
 	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
+
+	tags := copyStrings(origTags)
+	tags = util.SortUniqInPlace(tags)
 
 	deviceID, deviceIDTags := buildDeviceID(config.getDeviceIDTags())
 
 	device := ms.buildNetworkDeviceMetadata(deviceID, deviceIDTags, config, store, tags)
 
-	interfaces, err := ms.buildNetworkInterfacesMetadata(deviceID, config, store, tags)
+	interfaces, err := ms.buildNetworkInterfacesMetadata(deviceID, store)
 	if err != nil {
 		log.Errorf("Error building interfaces metadata: %s", err)
 	}
@@ -45,7 +48,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []str
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
 	}
-	sort.Strings(tags)
+
 	return metadata.DeviceMetadata{
 		ID:          deviceID,
 		IDTags:      idTags,
@@ -59,7 +62,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []str
 	}
 }
 
-func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, config snmpConfig, store *resultValueStore, tags []string) ([]metadata.InterfaceMetadata, error) {
+func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([]metadata.InterfaceMetadata, error) {
 	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting indexes: %s", err)
