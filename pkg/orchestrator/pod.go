@@ -42,6 +42,8 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 	podMsgs := make([]*model.Pod, 0, len(podList))
 
 	for _, p := range podList {
+		redact.RemoveLastAppliedConfigurationAnnotation(p.Annotations)
+
 		// extract pod info
 		podModel := extractPodMessage(p)
 
