@@ -158,6 +158,8 @@ class Gitlab(object):
         headers = dict(headers or [])
         headers["PRIVATE-TOKEN"] = self.api_token
 
+        # TODO: Use the param argument of requests instead of handling URL params
+        # manually
         try:
             if data or method == "POST":
                 r = requests.post(url, headers=headers, data=data, stream=stream)
