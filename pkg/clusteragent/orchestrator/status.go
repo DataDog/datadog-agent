@@ -121,8 +121,8 @@ func setClusterName(status map[string]interface{}) {
 func setCollectionIsWorking(status map[string]interface{}) {
 	c := orchestrator.KubernetesResourceCache.ItemCount()
 	if c > 0 {
-		status["CollectionWorking"] = "The collection seems to work as we have resources in the cache"
+		status["CollectionWorking"] = "The collection should work because we have resources in the cache"
 	} else {
-		status["CollectionWorking"] = "The collection seems not to work as there are not elements in the cache. Care the cache may still be priming."
+		status["CollectionWorking"] = "The collection should not to work as there are no elements in the cache. Care the cache may still be priming."
 	}
 }
