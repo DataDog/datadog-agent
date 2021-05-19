@@ -179,9 +179,11 @@ func createStringRecordForReportLog(l *LogMessage) string {
 	return stringRecord
 }
 
+// ParseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
 func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 	var messages []LogMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
+		// Temporary fix to handle malformed JSON tracing object : retry with sanitization
 		log.Debug("Can't read log message, retry with sanitization")
 		sanitizedData := removeInvalidTracingItem(data)
 		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
@@ -194,6 +196,7 @@ func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 	}
 }
 
+// Temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
 	noSpace := strings.ReplaceAll(string(data), " ", "")
 	return []byte(strings.ReplaceAll(noSpace, ",\"tracing\":}", ""))

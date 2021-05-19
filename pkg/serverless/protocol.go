@@ -291,11 +291,10 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := aws.ParseLogsAPIPayload(data)
 	if err != nil {
+		w.WriteHeader(400)
+	} else {
 		processLogsAPIPayload(l, messages)
 		w.WriteHeader(200)
-	} else {
-		log.Error(err)
-		w.WriteHeader(400)
 	}
 }
 
