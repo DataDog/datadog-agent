@@ -58,7 +58,6 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 		Contents: c,
 		Version:  ver,
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
-		Shutdown: make(chan struct{}),
 	}, nil
 }
 

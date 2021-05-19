@@ -106,7 +106,6 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		return
 	}
 
-	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
 	// inMemoryFS is used for testing purposes
 	if atomic.LoadInt64(&inMemoryFs) > 0 {
 		appFS := afero.NewMemMapFs()
