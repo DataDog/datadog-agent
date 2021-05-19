@@ -19,9 +19,8 @@ build do
         # Conf files
         if windows?
             # Temp copying files over to create artifacts from it
-            copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "/libdatadog-agent-three.dll"
-            copy "#{install_dir}/bin/agent/libdatadog-agent-two.dll", "/libdatadog-agent-two.dll"
-            copy "#{install_dir}/bin/agent/customaction.dll", "/customaction.dll"
+            copy "#{install_dir}/bin/agent", "#{install_dir}/bin/agent-backup"
+
 
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"

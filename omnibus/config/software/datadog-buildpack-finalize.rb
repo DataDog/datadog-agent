@@ -28,12 +28,6 @@ build do
             mkdir cf_bin_root_bin
             mkdir "#{cf_bin_root_bin}/agent"
 
-            # Temp copying files over to create artifacts from it
-            copy "#{cf_source_root}/agent/agent.exe", "/agent.exe"
-            copy "#{cf_source_root}/agent/process-agent.exe", "/process-agent.exe"
-            copy "#{cf_source_root}/agent/trace-agent.exe", "/trace-agent.exe"
-            copy "#{cf_source_root}/agent/security-agent.exe", "/security-agent.exe"
-
             copy "#{cf_source_root}/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{dsd_source_root}/agent/dogstatsd.exe", "#{cf_bin_root_bin}/agent"
             copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
