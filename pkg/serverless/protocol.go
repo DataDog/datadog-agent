@@ -7,7 +7,6 @@ package serverless
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -289,29 +288,33 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-	var messages []aws.LogMessage
 
-	if err := json.Unmarshal(data, &messages); err != nil {
-		log.Error("Can't read log message")
-		w.WriteHeader(400)
-	} else {
-		metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-		metricTags := getTagsForEnhancedMetrics()
-		logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
-		enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
-		arn := aws.GetARN()
-		lastRequestID := aws.GetRequestID()
-		functionName := aws.FunctionNameFromARN()
-		for _, message := range messages {
-			processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
-			// We always collect and process logs for the purpose of extracting enhanced metrics.
-			// However, if logs are not enabled, we do not send them to the intake.
-			if logsEnabled {
-				logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
-				l.ch <- logMessage
-			}
-		}
+	messages, err := aws.ParseLogsAPIPayload(data)
+	if err != nil {
+		processLogsAPIPayload(l, messages)
 		w.WriteHeader(200)
+	} else {
+		log.Error(err)
+		w.WriteHeader(400)
+	}
+}
+
+func processLogsAPIPayload(l *LogsCollection, messages []aws.LogMessage) {
+	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
+	metricTags := getTagsForEnhancedMetrics()
+	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
+	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
+	arn := aws.GetARN()
+	lastRequestID := aws.GetRequestID()
+	functionName := aws.FunctionNameFromARN()
+	for _, message := range messages {
+		processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
+		// We always collect and process logs for the purpose of extracting enhanced metrics.
+		// However, if logs are not enabled, we do not send them to the intake.
+		if logsEnabled {
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
+			l.ch <- logMessage
+		}
 	}
 }
 

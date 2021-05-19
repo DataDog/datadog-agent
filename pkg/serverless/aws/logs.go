@@ -7,7 +7,9 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -175,4 +177,24 @@ func createStringRecordForReportLog(l *LogMessage) string {
 	}
 
 	return stringRecord
+}
+
+func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
+	var messages []LogMessage
+	if err := json.Unmarshal(data, &messages); err != nil {
+		log.Debug("Can't read log message, retry with sanitization")
+		sanitizedData := removeInvalidTracingItem(data)
+		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
+			return nil, errors.New("can't read log message")
+		} else {
+			return messages, nil
+		}
+	} else {
+		return messages, nil
+	}
+}
+
+func removeInvalidTracingItem(data []byte) []byte {
+	noSpace := strings.ReplaceAll(string(data), " ", "")
+	return []byte(strings.ReplaceAll(noSpace, ",\"tracing\":}", ""))
 }
