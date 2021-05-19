@@ -37,7 +37,7 @@ windows_msi_and_bosh_zip_x64-a7:
 windows_msi_x86-a7:
   extends: .windows_main_agent_base
   rules:
-    !reference [.except_on_deploy_a7]
+    !reference [.on_a7_except_deploy]
   allow_failure: true
   variables:
     ARCH: "x86"
@@ -60,7 +60,7 @@ windows_msi_x64-a6:
 windows_msi_x86-a6:
   extends: .windows_main_agent_base
   rules:
-    !reference [.except_on_deploy_a6]
+    !reference [.on_a6_except_deploy]
   allow_failure: true
   variables:
     ARCH: "x86"

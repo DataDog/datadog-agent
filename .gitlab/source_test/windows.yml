@@ -22,7 +22,7 @@ tests_windows-x64:
 
 tests_windows-x86:
   rules:
-    !reference [.except_on_deploy]
+    !reference [.except_deploy]
   extends: .tests_windows_base
   variables:
     PYTHON_RUNTIMES: 3

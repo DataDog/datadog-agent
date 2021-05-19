@@ -413,19 +413,19 @@ variables:
   - <<: *if_deploy
     when: always
 
-.except_on_deploy:
+.except_deploy:
   - <<: *if_deploy
     when: never
   - when: on_success
 
-.except_on_deploy_a6:
+.on_a6_except_deploy:
   - <<: *if_not_version_6
     when: never
   - <<: *if_deploy
     when: never
   - when: on_success
 
-.except_on_deploy_a7:
+.on_a7_except_deploy:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
