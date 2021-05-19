@@ -142,8 +142,6 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
 				l.StringRecord = createStringRecordForReportLog(l)
-				log.Debug("Unmarshalled REPORT log")
-				log.Debug("String record: " + l.StringRecord)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -158,14 +156,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 // ShouldProcessLog returns whether or not the log should be further processed.
 func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if arn == "" {
-		log.Debug("Skipped processing log message because of missing arn")
-		log.Debug("Message type: " + message.Type)
-		return false
-	}
-	if lastRequestID == "" {
-		log.Debug("Skipped processing log message because of missing lastRequestId")
-		log.Debug("Message type: " + message.Type)
+	if lastRequestID == "" || arn == "" {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
