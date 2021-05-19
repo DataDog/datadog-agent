@@ -102,17 +102,16 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 }
 
 func setClusterName(status map[string]interface{}) {
-	message := "No cluster name was detected. This means resource collection will not work."
+	errorMsg := "No cluster name was detected. This means resource collection will not work."
 
 	hostname, err := util.GetHostname()
 	if err != nil {
-		status["ClusterNameError"] = fmt.Sprintf("Error detecting cluster name: %s.\n%s", err.Error(), message)
+		status["ClusterNameError"] = fmt.Sprintf("Error detecting cluster name: %s.\n%s", err.Error(), errorMsg)
 	} else {
-		cName := clustername.GetClusterName(hostname)
-		if cName == "" {
-			status["ClusterName"] = message
-		} else {
+		if cName := clustername.GetClusterName(hostname); cName != "" {
 			status["ClusterName"] = cName
+		} else {
+			status["ClusterName"] = errorMsg
 		}
 	}
 }
@@ -121,8 +120,8 @@ func setClusterName(status map[string]interface{}) {
 func setCollectionIsWorking(status map[string]interface{}) {
 	c := orchestrator.KubernetesResourceCache.ItemCount()
 	if c > 0 {
-		status["CollectionWorking"] = "The collection should work because we have resources in the cache"
+		status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
 	} else {
-		status["CollectionWorking"] = "The collection should not to work as there are no elements in the cache. Care the cache may still be priming."
+		status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
 	}
 }
