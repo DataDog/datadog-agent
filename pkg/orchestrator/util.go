@@ -112,3 +112,15 @@ func getTelemetryTags(n NodeType) []string {
 		strings.ToLower(n.String()),
 	}
 }
+
+func GetChunkRange(chunkLen, chunkCount, chunkSize, counter int) (int, int) {
+	var (
+		chunkStart = chunkSize * (counter - 1)
+		chunkEnd   = chunkSize * (counter)
+	)
+	// last chunk may be smaller than the chunk size
+	if counter == chunkCount {
+		chunkEnd = chunkLen
+	}
+	return chunkStart, chunkEnd
+}
