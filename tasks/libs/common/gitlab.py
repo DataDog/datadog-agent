@@ -56,15 +56,33 @@ class Gitlab(object):
         data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()],})
         return self.make_request(path, headers=headers, data=data, json=True)
 
-    def pipelines_for_ref(self, project_name, ref, per_page=100):
+    def all_pipelines_for_ref(self, project_name, ref, sha=None):
         """
-        Gets all pipelines for a given reference
+        Gets all pipelines for a given reference (+ optionally git sha).
+        """
+        pipelines = []
+        page = 1
+
+        # Go through all pages
+        results = self.pipelines_for_ref(project_name, ref, sha=sha, page=page)
+        while results:
+            pipelines.extend(results)
+            page += 1
+            results = self.pipelines_for_ref(project_name, ref, sha=sha, page=page)
+
+        return pipelines
+
+    def pipelines_for_ref(self, project_name, ref, sha=None, page=1, per_page=100):
+        """
+        Gets one page of pipelines for a given reference (+ optionally git sha).
         """
         from urllib.parse import quote
 
-        path = "/projects/{}/pipelines?ref={}&per_page={}".format(
-            quote(project_name, safe=""), quote(ref, safe=""), per_page,
+        path = "/projects/{}/pipelines?ref={}&per_page={}&page={}".format(
+            quote(project_name, safe=""), quote(ref, safe=""), per_page, page
         )
+        if sha:
+            path = "{}&sha={}".format(path, sha)
         return self.make_request(path, json=True)
 
     def last_pipeline_for_ref(self, project_name, ref, per_page=100):
@@ -72,7 +90,7 @@ class Gitlab(object):
         Gets the last pipeline for a given reference.
         per_page cannot exceed 100.
         """
-        pipelines = self.pipelines_for_ref(project_name, ref, per_page)
+        pipelines = self.pipelines_for_ref(project_name, ref, per_page=per_page)
 
         if len(pipelines) == 0:
             return None
@@ -87,6 +105,15 @@ class Gitlab(object):
 
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
+
+    def cancel_pipeline(self, project_name, pipeline_id):
+        """
+        Cancels a given pipeline.
+        """
+        from urllib.parse import quote
+
+        path = "/projects/{}/pipelines/{}/cancel".format(quote(project_name, safe=""), pipeline_id)
+        return self.make_request(path, json=True, method="POST")
 
     def commit(self, project_name, commit_sha):
         """
@@ -143,7 +170,7 @@ class Gitlab(object):
         path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
         return self.make_request(path, json=True)
 
-    def make_request(self, path, headers=None, data=None, json=False, stream=False):
+    def make_request(self, path, headers=None, data=None, json=False, stream=False, method=None):
         """
         Utility to make a request to the Gitlab API.
         """
@@ -153,8 +180,9 @@ class Gitlab(object):
 
         headers = dict(headers or [])
         headers["PRIVATE-TOKEN"] = self.api_token
+
         try:
-            if data:
+            if data or method == "POST":
                 r = requests.post(url, headers=headers, data=data, stream=stream)
             else:
                 r = requests.get(url, headers=headers, stream=stream)
