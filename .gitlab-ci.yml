@@ -443,8 +443,8 @@ build_win:
     expire_in: 2 weeks
     paths:
       - ./*.msi
-      - ./bin/agent
-      - ./bin/agent-backup
+      - %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent
+      - %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent-backup
       - "version.txt"
   tags:
     - windows_agent7_ps1
