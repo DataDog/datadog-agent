@@ -393,50 +393,6 @@ global_metrics:
 	assert.Equal(t, metrics, check.config.metrics)
 }
 
-func Test_oidConfig_hasOids(t *testing.T) {
-	tests := []struct {
-		name            string
-		scalarOids      []string
-		columnOids      []string
-		expectedHasOids bool
-	}{
-		{
-			"has scalar oids",
-			[]string{"1.2.3"},
-			[]string{},
-			true,
-		},
-		{
-			"has scalar and column oids",
-			[]string{"1.2.3"},
-			[]string{"1.2.4"},
-			true,
-		},
-		{
-			"has no oids",
-			[]string{},
-			[]string{},
-			false,
-		},
-		{
-			"has no oids nil",
-			nil,
-			nil,
-			false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			oc := &oidConfig{
-				scalarOids: tt.scalarOids,
-				columnOids: tt.columnOids,
-			}
-			hasOids := oc.hasOids()
-			assert.Equal(t, tt.expectedHasOids, hasOids)
-		})
-	}
-}
-
 func Test_buildConfig(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 
