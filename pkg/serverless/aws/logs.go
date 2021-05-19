@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// logMessageTimeLayout is the layout string used to format timestamps from logs
+const logMessageTimeLayout = "2006-01-02T15:04:05.999Z"
+
 const (
 	// LogTypeExtension is used to represent logs messages emitted by extensions
 	LogTypeExtension = "extension"
@@ -81,7 +84,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// time
 
 	if timeStr, ok := j["time"].(string); ok {
-		if time, err := time.Parse("2006-01-02T15:04:05.999Z", timeStr); err == nil {
+		if time, err := time.Parse(logMessageTimeLayout, timeStr); err == nil {
 			l.Time = time
 		}
 	}
@@ -89,11 +92,9 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// the rest
 
 	switch typ {
-	case LogTypeExtension:
-		fallthrough
 	case LogTypePlatformLogsSubscription, LogTypePlatformExtension:
 		l.Type = typ
-	case LogTypeFunction:
+	case LogTypeFunction, LogTypeExtension:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
 	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport:

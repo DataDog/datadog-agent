@@ -91,6 +91,9 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
+	computeStatsKey          = "_dd.compute_stats"
+	computeStatsValue        = "1"
+	functionARNKey           = "function_arn"
 )
 
 const (
@@ -352,6 +355,8 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
 		tc.Hostname = ""
 		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
+		tc.GlobalTags[computeStatsKey] = computeStatsValue
+		tc.GlobalTags[functionARNKey] = functionARN
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
