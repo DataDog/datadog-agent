@@ -45,7 +45,7 @@ type snmpInstanceConfig struct {
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
 	Tags                  []string          `yaml:"tags"`       // used for device metadata
-	CollectDeviceMetadata bool              `yaml:"collect_device_metadata"`
+	CollectDeviceMetadata Boolean           `yaml:"collect_device_metadata"`
 }
 
 type snmpConfig struct {
@@ -182,7 +182,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
 	c.port = uint16(instance.Port)
-	c.collectDeviceMetadata = instance.CollectDeviceMetadata
+	c.collectDeviceMetadata = bool(instance.CollectDeviceMetadata)
 
 	if instance.ExtraTags != "" {
 		c.extraTags = strings.Split(instance.ExtraTags, ",")

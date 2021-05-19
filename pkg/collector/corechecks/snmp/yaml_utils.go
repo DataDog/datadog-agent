@@ -1,6 +1,9 @@
 package snmp
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 // StringArray is list of string with a yaml un-marshaller that support both array and string.
 // See test file for example usage.
@@ -9,6 +12,9 @@ type StringArray []string
 
 // Number can unmarshal yaml string or integer
 type Number int
+
+// Boolean can unmarshal yaml string or bool value
+type Boolean bool
 
 //UnmarshalYAML unmarshalls StringArray
 func (a *StringArray) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -44,6 +50,32 @@ func (n *Number) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*n = Number(num)
 	} else {
 		*n = Number(integer)
+	}
+	return nil
+}
+
+//UnmarshalYAML unmarshalls Boolean
+func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var value bool
+	err := unmarshal(&value)
+	if err != nil {
+		var str string
+		err := unmarshal(&str)
+		if err != nil {
+			return err
+		}
+		switch str {
+		case "true":
+			value = true
+		case "false":
+			value = false
+		default:
+			return fmt.Errorf("cannot convert `%s` to boolean", str)
+		}
+		value = str == "true"
+		*b = Boolean(value)
+	} else {
+		*b = Boolean(value)
 	}
 	return nil
 }
