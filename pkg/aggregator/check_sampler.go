@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
