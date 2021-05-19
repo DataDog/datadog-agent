@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,6 +39,7 @@ var emptyPayload []byte
 // Destination sends a payload over HTTP.
 type Destination struct {
 	url                 string
+	apiKey              string
 	contentType         string
 	host                string
 	contentEncoding     ContentEncoding
@@ -63,6 +65,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
+		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
 		contentEncoding:     buildContentEncoding(endpoint),
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
@@ -103,6 +106,7 @@ func (d *Destination) Send(payload []byte) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
+	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
 	req = req.WithContext(ctx)
@@ -195,7 +199,7 @@ func buildURL(endpoint config.Endpoint) string {
 	} else {
 		address = endpoint.Host
 	}
-	return fmt.Sprintf("%v://%v/v1/input/%v", scheme, address, endpoint.APIKey)
+	return fmt.Sprintf("%v://%v/v1/input", scheme, address)
 }
 
 func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
