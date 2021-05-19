@@ -4,6 +4,7 @@ import os
 import platform
 import re
 import subprocess
+from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
@@ -36,8 +37,6 @@ class Gitlab(object):
         """
         Gets the project info.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}".format(quote(project_name, safe=""))
         return self.make_request(path, json=True)
 
@@ -46,8 +45,6 @@ class Gitlab(object):
         Create a pipeline targeting a given reference of a project.
         ref must be a branch or a tag.
         """
-        from urllib.parse import quote
-
         if variables is None:
             variables = {}
 
@@ -60,24 +57,19 @@ class Gitlab(object):
         """
         Gets all pipelines for a given reference (+ optionally git sha).
         """
-        pipelines = []
         page = 1
 
         # Go through all pages
         results = self.pipelines_for_ref(project_name, ref, sha=sha, page=page)
         while results:
-            pipelines.extend(results)
+            yield from results
             page += 1
             results = self.pipelines_for_ref(project_name, ref, sha=sha, page=page)
-
-        return pipelines
 
     def pipelines_for_ref(self, project_name, ref, sha=None, page=1, per_page=100):
         """
         Gets one page of pipelines for a given reference (+ optionally git sha).
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/pipelines?ref={}&per_page={}&page={}".format(
             quote(project_name, safe=""), quote(ref, safe=""), per_page, page
         )
@@ -101,8 +93,6 @@ class Gitlab(object):
         """
         Gets info for a given pipeline.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/pipelines/{}".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True)
 
@@ -110,8 +100,6 @@ class Gitlab(object):
         """
         Cancels a given pipeline.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/pipelines/{}/cancel".format(quote(project_name, safe=""), pipeline_id)
         return self.make_request(path, json=True, method="POST")
 
@@ -119,14 +107,10 @@ class Gitlab(object):
         """
         Gets info for a given commit sha.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/repository/commits/{}".format(quote(project_name, safe=""), commit_sha)
         return self.make_request(path, json=True)
 
     def artifact(self, project_name, job_id, artifact_name):
-        from urllib.parse import quote
-
         path = "/projects/{}/jobs/{}/artifacts/{}".format(quote(project_name, safe=""), job_id, artifact_name)
         response = self.make_request(path, stream=True)
         if response.status_code != 200:
@@ -137,25 +121,20 @@ class Gitlab(object):
         """
         Gets all the jobs for a pipeline.
         """
-        jobs = []
         page = 1
 
         # Go through all pages
         results = self.jobs(project_name, pipeline_id, page)
         while results:
-            jobs.extend(results)
+            yield from results
             page += 1
             results = self.jobs(project_name, pipeline_id, page)
-
-        return jobs
 
     def jobs(self, project_name, pipeline_id, page=1, per_page=100):
         """
         Gets one page of the jobs for a pipeline.
         per_page cannot exceed 100.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/pipelines/{}/jobs?per_page={}&page={}".format(
             quote(project_name, safe=""), pipeline_id, per_page, page
         )
@@ -165,8 +144,6 @@ class Gitlab(object):
         """
         Look up a tag by its name.
         """
-        from urllib.parse import quote
-
         path = "/projects/{}/repository/tags/{}".format(quote(project_name, safe=""), tag_name)
         return self.make_request(path, json=True)
 
