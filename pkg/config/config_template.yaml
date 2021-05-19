@@ -1001,6 +1001,10 @@ api_key:
   ## @param check_interval - duration - optional - default: 20m
   ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
   # check_interval: 20m
+
+  ## @param check_max_events_per_run - integer
+  ## - optional - default: 30
+  # check_max_events_per_run: 30
 {{ end -}}
 {{- if .SystemProbe }}
 

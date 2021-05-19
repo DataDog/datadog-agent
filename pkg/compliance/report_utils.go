@@ -24,3 +24,11 @@ func BuildReportForUnstructured(passed bool, obj unstructured.Unstructured) *Rep
 		},
 	}
 }
+
+// BuildReportForError returns a report for the given error
+func BuildReportForError(err error) *Report {
+	return &Report{
+		Passed: false,
+		Error:  err,
+	}
+}
