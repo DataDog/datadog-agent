@@ -544,6 +544,7 @@ profiles:
       "sys_object_id": "1.2.3.4",
       "profile": "f5-big-ip",
       "vendor": "f5",
+      "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
         "device_id:173b2077d0770b8",

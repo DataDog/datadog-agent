@@ -17,6 +17,7 @@ type DeviceMetadata struct {
 	SysObjectID string   `json:"sys_object_id"`
 	Profile     string   `json:"profile"`
 	Vendor      string   `json:"vendor"`
+	Subnet      string   `json:"subnet"`
 	Tags        []string `json:"tags"`
 }
 

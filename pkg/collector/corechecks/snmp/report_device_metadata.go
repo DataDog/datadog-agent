@@ -58,6 +58,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []str
 		Profile:     config.profile,
 		Vendor:      vendor,
 		Tags:        tags,
+		Subnet:      config.subnet,
 	}
 }
 
