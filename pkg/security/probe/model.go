@@ -87,9 +87,9 @@ func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
 }
 
-// ResolveFileInUpperLayer resolves whether the file is in an upper layer
-func (ev *Event) ResolveFileInUpperLayer(f *model.FileEvent) bool {
-	return f.FileFields.GetInUpperLayer()
+// ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
+func (ev *Event) ResolveFileFieldsInUpperLayer(f *model.FileFields) bool {
+	return f.GetInUpperLayer()
 }
 
 // ResolveXAttrName returns the string representation of the extended attribute name
