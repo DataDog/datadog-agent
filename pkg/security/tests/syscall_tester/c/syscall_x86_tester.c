@@ -23,7 +23,7 @@ int fchown_syscall(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    FILE* f = fopen(argv[1], "r");
+    FILE *f = fopen(argv[1], "r");
     if (!f) {
         perror("Failed to open provided file");
         return EXIT_FAILURE;
@@ -88,7 +88,7 @@ int fchown32_syscall(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    FILE* f = fopen(argv[1], "r");
+    FILE *f = fopen(argv[1], "r");
     if (!f) {
         perror("Failed to open provided file");
         return EXIT_FAILURE;
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    char* cmd = argv[1];
+    char *cmd = argv[1];
 
     if (strcmp(cmd, "chown") == 0) {
         return chown_syscall(argc - 1, argv + 1);
