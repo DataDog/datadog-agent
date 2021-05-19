@@ -4,6 +4,7 @@ from time import sleep, time
 
 from .common.color import color_message
 from .common.gitlab import Gitlab
+from .common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -39,13 +40,7 @@ def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
             color_message(commit_author, "bold"),
         )
 
-        choice = None
-        valid_answers = {'yes': True, 'y': True, '': True, 'no': False, 'n': False}
-        while choice not in valid_answers:
-            print(color_message("Do you want to cancel this pipeline? [Y/n] ", "orange"), end='')
-            choice = input().strip().lower()
-
-        if valid_answers[choice]:
+        if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
             gitlab.cancel_pipeline(project, pipeline['id'])
             print("Pipeline {} has been cancelled.\n".format(color_message(pipeline['id'], "bold")))
         else:
