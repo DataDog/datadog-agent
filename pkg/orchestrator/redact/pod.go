@@ -58,8 +58,7 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 // RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
 func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	a := annotations["kubectl.kubernetes.io/last-applied-configuration"]
-	if a != "" {
+	if _, found := annotations["kubectl.kubernetes.io/last-applied-configuration"]; found {
 		annotations["kubectl.kubernetes.io/last-applied-configuration"] = replacedValue
 	}
 }
