@@ -25,6 +25,7 @@ build do
     curl_cmd = "powershell -Command wget -OutFile #{binary} #{url}"
     puts ("'stackstate-process-agent-rb'")
     puts ("'#{url}'")
+    puts ("'#{install_dir}'")
     puts ("'#{Omnibus::Config.source_dir()}'")
     command curl_cmd
     command "mv #{binary} #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/#{target_binary}"
