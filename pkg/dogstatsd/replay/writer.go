@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	// Refactor relevant bits
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -46,9 +48,13 @@ var CapPool = sync.Pool{
 	},
 }
 
+// for testing purposes, modify atomically
+var inMemoryFs int64
+
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
 	File     *os.File
+	testFile afero.File
 	writer   *bufio.Writer
 	Traffic  chan *CaptureBuffer
 	Location string
@@ -90,24 +96,50 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 
 	log.Debug("Starting capture...")
 
+	var err error
+
 	tc.Lock()
 	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
-	if err := os.MkdirAll(filepath.Dir(p), 0770); err != nil {
+	if err = os.MkdirAll(filepath.Dir(p), 0770); err != nil {
 		log.Errorf("There was an issue writing the expected location: %v ", err)
-
 		tc.Unlock()
 		return
 	}
 
-	fp, err := os.Create(p)
-	if err != nil {
-		log.Errorf("There was an issue starting the capture: %v ", err)
+	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
+	// inMemoryFS is used for testing purposes
+	if atomic.LoadInt64(&inMemoryFs) > 0 {
+		appFS := afero.NewMemMapFs()
+		err := appFS.MkdirAll(tc.Location, 0755)
+		if err != nil {
+			log.Errorf("There was an issue starting the capture: %v ", err)
 
-		tc.Unlock()
-		return
+			tc.Unlock()
+			return
+		}
+
+		fp, err := appFS.Create(p)
+		if err != nil {
+			log.Errorf("There was an issue starting the capture: %v ", err)
+
+			tc.Unlock()
+			return
+		}
+
+		tc.testFile = fp
+		tc.writer = bufio.NewWriter(tc.testFile)
+	} else {
+		fp, err := os.Create(p)
+		if err != nil {
+			log.Errorf("There was an issue starting the capture: %v ", err)
+
+			tc.Unlock()
+			return
+		}
+		tc.File = fp
+		tc.writer = bufio.NewWriter(tc.File)
 	}
-	tc.File = fp
-	tc.writer = bufio.NewWriter(fp)
+
 	tc.shutdown = make(chan struct{})
 	tc.ongoing = true
 

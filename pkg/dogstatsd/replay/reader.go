@@ -72,7 +72,7 @@ func (tc *TrafficCaptureReader) Read() {
 
 	// skip header
 	tc.Lock()
-	tc.offset += uint32(len(datadogHeader))
+	tc.offset = uint32(len(datadogHeader))
 	tc.Unlock()
 
 iterate:
