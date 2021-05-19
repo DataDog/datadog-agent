@@ -289,7 +289,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	messages, err := aws.ParseLogsAPIPayload(data)
+	messages, err := aws.ProcessLogMessages(data)
 	if err != nil {
 		w.WriteHeader(400)
 	} else {

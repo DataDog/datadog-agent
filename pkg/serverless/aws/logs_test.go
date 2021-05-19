@@ -119,26 +119,26 @@ func TestRemoveInvalidTracingItemNotWellFormatted(t *testing.T) {
 	assert.Equal(t, string(sanitizedRaw), string(sanitizedData))
 }
 
-func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
+func TestProcessLogMessagesWellFormated(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
 	require.NoError(t, err)
-	messages, err := ParseLogsAPIPayload(raw)
+	messages, err := ProcessLogMessages(raw)
 	assert.Nil(t, err)
 	assert.NotNil(t, messages)
 	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
 }
 
-func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
+func TestProcessLogMessagesNotWellFormated(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
 	require.NoError(t, err)
-	messages, err := ParseLogsAPIPayload(raw)
+	messages, err := ProcessLogMessages(raw)
 	assert.Nil(t, err)
 	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
 }
 
-func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
+func TestProcessLogMessagesNotWellFormatedButNotRecoverable(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload_unrecoverable.json")
 	require.NoError(t, err)
-	_, err = ParseLogsAPIPayload(raw)
+	_, err = ProcessLogMessages(raw)
 	assert.NotNil(t, err)
 }
