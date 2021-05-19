@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.3.1
+install_script_version=1.4.0
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -97,6 +97,19 @@ Troubleshooting and basic usage information for the Agent are available at:
 }
 trap on_error ERR
 
+function verify_agent_version(){
+    local ver_separator="$1"
+    if [ -z "$agent_version_custom" ]; then
+        echo -e "
+  \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+        fallback_msg
+        exit 1;
+    else
+        agent_flavor+="$ver_separator$agent_version_custom"
+    fi
+}
+
 echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
 
 hostname=
@@ -175,6 +188,14 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
   echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+fi
+
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+  # Examples:
+  #  - 20   = defaults to highest patch version x.20.2
+  #  - 20.0 = sets explicit patch version x.20.0
+  # Note: Specifying an invalid minor version will terminate the script.
+  agent_minor_version=$DD_AGENT_MINOR_VERSION
 fi
 
 agent_flavor="datadog-agent"
@@ -310,6 +331,14 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent-7.20.2-1
+        pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E "$pkg_pattern" -om1)" || true
+        verify_agent_version "-"
+    fi
+    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
@@ -363,6 +392,15 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
+    
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent=1:7.20.2-1
+        pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(apt-cache madison datadog-agent | grep -E "$pkg_pattern" -om1)" || true
+        verify_agent_version "="
+    fi
+    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
     $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
@@ -431,8 +469,17 @@ elif [ "$OS" = "SUSE" ]; then
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
-
+  
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
+
+  if [ -n "$agent_minor_version" ]; then
+      # Example: datadog-agent-1:7.20.2-1
+      pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+      agent_version_custom="$(zypper search -s datadog-agent | grep -E "$pkg_pattern" -om1)" || true
+      verify_agent_version "-"
+  fi
+  echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
   $sudo_cmd zypper --non-interactive install "$agent_flavor"
 
 else

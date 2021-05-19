@@ -41,19 +41,13 @@ static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
 }
 
-static __always_inline void http_end_response(http_transaction_t *http) {
-    if (!http_responding(http)) {
-        return;
-    }
-
+static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t *tup) {
     // Retrieve the active batch number for this CPU
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
     if (batch_state == NULL) {
         return;
     }
-
-    log_debug("http response ended: code: %d duration: %d(ms)\n", http->response_status_code, (http->response_last_seen - http->request_started) / (1000 * 1000));
 
     http_batch_key_t key;
     http_prepare_key(cpu, &key, batch_state);
@@ -63,6 +57,9 @@ static __always_inline void http_end_response(http_transaction_t *http) {
     if (batch == NULL) {
         return;
     }
+
+    // Embed tuple information in the http_transaction_t object before enqueueing it
+    __builtin_memcpy(&http->tup, tup, sizeof(conn_tuple_t));
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -103,12 +100,14 @@ static __always_inline void http_end_response(http_transaction_t *http) {
         batch_state->idx++;
         batch_state->pos = 0;
     }
+
+    bpf_map_delete_elem(&http_in_flight, tup);
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
     // This can happen in the context of HTTP keep-alives;
     if (http_responding(http)) {
-        http_end_response(http);
+        http_enqueue(http, tup);
     }
 
     http->request_method = method;
@@ -120,11 +119,6 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
 }
 
 static __always_inline int http_begin_response(http_transaction_t *http, const char *buffer) {
-    // We missed the corresponding request so nothing to do
-    if (!(http->request_started)) {
-        return 0;
-    }
-
     // Extract the status code from the response fragment
     // HTTP/1.1 200 OK
     // _________^^^___
@@ -184,47 +178,51 @@ static __always_inline void http_read_data(struct __sk_buff *skb, skb_info_t *sk
     }
 }
 
-static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info) {
+static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info, u16 src_port) {
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(&buffer, '\0', sizeof(buffer));
 
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_read_data(skb, skb_info, buffer, &packet_type, &method);
+    http_transaction_t *http = NULL;
 
-    if (packet_type == HTTP_REQUEST) {
-        // Ensure the creation of a http_transaction_t entry for tracking this request
-        http_transaction_t new_entry = {};
-        __builtin_memcpy(&new_entry.tup, &skb_info->tup, sizeof(conn_tuple_t));
+    http_transaction_t new_entry = { 0 };
+    new_entry.owned_by_src_port = src_port;
+
+    switch(packet_type) {
+    case HTTP_REQUEST:
         bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-    }
-
-    http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-    if (http == NULL) {
-        // This happens when we lose the beginning of a HTTP request
-        return 0;
-    }
-
-    if (packet_type == HTTP_REQUEST) {
-        // We intercepted the first segment of the HTTP *request*
-        http_begin_request(http, method, buffer);
-    } else if (packet_type == HTTP_RESPONSE) {
-        // We intercepted the first segment of the HTTP *response*
+        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
+        if (http == NULL || http->owned_by_src_port != src_port) {
+            return 0;
+        }
+        http_begin_request(http, method, buffer, &skb_info->tup);
+        break;
+    case HTTP_RESPONSE:
+        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
+        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
+        if (http == NULL) {
+            return 0;
+        }
         http_begin_response(http, buffer);
+        break;
+    default:
+        // We're either in the middle of either a request or response
+        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
+        if (http == NULL) {
+            return 0;
+        }
     }
 
-    if (http_responding(http)) {
-        if (skb->len - 1 > skb_info->data_off) {
-            // Only if we have a (L7/application-layer) payload we want to update the response_last_seen
-            // This is to prevent things such as a keep-alive adding up to the transaction latency
-            http->response_last_seen = bpf_ktime_get_ns();
-        }
+    // If we have a (L7/application-layer) payload we want to update the response_last_seen
+    // This is to prevent things such as a keep-alive adding up to the transaction latency
+    if (skb->len - 1 > skb_info->data_off) {
+        http->response_last_seen = bpf_ktime_get_ns();
+    }
 
-        if (skb_info->tcp_flags & TCPHDR_FIN) {
-            // The HTTP response has ended
-            http_end_response(http);
-            bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
-        }
+    if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port) {
+        http_enqueue(http, &skb_info->tup);
     }
 
     return 0;

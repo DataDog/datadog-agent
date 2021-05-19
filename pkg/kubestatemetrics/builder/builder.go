@@ -103,7 +103,7 @@ func (b *Builder) DefaultGenerateStoreFunc() ksmtypes.BuildStoreFunc {
 	return b.GenerateStore
 }
 
-// WithCustomGenerateStoreFunc configures a constom generate store function
+// WithGenerateStoreFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoreFunc(f ksmtypes.BuildStoreFunc) {
 	b.ksmBuilder.WithGenerateStoreFunc(f)
 }

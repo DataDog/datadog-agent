@@ -54,7 +54,7 @@ type DatadogMetricController struct {
 	context   context.Context
 }
 
-// NewAutoscalersController returns a new AutoscalersController
+// NewDatadogMetricController returns a new AutoscalersController
 func NewDatadogMetricController(client dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
 	if store == nil {
 		return nil, fmt.Errorf("Store must be initialized")

@@ -995,12 +995,18 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 		return true
 	}
 
-	ok, err := ctr.Exists(conn)
+	exists, err := ctr.Exists(conn)
 	if err != nil {
-		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", conn, err)
+	}
+	if !exists {
+		exists, err = ctr.ExistsInRootNS(conn)
+		if err != nil {
+			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn, err)
+		}
 	}
 
-	return !ok
+	return !exists
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {

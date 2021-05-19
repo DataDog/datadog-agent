@@ -57,7 +57,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}
 
-		if pre410Kernel {
+		if !runtimeTracer && pre410Kernel {
 			enabled[probes.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.UDPRecvMsg] = struct{}{}

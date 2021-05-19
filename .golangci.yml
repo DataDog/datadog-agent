@@ -26,14 +26,6 @@ issues:
     - "`defaultRetries` is unused"       # used by APM and Process
     - "python._Ctype_char, which can be annoying to use" # ignore warning about returning unexported field from CGO
 
-    # [Golint] Ignore package name repetition for checks since it makes code easier to read/maintain
-    - "type name will be used as jmx.JMXCheck by other packages, and that stutters"
-    - "type name will be used as jmx.JMXCheckLoader by other packages, and that stutters"
-    - "type name will be used as python.PythonCheck by other packages, and that stutters"
-    - "type name will be used as python.PythonStatsEntry by other packages, and that stutters"
-    - "type name will be used as python.PythonStats by other packages, and that stutters"
-    - "type name will be used as python.PythonCheckLoader by other packages, and that stutters"
-
     # ignore warning on linux about fields used only on windows
     - "`context` is unused"
     - "`id` is unused"
@@ -42,6 +34,15 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
+    # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
+    - path: pkg/collector/corechecks/
+      text: "name will be used as .* by other packages, and that stutters"
+    - path: pkg/util/docker/
+      text: "name will be used as .* by other packages, and that stutters"
+    - path: pkg/util/containers/cri
+      text: "name will be used as .* by other packages, and that stutters"
+    - path: pkg/util/containerd
+      text: "name will be used as .* by other packages, and that stutters"
 
 linters:
   disable-all: true
@@ -53,7 +54,7 @@ linters:
     - ineffassign # Detects when assignments to existing variables are not used
     - misspell    # Finds commonly misspelled English words in comments
     - gofmt       # Gofmt checks whether code was gofmt-ed
-    - golint      # Golint differs from gofmt. Gofmt reformats Go source code, whereas golint prints out style mistakes
+    - revive      # Revive is a replacement for golint, a coding style checker
     - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
 
 linters-settings:

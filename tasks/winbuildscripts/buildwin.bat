@@ -26,11 +26,11 @@ copy \dev\go\src\github.com\DataDog\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\p
 REM copy wixpdb file for debugging purposes
 if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb c:\mnt\omnibus\pkg\ || exit /b 7
 
+REM copy customaction pdb file for debugging purposes
+if exist \omnibus-ruby\pkg\*.pdb copy \omnibus-ruby\pkg\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
+
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-agent\bin\agent\
-
-REM copy customaction pdb file for debugging purposes
-if exist C:\opt\datadog-agent\bin\agent\*.pdb copy C:\opt\datadog-agent\bin\agent\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
 
 goto :EOF
 
