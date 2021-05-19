@@ -29,6 +29,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 			device,
 		},
 		Interfaces: interfaces,
+		Subnet:     config.subnet,
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {

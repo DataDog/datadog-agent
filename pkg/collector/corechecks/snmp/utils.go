@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -35,7 +36,13 @@ func copyStrings(tags []string) []string {
 
 func buildDeviceID(origTags []string) (string, []string) {
 	h := fnv.New64()
-	tags := copyStrings(origTags)
+	var tags []string
+	for _, tag := range origTags {
+		if strings.HasPrefix(tag, subnetTagPrefix+":") {
+			continue
+		}
+		tags = append(tags, tag)
+	}
 	tags = util.SortUniqInPlace(tags)
 	for _, tag := range tags {
 		// the implementation of h.Write never returns a non-nil error

@@ -318,6 +318,7 @@ collect_device_metadata: true
 tags:
   - "mytag:val1"
   - "mytag:val1" # add duplicate tag for testing deduplication
+  - "autodiscovery_subnet:127.0.0.0/30"
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -529,7 +530,7 @@ profiles:
 	// language=json
 	event := []byte(`
 {
-  "subnet": "",
+  "subnet": "127.0.0.0/30",
   "devices": [
     {
       "id": "173b2077d0770b8",
@@ -543,8 +544,8 @@ profiles:
       "sys_object_id": "1.2.3.4",
       "profile": "f5-big-ip",
       "vendor": "f5",
-      "subnet": "",
       "tags": [
+        "autodiscovery_subnet:127.0.0.0/30",
         "device_id:173b2077d0770b8",
         "device_vendor:f5",
         "mytag:val1",

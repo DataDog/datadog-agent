@@ -132,6 +132,12 @@ func Test_buildDeviceID(t *testing.T) {
 			expectedDeviceID: "e413dc66fbaf23f4",
 			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
 		},
+		{
+			name:             "ignore autodiscovery_subnet prefix",
+			tags:             []string{"zoo", "autodiscovery_subnet:127.0.0.0/29", "snmp_device:1.2.3.4", "zoo", "foo"},
+			expectedDeviceID: "e413dc66fbaf23f4",
+			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

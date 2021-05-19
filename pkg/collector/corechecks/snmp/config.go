@@ -17,6 +17,7 @@ var defaultOidBatchSize = 60
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
+var subnetTagPrefix = "autodiscovery_subnet"
 
 type snmpInitConfig struct {
 	Profiles      profileConfigMap `yaml:"profiles"`
@@ -74,6 +75,7 @@ type snmpConfig struct {
 	collectDeviceMetadata bool
 	deviceID              string
 	deviceIDTags          []string
+	subnet                string
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -276,7 +278,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	c.deviceID, c.deviceIDTags = buildDeviceID(c.getDeviceIDTags())
-	return c, err
+
+	subnet, err := getSubnetFromTags(c.instanceTags)
+	if err != nil {
+		log.Debugf("subnet not found: %s", err)
+	}
+	c.subnet = subnet
+	return c, nil
 }
 
 func getUptimeMetricConfig() metricsConfig {
@@ -340,4 +348,16 @@ func getProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string)
 		return "", fmt.Errorf("failed to get most specific profile for sysObjectID `%s`, for matched oids %v: %s", sysObjectID, matchedOids, err)
 	}
 	return tmpSysOidToProfile[oid], nil
+}
+
+func getSubnetFromTags(tags []string) (string, error) {
+	for _, tag := range tags {
+		// `autodiscovery_subnet` is set as tags in AD Template
+		// e.g. cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml
+		prefix := subnetTagPrefix + ":"
+		if strings.HasPrefix(tag, prefix) {
+			return tag[len(prefix):], nil
+		}
+	}
+	return "", fmt.Errorf("subnet not found in tags %v", tags)
 }

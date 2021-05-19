@@ -98,6 +98,7 @@ profile: f5-big-ip
 tags:
   - tag1
   - tag2:val2
+  - autodiscovery_subnet:127.0.0.0/30
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -208,6 +209,7 @@ oid_batch_size: 10
 	assert.Equal(t, 1, len(check.config.profiles))
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
+	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -758,4 +760,19 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 			"1.3.6.1.2.1.2.2.1.8",
 		},
 	}, c.oidConfig)
+}
+
+func Test_getSubnetFromTags(t *testing.T) {
+	subnet, err := getSubnetFromTags([]string{"aa", "bb"})
+	assert.Equal(t, "", subnet)
+	assert.EqualError(t, err, "subnet not found in tags [aa bb]")
+
+	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:127.0.0.0/30", "bb"})
+	assert.NoError(t, err)
+	assert.Equal(t, "127.0.0.0/30", subnet)
+
+	// make sure we don't panic if the subnet if empty
+	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:", "bb"})
+	assert.NoError(t, err)
+	assert.Equal(t, "", subnet)
 }
