@@ -2,7 +2,7 @@
 */}}=====================
 Orchestrator Explorer
 =====================
-
+  Collection Status: {{ .CollectionWorking }}
 {{- if .Error }}
   Error: {{ .Error }}
 {{- end }}
@@ -12,7 +12,9 @@ Orchestrator Explorer
 {{- if .ClusterIDError }}
   Cluster ID error: {{.ClusterIDError}}
 {{- end }}
-
+{{- if .ClusterName }}
+  Cluster Name: {{.ClusterName}}
+{{- end }}
 {{- if .ClusterID }}
   Cluster ID: {{.ClusterID}}
 {{- end }}
@@ -20,9 +22,6 @@ Orchestrator Explorer
   Cluster ID error: {{.ClusterNameError}}
 {{- end }}
 
-{{- if .ClusterName }}
-  Cluster name: {{.ClusterName}}
-{{- end }}
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
