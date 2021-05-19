@@ -917,7 +917,7 @@ func loadSyscallTester(t *testing.T) (string, error) {
 		return "", err
 	}
 
-	if err := os.Chmod(binPath, 0700); err != nil {
+	if err := os.Chmod(binPath, 0o700); err != nil {
 		return "", err
 	}
 
