@@ -17,11 +17,9 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	tags := copyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
-	deviceID, deviceIDTags := buildDeviceID(config.getDeviceIDTags())
+	device := ms.buildNetworkDeviceMetadata(config.deviceID, config.deviceIDTags, config, store, tags)
 
-	device := ms.buildNetworkDeviceMetadata(deviceID, deviceIDTags, config, store, tags)
-
-	interfaces, err := ms.buildNetworkInterfacesMetadata(deviceID, store)
+	interfaces, err := ms.buildNetworkInterfacesMetadata(config.deviceID, store)
 	if err != nil {
 		log.Errorf("Error building interfaces metadata: %s", err)
 	}

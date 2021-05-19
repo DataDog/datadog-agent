@@ -6,14 +6,17 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -92,6 +95,9 @@ metric_tags:
       prefix: '\1'
       suffix: '\2'
 profile: f5-big-ip
+tags:
+  - tag1
+  - tag2:val2
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -200,6 +206,8 @@ oid_batch_size: 10
 	assert.Equal(t, metrics, check.config.metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
+	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
 }
 
 func TestDefaultConfigurations(t *testing.T) {

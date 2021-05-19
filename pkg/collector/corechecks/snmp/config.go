@@ -72,6 +72,8 @@ type snmpConfig struct {
 	extraTags             []string
 	instanceTags          []string
 	collectDeviceMetadata bool
+	deviceID              string
+	deviceIDTags          []string
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -113,9 +115,16 @@ func (c *snmpConfig) addUptimeMetric() {
 
 // getStaticTags return static tags built from configuration
 // warning: changing getStaticTags logic might lead to different deviceID
+// getStaticTags does not contain tags from instance[].tags config
 func (c *snmpConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
 	tags = append(tags, c.extraTags...)
+	return tags
+}
+
+func (c *snmpConfig) getStaticTagsWithDeviceID() []string {
+	tags := c.getStaticTags()
+	tags = append(tags, "device_id:"+c.deviceID)
 	return tags
 }
 
@@ -265,6 +274,8 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
+
+	c.deviceID, c.deviceIDTags = buildDeviceID(c.getDeviceIDTags())
 	return c, err
 }
 
