@@ -47,6 +47,7 @@ const (
 	newCompilerErr
 	compilationErr
 	resultReadErr
+	headerFetchErr
 )
 
 type CompiledOutput interface {
@@ -63,6 +64,7 @@ type RuntimeAsset struct {
 	// Telemetry
 	compilationResult   CompilationResult
 	compilationDuration time.Duration
+	headerFetchResult   kernel.HeaderFetchResult
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
@@ -70,6 +72,7 @@ func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 		filename:          filename,
 		hash:              hash,
 		compilationResult: notAttempted,
+		headerFetchResult: kernel.NotAttempted,
 	}
 }
 
@@ -134,8 +137,10 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		dirs, err, res := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		a.headerFetchResult = res
 		if err != nil {
+			a.compilationResult = headerFetchErr
 			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
 		}
 		comp, err := compiler.NewEBPFCompiler(dirs, config.BPFDebug)
@@ -165,6 +170,7 @@ func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 	if RuntimeCompilationEnabled {
 		stats["runtime_compilation_enabled"] = 1
 		stats["runtime_compilation_result"] = int64(a.compilationResult)
+		stats["kernel_header_fetch_result"] = int64(a.headerFetchResult)
 		stats["runtime_compilation_duration"] = a.compilationDuration.Nanoseconds()
 	} else {
 		stats["runtime_compilation_enabled"] = 0

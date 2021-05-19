@@ -25,24 +25,40 @@ const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
+// HeaderFetchResult enumerates kernel header fetching success & failure modes
+type HeaderFetchResult int
+
+const (
+	// NotAttempted represents the case where runtime compilation fails prior to attempting to
+	// fetch kernel headers
+	NotAttempted HeaderFetchResult = iota
+	customHeadersFound
+	defaultHeadersFound
+	sysfsHeadersFound
+	downloadedHeadersFound
+	downloadSuccess
+	hostVersionErr
+	downloadFailure
+)
+
 // GetKernelHeaders attempts to find kernel headers on the
-func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, error) {
+func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, error, HeaderFetchResult) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
-		return nil, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
+		return nil, fmt.Errorf("unable to determine host kernel version: %w", hvErr), hostVersionErr
 	}
 
 	var err error
 	var dirs []string
 	if len(headerDirs) > 0 {
 		if err = validateHeaderDirs(hv, headerDirs); err == nil {
-			return headerDirs, nil
+			return headerDirs, nil, customHeadersFound
 		}
 		log.Debugf("unable to find configured kernel headers: %s", err)
 	} else {
 		dirs = getDefaultHeaderDirs()
 		if err = validateHeaderDirs(hv, dirs); err == nil {
-			return dirs, nil
+			return dirs, nil, defaultHeadersFound
 		}
 		log.Debugf("unable to find default kernel headers: %s", err)
 
@@ -50,22 +66,22 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, 
 		// which is enabled via the `kheaders` kernel module and the `CONFIG_KHEADERS` kernel config option.
 		// The `kheaders` module will be automatically added and removed if present and needed.
 		if dirs, err = getSysfsHeaderDirs(hv); err == nil {
-			return dirs, nil
+			return dirs, nil, sysfsHeadersFound
 		}
 		log.Debugf("unable to find system kernel headers: %s", err)
 	}
 
 	dirs = getDownloadedHeaderDirs(headerDownloadDir)
 	if err = validateHeaderDirs(hv, dirs); err == nil {
-		return dirs, nil
+		return dirs, nil, downloadedHeadersFound
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
 	if dirs, err = downloadHeaders(headerDownloadDir); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", dirs)
-		return dirs, nil
+		return dirs, nil, downloadSuccess
 	}
-	return nil, fmt.Errorf("unable to download kernel headers: %w", err)
+	return nil, fmt.Errorf("unable to download kernel headers: %w", err), downloadFailure
 }
 
 // validateHeaderDirs verifies that the kernel headers in at least 1 directory matches the kernel version of the running host
