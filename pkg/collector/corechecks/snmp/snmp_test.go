@@ -552,7 +552,7 @@ profiles:
       "vendor": "f5",
       "subnet": "",
       "tags": [
-		"device_id:173b2077d0770b8",
+        "device_id:173b2077d0770b8",
         "device_vendor:f5",
         "mytag:val1",
         "prefix:f",
