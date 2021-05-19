@@ -89,15 +89,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*model.CronJob {
 	chunks := make([][]*model.CronJob, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(cronJobs)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(cronJobs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, cronJobs[chunkStart:chunkEnd])
 	}
 
@@ -162,15 +155,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) [][]*model.Deployment {
 	chunks := make([][]*model.Deployment, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(deploys)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(chunks), chunkCount, chunkSize, counter)
 		chunks = append(chunks, deploys[chunkStart:chunkEnd])
 	}
 
@@ -234,15 +220,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 func chunkJobs(jobs []*model.Job, chunkCount, chunkSize int) [][]*model.Job {
 	chunks := make([][]*model.Job, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(jobs)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(chunks), chunkCount, chunkSize, counter)
 		chunks = append(chunks, jobs[chunkStart:chunkEnd])
 	}
 
@@ -309,15 +288,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int) [][]*model.ReplicaSet {
 	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(replicaSets)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(chunks), chunkCount, chunkSize, counter)
 		chunks = append(chunks, replicaSets[chunkStart:chunkEnd])
 	}
 
@@ -377,15 +349,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*model.Service {
 	chunks := make([][]*model.Service, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(services)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(chunks), chunkCount, chunkSize, counter)
 		chunks = append(chunks, services[chunkStart:chunkEnd])
 	}
 
@@ -551,17 +516,22 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node {
 	chunks := make([][]*model.Node, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(nodes)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := getChunkRange(len(chunks), chunkCount, chunkSize, counter)
 		chunks = append(chunks, nodes[chunkStart:chunkEnd])
 	}
 
 	return chunks
+}
+
+func getChunkRange(chunkLen, chunkCount, chunkSize, counter int) (int, int) {
+	var (
+		chunkStart = chunkSize * (counter - 1)
+		chunkEnd   = chunkSize * (counter)
+	)
+	// last chunk may be smaller than the chunk size
+	if counter == chunkCount {
+		chunkEnd = chunkLen
+	}
+	return chunkStart, chunkEnd
 }
