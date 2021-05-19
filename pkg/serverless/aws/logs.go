@@ -191,9 +191,8 @@ func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 			return nil, errors.New("can't read log message")
 		}
 		return messages, nil
-	} else {
-		return messages, nil
 	}
+	return messages, nil
 }
 
 // Temporary fix to handle malformed JSON tracing object
