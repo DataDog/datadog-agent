@@ -523,4 +523,3 @@ func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node 
 
 	return chunks
 }
-
