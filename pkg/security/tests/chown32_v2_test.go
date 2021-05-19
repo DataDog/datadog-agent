@@ -10,9 +10,11 @@ package tests
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"gotest.tools/assert"
 )
 
@@ -315,4 +317,31 @@ func TestChown32(t *testing.T) {
 			}
 		}
 	})
+}
+
+func loadSyscallTester(t *testing.T) (string, error) {
+	testerBin, err := syscall_tester.Asset("/syscall_x86_tester")
+	if err != nil {
+		return "", err
+	}
+
+	binPath := filepath.Join(t.TempDir(), "syscall_x86_tester")
+	f, err := os.Create(binPath)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err = f.Write(testerBin); err != nil {
+		return "", err
+	}
+
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+
+	if err := os.Chmod(binPath, 0o700); err != nil {
+		return "", err
+	}
+
+	return binPath, nil
 }

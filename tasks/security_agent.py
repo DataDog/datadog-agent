@@ -168,8 +168,8 @@ def run_functional_tests(
 
 def build_syscall_tester(ctx, build_dir):
     syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
-    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
 
     ctx.run(
         CLANG_EXE_CMD.format(
@@ -217,7 +217,7 @@ def build_functional_tests(
             "bin",
             "pkg/security/tests/syscall_tester/bindata.go",
             "syscall_tester",
-            "functionaltests",
+            "functionaltests,amd64",
             False,
         )
 
