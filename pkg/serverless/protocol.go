@@ -319,8 +319,15 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func processMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	// First, if the log has a Request ID, set the global Request ID variable
+	log.Debug("processMessage called with lastRequestId: " + lastRequestID)
+
+	if message.Type == aws.LogTypePlatformReport {
+		log.Debug("Called processMessage for a REPORT log")
+		log.Debug("String record of message: " + message.StringRecord)
+	}
 	if message.Type == aws.LogTypePlatformStart {
 		if len(message.ObjectRecord.RequestID) > 0 {
+			log.Debug("Setting Request ID to: " + message.ObjectRecord.RequestID)
 			aws.SetRequestID(message.ObjectRecord.RequestID)
 			lastRequestID = message.ObjectRecord.RequestID
 		}

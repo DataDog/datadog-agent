@@ -13,6 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// logMessageTimeLayout is the layout string used to format timestamps from logs
+const logMessageTimeLayout = "2006-01-02T15:04:05.999Z"
+
 const (
 	// LogTypeExtension is used to represent logs messages emitted by extensions
 	LogTypeExtension = "extension"
@@ -79,7 +82,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// time
 
 	if timeStr, ok := j["time"].(string); ok {
-		if time, err := time.Parse("2006-01-02T15:04:05.999Z", timeStr); err == nil {
+		if time, err := time.Parse(logMessageTimeLayout, timeStr); err == nil {
 			l.Time = time
 		}
 	}
@@ -87,11 +90,12 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	// the rest
 
 	switch typ {
-	case LogTypeExtension:
-		fallthrough
 	case LogTypePlatformLogsSubscription, LogTypePlatformExtension:
 		l.Type = typ
 	case LogTypeFunction:
+		l.Type = typ
+		l.StringRecord = j["record"].(string)
+	case LogTypeExtension:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
 	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport:
@@ -138,6 +142,8 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
 				l.StringRecord = createStringRecordForReportLog(l)
+				log.Debug("Unmarshalled REPORT log")
+				log.Debug("String record: " + l.StringRecord)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -152,7 +158,14 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 // ShouldProcessLog returns whether or not the log should be further processed.
 func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if arn == "" || lastRequestID == "" {
+	if arn == "" {
+		log.Debug("Skipped processing log message because of missing arn")
+		log.Debug("Message type: " + message.Type)
+		return false
+	}
+	if lastRequestID == "" {
+		log.Debug("Skipped processing log message because of missing lastRequestId")
+		log.Debug("Message type: " + message.Type)
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
