@@ -139,7 +139,7 @@ func TestCheckRateSampling(t *testing.T) {
 	}
 }
 
-func TestHistogramIntervalSampling(t *testing.T) {
+func TestHistogramCountSampling(t *testing.T) {
 	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
@@ -172,6 +172,7 @@ func TestHistogramIntervalSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
+	require.Len(t, checkSampler.contextResolver.keyByContextCountIndex, 1)
 	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
@@ -195,10 +196,12 @@ func TestHistogramIntervalSampling(t *testing.T) {
 	}
 
 	assert.True(t, foundCount)
+	checkSampler.commit(12349.0)
+	require.Len(t, checkSampler.contextResolver.keyByContextCountIndex, 0)
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler(2)
+	checkSampler := newCheckSampler(1)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -243,7 +246,9 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
 	checkSampler.commit(12401.0)
-	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
+	assert.Len(t, checkSampler.lastBucketValue, 1)
+	checkSampler.commit(12401.0)
+	assert.Len(t, checkSampler.lastBucketValue, 0)
 	_, flushed = checkSampler.flush()
 
 	expSketch = &quantile.Sketch{}
