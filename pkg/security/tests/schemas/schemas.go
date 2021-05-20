@@ -447,7 +447,7 @@ func bindataProcessJson() (*asset, error) {
 		name:        "/process.json",
 		size:        5669,
 		md5checksum: "",
-		mode:        os.FileMode(420),
+		mode:        os.FileMode(438),
 		modTime:     time.Unix(1, 0),
 	}
 
