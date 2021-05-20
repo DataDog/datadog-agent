@@ -736,6 +736,7 @@ process_config:
 #   A string indicating the enabled state of the Process Agent.
 #   If "false" (the default) it will only collect containers.
 #   If "true" it will collect containers and processes.
+#     NOTE: the container checks are then run by the `process` and `rtprocess` checks, the default `container` and `rtcontainer` checks are disabled in this case.
 #   If "disabled" it will be disabled altogether and won't start.
   enabled: "true"
 # Enable/disable network tracing
