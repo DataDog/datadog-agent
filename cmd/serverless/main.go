@@ -88,15 +88,6 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
 	datadogConfigPath = "/var/task/datadog.yaml"
-
-	traceOriginMetadataKey   = "_dd.origin"
-	traceOriginMetadataValue = "lambda"
-	computeStatsKey          = "_dd.compute_stats"
-	computeStatsValue        = "1"
-	functionARNKey           = "function_arn"
-	functionNameKey          = "functionname"
-	regionKey                = "region"
-	awsAccountKey            = "aws_account"
 )
 
 const (
@@ -357,7 +348,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
 		tc.Hostname = ""
-		globalTags := buildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
+		globalTags := aws.BuildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
 		for key, value := range globalTags {
 			tc.GlobalTags[key] = value
 		}
@@ -393,17 +384,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return
-}
-
-func buildGlobalTagsMap(functionARN string, functionName string, region string, awsAccountID string) map[string]string {
-	tags := make(map[string]string)
-	tags[traceOriginMetadataKey] = traceOriginMetadataValue
-	tags[computeStatsKey] = computeStatsValue
-	tags[functionARNKey] = functionARN
-	tags[functionNameKey] = functionName
-	tags[regionKey] = region
-	tags[awsAccountKey] = awsAccountID
-	return tags
 }
 
 // handleSignals handles OS signals, if a SIGTERM is received,

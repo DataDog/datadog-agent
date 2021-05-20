@@ -149,3 +149,18 @@ func resetState() {
 	os.Setenv(functionNameEnvVar, "")
 	os.Setenv(qualifierEnvVar, "")
 }
+
+func TestBuildGlobalTagsMap(t *testing.T) {
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+	awsAccount := "123456789012"
+	functionName := "my-function"
+	region := "us-east-1"
+	m := BuildGlobalTagsMap(arn, functionName, region, awsAccount)
+	assert.Equal(t, len(m), 6)
+	assert.Equal(t, region, m["region"])
+	assert.Equal(t, functionName, m["functionname"])
+	assert.Equal(t, awsAccount, m["aws_account"])
+	assert.Equal(t, arn, m["function_arn"])
+	assert.Equal(t, "lambda", m["_dd.origin"])
+	assert.Equal(t, "1", m["_dd.compute_stats"])
+}
