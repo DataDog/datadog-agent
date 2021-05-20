@@ -21,6 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -107,24 +109,33 @@ func (o *OTLPReceiver) Stop() {
 
 // Export implements otlppb.TraceServiceServer
 func (o *OTLPReceiver) Export(ctx context.Context, in *otlppb.ExportTraceServiceRequest) (*otlppb.ExportTraceServiceResponse, error) {
+	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
+	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
 	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
 	return &otlppb.ExportTraceServiceResponse{}, nil
 }
 
 // ServeHTTP implements http.Handler
 func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	rd := NewLimitedReader(req.Body /*r.conf.MaxRequestBytes*/, 50000000)
+	defer timing.Since("datadog.trace_agent.otlp.process_http_request_ms", time.Now())
+	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
+	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
+
+	rd := NewLimitedReader(req.Body, o.cfg.MaxRequestBytes)
 	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)
 		return
 	}
+	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
 	var in otlppb.ExportTraceServiceRequest
 	switch getMediaType(req) {
 	case "application/x-protobuf":
 		if err := proto.Unmarshal(slurp, &in); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
 			return
 		}
 	case "application/json":
@@ -132,10 +143,21 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	default:
 		if err := json.Unmarshal(slurp, &in); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
 			return
 		}
 	}
 	o.processRequest(otlpProtocolHTTP, req.Header, &in)
+}
+
+func tagsFromHeaders(h http.Header, protocol string) []string {
+	return []string{
+		"lang:" + h.Get(headerLang),
+		"lang_version:" + h.Get(headerLangVersion),
+		"interpreter:" + h.Get(headerLangInterpreter),
+		"lang_vendor:" + h.Get(headerLangInterpreterVendor),
+		"endpoint_version:opentelemetry_" + protocol + "_v1",
+	}
 }
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
@@ -152,13 +174,15 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		if lang == "" {
 			lang = header.Get(headerLang)
 		}
-		tags := info.Tags{
-			Lang:            lang,
-			LangVersion:     header.Get(headerLangVersion),
-			Interpreter:     header.Get(headerLangInterpreter),
-			LangVendor:      header.Get(headerLangInterpreterVendor),
-			TracerVersion:   fmt.Sprintf("otlp-%s", rattr["telemetry.sdk.version"]),
-			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+		tagstats := &info.TagStats{
+			Tags: info.Tags{
+				Lang:            lang,
+				LangVersion:     header.Get(headerLangVersion),
+				Interpreter:     header.Get(headerLangInterpreter),
+				LangVendor:      header.Get(headerLangInterpreterVendor),
+				TracerVersion:   fmt.Sprintf("otlp-%s", rattr["telemetry.sdk.version"]),
+				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+			},
 		}
 		tracesByID := make(map[uint64]pb.Trace)
 		for _, libspans := range rspans.InstrumentationLibrarySpans {
@@ -171,8 +195,10 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 				tracesByID[traceID] = append(tracesByID[traceID], convertSpan(rattr, lib, span))
 			}
 		}
+		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tagstats.AsTags(), 1)
+		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tagstats.AsTags(), 1)
 		p := Payload{
-			Source:        &info.TagStats{Tags: tags},
+			Source:        tagstats,
 			ContainerTags: getContainerTags(header.Get(headerContainerID)),
 			Traces:        make(pb.Traces, 0, len(tracesByID)),
 		}

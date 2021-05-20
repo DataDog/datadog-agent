@@ -14,21 +14,21 @@ var testID128 = []byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0,
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("AnyValueString", func(t *testing.T) {
 		for in, out := range map[*otlppb.AnyValue]string{
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}}: "string",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}}:         "true",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_BoolValue{BoolValue: false}}:        "false",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_IntValue{IntValue: 12}}:             "12",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}}:  "2.12",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_ArrayValue{
+			{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}}: "string",
+			{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}}:         "true",
+			{Value: &otlppb.AnyValue_BoolValue{BoolValue: false}}:        "false",
+			{Value: &otlppb.AnyValue_IntValue{IntValue: 12}}:             "12",
+			{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}}:  "2.12",
+			{Value: &otlppb.AnyValue_ArrayValue{
 				ArrayValue: &otlppb.ArrayValue{
 					Values: []*otlppb.AnyValue{
-						&otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}},
-						&otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}},
-						&otlppb.AnyValue{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}},
+						{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}},
+						{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}},
+						{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}},
 					},
 				},
 			}}: "2.12,string,true",
-			&otlppb.AnyValue{Value: &otlppb.AnyValue_KvlistValue{
+			{Value: &otlppb.AnyValue_KvlistValue{
 				KvlistValue: &otlppb.KeyValueList{
 					Values: []*otlppb.KeyValue{
 						{Key: "key1", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}}},

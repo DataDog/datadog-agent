@@ -36,6 +36,10 @@ type OTLP struct {
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
+
+	// MaxRequestBytes specifies the maximum number of bytes that will be read
+	// from an incoming HTTP request.
+	MaxRequestBytes int64 `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -275,9 +279,10 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	}
 
 	c.OTLPReceiver = &OTLP{
-		BindHost: c.ReceiverHost,
-		HTTPPort: config.Datadog.GetInt("apm_config.otlp.http_port"),
-		GRPCPort: config.Datadog.GetInt("apm_config.otlp.grpc_port"),
+		BindHost:        c.ReceiverHost,
+		HTTPPort:        config.Datadog.GetInt("apm_config.otlp.http_port"),
+		GRPCPort:        config.Datadog.GetInt("apm_config.otlp.grpc_port"),
+		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
 	if config.Datadog.IsSet("apm_config.obfuscation") {

@@ -227,10 +227,12 @@ type InstrumentationLibrarySpans struct {
 	Spans []*Span `protobuf:"bytes,2,rep,name=spans" json:"spans,omitempty"`
 }
 
-func (m *InstrumentationLibrarySpans) Reset()                    { *m = InstrumentationLibrarySpans{} }
-func (m *InstrumentationLibrarySpans) String() string            { return proto.CompactTextString(m) }
-func (*InstrumentationLibrarySpans) ProtoMessage()               {}
-func (*InstrumentationLibrarySpans) Descriptor() ([]byte, []int) { return fileDescriptorTrace, []int{1} }
+func (m *InstrumentationLibrarySpans) Reset()         { *m = InstrumentationLibrarySpans{} }
+func (m *InstrumentationLibrarySpans) String() string { return proto.CompactTextString(m) }
+func (*InstrumentationLibrarySpans) ProtoMessage()    {}
+func (*InstrumentationLibrarySpans) Descriptor() ([]byte, []int) {
+	return fileDescriptorTrace, []int{1}
+}
 
 func (m *InstrumentationLibrarySpans) GetInstrumentationLibrary() *InstrumentationLibrary {
 	if m != nil {
