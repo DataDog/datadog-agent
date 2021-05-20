@@ -12,11 +12,7 @@
                 "group": {
                     "type": "string"
                 }
-            },
-            "required": [
-                "id",
-                "group"
-            ]
+            }
         }
     }
 }
