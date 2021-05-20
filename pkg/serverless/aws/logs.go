@@ -7,7 +7,9 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -176,4 +178,24 @@ func createStringRecordForReportLog(l *LogMessage) string {
 	}
 
 	return stringRecord
+}
+
+// ParseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
+func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
+	var messages []LogMessage
+	if err := json.Unmarshal(data, &messages); err != nil {
+		// Temporary fix to handle malformed JSON tracing object : retry with sanitization
+		log.Debug("Can't read log message, retry with sanitization")
+		sanitizedData := removeInvalidTracingItem(data)
+		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
+			return nil, errors.New("can't read log message")
+		}
+		return messages, nil
+	}
+	return messages, nil
+}
+
+// removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
+func removeInvalidTracingItem(data []byte) []byte {
+	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
 }
