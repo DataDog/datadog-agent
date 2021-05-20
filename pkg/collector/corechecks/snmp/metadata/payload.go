@@ -3,8 +3,8 @@ package metadata
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
 	Subnet     string              `json:"subnet"`
-	Devices    []DeviceMetadata    `json:"devices"`
-	Interfaces []InterfaceMetadata `json:"interfaces"`
+	Devices    []DeviceMetadata    `json:"devices,omitempty"`
+	Interfaces []InterfaceMetadata `json:"interfaces,omitempty"`
 }
 
 // DeviceMetadata contains device metadata

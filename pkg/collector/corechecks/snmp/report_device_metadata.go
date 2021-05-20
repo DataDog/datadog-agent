@@ -21,7 +21,8 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 
 	interfaces, err := ms.buildNetworkInterfacesMetadata(config.deviceID, store)
 	if err != nil {
-		log.Errorf("Error building interfaces metadata: %s", err)
+		log.Debugf("Unable to build interfaces metadata: %s", err)
+		interfaces = nil
 	}
 
 	metadata := metadata.NetworkDevicesMetadata{
@@ -34,6 +35,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		log.Errorf("Error marshalling device metadata: %s", err)
+		return
 	}
 	ms.sender.EventPlatformEvent(string(metadataBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 }
@@ -65,7 +67,7 @@ func (ms *metricSender) buildNetworkDeviceMetadata(deviceID string, idTags []str
 func (ms *metricSender) buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([]metadata.InterfaceMetadata, error) {
 	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
 	if err != nil {
-		return nil, fmt.Errorf("error getting indexes: %s", err)
+		return nil, fmt.Errorf("no interface indexes found: %s", err)
 	}
 
 	var interfaces []metadata.InterfaceMetadata
