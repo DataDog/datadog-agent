@@ -20,7 +20,7 @@ import (
 func TestChown32(t *testing.T) {
 	// The docker container used in functional tests is not able to run a x86 executable by default so we skip those tests
 	if testEnvironment == DockerEnvironment {
-		return
+		t.Skip("running in docker env, skipping x86 syscall tests")
 	}
 
 	ruleDef := &rules.RuleDefinition{
