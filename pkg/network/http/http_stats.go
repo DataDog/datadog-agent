@@ -109,7 +109,7 @@ func (r *RequestStats) CombineWith(newStats RequestStats) {
 // AddRequest takes information about a HTTP transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 	i := statusClass/100 - 1
-	if i >= len(r) {
+	if i < 0 || i >= len(r) {
 		return
 	}
 

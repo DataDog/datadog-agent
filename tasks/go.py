@@ -166,7 +166,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
-        inv golangci_lint --targets=./pkg/collector/check,./pkg/aggregator
+        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed

@@ -183,7 +183,7 @@ func buildTCPEndpoints() (*Endpoints, error) {
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
-	return NewEndpoints(main, additionals, useProto, false, 0, 0), nil
+	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
 // LogsConfigKeys stores logs configuration keys stored in YAML configuration files
@@ -198,6 +198,8 @@ type LogsConfigKeys struct {
 	AdditionalEndpoints     string
 	BatchWait               string
 	BatchMaxConcurrentSend  string
+	BatchMaxSize            string
+	BatchMaxContentSize     string
 }
 
 // logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
@@ -216,6 +218,8 @@ func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
 		AdditionalEndpoints:     configPrefix + "additional_endpoints",
 		BatchWait:               configPrefix + "batch_wait",
 		BatchMaxConcurrentSend:  configPrefix + "batch_max_concurrent_send",
+		BatchMaxSize:            configPrefix + "batch_max_size",
+		BatchMaxContentSize:     configPrefix + "batch_max_content_size",
 	}
 }
 
@@ -266,8 +270,10 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 
 	batchWait := batchWaitFromKey(coreConfig.Datadog, logsConfig.BatchWait)
 	batchMaxConcurrentSend := batchMaxConcurrentSendFromKey(logsConfig.BatchMaxConcurrentSend)
+	batchMaxSize := batchMaxSizeFromKey(logsConfig.BatchMaxSize)
+	batchMaxContentSize := batchMaxContentSizeFromKey(logsConfig.BatchMaxContentSize)
 
-	return NewEndpoints(main, additionals, false, true, batchWait, batchMaxConcurrentSend), nil
+	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
 }
 
 func getAdditionalEndpoints() []Endpoint {
@@ -326,13 +332,31 @@ func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Durati
 	return (time.Duration(batchWait) * time.Second)
 }
 
-func batchMaxConcurrentSendFromKey(batchMaxConcurrentSendKey string) int {
-	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(batchMaxConcurrentSendKey)
+func batchMaxConcurrentSendFromKey(key string) int {
+	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(key)
 	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid batch_max_concurrent_send: %v should be >= 0, fallback on %v", batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
+		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
 		return coreConfig.DefaultBatchMaxConcurrentSend
 	}
 	return batchMaxConcurrentSend
+}
+
+func batchMaxSizeFromKey(key string) int {
+	batchMaxSize := coreConfig.Datadog.GetInt(key)
+	if batchMaxSize <= 0 {
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
+		return coreConfig.DefaultBatchMaxSize
+	}
+	return batchMaxSize
+}
+
+func batchMaxContentSizeFromKey(key string) int {
+	batchMaxContentSize := coreConfig.Datadog.GetInt(key)
+	if batchMaxContentSize <= 0 {
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
+		return coreConfig.DefaultBatchMaxContentSize
+	}
+	return batchMaxContentSize
 }
 
 // TaggerWarmupDuration is used to configure the tag providers

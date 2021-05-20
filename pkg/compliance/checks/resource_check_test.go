@@ -22,16 +22,39 @@ func TestResourceCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	e := &mocks.Env{}
+	e.On("MaxEventsPerRun").Return(30)
 
-	fallbackReport := &compliance.Report{
-		Passed: false,
-		Data: event.Data{
-			"fallback": true,
+	fallbackReports := []*compliance.Report{
+		{
+			Passed: false,
+			Data: event.Data{
+				"fallback": true,
+			},
 		},
 	}
 
 	fallback := &mockCheckable{}
-	fallback.On("check", e).Return(fallbackReport, nil)
+	fallback.On("check", e).Return(fallbackReports, nil)
+
+	iterator := &mockIterator{els: []*eval.Instance{
+		{
+			Vars: map[string]interface{}{
+				"a": 14,
+			},
+		},
+		{
+			Vars: map[string]interface{}{
+				"a": 6,
+			},
+		},
+		{
+			Vars: map[string]interface{}{
+				"a": 4,
+			},
+		},
+	}}
+	iterator.On("Next").Return()
+	iterator.On("Done").Return()
 
 	tests := []struct {
 		name              string
@@ -41,8 +64,8 @@ func TestResourceCheck(t *testing.T) {
 		fallback          checkable
 		reportedFields    []string
 
-		expectReport *compliance.Report
-		expectErr    error
+		expectReports []*compliance.Report
+		expectErr     error
 	}{
 		{
 			name:              "no fallback provided",
@@ -54,10 +77,12 @@ func TestResourceCheck(t *testing.T) {
 				},
 			},
 			reportedFields: []string{"a"},
-			expectReport: &compliance.Report{
-				Passed: true,
-				Data: event.Data{
-					"a": 4,
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"a": 4,
+					},
 				},
 			},
 		},
@@ -72,10 +97,12 @@ func TestResourceCheck(t *testing.T) {
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
 			reportedFields:    []string{"a"},
-			expectReport: &compliance.Report{
-				Passed: true,
-				Data: event.Data{
-					"a": 4,
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"a": 4,
+					},
 				},
 			},
 		},
@@ -89,7 +116,7 @@ func TestResourceCheck(t *testing.T) {
 			},
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
-			expectReport:      fallbackReport,
+			expectReports:     fallbackReports,
 		},
 		{
 			name:              "cannot use fallback",
@@ -105,7 +132,13 @@ func TestResourceCheck(t *testing.T) {
 			},
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
-			expectErr:         ErrResourceCannotUseFallback,
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Error:  ErrResourceCannotUseFallback,
+				},
+			},
+			expectErr: ErrResourceCannotUseFallback,
 		},
 		{
 			name:              "fallback missing",
@@ -116,7 +149,73 @@ func TestResourceCheck(t *testing.T) {
 				},
 			},
 			fallbackCondition: "a == 3",
-			expectErr:         ErrResourceFallbackMissing,
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Error:  ErrResourceFallbackMissing,
+				},
+			},
+			expectErr: ErrResourceFallbackMissing,
+		},
+		{
+			name:              "iterator not passing",
+			resourceCondition: "a > 10",
+			resourceResolved:  iterator,
+			reportedFields:    []string{"a"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 6,
+					},
+				},
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 4,
+					},
+				},
+			},
+		},
+		{
+			name:              "iterator passed",
+			resourceCondition: "a > 2",
+			resourceResolved:  iterator,
+			reportedFields:    []string{"a"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"a": 14,
+					},
+				},
+			},
+		},
+		{
+			name:              "count equals to zero multiple reports",
+			resourceCondition: "count(_) == 0",
+			resourceResolved:  iterator,
+			reportedFields:    []string{"a"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 14,
+					},
+				},
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 6,
+					},
+				},
+				{
+					Passed: false,
+					Data: event.Data{
+						"a": 4,
+					},
+				},
+			},
 		},
 	}
 
@@ -145,10 +244,9 @@ func TestResourceCheck(t *testing.T) {
 				reportedFields: test.reportedFields,
 			}
 
-			report, err := c.check(e)
-			assert.Equal(test.expectReport, report)
-			assert.Equal(test.expectErr, err)
+			reports := c.check(e)
+			assert.Equal(test.expectReports, reports)
+			assert.Equal(test.expectErr, reports[0].Error)
 		})
-
 	}
 }

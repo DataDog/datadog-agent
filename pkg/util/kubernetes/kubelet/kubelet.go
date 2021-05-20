@@ -364,7 +364,7 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 	return ku.kubeletClient.kubeletURL
 }
 
-// GetConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string

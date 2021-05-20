@@ -46,6 +46,10 @@ type snmpInstanceConfig struct {
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
 	Tags                  []string          `yaml:"tags"`       // used for device metadata
 	CollectDeviceMetadata Boolean           `yaml:"collect_device_metadata"`
+
+	// `network` config is only available in Python SNMP integration
+	// it's added here to raise warning if used with corecheck SNMP integration
+	Network string `yaml:"network"`
 }
 
 type snmpConfig struct {
@@ -186,6 +190,10 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	if instance.ExtraTags != "" {
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
+	}
+
+	if instance.Network != "" {
+		log.Warnf("`network` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	}
 
 	if c.ipAddress == "" {
