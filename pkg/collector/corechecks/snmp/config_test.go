@@ -776,3 +776,62 @@ func Test_getSubnetFromTags(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "", subnet)
 }
+
+func Test_buildConfig_collectDeviceMetadata(t *testing.T) {
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, false, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_device_metadata: true
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_device_metadata: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_device_metadata: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_device_metadata: true
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, false, check.config.collectDeviceMetadata)
+}

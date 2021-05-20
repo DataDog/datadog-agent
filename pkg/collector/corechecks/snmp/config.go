@@ -20,9 +20,10 @@ var defaultTimeout = 2
 var subnetTagPrefix = "autodiscovery_subnet"
 
 type snmpInitConfig struct {
-	Profiles      profileConfigMap `yaml:"profiles"`
-	GlobalMetrics []metricsConfig  `yaml:"global_metrics"`
-	OidBatchSize  Number           `yaml:"oid_batch_size"`
+	Profiles              profileConfigMap `yaml:"profiles"`
+	GlobalMetrics         []metricsConfig  `yaml:"global_metrics"`
+	OidBatchSize          Number           `yaml:"oid_batch_size"`
+	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
 }
 
 type snmpInstanceConfig struct {
@@ -45,7 +46,7 @@ type snmpInstanceConfig struct {
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
 	Tags                  []string          `yaml:"tags"`       // used for device metadata
-	CollectDeviceMetadata Boolean           `yaml:"collect_device_metadata"`
+	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
@@ -186,7 +187,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
 	c.port = uint16(instance.Port)
-	c.collectDeviceMetadata = bool(instance.CollectDeviceMetadata)
+
+	if instance.CollectDeviceMetadata != nil {
+		c.collectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
+	} else {
+		c.collectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
+	}
 
 	if instance.ExtraTags != "" {
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
