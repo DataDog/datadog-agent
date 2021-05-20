@@ -96,7 +96,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	functionARNKey           = "function_arn"
 	functionNameKey          = "functionname"
 	regionKey                = "region"
-	AWSAccountKey            = "aws_account"
+	awsAccountKey            = "aws_account"
 )
 
 const (
@@ -395,14 +395,14 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	return
 }
 
-func buildGlobalTagsMap(functionARN string, functionName string, region string, AWSAccountID string) map[string]string {
+func buildGlobalTagsMap(functionARN string, functionName string, region string, awsAccountID string) map[string]string {
 	tags := make(map[string]string)
 	tags[traceOriginMetadataKey] = traceOriginMetadataValue
 	tags[computeStatsKey] = computeStatsValue
 	tags[functionARNKey] = functionARN
 	tags[functionNameKey] = functionName
 	tags[regionKey] = region
-	tags[AWSAccountKey] = AWSAccountID
+	tags[awsAccountKey] = awsAccountID
 	return tags
 }
 
