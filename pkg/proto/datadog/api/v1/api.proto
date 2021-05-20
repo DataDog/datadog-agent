@@ -1,13 +1,19 @@
 syntax = "proto3";
 
-package pb;
+package datadog.api.v1;
 
+import "datadog/model/model.proto";
 import "google/api/annotations.proto";
+
+
+// option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo"; // golang
+
 
 // The greeting service definition.
 service Agent {
     // get the hostname
-    rpc GetHostname (HostnameRequest) returns (HostnameReply) {
+    rpc GetHostname (datadog.model.HostnameRequest) returns (datadog.model.HostnameReply) {
         option (google.api.http) = {
             get: "/v1/grpc/host"
         };
@@ -35,7 +41,7 @@ service AgentSecure {
     //        }
     //    }
     //}
-    rpc TaggerStreamEntities(StreamTagsRequest) returns (stream StreamTagsResponse) {
+    rpc TaggerStreamEntities(datadog.model.StreamTagsRequest) returns (stream datadog.model.StreamTagsResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/tagger/stream_entities"
             body: "*"
@@ -60,102 +66,12 @@ service AgentSecure {
     //        "kube_service:kube-dns"
     //    ]
     //}
-    rpc TaggerFetchEntity(FetchEntityRequest) returns (FetchEntityResponse) {
+    rpc TaggerFetchEntity(datadog.model.FetchEntityRequest) returns (datadog.model.FetchEntityResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/tagger/fetch_entity"
             body: "*"
         };
     };
-
-    // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-    // Can be called through the HTTP gateway, and entity will be returned as JSON:
-    //      TODO: add the curl code here
-    rpc DogstatsdCaptureTrigger(CaptureTriggerRequest) returns (CaptureTriggerResponse) {
-        option (google.api.http) = {
-            post: "/v1/grpc/dogstatsd/capture/trigger"
-            body: "*"
-        };
-    };
-}
-
-// Hostname types
-
-message HostnameRequest {}
-
-
-// The response message containing the requested hostname
-message HostnameReply {
-    string hostname = 1;
 }
 
 
-// Dogstatsd capture types
-
-message CaptureTriggerRequest {
-    string duration = 1;
-}
-
-message CaptureTriggerResponse {
-    string path = 1;
-}
-
-
-// Tagger types
-
-message StreamTagsRequest {
-    TagCardinality cardinality = 1;
-    Filter includeFilter = 2;
-    Filter excludeFilter = 3;
-}
-
-message StreamTagsResponse {
-    repeated StreamTagsEvent events = 1;
-}
-
-message StreamTagsEvent {
-    EventType type = 1;
-    Entity entity = 2;
-}
-
-enum EventType {
-    ADDED = 0;
-    MODIFIED = 1;
-    DELETED = 2;
-}
-
-enum TagCardinality {
-    LOW = 0;
-    ORCHESTRATOR = 1;
-    HIGH = 2;
-}
-
-message Filter {
-    string kubeNamespace = 1;
-    string image = 2;
-    string containerName = 3;
-}
-
-message Entity {
-    EntityId id = 1;
-    string hash = 2;
-    repeated string highCardinalityTags = 3;
-    repeated string orchestratorCardinalityTags = 4;
-    repeated string lowCardinalityTags = 5;
-    repeated string standardTags = 6;
-}
-
-message FetchEntityRequest {
-    EntityId id = 1;
-    TagCardinality cardinality = 2;
-}
-
-message FetchEntityResponse {
-    EntityId id = 1;
-    TagCardinality cardinality = 2;
-    repeated string tags = 3;
-}
-
-message EntityId {
-    string prefix = 1;
-    string uid = 2;
-}
