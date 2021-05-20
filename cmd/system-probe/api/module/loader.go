@@ -85,6 +85,10 @@ func RestartModule(factory Factory) error {
 	l.Lock()
 	defer l.Unlock()
 
+	if l.closed == true {
+		return fmt.Errorf("can't restart module because system-probe is shutting down")
+	}
+
 	currentModule := l.modules[factory.Name]
 	if currentModule == nil {
 		return fmt.Errorf("module %s is not running", factory.Name)
