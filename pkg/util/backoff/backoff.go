@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// BackoffPolicy contains parameters and logic necessary to implement an exponential backoff
+// Policy contains parameters and logic necessary to implement an exponential backoff
 // strategy when handling errors.
-type BackoffPolicy struct {
+type Policy struct {
 	// MinBackoffFactor controls the overlap between consecutive retry interval ranges. When
 	// set to `2`, there is a guarantee that there will be no overlap. The overlap
 	// will asymptotically approach 50% the higher the value is set.
@@ -37,15 +37,15 @@ func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
 }
 
-// NewBackoffPolicy constructs new Backoff object with given parameters
-func NewBackoffPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) BackoffPolicy {
+// NewPolicy constructs new Backoff object with given parameters
+func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) Policy {
 	maxErrors := int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 
 	if recoveryReset {
 		recoveryInterval = maxErrors
 	}
 
-	return BackoffPolicy{
+	return Policy{
 		MinBackoffFactor: minBackoffFactor,
 		BaseBackoffTime:  baseBackoffTime,
 		MaxBackoffTime:   maxBackoffTime,
@@ -55,7 +55,7 @@ func NewBackoffPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64,
 }
 
 // GetBackoffDuration returns amount of time to sleep after numErrors error
-func (b *BackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
+func (b *Policy) GetBackoffDuration(numErrors int) time.Duration {
 	var backoffTime float64
 
 	if numErrors > 0 {
@@ -75,7 +75,7 @@ func (b *BackoffPolicy) GetBackoffDuration(numErrors int) time.Duration {
 }
 
 // IncError increments the error counter up to MaxErrors
-func (b *BackoffPolicy) IncError(numErrors int) int {
+func (b *Policy) IncError(numErrors int) int {
 	numErrors++
 	if numErrors > b.MaxErrors {
 		return b.MaxErrors
@@ -84,7 +84,7 @@ func (b *BackoffPolicy) IncError(numErrors int) int {
 }
 
 // DecError decrements the error counter down to zero at RecoveryInterval rate
-func (b *BackoffPolicy) DecError(numErrors int) int {
+func (b *Policy) DecError(numErrors int) int {
 	numErrors -= b.RecoveryInterval
 	if numErrors < 0 {
 		return 0

@@ -47,7 +47,7 @@ type Destination struct {
 	once                sync.Once
 	payloadChan         chan []byte
 	climit              chan struct{} // semaphore for limiting concurrent background sends
-	backoff             backoff.BackoffPolicy
+	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
 }
@@ -65,7 +65,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		maxConcurrentBackgroundSends = 0
 	}
 
-	policy := backoff.NewBackoffPolicy(
+	policy := backoff.NewPolicy(
 		endpoint.BackoffFactor,
 		endpoint.BackoffBase,
 		endpoint.BackoffMax,

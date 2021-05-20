@@ -21,7 +21,7 @@ type block struct {
 
 type blockedEndpoints struct {
 	errorPerEndpoint map[string]*block
-	backoffPolicy    backoff.BackoffPolicy
+	backoffPolicy    backoff.Policy
 	m                sync.RWMutex
 }
 
@@ -54,7 +54,7 @@ func newBlockedEndpoints() *blockedEndpoints {
 
 	return &blockedEndpoints{
 		errorPerEndpoint: make(map[string]*block),
-		backoffPolicy:    backoff.NewBackoffPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
+		backoffPolicy:    backoff.NewPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
 	}
 }
 
