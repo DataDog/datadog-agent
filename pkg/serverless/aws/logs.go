@@ -197,6 +197,5 @@ func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 
 // removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
-	noSpace := strings.ReplaceAll(string(data), " ", "")
-	return []byte(strings.ReplaceAll(noSpace, ",\"tracing\":}", ""))
+	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
 }
