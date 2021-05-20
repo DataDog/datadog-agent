@@ -23,11 +23,13 @@ func (oc *oidConfig) addOidsIfNotPresent(configOids []string, oidsToAdd []string
 		for _, oid := range configOids {
 			if oid == oidToAdd {
 				isAlreadyPresent = true
+				break
 			}
 		}
-		if !isAlreadyPresent {
-			configOids = append(configOids, oidToAdd)
+		if isAlreadyPresent {
+			continue
 		}
+		configOids = append(configOids, oidToAdd)
 	}
 	return configOids
 }
