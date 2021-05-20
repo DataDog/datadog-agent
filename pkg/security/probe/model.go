@@ -10,6 +10,7 @@ package probe
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"path"
 	"strings"
 	"syscall"

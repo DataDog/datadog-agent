@@ -39,7 +39,7 @@ func (pc *ProcessCacheEntry) compactArgsEnvs() {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
 
-	pc.compactArgsEnvs()
+	//pc.compactArgsEnvs()
 
 	// empty and mark as exit previous entry
 	pc.ExitTime = entry.ExecTime
@@ -63,6 +63,8 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
+	// TODO safchain copy args/envs
+
 	copyProcessContext(pc, childEntry)
 }
 
@@ -85,10 +87,17 @@ type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw [128]byte
 	Next      *ArgsEnvsCacheEntry
+
+	values    []string
+	truncated bool
 }
 
 // Array returns args/envs as array
 func (p *ArgsEnvsCacheEntry) ToArray() ([]string, bool) {
+	if len(p.values) > 0 {
+		return p.values, p.truncated
+	}
+
 	entry := p
 
 	var values []string
@@ -108,6 +117,7 @@ func (p *ArgsEnvsCacheEntry) ToArray() ([]string, bool) {
 
 		entry = entry.Next
 	}
+	p.values, p.truncated = values, truncated
 
 	return values, truncated
 }

@@ -5,6 +5,7 @@
 package probe
 
 import (
+	"fmt"
 	"reflect"
 	"unsafe"
 
@@ -704,6 +705,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+
+				fmt.Printf(">>>>>>>>>: %+v\n", (*Event)(ctx.Object).Exec.Process.PathnameStr)
 
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
 			},
