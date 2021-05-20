@@ -128,7 +128,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := GetChunkRange(len(pods), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := ChunkRange(len(pods), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
 

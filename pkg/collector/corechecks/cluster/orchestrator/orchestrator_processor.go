@@ -90,7 +90,7 @@ func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*mo
 	chunks := make([][]*model.CronJob, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(cronJobs), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(cronJobs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, cronJobs[chunkStart:chunkEnd])
 	}
 
@@ -156,7 +156,7 @@ func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) []
 	chunks := make([][]*model.Deployment, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(deploys), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(deploys), chunkCount, chunkSize, counter)
 		chunks = append(chunks, deploys[chunkStart:chunkEnd])
 	}
 
@@ -221,7 +221,7 @@ func chunkJobs(jobs []*model.Job, chunkCount, chunkSize int) [][]*model.Job {
 	chunks := make([][]*model.Job, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(jobs), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(jobs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, jobs[chunkStart:chunkEnd])
 	}
 
@@ -289,7 +289,7 @@ func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int
 	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(replicaSets), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(replicaSets), chunkCount, chunkSize, counter)
 		chunks = append(chunks, replicaSets[chunkStart:chunkEnd])
 	}
 
@@ -350,7 +350,7 @@ func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*mo
 	chunks := make([][]*model.Service, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(services), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(services), chunkCount, chunkSize, counter)
 		chunks = append(chunks, services[chunkStart:chunkEnd])
 	}
 
@@ -517,7 +517,7 @@ func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node 
 	chunks := make([][]*model.Node, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.GetChunkRange(len(nodes), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(nodes), chunkCount, chunkSize, counter)
 		chunks = append(chunks, nodes[chunkStart:chunkEnd])
 	}
 
