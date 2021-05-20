@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	traceObfuscationconfig "github.com/DataDog/datadog-agent/pkg/trace/export/config/obfuscation"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -203,10 +203,10 @@ var (
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
-		var cfg traceconfig.ObfuscationConfig
+		var cfg traceObfuscationconfig.MainObfuscationConfig
 		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
-			cfg = traceconfig.ObfuscationConfig{}
+			cfg = traceObfuscationconfig.MainObfuscationConfig{}
 		}
 		if !cfg.SQLExecPlan.Enabled {
 			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
@@ -253,7 +253,7 @@ func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char
 
 // defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
 // execution plans
-var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
+var defaultSQLPlanNormalizeSettings = traceObfuscationconfig.JSONObfuscationConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
 		// mysql
@@ -300,7 +300,7 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 
 // defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
 // list
-var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
+var defaultSQLPlanObfuscateSettings = traceObfuscationconfig.JSONObfuscationConfig{
 	Enabled: true,
 	KeepValues: append([]string{
 		// mysql

@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +19,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 	}
 	testTime := time.Unix(13829192398, 0)
 	testCases := []testCase{
-		{"blocked-p1", false, testTime, map[string]float64{KeySamplingPriority: 1, "_top_level": 1}},
+		{"blocked-p1", false, testTime, map[string]float64{sampler.KeySamplingPriority: 1, "_top_level": 1}},
 		{"p0-blocked-by-p1", false, testTime, map[string]float64{"_top_level": 1}},
 		{"p1-ttl-before-expiration", false, testTime.Add(priorityTTL), map[string]float64{"_top_level": 1}},
 		{"p1-ttl-expired", true, testTime.Add(priorityTTL + time.Nanosecond), map[string]float64{"_top_level": 1}},
@@ -50,7 +51,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 	testTime := time.Unix(13829192398, 0)
 	testCases := []testCase{
-		{"p1-blocked", false, "s1", map[string]float64{KeySamplingPriority: 1, "_top_level": 1}},
+		{"p1-blocked", false, "s1", map[string]float64{sampler.KeySamplingPriority: 1, "_top_level": 1}},
 		{"p0-top-passes", true, "s2", map[string]float64{"_top_level": 1}},
 		{"p0-measured-passes", true, "s3", map[string]float64{"_dd.measured": 1}},
 		{"p0-non-top-non-measured-blocked", false, "s4", nil},
@@ -91,7 +92,7 @@ func TestCardinalityLimit(t *testing.T) {
 	e.Stop()
 	for j := 1; j <= cardinalityLimit; j++ {
 		tr := pb.Trace{
-			&pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{KeySamplingPriority: 1, "_top_level": 1}},
+			&pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{sampler.KeySamplingPriority: 1, "_top_level": 1}},
 		}
 		e.sample(time.Now(), "", tr[0], tr)
 		for _, set := range e.seen {

@@ -5,7 +5,11 @@
 
 package sampler
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+)
 
 const defaultServiceRateKey = "service:,env:"
 
@@ -13,17 +17,17 @@ const defaultServiceRateKey = "service:,env:"
 // easy look up.
 type serviceKeyCatalog struct {
 	mu     sync.Mutex
-	lookup map[ServiceSignature]Signature
+	lookup map[sampler.ServiceSignature]sampler.Signature
 }
 
 // newServiceLookup returns a new serviceKeyCatalog.
 func newServiceLookup() *serviceKeyCatalog {
 	return &serviceKeyCatalog{
-		lookup: make(map[ServiceSignature]Signature),
+		lookup: make(map[sampler.ServiceSignature]sampler.Signature),
 	}
 }
 
-func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
+func (cat *serviceKeyCatalog) register(svcSig sampler.ServiceSignature) sampler.Signature {
 	hash := svcSig.Hash()
 	cat.mu.Lock()
 	cat.lookup[svcSig] = hash
@@ -33,8 +37,8 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalScore float64) map[ServiceSignature]float64 {
-	rbs := make(map[ServiceSignature]float64, len(rates)+1)
+func (cat *serviceKeyCatalog) ratesByService(rates map[sampler.Signature]float64, totalScore float64) map[sampler.ServiceSignature]float64 {
+	rbs := make(map[sampler.ServiceSignature]float64, len(rates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	for key, sig := range cat.lookup {
@@ -44,6 +48,6 @@ func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalS
 			delete(cat.lookup, key)
 		}
 	}
-	rbs[ServiceSignature{}] = totalScore
+	rbs[sampler.ServiceSignature{}] = totalScore
 	return rbs
 }

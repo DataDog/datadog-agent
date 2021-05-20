@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	featuresConfig "github.com/DataDog/datadog-agent/pkg/trace/export/config/features"
+	obfuscationConfig "github.com/DataDog/datadog-agent/pkg/trace/export/config/obfuscation"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 )
 
@@ -19,14 +20,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                         `json:"elastic_search"`
-		Mongo                bool                         `json:"mongo"`
-		SQLExecPlan          bool                         `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                         `json:"sql_exec_plan_normalize"`
-		HTTP                 config.HTTPObfuscationConfig `json:"http"`
-		RemoveStackTraces    bool                         `json:"remove_stack_traces"`
-		Redis                bool                         `json:"redis"`
-		Memcached            bool                         `json:"memcached"`
+		ElasticSearch        bool                                    `json:"elastic_search"`
+		Mongo                bool                                    `json:"mongo"`
+		SQLExecPlan          bool                                    `json:"sql_exec_plan"`
+		SQLExecPlanNormalize bool                                    `json:"sql_exec_plan_normalize"`
+		HTTP                 obfuscationConfig.HTTPObfuscationConfig `json:"http"`
+		RemoveStackTraces    bool                                    `json:"remove_stack_traces"`
+		Redis                bool                                    `json:"redis"`
+		Memcached            bool                                    `json:"memcached"`
 	}
 	type reducedConfig struct {
 		DefaultEnv             string                        `json:"default_env"`
@@ -67,7 +68,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		GitCommit:     info.GitCommit,
 		BuildDate:     info.BuildDate,
 		Endpoints:     all,
-		FeatureFlags:  config.Features(),
+		FeatureFlags:  featuresConfig.Features(),
 		ClientDropP0s: true,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,

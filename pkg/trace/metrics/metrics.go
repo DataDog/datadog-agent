@@ -15,6 +15,7 @@ import (
 
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	metricsClient "github.com/DataDog/datadog-agent/pkg/trace/export/metrics"
 	"github.com/DataDog/datadog-go/statsd"
 )
 
@@ -47,6 +48,6 @@ func Configure(conf *config.AgentConfig, tags []string) error {
 	if err != nil {
 		return err
 	}
-	Client = client
+	metricsClient.Client = client
 	return nil
 }

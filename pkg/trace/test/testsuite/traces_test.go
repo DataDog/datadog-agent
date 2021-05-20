@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
 func TestTraces(t *testing.T) {

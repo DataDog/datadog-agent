@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
 )
 
 // Replacer is a filter which replaces tag values based on its

@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	obfuscationConfig "github.com/DataDog/datadog-agent/pkg/trace/export/config/obfuscation"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 )
 
 // TestInfoHandler ensures that the keys returned by the /info handler do not
@@ -24,23 +25,23 @@ func TestInfoHandler(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	jsonObfCfg := config.JSONObfuscationConfig{
+	jsonObfCfg := obfuscationConfig.JSONObfuscationConfig{
 		Enabled:            true,
 		KeepValues:         []string{"a", "b", "c"},
 		ObfuscateSQLValues: []string{"x", "y"},
 	}
-	obfCfg := &config.ObfuscationConfig{
+	obfCfg := &obfuscationConfig.MainObfuscationConfig{
 		ES:                   jsonObfCfg,
 		Mongo:                jsonObfCfg,
 		SQLExecPlan:          jsonObfCfg,
 		SQLExecPlanNormalize: jsonObfCfg,
-		HTTP: config.HTTPObfuscationConfig{
+		HTTP: obfuscationConfig.HTTPObfuscationConfig{
 			RemoveQueryString: true,
 			RemovePathDigits:  true,
 		},
 		RemoveStackTraces: false,
-		Redis:             config.Enablable{Enabled: true},
-		Memcached:         config.Enablable{Enabled: false},
+		Redis:             obfuscationConfig.Enablable{Enabled: true},
+		Memcached:         obfuscationConfig.Enablable{Enabled: false},
 	}
 	rcv := newTestReceiverFromConfig(&config.AgentConfig{
 		Enabled:    true,

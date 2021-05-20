@@ -7,6 +7,8 @@ package sampler
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/export/sampler"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -35,7 +37,7 @@ type RateByService struct {
 
 // SetAll the sampling rate for all services. If a service/env is not
 // in the map, then the entry is removed.
-func (rbs *RateByService) SetAll(rates map[ServiceSignature]float64) {
+func (rbs *RateByService) SetAll(rates map[sampler.ServiceSignature]float64) {
 	rbs.mu.Lock()
 	defer rbs.mu.Unlock()
 
@@ -56,7 +58,7 @@ func (rbs *RateByService) SetAll(rates map[ServiceSignature]float64) {
 		if k.Env == rbs.defaultEnv {
 			// if this is the default env, then this is also the
 			// service's default rate unbound to any env.
-			rbs.rates[ServiceSignature{Name: k.Name}.String()] = v
+			rbs.rates[sampler.ServiceSignature{Name: k.Name}.String()] = v
 		}
 	}
 }

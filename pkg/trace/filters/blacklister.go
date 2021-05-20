@@ -8,7 +8,7 @@ package filters
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/export/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
