@@ -162,15 +162,15 @@ var (
 		),
 		"kube_endpoint_labels": newCountObjectsAggregator(
 			"endpoint.count",
-			[]string{"namespace", "endpoint"},
+			[]string{"namespace"},
 		),
 		"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
 			"hpa.count",
-			[]string{"namespace", "horizontalpodautoscaler"},
+			[]string{"namespace"},
 		),
 		"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
 			"vpa.count",
-			[]string{"namespace", "verticalpodautoscaler"},
+			[]string{"namespace"},
 		),
 	}
 )

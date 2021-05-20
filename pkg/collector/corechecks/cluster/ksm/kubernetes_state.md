@@ -59,7 +59,7 @@
 : The current status conditions of a deployment. Tags:`kube_deployment` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.endpoint.count`
-: Number of endpoints. Tags:`kube_namespace` `endpoint`.
+: Number of endpoints. Tags:`kube_namespace`.
 
 `kubernetes_state.endpoint.address_available`
 : Number of addresses available in endpoint. Tags:`endpoint` `kube_namespace`.
@@ -239,7 +239,7 @@
 : The number of updated replicas per StatefulSet. Tags:`kube_namespace` `kube_stateful_set` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.hpa.count`
-: Number of horizontal pod autoscaler. Tags: `kube_namespace` `horizontalpodautoscaler`
+: Number of horizontal pod autoscaler. Tags: `kube_namespace`.
 
 `kubernetes_state.hpa.min_replicas`
 : Lower limit for the number of pods that can be set by the autoscaler, default 1. Tags:`kube_namespace` `horizontalpodautoscaler`.
@@ -260,7 +260,7 @@
 : The metric specifications used by this autoscaler when calculating the desired replica count. Tags:`kube_namespace` `horizontalpodautoscaler` `metric_name` `metric_target_type`.
 
 `kubernetes_state.vpa.count`
-: Number of vertical pod autoscaler. Tags: `kube_namespace` `verticalpodautoscaler`
+: Number of vertical pod autoscaler. Tags: `kube_namespace`.
 
 `kubernetes_state.vpa.lower_bound`
 : Minimum resources the container can use before the VerticalPodAutoscaler updater evicts it. Tags:`kube_namespace` `verticalpodautoscaler` `kube_container_name` `resource` `target_api_version` `target_kind` `target_name` `unit`.
