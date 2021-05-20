@@ -22,7 +22,7 @@ Release on: 2021-05-20
 Upgrade Notes
 -------------
 
-- Change base Docker image used to build the Agent imges, moving from debian:bullseye to ubuntu:20.10.
+- Change base Docker image used to build the Agent images, moving from ``debian:bullseye`` to ``ubuntu:20.10``.
   In the future the Agent will follow Ubuntu stable versions.
 
 - Windows Docker images based on Windows Core are now provided. Checks that didn't work on Nano should work on Core.
@@ -33,7 +33,7 @@ Upgrade Notes
 New Features
 ------------
 
-- APM: Add a new feature flag "component2name" which determines the "component" tag value
+- APM: Add a new feature flag ``component2name`` which determines the ``component`` tag value
   on a span to become its operation name. This facititates compatibility with Opentracing.
 
 - Adds a functionality to allow capturing and replaying
@@ -47,18 +47,18 @@ New Features
 - Runtime security now reports command line arguments as part of the
   exec events.
 
-- The `args_flags` and `args_options` were added to the SECL
+- The ``args_flags`` and ``args_options`` were added to the SECL
   language to ease the writing of runtime security rules based
   on command line arguments.
-  `args_flags` is used to catch arguments that start by either one
+  ``args_flags`` is used to catch arguments that start by either one
   or two hyphen characters but do not accept any associated value.
   
   Examples:
   
-  - `version` is part of `args_flags` for the command `cat --version`
-  - `l` and `n` both are in `args_flags` for the command `netstat -ln`
-  - `T=8` and `width=8` both are in `args_options` for the command
-    `ls -T 8 --width=8`.
+  - ``version`` is part of ``args_flags`` for the command ``cat --version``
+  - ``l`` and ``n`` both are in ``args_flags`` for the command ``netstat -ln``
+  - ``T=8`` and ``width=8`` both are in ``args_options`` for the command
+    ``ls -T 8 --width=8``.
 
 - Add support for ARM64 to the runtime security agent
 
@@ -72,7 +72,7 @@ Enhancement Notes
 
 - Add ``oid_batch_size`` config to snmp_listener
 
-- Group the output of `agent tagger-list` by entity and by source.
+- Group the output of ``agent tagger-list`` by entity and by source.
 
 - On Windows on a Domain Controller, if no domain name is specified, the installer will use the controller's joined domain.
 
@@ -95,11 +95,11 @@ Enhancement Notes
 
 - Add ``jvm.gc.old_gen_size`` as an alias for ``Tenured Gen``.
   Prevent double signing of release artifacts.
-  JMXFetch upgraded to `0.43.0 <https://github.com/DataDog/jmxfetch/releases/0.43.0>`_
+  JMXFetch upgraded to ``0.43.0 <https://github.com/DataDog/jmxfetch/releases/0.43.0>``
 
-- The `kubernetes_state_core` check now collects two new metrics `kubernetes_state.pod.age` and `kubernetes_state.pod.uptime`.
+- The ``kubernetes_state_core`` check now collects two new metrics ``kubernetes_state.pod.age`` and ``kubernetes_state.pod.uptime``.
 
-- Improve `logs/sender` throughput by adding optional concurrency for serializing & sending payloads.
+- Improve ``logs/sender`` throughput by adding optional concurrency for serializing & sending payloads.
 
 - Make kube_replica_set tag low cardinality
 
@@ -115,8 +115,8 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- For internal profiling of agent processes the `profiling` option
-  has been renamed to `internal_profiling` to avoid confusion.
+- For internal profiling of agent processes, the ``profiling`` option
+  has been renamed to ``internal_profiling`` to avoid confusion.
 
 - The single dash variants of the system-probe flags are now deprecated. Please use ``--config`` and ``--pid`` instead.
 
@@ -134,19 +134,24 @@ Bug Fixes
 - The Windows installer compares the DNS domain name and the joined domain name using a case-insensitive compare.
   This avoids an incorrect warning when the domain names match but otherwise have different cases.
 
-- Replace usage of `runtime.NumCPU` when used to compute metrics related to CPU Hosts. On some Unix systems, `runtime.NumCPU` can be influenced by CPU affinity set on the Agent, which should not affect the metrics computed for other processes/containers. Affects the CPU Limits metrics (docker/containerd) as well as the live containers page metrics.
+- Replace usage of ``runtime.NumCPU`` when used to compute metrics related to CPU Hosts. On some Unix systems,
+  ``runtime.NumCPU`` can be influenced by CPU affinity set on the Agent, which should not affect the metrics
+  computed for other processes/containers. Affects the CPU Limits metrics (docker/containerd) as well as the
+  live containers page metrics.
 
 - Fix issue where Kube Apiserver cache sync timeout configuration is not used.
 
-- Fix the usage of  "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL" and "DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE" environment variables.
+- Fix the usage of ``DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL`` and ``DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE`` environment variables.
 
-- Fix a `panic` that could occur in Docker AD listener when doing `docker inspect` fails
+- Fix a ``panic`` that could occur in Docker AD listener when doing ``docker inspect`` fails
 
 - Fix a small leak where the Agent in some cases keeps in memory identifiers corresponding to dead objects (pods, containers).
 
-- Log file byte count now works correctly on windows. 
+- Log file byte count now works correctly on Windows.
 
-- Agent log folder on Mac is moved from /var/log/datadog to /opt/datadog-agent/logs. A link will be created at /var/log/datadog pointing to /opt/datadog-agent/logs to maintain the compatibility. This is to workaround the issue that some Mac OS releases purge /var/log folder on ugprade.
+- Agent log folder on Mac is moved from ``/var/log/datadog`` to ``/opt/datadog-agent/logs``. A link will be created at
+  ``/var/log/datadog`` pointing to ``/opt/datadog-agent/logs`` to maintain the compatibility. This is to workaround the
+  issue that some Mac OS releases purge ``/var/log`` folder on ugprade.
 
 - Packaging: ensure only one pip3 version is shipped in ``embedded/`` directory
 
@@ -171,7 +176,7 @@ Other Notes
 - JMXFetch upgraded from ``0.42.0`` to ``0.42.1`` as a part of the move to
   a new release pipeline for this component.
 
-- Bump embedded Python 3 to 3.8.8
+- Bump embedded Python 3 to ``3.8.8``
 
 
 .. _Release Notes_7.27.1:
