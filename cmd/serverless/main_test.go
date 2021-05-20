@@ -13,14 +13,14 @@ import (
 
 func TestBuildGlobalTagsMap(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
-	aws_account := "123456789012"
+	awsAccount := "123456789012"
 	functionName := "my-function"
 	region := "us-east-1"
-	m := buildGlobalTagsMap(arn, functionName, region, aws_account)
+	m := buildGlobalTagsMap(arn, functionName, region, awsAccount)
 	assert.Equal(t, len(m), 6)
 	assert.Equal(t, region, m["region"])
 	assert.Equal(t, functionName, m["functionname"])
-	assert.Equal(t, aws_account, m["aws_account"])
+	assert.Equal(t, awsAccount, m["aws_account"])
 	assert.Equal(t, arn, m["function_arn"])
 	assert.Equal(t, "lambda", m["_dd.origin"])
 	assert.Equal(t, "1", m["_dd.compute_stats"])
