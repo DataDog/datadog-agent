@@ -10,7 +10,6 @@ package tests
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -35,7 +34,7 @@ func TestChown32(t *testing.T) {
 	}
 	defer test.Close()
 
-	syscallTester, err := loadSyscallTester(t)
+	syscallTester, err := loadSyscallTester(test)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,27 +318,22 @@ func TestChown32(t *testing.T) {
 	})
 }
 
-func loadSyscallTester(t *testing.T) (string, error) {
+func loadSyscallTester(t *testModule) (string, error) {
 	testerBin, err := syscall_tester.Asset("/syscall_x86_tester")
 	if err != nil {
 		return "", err
 	}
 
-	binPath := filepath.Join(t.TempDir(), "syscall_x86_tester")
-	f, err := os.Create(binPath)
+	perm := 0o700
+	binPath, _, err := t.CreateWithOptions("syscall_x86_tester", -1, -1, perm)
+
+	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
 	if err != nil {
 		return "", err
 	}
+	defer f.Close()
 
 	if _, err = f.Write(testerBin); err != nil {
-		return "", err
-	}
-
-	if err := f.Close(); err != nil {
-		return "", err
-	}
-
-	if err := os.Chmod(binPath, 0o700); err != nil {
 		return "", err
 	}
 
