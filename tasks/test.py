@@ -39,7 +39,11 @@ def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
-    os.environ = original_environ
+    for var in env.keys():
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)
 
 
 @contextmanager
@@ -59,7 +63,6 @@ TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/fzipp/gocyclo',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
     'github.com/mgechev/revive',
@@ -78,7 +81,6 @@ TOOLS = {
     'internal/tools': TOOL_LIST,
     'internal/tools/proto': TOOL_LIST_PROTO,
 }
-
 
 @task
 def install_tools(ctx):
