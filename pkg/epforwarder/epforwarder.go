@@ -44,9 +44,12 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
-		eventType:              EventTypeNetworkDevicesMetadata,
-		endpointsConfigPrefix:  "network_devices.metadata",
-		hostnameEndpointPrefix: "network-devices.",
+		eventType:                     EventTypeNetworkDevicesMetadata,
+		endpointsConfigPrefix:         "network_devices.metadata",
+		hostnameEndpointPrefix:        "network-devices.",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }
 
