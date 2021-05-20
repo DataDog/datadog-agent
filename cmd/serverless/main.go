@@ -94,6 +94,9 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	computeStatsKey          = "_dd.compute_stats"
 	computeStatsValue        = "1"
 	functionARNKey           = "function_arn"
+	functionNameKey          = "functionname"
+	regionKey                = "region"
+	AWSAccountKey            = "aws_account"
 )
 
 const (
@@ -354,9 +357,10 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
 		tc.Hostname = ""
-		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
-		tc.GlobalTags[computeStatsKey] = computeStatsValue
-		tc.GlobalTags[functionARNKey] = functionARN
+		globalTags := buildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
+		for key, value := range globalTags {
+			tc.GlobalTags[key] = value
+		}
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
@@ -389,6 +393,17 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return
+}
+
+func buildGlobalTagsMap(functionARN string, functionName string, region string, AWSAccountID string) map[string]string {
+	tags := make(map[string]string)
+	tags[traceOriginMetadataKey] = traceOriginMetadataValue
+	tags[computeStatsKey] = computeStatsValue
+	tags[functionARNKey] = functionARN
+	tags[functionNameKey] = functionName
+	tags[regionKey] = region
+	tags[AWSAccountKey] = AWSAccountID
+	return tags
 }
 
 // handleSignals handles OS signals, if a SIGTERM is received,

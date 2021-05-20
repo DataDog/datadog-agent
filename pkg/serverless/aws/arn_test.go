@@ -100,7 +100,7 @@ func (m mockedSTSAPI) GetCallerIdentity(in *sts.GetCallerIdentityInput) (*sts.Ge
 
 func TestFetchFunctionARNFromEnv(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "us-east-1")
+	os.Setenv(RegionEnvVar, "us-east-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -110,7 +110,7 @@ func TestFetchFunctionARNFromEnv(t *testing.T) {
 
 func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "us-gov-west-1")
+	os.Setenv(RegionEnvVar, "us-gov-west-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -120,7 +120,7 @@ func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
 
 func TestFetchFunctionARNFromEnvChina(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "cn-east-1")
+	os.Setenv(RegionEnvVar, "cn-east-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -145,7 +145,7 @@ func resetState() {
 	SetARN("")
 	SetRequestID("")
 	SetColdStart(false)
-	os.Setenv(regionEnvVar, "")
+	os.Setenv(RegionEnvVar, "")
 	os.Setenv(functionNameEnvVar, "")
 	os.Setenv(qualifierEnvVar, "")
 }

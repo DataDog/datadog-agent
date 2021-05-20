@@ -23,9 +23,10 @@ import (
 
 const (
 	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-	regionEnvVar           = "AWS_REGION"
-	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
-	qualifierEnvVar        = "AWS_LAMBDA_FUNCTION_VERSION"
+	// RegionEnvVar is used to represent the AWS region environment variable name
+	RegionEnvVar       = "AWS_REGION"
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	qualifierEnvVar    = "AWS_LAMBDA_FUNCTION_VERSION"
 )
 
 type persistedState struct {
@@ -166,7 +167,7 @@ func RestoreCurrentStateFromFile() error {
 // in the environment.
 func FetchFunctionARNFromEnv(accountID string) (string, error) {
 	partition := "aws"
-	region := os.Getenv(regionEnvVar)
+	region := os.Getenv(RegionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
 	qualifier := os.Getenv(qualifierEnvVar)
 
