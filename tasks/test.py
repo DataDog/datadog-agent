@@ -62,7 +62,7 @@ TOOL_LIST = [
 
 TOOL_LIST_GET = [
     'github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1',
-    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.12.1',
+    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.12.2',
     'github.com/golang/protobuf/protoc-gen-go@v1.3.2',
     'github.com/golang/mock/mockgen@v1.5.0',
 ]

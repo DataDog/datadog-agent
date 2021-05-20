@@ -17,7 +17,7 @@ require (
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 	github.com/gostaticanalysis/analysisutil v0.4.1 // indirect
 	github.com/goware/modvendor v0.3.0
-	github.com/grpc-ecosystem/grpc-gateway v1.12.1
+	github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	github.com/matoous/godox v0.0.0-20210227103229-6504466cf951 // indirect
 	github.com/mgechev/revive v1.0.6
 	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354 // indirect
@@ -29,7 +29,6 @@ require (
 	github.com/spf13/cobra v1.1.3 // indirect
 	github.com/spf13/viper v1.7.1 // indirect
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
-	github.com/stretchr/testify v1.7.0
 	github.com/timakin/bodyclose v0.0.0-20200424151742-cb6215831a94 // indirect
 	github.com/ultraware/funlen v0.0.3 // indirect
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
