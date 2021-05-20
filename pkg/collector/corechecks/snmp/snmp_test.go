@@ -307,6 +307,8 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	Now = MockNow
+
 	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
@@ -580,7 +582,8 @@ profiles:
       "admin_status": 1,
       "oper_status": 1
     }
-  ]
+  ],
+  "collect_timestamp":946684800
 }
 `)
 	compactEvent := new(bytes.Buffer)

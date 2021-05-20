@@ -17,6 +17,8 @@ const (
 	snmpLoaderTag = "loader:core"
 )
 
+var Now = time.Now
+
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
@@ -89,6 +91,7 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 	if c.config.oidConfig.hasOids() {
 		c.config.addUptimeMetric()
 
+		collectionTime := Now()
 		valuesStore, err := fetchValues(c.session, c.config)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetch values: %s", err)
@@ -102,7 +105,7 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 			// `checkSender.checkTags` are added for metrics, service checks, events only.
 			// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 			deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
-			c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags)
+			c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime)
 		}
 	}
 	return tags, nil

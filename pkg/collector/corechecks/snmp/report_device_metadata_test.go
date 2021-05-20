@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"
+	"time"
 )
 
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
@@ -22,14 +23,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	var storeWithoutIfName = &resultValueStore{
 		columnValues: columnResultValuesType{},
 	}
-	//var storeWithIfName = &resultValueStore{
-	//	columnValues: columnResultValuesType{
-	//		"1.3.6.1.2.1.31.1.1.1.1": {
-	//			"1": snmpValueType{value: float64(21)},
-	//			"2": snmpValueType{value: float64(22)},
-	//		},
-	//	},
-	//}
+
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &metricSender{
@@ -42,7 +36,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		deviceIDTags: []string{"device_name:127.0.0.1"},
 		subnet:       "127.0.0.0/29",
 	}
-	ms.reportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"})
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+
+	ms.reportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime)
 
 	// language=json
 	event := []byte(`
@@ -66,7 +65,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
                 "tag2"
             ]
         }
-    ]
+    ],
+	"collect_timestamp":1415792726
 }
 `)
 	compactEvent := new(bytes.Buffer)
@@ -102,7 +102,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		deviceIDTags: []string{"device_name:127.0.0.1"},
 		subnet:       "127.0.0.0/29",
 	}
-	ms.reportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"})
+
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+	ms.reportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime)
 
 	// language=json
 	event := []byte(`
@@ -148,11 +153,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             "admin_status": 0,
             "oper_status": 0
         }
-    ]
+    ],
+	"collect_timestamp":1415792726
 }
 `)
 	compactEvent := new(bytes.Buffer)
-	err := json.Compact(compactEvent, event)
+	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")

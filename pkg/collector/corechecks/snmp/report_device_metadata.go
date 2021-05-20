@@ -7,13 +7,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string) {
-	log.Debugf("[DEV] Reporting NetworkDevicesMetadata")
-
+func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time) {
 	tags := copyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -29,8 +28,9 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 		Devices: []metadata.DeviceMetadata{
 			device,
 		},
-		Interfaces: interfaces,
-		Subnet:     config.subnet,
+		Interfaces:       interfaces,
+		Subnet:           config.subnet,
+		CollectTimestamp: collectTime.Unix(),
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
