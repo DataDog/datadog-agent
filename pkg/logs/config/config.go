@@ -25,8 +25,9 @@ const SnmpTraps = "snmp_traps"
 
 // logs-intake endpoint prefix.
 const (
-	tcpEndpointPrefix  = "agent-intake.logs."
-	httpEndpointPrefix = "agent-http-intake.logs."
+	tcpEndpointPrefix            = "agent-intake.logs."
+	httpEndpointPrefix           = "agent-http-intake.logs."
+	serverlessHTTPEndpointPrefix = "lambda-http-intake.logs."
 )
 
 // logs-intake endpoints depending on the site and environment.
@@ -113,6 +114,12 @@ func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 		"To benefit from increased reliability and better network performances, " +
 		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
 	return buildTCPEndpoints()
+}
+
+// BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
+func BuildServerlessEndpoints() (*Endpoints, error) {
+	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
+	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHTTPEndpointPrefix)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
