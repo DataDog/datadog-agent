@@ -33,12 +33,17 @@ def ensure_bytes(s):
 
     return s
 
+
 @contextmanager
 def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
-    os.environ = original_environ
+    for var in env.keys():
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)
 
 
 TOOL_LIST = [
@@ -46,26 +51,39 @@ TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/fzipp/gocyclo',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
     'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
-    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.12.2',
-    'github.com/golang/protobuf/protoc-gen-go@v1.3.2',
     'golang.org/x/lint/golint',
     'gotest.tools/gotestsum',
     'honnef.co/go/tools/cmd/staticcheck',
+]
+
+TOOL_LIST_GET = [
+    'github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1',
+    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.12.1',
+    'github.com/golang/protobuf/protoc-gen-go@v1.3.2',
+    'github.com/golang/mock/mockgen@v1.5.0',
 ]
 
 
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    with environ({ 'GO111MODULE': 'on'}):
+    with environ({'GO111MODULE': 'on'}):
         with ctx.cd("internal/tools"):
             for tool in TOOL_LIST:
                 ctx.run("go install {}".format(tool))
+
+            for tool in TOOL_LIST_GET:
+                pkg = tool.split('@')[0]
+                ctx.run("go get {}".format(tool))
+                ctx.run("go install {}".format(pkg))
+
+            # clean up the mess created by the go get hack above
+            ctx.run("go mod tidy")
+
 
 @task()
 def test(
