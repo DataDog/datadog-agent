@@ -322,7 +322,7 @@ elif [ "$OS" = "Debian" ]; then
 
     for key in "${APT_GPG_KEYS[@]}"; do
         $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
-        $sudo_cmd cat "/tmp/${key}" | gpg --import --batch --no-default-keyring --keyring "$apt_usr_share_keyring"
+        cat "/tmp/${key}" | $sudo_cmd gpg --import --batch --no-default-keyring --keyring "$apt_usr_share_keyring"
     done
 
     release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
