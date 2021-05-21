@@ -8,7 +8,7 @@
 dev_branch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a6_manual]
+    !reference [.on_a6_manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -23,7 +23,7 @@ dev_branch_docker_hub-a6:
 dev_branch_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a7_manual]
+    !reference [.on_a7_manual]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64                 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
@@ -31,7 +31,7 @@ dev_branch_docker_hub-dogstatsd:
 dev_branch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a7_manual]
+    !reference [.on_a7_manual]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -40,7 +40,7 @@ dev_branch_docker_hub-a7:
 dev_branch_google_container_registry-a7:
   extends: .google_container_registry_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a7_manual]
+    !reference [.on_a7_manual]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-amd64             gcr.io/datadoghq/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -49,7 +49,7 @@ dev_branch_google_container_registry-a7:
 dev_branch_multiarch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_all_builds_a6_manual]
+    !reference [.on_all_builds_a6_manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -73,7 +73,7 @@ dev_branch_multiarch_docker_hub-a6:
 dev_branch_multiarch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_all_builds_a7_manual]
+    !reference [.on_all_builds_a7_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -90,7 +90,7 @@ dev_branch_multiarch_docker_hub-a7:
 dev_branch_multiarch_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a7_manual]
+    !reference [.on_a7_manual]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     # Platform-specific agent images
@@ -99,7 +99,7 @@ dev_branch_multiarch_docker_hub-dogstatsd:
 dca_dev_branch_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_a7_manual]
+    !reference [.on_a7_manual]
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
@@ -107,7 +107,7 @@ dca_dev_branch_docker_hub:
 dca_dev_branch_multiarch_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_dev_branch_all_builds_a7_manual]
+    !reference [.on_all_builds_a7_manual]
   needs: ["docker_build_cluster_agent_amd64", "docker_build_cluster_agent_arm64"]
   script:
     - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
@@ -167,7 +167,7 @@ dev_nightly_docker_hub-a6:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-py2py3-jmx-amd64  datadog/agent-dev:$nightly-${CI_COMMIT_SHORT_SHA}-py2py3-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-py2py3-jmx-amd64  datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2py3-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly_docker_hub-a7:

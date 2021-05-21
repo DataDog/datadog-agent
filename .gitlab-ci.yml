@@ -219,6 +219,11 @@ variables:
 .on_a6:
   - <<: *if_version_6
 
+.on_a6_manual:
+  - <<: *if_version_6
+    when: manual
+    allow_failure: true
+
 .on_a7:
   - <<: *if_version_7
 
@@ -230,61 +235,9 @@ variables:
 .on_dev_branch_manual:
   - <<: *if_master_branch
     when: never
-  - <<: *if_release_branch
-    when: never
   - <<: *if_tagged_commit
     when: never
   - when: manual
-    allow_failure: true
-
-.on_dev_branch_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_master_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - when: manual
-    allow_failure: true
-
-.on_dev_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_master_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - when: manual
-    allow_failure: true
-
-.on_dev_branch_all_builds_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_master_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
-.on_dev_branch_all_builds_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_master_branch
-    when: never
-  - <<: *if_release_branch
-    when: never
-  - <<: *if_tagged_commit
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
     allow_failure: true
 
 .on_master:
