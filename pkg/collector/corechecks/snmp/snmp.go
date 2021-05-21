@@ -37,7 +37,7 @@ func (c *Check) Run() error {
 	}
 	c.sender = metricSender{sender: sender}
 
-	staticTags := c.config.getStaticTagsWithDeviceID()
+	staticTags := c.config.getStaticTags()
 
 	var checkErr error
 	tags, checkErr := c.processMetricsAndMetadata(staticTags)

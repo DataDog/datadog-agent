@@ -129,12 +129,6 @@ func (c *snmpConfig) getStaticTags() []string {
 	return tags
 }
 
-func (c *snmpConfig) getStaticTagsWithDeviceID() []string {
-	tags := c.getStaticTags()
-	tags = append(tags, "device_id:"+c.deviceID)
-	return tags
-}
-
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *snmpConfig) getDeviceIDTags() []string {
