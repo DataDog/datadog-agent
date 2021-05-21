@@ -51,6 +51,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PathnameStr = pc.PathnameStr
 	childEntry.BasenameStr = pc.BasenameStr
 	childEntry.Filesystem = pc.Filesystem
+	childEntry.ContainerID = pc.ContainerID
 	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTimestamp = pc.ExecTimestamp
 	childEntry.Credentials = pc.Credentials
@@ -58,8 +59,6 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 
 	childEntry.ArgsEntry = pc.ArgsEntry
 	childEntry.EnvsEntry = pc.EnvsEntry
-
-	copyProcessContext(pc, childEntry)
 }
 
 /*func (pc *ProcessCacheEntry) String() string {

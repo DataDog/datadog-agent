@@ -330,8 +330,8 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		ExecTime:            getTimeIfNotZero(pce.ExecTime),
 		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 
-		Pid:           e.ProcessContext.Pid,
-		Tid:           e.ProcessContext.Tid,
+		Pid:           pce.Process.Pid,
+		Tid:           pce.Process.Tid,
 		PPid:          pce.Process.PPid,
 		Path:          pce.Process.PathnameStr,
 		ContainerPath: pce.Process.ContainerPath,
@@ -354,9 +354,9 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		CredentialsSerializer: credsSerializer,
 	}
 
-	if len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
+	if len(pce.ContainerID) != 0 {
 		pceSerializer.Container = &ContainerContextSerializer{
-			ID: e.ResolveContainerID(&e.ContainerContext),
+			ID: pce.ContainerID,
 		}
 	}
 	return pceSerializer
@@ -382,7 +382,9 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
+	var prev *ProcessCacheEntrySerializer
 	first := true
+
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
 
@@ -394,9 +396,19 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 		first = false
 
+		// dedup args/envs
+		if prev != nil {
+			// parent/child with the same comm then a fork thus we
+			// can remove the child args/envs
+			if prev.PPid == s.Pid && prev.Comm == s.Comm {
+				prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
+				prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
+			}
+		}
+		prev = s
+
 		ptr = it.Next()
 	}
-
 	return ps
 }
 

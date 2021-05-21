@@ -266,6 +266,8 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return m.probe.GetResolvers().TagsResolver.Resolve(id)
 	}
 
+	fmt.Printf("SSSS: %+v\n", event)
+
 	m.SendEvent(rule, event, extTagsCb)
 }
 
