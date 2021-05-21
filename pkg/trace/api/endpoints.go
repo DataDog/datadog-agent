@@ -72,6 +72,10 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
+		Pattern: "/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.tracingProxyHandler() },
+	},
+	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
