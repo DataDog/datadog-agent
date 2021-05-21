@@ -97,7 +97,7 @@ func (b *BufferedMessageReceiver) HandleMessage(m message.Message, redactedMsg [
 
 // Filter writes the buffered events from the input channel formatted as a string to the output channel
 func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{}) <-chan string {
-	out := make(chan string, 100)
+	out := make(chan string, config.ChanSize)
 	go func() {
 		defer close(out)
 		for {
