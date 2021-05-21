@@ -95,7 +95,7 @@ func (b *BufferedMessageReceiver) HandleMessage(m message.Message, redactedMsg [
 	b.inputChan <- messagePair{&m, redactedMsg}
 }
 
-// Next pops the next buffered event off the input channel formatted as a string
+// Filter writes the buffered events from the input channel formatted as a string to the output channel
 func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{}) <-chan string {
 	out := make(chan string, 100)
 	go func() {
