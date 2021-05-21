@@ -307,9 +307,10 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	Now = MockNow
-
+	timeNow = mockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
+
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml

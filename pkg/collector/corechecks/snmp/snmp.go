@@ -17,7 +17,7 @@ const (
 	snmpLoaderTag = "loader:core"
 )
 
-var Now = time.Now
+var timeNow = time.Now
 
 // Check aggregates metrics from one Check instance
 type Check struct {
@@ -91,7 +91,7 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 	if c.config.oidConfig.hasOids() {
 		c.config.addUptimeMetric()
 
-		collectionTime := Now()
+		collectionTime := timeNow()
 		valuesStore, err := fetchValues(c.session, c.config)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetch values: %s", err)
