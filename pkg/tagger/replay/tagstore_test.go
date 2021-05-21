@@ -22,8 +22,8 @@ func TestStore(t *testing.T) {
 
 	store.addEntity(entityID, e)
 
-	entity, err := store.getEntity(entityID)
-	assert.Nil(t, err)
+	entity, ok := store.getEntity(entityID)
+	assert.True(t, ok)
 	assert.NotNil(t, entity)
 	assert.Equal(t, []string{"foo"}, entity.LowCardinalityTags)
 	assert.Equal(t, []string(nil), entity.OrchestratorCardinalityTags)
@@ -45,16 +45,16 @@ func TestStore(t *testing.T) {
 	}
 	store.addEntity(anotherEntityID, e)
 
-	entity, err = store.getEntity(entityID)
-	assert.Nil(t, err)
+	entity, ok = store.getEntity(entityID)
+	assert.True(t, ok)
 	assert.NotNil(t, entity)
 	assert.Equal(t, []string{"foo", "bar"}, entity.LowCardinalityTags)
 	assert.Equal(t, []string{"baz"}, entity.OrchestratorCardinalityTags)
 	assert.Equal(t, []string(nil), entity.HighCardinalityTags)
 	assert.Equal(t, []string(nil), entity.StandardTags)
 
-	entity, err = store.getEntity(anotherEntityID)
-	assert.Nil(t, err)
+	entity, ok = store.getEntity(anotherEntityID)
+	assert.True(t, ok)
 	assert.NotNil(t, entity)
 	assert.Equal(t, []string{"bar"}, entity.LowCardinalityTags)
 	assert.Equal(t, []string{"baz"}, entity.HighCardinalityTags)

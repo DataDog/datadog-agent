@@ -72,7 +72,7 @@ func GetEntity(entityID string) (*types.Entity, error) {
 	mux.RLock()
 	if captureTagger != nil {
 		entity, err := captureTagger.GetEntity(entityID)
-		if err == nil && entity == nil {
+		if err == nil && entity != nil {
 			mux.RUnlock()
 			return entity, nil
 		}
@@ -123,7 +123,7 @@ func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.T
 func TagWithHash(entity string, cardinality collectors.TagCardinality) ([]string, string, error) {
 
 	tags, err := Tag(entity, cardinality)
-	if err == nil {
+	if err != nil {
 		return tags, "", err
 	}
 	return tags, utils.ComputeTagsHash(tags), nil

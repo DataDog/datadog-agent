@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -57,7 +56,6 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 func processUDSOrigin(ancillary []byte) (int, string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
-		log.Debugf("PACKET HAD NO ORIGIN CREDENTIALS: %v\n", messages)
 		return 0, packets.NoOrigin, err
 	}
 	if len(messages) == 0 {
@@ -67,8 +65,6 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 	if err != nil {
 		return 0, packets.NoOrigin, err
 	}
-
-	log.Debugf("PACKET CREDENTIALS collected: %v\n", cred)
 
 	if cred.Pid == 0 {
 		return 0, packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
