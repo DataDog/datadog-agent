@@ -96,19 +96,22 @@ func (b *BufferedMessageReceiver) HandleMessage(m message.Message, redactedMsg [
 }
 
 // Next pops the next buffered event off the input channel formatted as a string
-func (b *BufferedMessageReceiver) Next(filters *Filters) (line string, ok bool) {
-	// Read messages until one is handled or none are left
-	for {
-		select {
-		case msgPair := <-b.inputChan:
-			if shouldHandleMessage(msgPair.msg, filters) {
-				return formatMessage(msgPair.msg, msgPair.redactedMsg), true
+func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{}) <-chan string {
+	out := make(chan string, 100)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case msgPair := <-b.inputChan:
+				if shouldHandleMessage(msgPair.msg, filters) {
+					out <- formatMessage(msgPair.msg, msgPair.redactedMsg)
+				}
+			case <-done:
+				break
 			}
-			continue
-		default:
-			return "", false
 		}
-	}
+	}()
+	return out
 }
 
 func shouldHandleMessage(m *message.Message, filters *Filters) bool {
