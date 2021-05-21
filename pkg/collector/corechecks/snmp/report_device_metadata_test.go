@@ -167,12 +167,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 
 func Test_batchPayloads(t *testing.T) {
 	collectTime := mockTimeNow()
-	deviceId := "123"
-	device := metadata.DeviceMetadata{ID: deviceId}
+	deviceID := "123"
+	device := metadata.DeviceMetadata{ID: deviceID}
 
 	var interfaces []metadata.InterfaceMetadata
 	for i := 0; i < 350; i++ {
-		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceId, Index: int32(i)})
+		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
 	}
 	payloads := batchPayloads("127.0.0.0/30", collectTime, 100, device, interfaces)
 

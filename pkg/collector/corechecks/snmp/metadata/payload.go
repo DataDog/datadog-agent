@@ -1,5 +1,7 @@
 package metadata
 
+// PayloadMetadataBatchSize is the number of resources per event payload
+// Resources are devices, interfaces, etc
 var PayloadMetadataBatchSize = 100
 
 // NetworkDevicesMetadata contains network devices metadata

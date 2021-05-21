@@ -99,7 +99,7 @@ func batchPayloads(subnet string, collectTime time.Time, batchSize int, device m
 		Subnet:           subnet,
 		CollectTimestamp: collectTime.Unix(),
 	}
-	resourceCount += 1
+	resourceCount++
 
 	for _, interfaceMetadata := range interfaces {
 		if resourceCount == batchSize {
@@ -110,7 +110,7 @@ func batchPayloads(subnet string, collectTime time.Time, batchSize int, device m
 			}
 			resourceCount = 0
 		}
-		resourceCount += 1
+		resourceCount++
 		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
 	}
 	if resourceCount > 0 {
