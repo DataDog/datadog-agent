@@ -62,7 +62,7 @@ var ClientStatsTests = []struct {
 				TracerVersion: "0.2.0",
 				RuntimeID:     "1",
 				Sequence:      2,
-				DdService: "dd-service",
+				DdService:     "dd-service",
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    0,
@@ -161,7 +161,7 @@ var ClientStatsTests = []struct {
 						RuntimeID:        "1",
 						Sequence:         2,
 						AgentAggregation: "distributions",
-						DdService: "dd-service",
+						DdService:        "dd-service",
 						Stats: []pb.ClientStatsBucket{
 							{
 								Start:    0,
@@ -203,7 +203,7 @@ var ClientStatsTests = []struct {
 						RuntimeID:        "1",
 						Sequence:         2,
 						AgentAggregation: "distributions",
-						DdService: "dd-service",
+						DdService:        "dd-service",
 						Stats: []pb.ClientStatsBucket{
 							{
 								Start:    0,
