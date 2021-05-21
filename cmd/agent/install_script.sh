@@ -312,7 +312,9 @@ elif [ "$OS" = "Debian" ]; then
 
     printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
-    $sudo_cmd apt-get install -y apt-transport-https curl gnupg
+    # installing curl might trigger install of additional version of libssl; this will fail the installation process,
+    # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
+    $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
     $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
 
