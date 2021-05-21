@@ -100,7 +100,7 @@ func (m mockedSTSAPI) GetCallerIdentity(in *sts.GetCallerIdentityInput) (*sts.Ge
 
 func TestFetchFunctionARNFromEnv(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "us-east-1")
+	os.Setenv(RegionEnvVar, "us-east-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -110,7 +110,7 @@ func TestFetchFunctionARNFromEnv(t *testing.T) {
 
 func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "us-gov-west-1")
+	os.Setenv(RegionEnvVar, "us-gov-west-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -120,7 +120,7 @@ func TestFetchFunctionARNFromEnvGovcloud(t *testing.T) {
 
 func TestFetchFunctionARNFromEnvChina(t *testing.T) {
 	t.Cleanup(resetState)
-	os.Setenv(regionEnvVar, "cn-east-1")
+	os.Setenv(RegionEnvVar, "cn-east-1")
 	os.Setenv(functionNameEnvVar, "my-Function")
 	os.Setenv(qualifierEnvVar, "7")
 	arn, err := FetchFunctionARNFromEnv("123456789012")
@@ -145,7 +145,22 @@ func resetState() {
 	SetARN("")
 	SetRequestID("")
 	SetColdStart(false)
-	os.Setenv(regionEnvVar, "")
+	os.Setenv(RegionEnvVar, "")
 	os.Setenv(functionNameEnvVar, "")
 	os.Setenv(qualifierEnvVar, "")
+}
+
+func TestBuildGlobalTagsMap(t *testing.T) {
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+	awsAccount := "123456789012"
+	functionName := "my-function"
+	region := "us-east-1"
+	m := BuildGlobalTagsMap(arn, functionName, region, awsAccount)
+	assert.Equal(t, len(m), 6)
+	assert.Equal(t, region, m["region"])
+	assert.Equal(t, functionName, m["functionname"])
+	assert.Equal(t, awsAccount, m["aws_account"])
+	assert.Equal(t, arn, m["function_arn"])
+	assert.Equal(t, "lambda", m["_dd.origin"])
+	assert.Equal(t, "1", m["_dd.compute_stats"])
 }
