@@ -8,9 +8,7 @@ package replay
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const replaySource = "replay"
@@ -55,26 +53,6 @@ func (s *tagStore) listEntities() []*types.Entity {
 	}
 
 	return entities
-}
-
-func (s *tagStore) collectTelemetry() {
-	// our telemetry package does not seem to have a way to reset a Gauge,
-	// so we need to keep track of all the labels we use, and re-set them
-	// to zero after we're done to ensure a new run of collectTelemetry
-	// will not forget to clear them if they disappear.
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	for _, entity := range s.store {
-		prefix, _ := containers.SplitEntityName(entity.ID)
-		s.telemetry[prefix]++
-	}
-
-	for prefix, storedEntities := range s.telemetry {
-		telemetry.StoredEntities.Set(storedEntities, replaySource, prefix)
-		s.telemetry[prefix] = 0
-	}
 }
 
 // reset clears the local store, preparing it to be re-initialized from a fresh

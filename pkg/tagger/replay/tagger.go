@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -23,19 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultTimeout = 5 * time.Minute
-	noTimeout      = 0 * time.Minute
-)
-
-var (
-	errTaggerStreamNotStarted = errors.New("tagger stream not started")
-)
-
 // Tagger stores tags to entity as stored in a replay state.
 type Tagger struct {
 	store *tagStore
-	ready bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -165,7 +153,10 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 			StandardTags:                entity.StandardTags,
 		}
 
-		t.store.addEntity(id, e)
+		err = t.store.addEntity(id, e)
+		if err != nil {
+			log.Errorf("Error storing identity with ID %v in store: %v", id, err)
+		}
 	}
 
 	log.Debugf("Loaded %v elements into tag store", len(t.store.store))
@@ -180,25 +171,4 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 	}
 
 	return entity, nil
-}
-
-func (t *Tagger) run() {
-
-	// TODO: What does this do for the Capture tagger?
-	for {
-		select {
-		case <-t.health.C:
-		case <-t.telemetryTicker.C:
-			t.store.collectTelemetry()
-		case <-t.ctx.Done():
-			return
-		default:
-		}
-
-		// TODO
-	}
-}
-
-func convertEntityID(id *pb.EntityId) string {
-	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
 }
