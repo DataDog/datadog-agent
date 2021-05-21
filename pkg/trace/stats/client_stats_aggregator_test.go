@@ -38,9 +38,9 @@ func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
 
 func payloadWithCounts(ts time.Time, k bucketAggregationKey, hits, errors, duration uint64) pb.ClientStatsPayload {
 	return pb.ClientStatsPayload{
-		Env:       "test-env",
-		Version:   "test-version",
-		DdService: "dd-service",
+		Env:     "test-env",
+		Version: "test-version",
+		Service: "test-service",
 		Stats: []pb.ClientStatsBucket{
 			{
 				Start: uint64(ts.UnixNano()),

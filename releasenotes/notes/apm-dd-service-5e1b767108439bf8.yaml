@@ -1,4 +1,4 @@
 features:
   - |
-    APM: Passes DDService from client generated stats to the backend.
+    APM: Passes Tracer Service from client generated stats to the backend.
       See unified service tagging at https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging
