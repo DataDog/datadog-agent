@@ -113,8 +113,7 @@ func batchPayloads(subnet string, collectTime time.Time, batchSize int, device m
 		resourceCount++
 		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
 	}
-	if resourceCount > 0 {
-		payloads = append(payloads, payload)
-	}
+
+	payloads = append(payloads, payload)
 	return payloads
 }
