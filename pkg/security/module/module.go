@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -57,7 +57,7 @@ type Module struct {
 }
 
 // Register the runtime security agent module
-func (m *Module) Register(httpMux *http.ServeMux) error {
+func (m *Module) Register(_ *mux.Router) error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 

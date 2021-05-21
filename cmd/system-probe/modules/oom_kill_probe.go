@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
@@ -33,7 +34,7 @@ type oomKillModule struct {
 	*probe.OOMKillProbe
 }
 
-func (o *oomKillModule) Register(httpMux *http.ServeMux) error {
+func (o *oomKillModule) Register(httpMux *mux.Router) error {
 	httpMux.HandleFunc("/check/oom_kill", func(w http.ResponseWriter, req *http.Request) {
 		stats := o.OOMKillProbe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
