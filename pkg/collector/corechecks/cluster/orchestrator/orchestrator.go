@@ -56,6 +56,8 @@ var (
 		"replicasets",
 		"services",
 		"nodes",
+		"jobs",
+		"cronjobs",
 	}
 )
 
