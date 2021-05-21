@@ -261,6 +261,19 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	p.SetProcessUsersGroups(entry)
 
+	// args
+	if len(filledProc.Cmdline) > 0 {
+		entry.ArgsEntry = &model.ArgsEntry{
+			Values: filledProc.Cmdline[1:],
+		}
+	}
+
+	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+		entry.EnvsEntry = &model.EnvsEntry{
+			Values: envs,
+		}
+	}
+
 	return nil
 }
 
@@ -302,10 +315,23 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry
 	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 	atomic.AddInt64(&p.cacheSize, 1)
 
-	args, envs := entry.ArgsCacheEntry, entry.EnvsCacheEntry
+	var args *model.ArgsEnvsCacheEntry
+	if entry.ArgsEntry != nil {
+		args = entry.ArgsEntry.ArgsEnvsCacheEntry
+	}
+
+	var envs *model.ArgsEnvsCacheEntry
+	if entry.EnvsEntry != nil {
+		envs = entry.EnvsEntry.ArgsEnvsCacheEntry
+	}
+
 	runtime.SetFinalizer(entry, func(obj interface{}) {
-		p.argsEnvsPool.Put(args)
-		p.argsEnvsPool.Put(envs)
+		if args != nil {
+			p.argsEnvsPool.Put(args)
+		}
+		if envs != nil {
+			p.argsEnvsPool.Put(envs)
+		}
 
 		atomic.AddInt64(&p.cacheSize, -1)
 	})
@@ -504,14 +530,40 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
-		pce.ArgsCacheEntry = e.(*model.ArgsEnvsCacheEntry)
+		pce.ArgsEntry = &model.ArgsEntry{
+			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+		}
 	}
+}
+
+// GetProcessArgv returns the args of the event as an array
+func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil {
+		return nil, false
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+
+	return argv, pr.ArgsTruncated || truncated
 }
 
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
-		pce.EnvsCacheEntry = e.(*model.ArgsEnvsCacheEntry)
+		pce.EnvsEntry = &model.EnvsEntry{
+			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
+		}
 	}
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) (map[string]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envs, truncated := pr.EnvsEntry.ToMap()
+
+	return envs, pr.EnvsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result

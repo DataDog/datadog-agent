@@ -10,7 +10,6 @@ package probe
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"path"
 	"strings"
 	"syscall"
@@ -219,26 +218,10 @@ func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
 	return ev.Exec.Args
 }
 
-// GetProcessArgv returns the args of the event as an array
-func (ev *Event) GetProcessArgv(p *model.Process) ([]string, bool) {
-	if p.ArgsCacheEntry == nil {
-		return nil, false
-	}
-
-	argv, truncated := p.ArgsCacheEntry.ToArray()
-
-	truncated = p.ArgsTruncated || truncated
-	if truncated {
-		argv = append(argv, "...")
-	}
-
-	return argv, truncated
-}
-
 // ResolveExecArgv resolves the args of the event as an array
 func (ev *Event) ResolveExecArgv(e *model.ExecEvent) []string {
-	if len(ev.Exec.Argv) == 0 && e.ArgsCacheEntry != nil {
-		ev.Exec.Argv, ev.Exec.ArgsTruncated = ev.GetProcessArgv(&e.Process)
+	if len(ev.Exec.Argv) == 0 {
+		ev.Exec.Argv, ev.Exec.ArgsTruncated = ev.resolvers.ProcessResolver.GetProcessArgv(&e.Process)
 	}
 	return ev.Exec.Argv
 }
@@ -312,38 +295,17 @@ func (ev *Event) ResolveExecEnvsTruncated(e *model.ExecEvent) bool {
 	return ev.Exec.EnvsTruncated
 }
 
-// GetProcessEnvs returns the envs of the event
-func (ev *Event) GetProcessEnvs(p *model.Process) ([]string, bool) {
-	if p.EnvsCacheEntry == nil {
-		return nil, false
-	}
-
-	values, truncated := p.EnvsCacheEntry.ToArray()
-
-	size := len(values)
-	if truncated {
-		size++
-	}
-
-	envs := make([]string, size)
-	truncated = p.EnvsTruncated || truncated
-
-	for i, env := range values {
-		if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-			envs[i] = els[0]
-		}
-	}
-
-	if truncated {
-		envs[size-1] = "..."
-	}
-	return envs, truncated
-}
-
 // ResolveExecEnvs resolves the envs of the event
 func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
-	if len(e.Envs) == 0 && e.EnvsCacheEntry != nil {
-		ev.Exec.Envs, ev.Exec.EnvsTruncated = ev.GetProcessEnvs(&e.Process)
+	if len(e.Envs) == 0 {
+		envs, truncated := ev.resolvers.ProcessResolver.GetProcessEnvs(&e.Process)
+		if envs != nil {
+			ev.Exec.Envs = make([]string, 0, len(envs))
+			for key := range envs {
+				ev.Exec.Envs = append(ev.Exec.Envs, key)
+			}
+			ev.Exec.EnvsTruncated = truncated
+		}
 	}
 	return ev.Exec.Envs
 }

@@ -259,16 +259,17 @@ type Process struct {
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
-	ArgsCacheEntry *ArgsEnvsCacheEntry `field:"-"`
-	ArgsTruncated  bool                `field:"-"`
-	EnvsCacheEntry *ArgsEnvsCacheEntry `field:"-"`
-	EnvsTruncated  bool                `field:"-"`
+	ArgsEntry     *ArgsEntry `field:"-"`
+	ArgsTruncated bool       `field:"-"`
+	EnvsEntry     *EnvsEntry `field:"-"`
+	EnvsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
 
+	// defined to generate accessors
 	Args          string   `field:"args,ResolveExecArgs"`
 	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"`
 	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`
