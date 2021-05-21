@@ -1,5 +1,7 @@
 package metadata
 
+var PayloadMetadataBatchSize = 100
+
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
 	Subnet           string              `json:"subnet"`

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -162,4 +163,38 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+}
+
+func Test_batchPayloads(t *testing.T) {
+	collectTime := mockTimeNow()
+	deviceId := "123"
+	device := metadata.DeviceMetadata{ID: deviceId}
+
+	var interfaces []metadata.InterfaceMetadata
+	for i := 0; i < 350; i++ {
+		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceId, Index: int32(i)})
+	}
+	payloads := batchPayloads("127.0.0.0/30", collectTime, 100, device, interfaces)
+
+	assert.Equal(t, 4, len(payloads))
+
+	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
+	assert.Equal(t, int64(946684800), payloads[0].CollectTimestamp)
+	assert.Equal(t, []metadata.DeviceMetadata{device}, payloads[0].Devices)
+	assert.Equal(t, 99, len(payloads[0].Interfaces))
+	assert.Equal(t, interfaces[0:99], payloads[0].Interfaces)
+
+	assert.Equal(t, "127.0.0.0/30", payloads[1].Subnet)
+	assert.Equal(t, int64(946684800), payloads[1].CollectTimestamp)
+	assert.Equal(t, 0, len(payloads[1].Devices))
+	assert.Equal(t, 100, len(payloads[1].Interfaces))
+	assert.Equal(t, interfaces[99:199], payloads[1].Interfaces)
+
+	assert.Equal(t, 0, len(payloads[2].Devices))
+	assert.Equal(t, 100, len(payloads[2].Interfaces))
+	assert.Equal(t, interfaces[199:299], payloads[2].Interfaces)
+
+	assert.Equal(t, 0, len(payloads[3].Devices))
+	assert.Equal(t, 51, len(payloads[3].Interfaces))
+	assert.Equal(t, interfaces[299:350], payloads[3].Interfaces)
 }
