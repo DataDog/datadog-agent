@@ -113,7 +113,7 @@ func (batcher *AsynchronousBatcher) sendTopology(topologyMap map[check.ID]topolo
 		if config.Datadog.GetBool("log_payloads") {
 			log.Debug("Flushing the following topologies:")
 			for _, topo := range topologies {
-				log.Debugf("%s", topo)
+				log.Debugf("%v", topo)
 			}
 		}
 

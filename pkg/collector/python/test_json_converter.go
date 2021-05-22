@@ -76,7 +76,7 @@ data:
     name: Service Checks
     stream_id: -1`)
 
-    convertedMap := yamlDataToJSON(yaml)
+	convertedMap := yamlDataToJSON(yaml)
 
 	expectedJsonMap := map[string]interface{}{
 		"data": map[string]interface{}{
