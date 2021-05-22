@@ -12,10 +12,6 @@ func TestTopologyEventMissingFields(t *testing.T) {
 	testTopologyEventMissingFields(t)
 }
 
-func TestTopologyEventInvalidYaml(t *testing.T) {
-	testTopologyEventInvalidYaml(t)
-}
-
-func TestTopologyEventWrongFields(t *testing.T) {
-	testTopologyEventWrongFields(t)
+func TestTopologyEventWrongFieldType(t *testing.T) {
+	testTopologyEventWrongFieldType(t)
 }

@@ -38,19 +38,21 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 
 	sender, err = aggregator.GetSender(check.ID(goCheckID))
 	if err != nil || sender == nil {
-		log.Errorf("Error submitting topology event to the Sender: %v", err)
+		_ = log.Errorf("Error submitting topology event to the Sender: %v", err)
 		return
 	}
 
 	_json := yamlDataToJSON(data)
+	if len(_json) != 0 {
+		var topologyEvent metrics.Event
+		err = mapstructure.Decode(_json, &topologyEvent)
+		if err != nil {
+			_ = log.Error(err)
+			return
+		}
 
-	var topologyEvent metrics.Event
-	err = mapstructure.Decode(_json, &topologyEvent)
-	if err != nil {
-		log.Error(err)
-		return
+		sender.Event(topologyEvent)
+	} else {
+		_ = log.Error("Empty topology event not sent")
 	}
-
-	sender.Event(topologyEvent)
-	return
 }

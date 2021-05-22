@@ -3,6 +3,7 @@ package batcher
 import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -108,6 +109,14 @@ func (batcher *AsynchronousBatcher) sendTopology(topologyMap map[check.ID]topolo
 			"topologies":       topologies,
 		}
 
+		// For debug purposes print out all topologies payload
+		if config.Datadog.GetBool("log_payloads") {
+			log.Debug("Flushing the following topologies:")
+			for _, topo := range topologies {
+				log.Debugf("%s", topo)
+			}
+		}
+
 		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
 			_ = log.Errorf("error in SendJSONToV1Intake: %s", err)
 		}
@@ -138,7 +147,7 @@ func (batcher *AsynchronousBatcher) run() {
 
 // SubmitComponent submits a component to the batch
 func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance topology.Instance, component topology.Component) {
-	log.Debugf("Submitting component for check [%s] instance [%s]: %s", checkID, instance.GoString(), component.JSONString())
+	log.Tracef("Submitting component for check [%s] instance [%s]: %s", checkID, instance.GoString(), component.JSONString())
 	batcher.input <- submitComponent{
 		checkID:   checkID,
 		instance:  instance,
@@ -148,7 +157,7 @@ func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance to
 
 // SubmitRelation submits a relation to the batch
 func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance topology.Instance, relation topology.Relation) {
-	log.Debugf("Submitting relation for check [%s] instance [%s]: %s", checkID, instance.GoString(), relation.JSONString())
+	log.Tracef("Submitting relation for check [%s] instance [%s]: %s", checkID, instance.GoString(), relation.JSONString())
 	batcher.input <- submitRelation{
 		checkID:  checkID,
 		instance: instance,
@@ -158,7 +167,7 @@ func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance top
 
 // SubmitStartSnapshot submits start of a snapshot
 func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instance topology.Instance) {
-	log.Debugf("Submitting start snapshot for check [%s] instance [%s]", checkID, instance.GoString())
+	log.Tracef("Submitting start snapshot for check [%s] instance [%s]", checkID, instance.GoString())
 	batcher.input <- submitStartSnapshot{
 		checkID:  checkID,
 		instance: instance,
@@ -167,7 +176,7 @@ func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instanc
 
 // SubmitStopSnapshot submits a stop of a snapshot. This always causes a flush of the data downstream
 func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance topology.Instance) {
-	log.Debugf("Submitting stop snapshot for check [%s] instance [%s]", checkID, instance.GoString())
+	log.Tracef("Submitting stop snapshot for check [%s] instance [%s]", checkID, instance.GoString())
 	batcher.input <- submitStopSnapshot{
 		checkID:  checkID,
 		instance: instance,

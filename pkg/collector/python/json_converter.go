@@ -6,7 +6,7 @@ import (
 )
 import "C"
 
-// A yaml string is provided from the C bindings in order to pass an arbitrary data structure
+// A yaml string is provided from the C bindings in order to pass an arbitrary data structure to Go
 // (eg. topology component data or topology event data)
 // Here we first unmarshal the string into a map[interface]interface and then covert all
 // map keys to string (making a de facto json structure), which will be serialized without problems to json when sent.
