@@ -87,8 +87,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath                     = "/var/task/datadog.yaml"
-	fetchAccountIDTimeoutMS time.Duration = 500.0
+	datadogConfigPath                   = "/var/task/datadog.yaml"
+	fetchAccountIDTimeout time.Duration = 500.0 * time.Millisecond
 )
 
 const (
@@ -222,7 +222,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// if one is provided
 	// --------------------------
 	svc := sts.New(session.New())
-	ctx, _ := context.WithTimeout(context.Background(), fetchAccountIDTimeoutMS)
+	ctx, _ := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
 	accountID, _ := aws.FetchAccountID(ctx, svc)
 	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
 	if err == nil {
