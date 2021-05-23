@@ -6,6 +6,7 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -224,14 +225,14 @@ func GetARNTags() []string {
 }
 
 // FetchAccountID retrieves the AWS Lambda's account id by calling STS
-func FetchAccountID(svc stsiface.STSAPI) (string, error) {
+func FetchAccountID(ctx context.Context, svc stsiface.STSAPI) (string, error) {
 	// sts.GetCallerIdentity returns information about the current AWS credentials,
 	// (including account ID), and is one of the only AWS API methods that can't be
 	// denied via IAM.
 
 	input := &sts.GetCallerIdentityInput{}
 
-	result, err := svc.GetCallerIdentity(input)
+	result, err := svc.GetCallerIdentityWithContext(ctx, input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {

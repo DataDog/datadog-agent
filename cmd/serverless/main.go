@@ -89,11 +89,12 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 	// configuration file to be at the root of this directory.
 	datadogConfigPath = "/var/task/datadog.yaml"
 
-	traceOriginMetadataKey   = "_dd.origin"
-	traceOriginMetadataValue = "lambda"
-	computeStatsKey          = "_dd.compute_stats"
-	computeStatsValue        = "1"
-	functionARNKey           = "function_arn"
+	traceOriginMetadataKey                 = "_dd.origin"
+	traceOriginMetadataValue               = "lambda"
+	computeStatsKey                        = "_dd.compute_stats"
+	computeStatsValue                      = "1"
+	functionARNKey                         = "function_arn"
+	fetchAccountIDTimeoutMS  time.Duration = 500.0
 )
 
 const (
@@ -227,14 +228,16 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// if one is provided
 	// --------------------------
 	svc := sts.New(session.New())
-	accountID, _ := aws.FetchAccountID(svc)
+	ctx, _ := context.WithTimeout(context.Background(), fetchAccountIDTimeoutMS)
+	accountID, _ := aws.FetchAccountID(ctx, svc)
 	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
 	if err == nil {
+		log.Debugf("Extension found function ARN: %s", functionARN)
 		aws.SetARN(functionARN)
+	} else {
+		log.Debugf("Extension couldn't find function ARN")
 	}
 	aws.SetColdStart(true)
-
-	log.Debugf("Extension found function ARN: %s", functionARN)
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
@@ -356,7 +359,9 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		tc.Hostname = ""
 		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
 		tc.GlobalTags[computeStatsKey] = computeStatsValue
-		tc.GlobalTags[functionARNKey] = functionARN
+		if functionARN != "" {
+			tc.GlobalTags[functionARNKey] = functionARN
+		}
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
