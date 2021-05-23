@@ -222,7 +222,9 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// if one is provided
 	// --------------------------
 	svc := sts.New(session.New())
-	ctx, _ := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
+	defer cancel()
+
 	accountID, _ := aws.FetchAccountID(ctx, svc)
 	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
 	if err == nil {
