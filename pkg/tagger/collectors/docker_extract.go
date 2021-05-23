@@ -159,6 +159,10 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 			tags.AddLow("nomad_job", envValue)
 		case "NOMAD_GROUP_NAME":
 			tags.AddLow("nomad_group", envValue)
+		case "NOMAD_NAMESPACE":
+			tags.AddLow("nomad_namespace", envValue)
+		case "NOMAD_DC":
+			tags.AddLow("nomad_dc", envValue)
 
 		// Standard tags
 		case envVarEnv:
