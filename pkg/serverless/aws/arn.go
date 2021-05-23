@@ -24,9 +24,19 @@ import (
 
 const (
 	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-	regionEnvVar           = "AWS_REGION"
-	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
-	qualifierEnvVar        = "AWS_LAMBDA_FUNCTION_VERSION"
+	// RegionEnvVar is used to represent the AWS region environment variable name
+	RegionEnvVar       = "AWS_REGION"
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	qualifierEnvVar    = "AWS_LAMBDA_FUNCTION_VERSION"
+
+	traceOriginMetadataKey   = "_dd.origin"
+	traceOriginMetadataValue = "lambda"
+	computeStatsKey          = "_dd.compute_stats"
+	computeStatsValue        = "1"
+	functionARNKey           = "function_arn"
+	functionNameKey          = "functionname"
+	regionKey                = "region"
+	awsAccountKey            = "aws_account"
 )
 
 type persistedState struct {
@@ -167,7 +177,7 @@ func RestoreCurrentStateFromFile() error {
 // in the environment.
 func FetchFunctionARNFromEnv(accountID string) (string, error) {
 	partition := "aws"
-	region := os.Getenv(regionEnvVar)
+	region := os.Getenv(RegionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
 	qualifier := os.Getenv(qualifierEnvVar)
 
@@ -221,6 +231,24 @@ func GetARNTags() []string {
 	}
 	tags = append(tags, fmt.Sprintf("resource:%s", resource))
 
+	return tags
+}
+
+// BuildGlobalTagsMap returns tags associated with the given ARN
+func BuildGlobalTagsMap(functionARN string, functionName string, region string, awsAccountID string) map[string]string {
+	tags := make(map[string]string)
+	tags[traceOriginMetadataKey] = traceOriginMetadataValue
+	tags[computeStatsKey] = computeStatsValue
+	if functionARN != "" {
+		tags[functionARNKey] = functionARN
+	}
+	tags[functionNameKey] = functionName
+	if region != "" {
+		tags[regionKey] = region
+	}
+	if awsAccountID != "" {
+		tags[awsAccountKey] = awsAccountID
+	}
 	return tags
 }
 

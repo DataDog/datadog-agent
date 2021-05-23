@@ -6,10 +6,30 @@
 package aws
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestUnmarshalExtensionLog(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
+	require.NoError(t, err)
+	var messages []LogMessage
+	err = json.Unmarshal(raw, &messages)
+	require.NoError(t, err)
+
+	expectedTime, _ := time.Parse(logMessageTimeLayout, "2020-08-20T12:31:32.123Z")
+	expectedLogMessage := LogMessage{
+		Type:         LogTypeExtension,
+		Time:         expectedTime,
+		StringRecord: "sample extension log",
+	}
+	assert.Equal(t, expectedLogMessage, messages[0])
+}
 
 func TestShouldProcessLog(t *testing.T) {
 
@@ -81,4 +101,44 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 	output := createStringRecordForReportLog(&sampleLogMessage)
 	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
 	assert.Equal(t, expectedOutput, output)
+}
+
+func TestRemoveInvalidTracingItemWellFormatted(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
+	require.NoError(t, err)
+	sanitizedData := removeInvalidTracingItem(raw)
+	assert.Equal(t, raw, sanitizedData)
+}
+
+func TestRemoveInvalidTracingItemNotWellFormatted(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
+	require.NoError(t, err)
+	sanitizedData := removeInvalidTracingItem(raw)
+	sanitizedRaw, sanitizedErr := ioutil.ReadFile("./testdata/invalid_logs_payload_sanitized.json")
+	require.NoError(t, sanitizedErr)
+	assert.Equal(t, string(sanitizedRaw), string(sanitizedData))
+}
+
+func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
+	require.NoError(t, err)
+	messages, err := ParseLogsAPIPayload(raw)
+	assert.Nil(t, err)
+	assert.NotNil(t, messages)
+	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
+}
+
+func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
+	require.NoError(t, err)
+	messages, err := ParseLogsAPIPayload(raw)
+	assert.Nil(t, err)
+	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
+}
+
+func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload_unrecoverable.json")
+	require.NoError(t, err)
+	_, err = ParseLogsAPIPayload(raw)
+	assert.NotNil(t, err)
 }
