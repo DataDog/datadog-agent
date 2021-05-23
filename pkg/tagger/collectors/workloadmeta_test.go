@@ -685,6 +685,8 @@ func TestHandleContainer(t *testing.T) {
 					"NOMAD_TASK_NAME":  "test-task",
 					"NOMAD_JOB_NAME":   "test-job",
 					"NOMAD_GROUP_NAME": "test-group",
+					"NOMAD_NAMESPACE":  "test-namespace",
+					"NOMAD_DC":         "test-dc",
 				},
 			},
 			expected: []*TagInfo{
@@ -700,6 +702,8 @@ func TestHandleContainer(t *testing.T) {
 						"nomad_task:test-task",
 						"nomad_job:test-job",
 						"nomad_group:test-group",
+						"nomad_namespace:test-namespace",
+						"nomad_dc:test-dc",
 					}),
 					StandardTags: []string{},
 				},
