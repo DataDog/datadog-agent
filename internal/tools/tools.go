@@ -19,7 +19,6 @@ import (
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/goware/modvendor"
-	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
 	_ "github.com/mgechev/revive"
 	_ "github.com/stormcat24/protodep"
 	_ "golang.org/x/mobile/bind"
@@ -29,7 +28,6 @@ import (
 	_ "golang.org/x/perf/cmd/benchstat"
 	_ "golang.org/x/tools/go/ast/astutil"
 	_ "golang.org/x/tools/go/gcexportdata"
-	_ "google.golang.org/grpc"
 	_ "gotest.tools/gotestsum"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 )

@@ -13,7 +13,6 @@ require (
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 	github.com/gostaticanalysis/analysisutil v0.4.1 // indirect
 	github.com/goware/modvendor v0.3.0
-	github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	github.com/matoous/godox v0.0.0-20210227103229-6504466cf951 // indirect
 	github.com/mgechev/revive v1.0.6
 	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354 // indirect
@@ -28,8 +27,6 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
 	golang.org/x/tools v0.1.2-0.20210512205948-8287d5da45e4
-	google.golang.org/genproto v0.0.0-20200128133413-58ce757ed39b // indirect
-	google.golang.org/grpc v1.28.0-pre
 	gotest.tools/gotestsum v1.6.4
 	honnef.co/go/tools v0.1.4
 	mvdan.cc/unparam v0.0.0-20210104141923-aac4ce9116a7 // indirect

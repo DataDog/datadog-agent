@@ -46,18 +46,6 @@ def environ(env):
             os.environ.pop(var)
 
 
-@contextmanager
-def environ(env):
-    original_environ = os.environ.copy()
-    os.environ.update(env)
-    yield
-    for var in env.keys():
-        if var in original_environ:
-            os.environ[var] = original_environ[var]
-        else:
-            os.environ.pop(var)
-
-
 TOOL_LIST = [
     'github.com/client9/misspell/cmd/misspell',
     'github.com/frapposelli/wwhrd',
@@ -81,6 +69,7 @@ TOOLS = {
     'internal/tools': TOOL_LIST,
     'internal/tools/proto': TOOL_LIST_PROTO,
 }
+
 
 @task
 def install_tools(ctx):
