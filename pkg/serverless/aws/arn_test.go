@@ -7,10 +7,12 @@
 package aws
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +95,7 @@ type mockedSTSAPI struct {
 	Resp sts.GetCallerIdentityOutput
 }
 
-func (m mockedSTSAPI) GetCallerIdentity(in *sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {
+func (m mockedSTSAPI) GetCallerIdentityWithContext(ctx context.Context, in *sts.GetCallerIdentityInput, options ...request.Option) (*sts.GetCallerIdentityOutput, error) {
 	// Only need to return mocked response output
 	return &m.Resp, nil
 }
@@ -136,7 +138,8 @@ func TestFetchAccountID(t *testing.T) {
 			UserId:  aws.String(""),
 		},
 	}
-	result, err := FetchAccountID(svc)
+	ctx := context.Background()
+	result, err := FetchAccountID(ctx, svc)
 	assert.Equal(t, "123456789012", result)
 	assert.Nil(t, err)
 }

@@ -87,7 +87,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath = "/var/task/datadog.yaml"
+	datadogConfigPath                   = "/var/task/datadog.yaml"
+	fetchAccountIDTimeout time.Duration = 500.0 * time.Millisecond
 )
 
 const (
@@ -221,14 +222,18 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// if one is provided
 	// --------------------------
 	svc := sts.New(session.New())
-	accountID, _ := aws.FetchAccountID(svc)
+	ctx, cancel := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
+	defer cancel()
+
+	accountID, _ := aws.FetchAccountID(ctx, svc)
 	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
 	if err == nil {
+		log.Debugf("Extension found function ARN: %s", functionARN)
 		aws.SetARN(functionARN)
+	} else {
+		log.Debugf("Extension couldn't find function ARN")
 	}
 	aws.SetColdStart(true)
-
-	log.Debugf("Extension found function ARN: %s", functionARN)
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
