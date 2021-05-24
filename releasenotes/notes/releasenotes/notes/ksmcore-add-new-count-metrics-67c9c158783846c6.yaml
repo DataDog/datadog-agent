@@ -9,7 +9,7 @@
 ---
 enhancements:
   - |
-    Implement the following synthetic metrics in the ``kubernetes_state_core`` check to mimic the legacy ``kubernetes_state`` one.
+    Implement the following synthetic metrics in the ``kubernetes_state_core``.
     * ``cronjob.count``
     * ``endpoint.count``
     * ``hpa.count``
