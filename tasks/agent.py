@@ -126,7 +126,7 @@ def apply_branding(ctx):
                   "./cmd/agent/common/common_windows.go")
     do_sed_rename(ctx, 's/"datadog.conf"/"stackstate.conf"/g',
                   "./cmd/agent/common/common_windows.go")
-    do_sed_rename(ctx, 's/"StackState\\\\StackVista"/"StackState\\\\\StackState Agent"/g',
+    do_sed_rename(ctx, 's/"StackState\\\\StackVista"/"StackState\\\\StackState Agent"/g',
                   "./tools/windows/install-help/cal/stringtable.rc")
 
     # systray.go
