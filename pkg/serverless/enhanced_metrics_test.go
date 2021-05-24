@@ -51,7 +51,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	assert.Equal(t, len(metricsChan), 0)
 }
 
-func TestGenerateEnhancedMetricsFromReportLog(t *testing.T) {
+func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	reportLog := aws.LogMessage{
 		Type: aws.LogTypePlatformReport,
 		Time: time.Now(),
@@ -101,8 +101,67 @@ func TestGenerateEnhancedMetricsFromReportLog(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  float64(reportLog.Time.UnixNano()),
 	}, {
+		Name:       "aws.lambda.enhanced.estimated_cost",
+		Value:      calculateEstimatedCost(800.0, 1024.0),
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLog.Time.UnixNano()),
+	}, {
 		Name:       "aws.lambda.enhanced.init_duration",
 		Value:      0.1,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLog.Time.UnixNano()),
+	}})
+}
+
+func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
+	reportLog := aws.LogMessage{
+		Type: aws.LogTypePlatformReport,
+		Time: time.Now(),
+		ObjectRecord: aws.PlatformObjectRecord{
+			Metrics: aws.ReportLogMetrics{
+				DurationMs:       1000.0,
+				BilledDurationMs: 800.0,
+				MemorySizeMB:     1024.0,
+				MaxMemoryUsedMB:  256.0,
+				InitDurationMs:   0,
+			},
+		},
+	}
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+
+	go generateEnhancedMetricsFromReportLog(reportLog, tags, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.max_memory_used",
+		Value:      256.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLog.Time.UnixNano()),
+	}, {
+		Name:       "aws.lambda.enhanced.memorysize",
+		Value:      1024.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLog.Time.UnixNano()),
+	}, {
+		Name:       "aws.lambda.enhanced.billed_duration",
+		Value:      0.80,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(reportLog.Time.UnixNano()),
+	}, {
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
