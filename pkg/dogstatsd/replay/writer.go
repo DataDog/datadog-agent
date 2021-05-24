@@ -91,6 +91,34 @@ func (tc *TrafficCaptureWriter) Path() (string, error) {
 	return filepath.Abs(tc.File.Name())
 }
 
+// ProcessMessage receives a capture buffer and writes it to disk while also tracking
+// the PID map to be persisted to the taggerState. Should not normally be called directly.
+func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
+
+	tc.Lock()
+
+	err := tc.WriteNext(msg)
+	if err != nil {
+		tc.Unlock()
+		return err
+	}
+
+	if msg.ContainerID != "" {
+		tc.taggerState[msg.Pid] = msg.ContainerID
+	}
+
+	if tc.sharedPacketPoolManager != nil {
+		tc.sharedPacketPoolManager.Put(msg.Buff)
+	}
+
+	if tc.oobPacketPoolManager != nil {
+		tc.oobPacketPoolManager.Put(msg.Oob)
+	}
+	tc.Unlock()
+
+	return nil
+}
+
 // Capture start the traffic capture and writes the packets to file for the specified duration.
 func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 
@@ -172,7 +200,8 @@ process:
 	for {
 		select {
 		case msg := <-tc.Traffic:
-			err := tc.WriteNext(msg)
+			err = tc.ProcessMessage(msg)
+
 			if err != nil {
 				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
 				err = tc.StopCapture()
@@ -180,35 +209,21 @@ process:
 					log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
 				}
 			}
-
-			if msg.ContainerID != "" {
-				tc.taggerState[msg.Pid] = msg.ContainerID
-			}
-
-			if tc.sharedPacketPoolManager != nil {
-				tc.sharedPacketPoolManager.Put(msg.Buff)
-			}
-
-			if tc.oobPacketPoolManager != nil {
-				tc.oobPacketPoolManager.Put(msg.Oob)
-			}
 		case <-tc.shutdown:
 			log.Debug("Capture shutting down")
 			break process
 		}
 	}
 
-	// discard packets in queue, empty the channel when depth > 1
+	// write any packets remaining in the channel.
 cleanup:
 	for {
 		select {
 		case msg := <-tc.Traffic:
-			if tc.sharedPacketPoolManager != nil {
-				tc.sharedPacketPoolManager.Put(msg.Buff)
-			}
+			err = tc.ProcessMessage(msg)
 
-			if tc.oobPacketPoolManager != nil {
-				tc.oobPacketPoolManager.Put(msg.Oob)
+			if err != nil {
+				log.Errorf("There was an issue writing the captured message to disk, the message will be dropped: %v", err)
 			}
 		default:
 			break cleanup

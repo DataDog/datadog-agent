@@ -100,7 +100,7 @@ func TestWriter(t *testing.T) {
 	reader.Unlock()
 
 	cnt := 0
-	for ; err != io.EOF; _, err = reader.ReadNext() {
+	for _, err = reader.ReadNext(); err != io.EOF; _, err = reader.ReadNext() {
 		cnt++
 	}
 	assert.Equal(t, cnt, iterations)
