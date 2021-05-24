@@ -51,6 +51,7 @@ TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/fzipp/gocyclo',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
+    'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
     'github.com/mgechev/revive',
