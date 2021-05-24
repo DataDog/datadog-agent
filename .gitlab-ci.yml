@@ -439,13 +439,10 @@ build_win:
     - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
-    - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent\*agent.exe"
-    - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\bin\agent-backup\*agent.exe"
   artifacts:
     expire_in: 2 weeks
     paths:
       - ./*.msi
-      - ./*agent.exe
       - "version.txt"
   tags:
     - windows_agent7_ps1
