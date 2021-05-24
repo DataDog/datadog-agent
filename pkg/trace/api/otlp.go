@@ -52,6 +52,9 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.OTLP) *OTLPReceiver {
+	if cfg == nil {
+		cfg = new(config.OTLP)
+	}
 	return &OTLPReceiver{out: out, cfg: cfg}
 }
 
@@ -151,13 +154,20 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
-	return []string{
-		"lang:" + h.Get(headerLang),
-		"lang_version:" + h.Get(headerLangVersion),
-		"interpreter:" + h.Get(headerLangInterpreter),
-		"lang_vendor:" + h.Get(headerLangInterpreterVendor),
-		"endpoint_version:opentelemetry_" + protocol + "_v1",
+	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
+	if v := h.Get(headerLang); v != "" {
+		tags = append(tags, "lang:"+v)
 	}
+	if v := h.Get(headerLangVersion); v != "" {
+		tags = append(tags, "lang_version:"+v)
+	}
+	if v := h.Get(headerLangInterpreter); v != "" {
+		tags = append(tags, "interpreter:"+v)
+	}
+	if v := h.Get(headerLangInterpreterVendor); v != "" {
+		tags = append(tags, "lang_vendor:"+v)
+	}
+	return tags
 }
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
@@ -236,13 +246,6 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
 	span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
 	span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
-	if _, ok := span.Meta["env"]; !ok {
-		if env := span.Meta["deployment.environment"]; env != "" {
-			span.Meta["env"] = env
-		} else if env := rattr["env"]; env != "" {
-			span.Meta["env"] = env
-		}
-	}
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr["service.version"]; ver != "" {
 			span.Meta["version"] = ver
@@ -266,6 +269,11 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 			span.Meta[kv.Key] = anyValueString(kv.Value)
 		}
 	}
+	if _, ok := span.Meta["env"]; !ok {
+		if env := span.Meta["deployment.environment"]; env != "" {
+			span.Meta["env"] = env
+		}
+	}
 	if in.TraceState != "" {
 		span.Meta["trace_state"] = in.TraceState
 	}
@@ -278,56 +286,80 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	if span.Service == "" && span.Meta["peer.service"] != "" {
 		span.Service = span.Meta["peer.service"]
 	}
-	if m := span.Meta["http.method"]; m != "" {
-		span.Resource = m
-		if route := span.Meta["http.route"]; route != "" {
-			span.Resource += " " + route
-		} else if route := span.Meta["grpc.path"]; route != "" {
-			span.Resource += " " + route
+	if r := resourceFromTags(span.Meta); r != "" {
+		span.Resource = r
+	}
+	span.Type = spanKind2Type(in.Kind, span)
+	status2Error(in.Status, in.Events, span)
+	return span
+}
+
+// resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
+// If this is not possible, it returns an empty string.
+func resourceFromTags(meta map[string]string) string {
+	var r string
+	if m := meta["http.method"]; m != "" {
+		r = m
+		if route := meta["http.route"]; route != "" {
+			r += " " + route
+		} else if route := meta["grpc.path"]; route != "" {
+			r += " " + route
 		}
-	} else if m := span.Meta["messaging.operation"]; m != "" {
-		span.Resource = m
-		if dest := span.Meta["messaging.destination"]; m != "" {
-			span.Resource += " " + dest
+	} else if m := meta["messaging.operation"]; m != "" {
+		r = m
+		if dest := meta["messaging.destination"]; dest != "" {
+			r += " " + dest
 		}
 	}
-	switch in.Kind {
+	return r
+}
+
+// status2Error checks the given status and events and applies any potential error and messages
+// to the given span attributes.
+func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.Span) {
+	if status == nil || status.Code != otlppb.Status_STATUS_CODE_ERROR {
+		return
+	}
+	span.Error = 1
+	for _, e := range events {
+		if strings.ToLower(e.Name) != "exception" {
+			continue
+		}
+		for _, attr := range e.Attributes {
+			switch attr.Key {
+			case "exception.message":
+				span.Meta["error.msg"] = anyValueString(attr.Value)
+			case "exception.type":
+				span.Meta["error.type"] = anyValueString(attr.Value)
+			case "exception.stack":
+				span.Meta["error.stack"] = anyValueString(attr.Value)
+			}
+		}
+	}
+}
+
+// spanKind2Type returns a span's type based on the given kind and other present properties.
+func spanKind2Type(kind otlppb.Span_SpanKind, span *pb.Span) string {
+	var typ string
+	switch kind {
 	case otlppb.Span_SPAN_KIND_SERVER:
-		span.Type = "web"
+		typ = "web"
 	case otlppb.Span_SPAN_KIND_CLIENT:
-		span.Type = "http"
+		typ = "http"
 		db, ok := span.Meta["db.system"]
 		if !ok {
 			break
 		}
 		switch db {
 		case "redis", "memcached":
-			span.Type = "cache"
+			typ = "cache"
 		default:
-			span.Type = "db"
+			typ = "db"
 		}
 	default:
-		span.Type = "custom"
+		typ = "custom"
 	}
-	if in.Status.Code == otlppb.Status_STATUS_CODE_ERROR {
-		span.Error = 1
-		for _, e := range in.Events {
-			if strings.ToLower(e.Name) != "exception" {
-				continue
-			}
-			for _, attr := range e.Attributes {
-				switch attr.Key {
-				case "exception.message":
-					span.Meta["error.msg"] = anyValueString(attr.Value)
-				case "exception.type":
-					span.Meta["error.type"] = anyValueString(attr.Value)
-				case "exception.stack":
-					span.Meta["error.stack"] = anyValueString(attr.Value)
-				}
-			}
-		}
-	}
-	return span
+	return typ
 }
 
 func byteArrayToUint64(b []byte) uint64 {
