@@ -1,16 +1,13 @@
 syntax = "proto3";
 
-package datadog.model;
+package datadog.model.v1;
 
-
-// option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo"; // golang
 option go_package = "pkg/proto/pbgo"; // golang
 
 
 // Hostname types
 
 message HostnameRequest {}
-
 
 // The response message containing the requested hostname
 message HostnameReply {

@@ -2,18 +2,16 @@ syntax = "proto3";
 
 package datadog.api.v1;
 
-import "datadog/model/model.proto";
+import "datadog/model/v1/model.proto";
 import "google/api/annotations.proto";
 
-
-// option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo"; // golang
 option go_package = "pkg/proto/pbgo"; // golang
 
 
 // The greeting service definition.
 service Agent {
     // get the hostname
-    rpc GetHostname (datadog.model.HostnameRequest) returns (datadog.model.HostnameReply) {
+    rpc GetHostname (datadog.model.v1.HostnameRequest) returns (datadog.model.v1.HostnameReply) {
         option (google.api.http) = {
             get: "/v1/grpc/host"
         };
@@ -41,7 +39,7 @@ service AgentSecure {
     //        }
     //    }
     //}
-    rpc TaggerStreamEntities(datadog.model.StreamTagsRequest) returns (stream datadog.model.StreamTagsResponse) {
+    rpc TaggerStreamEntities(datadog.model.v1.StreamTagsRequest) returns (stream datadog.model.v1.StreamTagsResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/tagger/stream_entities"
             body: "*"
@@ -66,7 +64,7 @@ service AgentSecure {
     //        "kube_service:kube-dns"
     //    ]
     //}
-    rpc TaggerFetchEntity(datadog.model.FetchEntityRequest) returns (datadog.model.FetchEntityResponse) {
+    rpc TaggerFetchEntity(datadog.model.v1.FetchEntityRequest) returns (datadog.model.v1.FetchEntityResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/tagger/fetch_entity"
             body: "*"
@@ -76,7 +74,7 @@ service AgentSecure {
     // Trigger a dogstatsd capture. Only one capture can be triggered at a time.
     // Can be called through the HTTP gateway, and entity will be returned as JSON:
     //      TODO: add the curl code here
-    rpc DogstatsdCaptureTrigger(datadog.model.CaptureTriggerRequest) returns (datadog.model.CaptureTriggerResponse) {
+    rpc DogstatsdCaptureTrigger(datadog.model.v1.CaptureTriggerRequest) returns (datadog.model.v1.CaptureTriggerResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/dogstatsd/capture/trigger"
             body: "*"
