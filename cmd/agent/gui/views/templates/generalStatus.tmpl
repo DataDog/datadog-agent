@@ -129,7 +129,7 @@
       {{- end }}
       {{- if .NoProxyChanged }}
       <span class="stat_data">
-      The following hosts proxy behavior will change in a future Agent version.
+      The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
         {{- range $key, $value := .NoProxyChanged }}
