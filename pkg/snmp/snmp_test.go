@@ -30,8 +30,8 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
 	config = Config{
-		Network:         "192.168.0.0/24",
-		CommunityString: "public",
+		Network:   "192.168.0.0/24",
+		Community: "public",
 	}
 	params, _ := config.BuildSNMPParams("192.168.0.1")
 	assert.Equal(t, gosnmp.Version2c, params.Version)
@@ -121,7 +121,7 @@ snmp_listener:
 	assert.Equal(t, "someAuthKey", networkConf.AuthKey)
 	assert.Equal(t, "somePrivProtocol", networkConf.PrivProtocol)
 	assert.Equal(t, "somePrivKey", networkConf.PrivKey)
-	assert.Equal(t, "someCommunityString", networkConf.CommunityString)
+	assert.Equal(t, "someCommunityString", networkConf.Community)
 	assert.Equal(t, "someSnmpVersion", networkConf.Version)
 	assert.Equal(t, "127.1.0.0/30", networkConf.Network)
 
@@ -150,7 +150,7 @@ snmp_listener:
 	assert.Equal(t, "legacyAuthKey", legacyConfig.AuthKey)
 	assert.Equal(t, "legacyPrivProtocol", legacyConfig.PrivProtocol)
 	assert.Equal(t, "legacyPrivKey", legacyConfig.PrivKey)
-	assert.Equal(t, "legacyCommunityString", legacyConfig.CommunityString)
+	assert.Equal(t, "legacyCommunityString", legacyConfig.Community)
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
 }

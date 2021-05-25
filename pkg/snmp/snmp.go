@@ -49,7 +49,7 @@ type Config struct {
 	Timeout                     int             `mapstructure:"timeout"`
 	Retries                     int             `mapstructure:"retries"`
 	OidBatchSize                int             `mapstructure:"oid_batch_size"`
-	CommunityString             string          `mapstructure:"community_string"`
+	Community                   string          `mapstructure:"community_string"`
 	User                        string          `mapstructure:"user"`
 	AuthKey                     string          `mapstructure:"authKey"`
 	AuthProtocol                string          `mapstructure:"authProtocol"`
@@ -123,8 +123,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
-		if config.CommunityString == "" && config.CommunityStringLegacy != "" {
-			config.CommunityString = config.CommunityStringLegacy
+		if config.Community == "" && config.CommunityStringLegacy != "" {
+			config.Community = config.CommunityStringLegacy
 		}
 		if config.AuthKey == "" && config.AuthKeyLegacy != "" {
 			config.AuthKey = config.AuthKeyLegacy
@@ -155,7 +155,7 @@ func (c *Config) Digest(address string) string {
 	h.Write([]byte(address))                   //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
 	h.Write([]byte(c.Version))                 //nolint:errcheck
-	h.Write([]byte(c.CommunityString))         //nolint:errcheck
+	h.Write([]byte(c.Community))               //nolint:errcheck
 	h.Write([]byte(c.User))                    //nolint:errcheck
 	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
 	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
@@ -180,14 +180,14 @@ func (c *Config) Digest(address string) string {
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
 func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
-	if c.CommunityString == "" && c.User == "" {
+	if c.Community == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
 	if c.Version == "1" {
 		version = gosnmp.Version1
-	} else if c.Version == "2" || (c.Version == "" && c.CommunityString != "") {
+	} else if c.Version == "2" || (c.Version == "" && c.Community != "") {
 		version = gosnmp.Version2c
 	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
 		version = gosnmp.Version3
@@ -237,7 +237,7 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            c.Port,
-		Community:       c.CommunityString,
+		Community:       c.Community,
 		Transport:       "udp",
 		Version:         version,
 		Timeout:         time.Duration(c.Timeout) * time.Second,
