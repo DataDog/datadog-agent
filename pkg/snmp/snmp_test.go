@@ -87,3 +87,44 @@ snmp_listener:
 	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 }
+
+func Test_LoaderConfig(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - network: 127.1.0.0/30
+   - network: 127.2.0.0/30
+     loader: core
+   - network: 127.3.0.0/30
+     loader: python
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "", conf.Configs[0].Loader)
+	assert.Equal(t, "core", conf.Configs[1].Loader)
+	assert.Equal(t, "python", conf.Configs[2].Loader)
+
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  loader: core
+  configs:
+   - network: 127.1.0.0/30
+   - network: 127.2.0.0/30
+     loader: core
+   - network: 127.3.0.0/30
+     loader: python
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "core", conf.Configs[0].Loader)
+	assert.Equal(t, "core", conf.Configs[1].Loader)
+	assert.Equal(t, "python", conf.Configs[2].Loader)
+
+}

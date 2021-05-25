@@ -33,6 +33,7 @@ type ListenerConfig struct {
 	Workers               int      `mapstructure:"workers"`
 	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
 	AllowedFailures       int      `mapstructure:"allowed_failures"`
+	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
 	Configs               []Config `mapstructure:"configs"`
 }
@@ -102,6 +103,9 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectDeviceMetadata = *config.CollectDeviceMetadataConfig
 		} else {
 			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
+		}
+		if config.Loader == "" {
+			config.Loader = snmpConfig.Loader
 		}
 	}
 	return snmpConfig, nil
