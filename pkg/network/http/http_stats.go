@@ -34,11 +34,6 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
 	}
 }
 
-// IsHTTP determines whether the port number corresponds to a HTTP port
-func IsHTTP(port int) bool {
-	return port == 80 || port == 8080
-}
-
 // RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
 // For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
 // will be between 99 and 101
