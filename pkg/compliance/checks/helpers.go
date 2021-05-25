@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/sprig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // getter applies jq query to get string value from json or yaml raw data
@@ -38,10 +38,11 @@ func jsonGetter(data []byte, query string) (string, error) {
 
 // yamlGetter retrieves a property from a YAML file (jq style syntax)
 func yamlGetter(data []byte, query string) (string, error) {
-	var yamlContent map[string]interface{}
+	var yamlContent interface{}
 	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
 		return "", err
 	}
+	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
 	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
 	return value, err
 }

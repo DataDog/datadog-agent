@@ -124,7 +124,7 @@ require (
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20201110085921-73520a520aac
 	github.com/iovisor/gobpf v0.0.0
-	github.com/itchyny/gojq v0.10.2
+	github.com/itchyny/gojq v0.12.3
 	github.com/json-iterator/go v1.1.10
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/klauspost/compress v1.11.12 // indirect

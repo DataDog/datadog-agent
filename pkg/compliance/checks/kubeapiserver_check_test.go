@@ -34,6 +34,7 @@ type MyObj struct {
 
 	Spec MyObjSpec `json:"spec,omitempty"`
 }
+
 type MyObjSpec struct {
 	StringAttribute string                 `json:"stringAttribute,omitempty"`
 	BoolAttribute   bool                   `json:"boolAttribute,omitempty"`
@@ -374,7 +375,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
-				Error:  errors.New(`1:1: call to "kube.resource.jq()" failed: 1:7: unexpected token "@" (expected "]")`),
+				Error:  errors.New(`1:1: call to "kube.resource.jq()" failed: unexpected token "@"`),
 			},
 		},
 		{
