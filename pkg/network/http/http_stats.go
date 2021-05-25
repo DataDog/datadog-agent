@@ -16,11 +16,12 @@ type Key struct {
 	DstIPLow  uint64
 	DstPort   uint16
 
-	Path string
+	Path   string
+	Method HTTPMethod
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method HTTPMethod) Key {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
 	return Key{
@@ -31,6 +32,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
 		DstIPLow:  daddrl,
 		DstPort:   dport,
 		Path:      path,
+		Method:    method,
 	}
 }
 
