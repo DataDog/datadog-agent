@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -59,6 +59,9 @@ func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (c
 	return ctx, nil
 }
 
+// DogstatsdCaptureTrigger triggers a dogstatsd traffic capture for the
+// duration specified in the request. If a capture is already in progress,
+// an error response is sent back.
 func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
 	d, err := time.ParseDuration(req.GetDuration())
 	if err != nil {
@@ -83,6 +86,10 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 	return &pb.CaptureTriggerResponse{Path: p}, nil
 }
 
+// DogstatsdSetTaggerState allows setting a captured tagger state in the
+// Tagger facilities. This endpoint is used when traffic replays are in
+// progress. An empty state or nil request will result in the Tagger
+// capture state being reset to nil.
 func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
 
 	// Reset and return if no state pushed
