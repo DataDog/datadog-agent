@@ -383,6 +383,48 @@ def apply_branding(ctx):
                   "./pkg/trace/config/config_windows.go")
     do_sed_rename(ctx, 's/DataDog\\\\\\\\datadog-agent.pid"/StackState\\\\\\\\stackstate-agent.pid"/g',
                   "./pkg/pidfile/pidfile_windows.go")
+    do_sed_rename(ctx, 's/"SOFTWARE\\\\Datadog\\\\Datadog Agent"/"SOFTWARE\\\\StackState\\\\StackState Agent"/g',
+                  "./omnibus/resources/iot/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/"Datadog Agent"/"StackState Agent"/g',
+                  "./omnibus/resources/iot/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/"datadog.yaml.example"/"stackstate.yaml.example"/g',
+                  "./omnibus/resources/iot/msi/source.wxs.erb")
+    do_sed_rename(ctx, 's/"HKLM:\\\\SOFTWARE\\\\Datadog\\\\Datadog Agent"/"HKLM:\\\\SOFTWARE\\\\StackState\\\\StackState Agent"/g',
+                  "./chocolatey/tools-online/chocolateyinstall.ps1")
+    do_sed_rename(ctx, 's/"HKLM:\\\\SOFTWARE\\\\Datadog\\\\Datadog Agent"/"HKLM:\\\\SOFTWARE\\\\StackState\\\\StackState Agent"/g',
+                  "./chocolatey/tools-offline/chocolateyinstall.ps1")
+    do_sed_rename(ctx, 's/C:\\\\Program Files\\\\Datadog\\\\Datadog Agent/C:\\\\Program Files\\\\StackState\\\\StackState Agent/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/C:\/Program Files\/Datadog\/Datadog Agent/C:\/Program Files\/StackState\/StackState Agent/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/C:\/Program Files\/Datadog/C:\/Program Files\/StackState/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/C:\/ProgramData\/Datadog/C:\/ProgramData\/StackState/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/"Datadog Agent"/"StackState Agent"/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/"datadogagent"/"stackstateagent"/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/"datadog-process-agent"/"stackstate-process-agent"/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/"datadog-trace-agent"/"stackstate-trace-agent"/g',
+                  "./Dockerfiles/agent/install.ps1")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\logs\\\\\\\\process-agent.log"/"c:\\\\\\\\programdata\\\\\\\\stackstate\\\\\\\\logs\\\\\\\\process-agent.log"/g',
+                  "./pkg/process/config/config_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\Program Files\\\\\\\\Datadog\\\\\\\\Datadog Agent\\\\\\\\bin\\\\\\\\agent.exe"/"c:\\\\\\\\Program Files\\\\\\\\StackState\\\\\\\\StackState Agent\\\\\\\\bin\\\\\\\\agent.exe"/g',
+                  "./pkg/process/config/config_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\datadog.yaml"/"c:\\\\\\\\programdata\\\\\\\\stackstate\\\\\\\\stackstate.yaml"/g',
+                  "./cmd/process-agent/main_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\system-probe.yaml"/"c:\\\\\\\\programdata\\\\\\\\stackstate\\\\\\\\system-probe.yaml"/g',
+                  "./cmd/process-agent/main_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\conf.d"/"c:\\\\\\\\programdata\\\\\\\\stackstate\\\\\\\\conf.d"/g',
+                  "./cmd/process-agent/main_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\logs\\\\\\\\process-agent.log"/"c:\\\\\\\\programdata\\\\\\\\stackstate\\\\\\\\logs\\\\\\\\process-agent.log"/g',
+                  "./cmd/process-agent/main_windows.go")
+    do_sed_rename(ctx, 's/"datadog.yaml"/"stackstate.yaml"/g',
+                  "./cmd/process-agent/main_windows.go")
+    do_sed_rename(ctx, 's/"datadog.yaml"/"stackstate.yaml"/g',
+                  "./omnibus/config/projects/agent.rb")
 
     # Windows SysTray and GUI
     tray_replace = 's/ddtray/ststray/'
