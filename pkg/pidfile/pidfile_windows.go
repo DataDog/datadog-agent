@@ -39,5 +39,5 @@ func Path() string {
 	if err == nil {
 		return filepath.Join(pd, "datadog-agent.pid")
 	}
-	return "c:\\ProgramData\\DataDog\\datadog-agent.pid"
+	return "c:\\ProgramData\\StackState\\stackstate-agent.pid"
 }
