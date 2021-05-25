@@ -333,7 +333,7 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 				"SELECT * FROM ( SELECT * FROM nested_table )",
 			},
 			{
-				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
+				"   -- get user \n--\n select * \n   from users \n    where\n       id = 214325346    ",
 				"users",
 				"select * from users where id = ?",
 			},
