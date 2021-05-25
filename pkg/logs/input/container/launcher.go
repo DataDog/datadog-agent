@@ -26,7 +26,7 @@ type Launcher struct {
 	containerLaunchables []Launchable
 	activeLauncher       restart.Restartable
 	stop                 bool
-	lock                 sync.Mutex
+	sync.Mutex
 }
 
 // NewLauncher creates a new launcher
@@ -71,42 +71,40 @@ func (l *Launcher) shouldRetry() (bool, time.Duration) {
 // Start starts the launcher
 func (l *Launcher) Start() {
 	// If we are restarting, start up the active launcher since we already picked one from a previous run
-	l.lock.Lock()
+	l.Lock()
 	if l.activeLauncher != nil {
 		l.stop = true
 		l.activeLauncher.Start()
-		l.lock.Unlock()
+		l.Unlock()
 		return
 	}
 	l.stop = false
-	timer := time.NewTimer(0)
-	l.lock.Unlock()
+	l.Unlock()
 
 	// Try to select a launcher
 	go func() {
 		for {
-			<-timer.C
-			l.lock.Lock()
+			l.Lock()
 			if l.stop {
-				l.lock.Unlock()
+				l.Unlock()
 				return
 			}
 			shouldRetry, nextRetry := l.shouldRetry()
 			l.stop = !shouldRetry
 			if !shouldRetry {
-				l.lock.Unlock()
+				l.Unlock()
 				return
 			}
-			timer = time.NewTimer(nextRetry)
-			l.lock.Unlock()
+			l.Unlock()
+			<-time.After(nextRetry)
 		}
 	}()
 }
 
 // Stop stops the launcher
 func (l *Launcher) Stop() {
-	defer l.lock.Unlock()
-	l.lock.Lock()
+	l.Lock()
+	defer l.Unlock()
 	l.stop = true
 	if l.activeLauncher != nil {
 		l.activeLauncher.Stop()

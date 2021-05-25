@@ -171,9 +171,9 @@ func TestAvalibleLauncherReturnsNil(t *testing.T) {
 	l2.wg.Wait()
 	assert.Equal(t, 0, l1.startCount)
 	assert.Equal(t, 0, l2.startCount)
-	l.lock.Lock()
+	l.Lock()
 	_, ok := l.activeLauncher.(*noopLauncher)
-	l.lock.Unlock()
+	l.Unlock()
 	assert.True(t, ok)
 }
 
