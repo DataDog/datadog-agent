@@ -32,26 +32,29 @@ const (
 type ListenerConfig struct {
 	Workers               int      `mapstructure:"workers"`
 	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
-	AllowedFailures       int      `mapstructure:"allowed_failures"`
+	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
 	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
 	Configs               []Config `mapstructure:"configs"`
+
+	// legacy
+	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
 }
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	Network                     string          `mapstructure:"network"`
+	Network                     string          `mapstructure:"network_address"`
 	Port                        uint16          `mapstructure:"port"`
-	Version                     string          `mapstructure:"version"`
+	Version                     string          `mapstructure:"snmp_version"`
 	Timeout                     int             `mapstructure:"timeout"`
 	Retries                     int             `mapstructure:"retries"`
 	OidBatchSize                int             `mapstructure:"oid_batch_size"`
-	Community                   string          `mapstructure:"community"`
+	CommunityString             string          `mapstructure:"community_string"`
 	User                        string          `mapstructure:"user"`
-	AuthKey                     string          `mapstructure:"authentication_key"`
-	AuthProtocol                string          `mapstructure:"authentication_protocol"`
-	PrivKey                     string          `mapstructure:"privacy_key"`
-	PrivProtocol                string          `mapstructure:"privacy_protocol"`
+	AuthKey                     string          `mapstructure:"authKey"`
+	AuthProtocol                string          `mapstructure:"authProtocol"`
+	PrivKey                     string          `mapstructure:"privKey"`
+	PrivProtocol                string          `mapstructure:"privProtocol"`
 	ContextEngineID             string          `mapstructure:"context_engine_id"`
 	ContextName                 string          `mapstructure:"context_name"`
 	IgnoredIPAddresses          map[string]bool `mapstructure:"ignored_ip_addresses"`
@@ -60,6 +63,15 @@ type Config struct {
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	Tags                        []string `mapstructure:"tags"`
+
+	// Legacy
+	NetworkLegacy         string `mapstructure:"network"`
+	VersionLegacy         string `mapstructure:"version"`
+	CommunityStringLegacy string `mapstructure:"community"`
+	AuthKeyLegacy         string `mapstructure:"authentication_key"`
+	AuthProtocolLegacy    string `mapstructure:"authentication_protocol"`
+	PrivKeyLegacy         string `mapstructure:"privacy_key"`
+	PrivProtocolLegacy    string `mapstructure:"privacy_protocol"`
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
@@ -86,6 +98,10 @@ func NewListenerConfig() (ListenerConfig, error) {
 		return snmpConfig, err
 	}
 
+	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
+		snmpConfig.AllowedFailures = snmpConfig.AllowedFailuresLegacy
+	}
+
 	// Set the default values, we can't otherwise on an array
 	for i := range snmpConfig.Configs {
 		// We need to modify the struct in place
@@ -107,6 +123,27 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
+		if config.CommunityString == "" && config.CommunityStringLegacy != "" {
+			config.CommunityString = config.CommunityStringLegacy
+		}
+		if config.AuthKey == "" && config.AuthKeyLegacy != "" {
+			config.AuthKey = config.AuthKeyLegacy
+		}
+		if config.AuthProtocol == "" && config.AuthProtocolLegacy != "" {
+			config.AuthProtocol = config.AuthProtocolLegacy
+		}
+		if config.PrivKey == "" && config.PrivKeyLegacy != "" {
+			config.PrivKey = config.PrivKeyLegacy
+		}
+		if config.PrivProtocol == "" && config.PrivProtocolLegacy != "" {
+			config.PrivProtocol = config.PrivProtocolLegacy
+		}
+		if config.Network == "" && config.NetworkLegacy != "" {
+			config.Network = config.NetworkLegacy
+		}
+		if config.Version == "" && config.VersionLegacy != "" {
+			config.Version = config.VersionLegacy
+		}
 	}
 	return snmpConfig, nil
 }
@@ -118,7 +155,7 @@ func (c *Config) Digest(address string) string {
 	h.Write([]byte(address))                   //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
 	h.Write([]byte(c.Version))                 //nolint:errcheck
-	h.Write([]byte(c.Community))               //nolint:errcheck
+	h.Write([]byte(c.CommunityString))         //nolint:errcheck
 	h.Write([]byte(c.User))                    //nolint:errcheck
 	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
 	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
@@ -143,14 +180,14 @@ func (c *Config) Digest(address string) string {
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
 func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
-	if c.Community == "" && c.User == "" {
+	if c.CommunityString == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
 	if c.Version == "1" {
 		version = gosnmp.Version1
-	} else if c.Version == "2" || (c.Version == "" && c.Community != "") {
+	} else if c.Version == "2" || (c.Version == "" && c.CommunityString != "") {
 		version = gosnmp.Version2c
 	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
 		version = gosnmp.Version3
@@ -200,7 +237,7 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            c.Port,
-		Community:       c.Community,
+		Community:       c.CommunityString,
 		Transport:       "udp",
 		Version:         version,
 		Timeout:         time.Duration(c.Timeout) * time.Second,

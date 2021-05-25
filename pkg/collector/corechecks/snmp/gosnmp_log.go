@@ -32,7 +32,7 @@ var replacers = []Replacer{
 		Repl:  []byte(`$1 ********`),
 	},
 	{
-		Regex: regexp.MustCompile(`(\s*(?:Community|ContextEngineID):).+?(\s[\w]+:)`),
+		Regex: regexp.MustCompile(`(\s*(?:CommunityString|ContextEngineID):).+?(\s[\w]+:)`),
 		Repl:  []byte(`${1}********${2}`),
 	},
 }

@@ -396,7 +396,7 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	case "oid_batch_size":
 		return []byte(fmt.Sprintf("%d", s.config.OidBatchSize)), nil
 	case "community":
-		return []byte(s.config.Community), nil
+		return []byte(s.config.CommunityString), nil
 	case "user":
 		return []byte(s.config.User), nil
 	case "auth_key":
