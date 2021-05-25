@@ -34,7 +34,7 @@ var (
 	NoProxyMapMutex = sync.Mutex{}
 )
 
-func logSafeUrlString(url *url.URL) string {
+func logSafeURLString(url *url.URL) string {
 	if url == nil {
 		return ""
 	}
@@ -154,7 +154,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			return url, err
 		}
 
-		logSafeURL := logSafeUrlString(r.URL)
+		logSafeURL := logSafeURLString(r.URL)
 
 		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
 		if url != nil && newURL == nil {
@@ -169,13 +169,13 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
 		if url == nil && newURL != nil {
-			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeUrlString(newURL))
+			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
 			return url, err
 		}
 
 		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
 		if url.String() != newURLString {
-			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeUrlString(newURL))
+			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeURLString(newURL))
 			return url, err
 		}
 
