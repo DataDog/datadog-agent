@@ -23,9 +23,9 @@ func TestSNMPListener(t *testing.T) {
 	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Loader:    "core",
+		Network:         "192.168.0.0/24",
+		CommunityString: "public",
+		Loader:          "core",
 	}
 	listenerConfig := snmp.ListenerConfig{
 		Configs: []snmp.Config{snmpConfig},
@@ -53,7 +53,7 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.currentIP.String())
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
-	assert.Equal(t, "public", job.subnet.config.Community)
+	assert.Equal(t, "public", job.subnet.config.CommunityString)
 
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
@@ -72,10 +72,10 @@ func TestSNMPListenerSubnets(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		snmpConfig := snmp.Config{
-			Network:     "172.18.0.0/30",
-			Community:   "f5-big-ip",
-			Port:        1161,
-			ContextName: "context" + strconv.Itoa(i),
+			Network:         "172.18.0.0/30",
+			CommunityString: "f5-big-ip",
+			Port:            1161,
+			ContextName:     "context" + strconv.Itoa(i),
 		}
 		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
 	}
@@ -123,7 +123,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 
 	snmpConfig := snmp.Config{
 		Network:            "192.168.0.0/24",
-		Community:          "public",
+		CommunityString:    "public",
 		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
 	}
 	listenerConfig := snmp.ListenerConfig{
@@ -158,11 +158,11 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 
 func TestExtraConfig(t *testing.T) {
 	snmpConfig := snmp.Config{
-		Network:      "192.168.0.0/24",
-		Community:    "public",
-		Timeout:      5,
-		Retries:      2,
-		OidBatchSize: 10,
+		Network:         "192.168.0.0/24",
+		CommunityString: "public",
+		Timeout:         5,
+		Retries:         2,
+		OidBatchSize:    10,
 	}
 
 	svc := SNMPService{
@@ -214,10 +214,10 @@ func TestExtraConfig(t *testing.T) {
 
 func TestExtraConfigExtraTags(t *testing.T) {
 	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Timeout:   5,
-		Retries:   2,
+		Network:         "192.168.0.0/24",
+		CommunityString: "public",
+		Timeout:         5,
+		Retries:         2,
 		Tags: []string{
 			"tag1:val,1,2",
 			"tag2:val_2",

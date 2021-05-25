@@ -30,8 +30,8 @@ func TestBuildSNMPParams(t *testing.T) {
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
 	config = Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
+		Network:         "192.168.0.0/24",
+		CommunityString: "public",
 	}
 	params, _ := config.BuildSNMPParams("192.168.0.1")
 	assert.Equal(t, gosnmp.Version2c, params.Version)
@@ -88,43 +88,69 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 }
 
-func Test_LoaderConfig(t *testing.T) {
+func Test_Configs(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
+  workers: 10
+  discovery_interval: 11
+  discovery_allowed_failures: 5
+  loader: core
+  collect_device_metadata: true
   configs:
-   - network: 127.1.0.0/30
-   - network: 127.2.0.0/30
-     loader: core
-   - network: 127.3.0.0/30
-     loader: python
+   - authProtocol: someAuthProtocol
+     authKey: someAuthKey
+     privProtocol: somePrivProtocol
+     privKey: somePrivKey
+     community_string: someCommunityString
+     snmp_version: someSnmpVersion
+     network_address: 127.1.0.0/30
 `))
 	assert.NoError(t, err)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
 
-	assert.Equal(t, "", conf.Configs[0].Loader)
-	assert.Equal(t, "core", conf.Configs[1].Loader)
-	assert.Equal(t, "python", conf.Configs[2].Loader)
+	networkConf := conf.Configs[0]
+	assert.Equal(t, 10, conf.Workers)
+	assert.Equal(t, 11, conf.DiscoveryInterval)
+	assert.Equal(t, 5, conf.AllowedFailures)
+	assert.Equal(t, true, conf.CollectDeviceMetadata)
+	assert.Equal(t, "core", conf.Loader)
+	assert.Equal(t, "someAuthProtocol", networkConf.AuthProtocol)
+	assert.Equal(t, "someAuthKey", networkConf.AuthKey)
+	assert.Equal(t, "somePrivProtocol", networkConf.PrivProtocol)
+	assert.Equal(t, "somePrivKey", networkConf.PrivKey)
+	assert.Equal(t, "someCommunityString", networkConf.CommunityString)
+	assert.Equal(t, "someSnmpVersion", networkConf.Version)
+	assert.Equal(t, "127.1.0.0/30", networkConf.Network)
 
+	/////////////////
+	// legacy configs
+	/////////////////
 	err = config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
-  loader: core
+  allowed_failures: 15
   configs:
-   - network: 127.1.0.0/30
-   - network: 127.2.0.0/30
-     loader: core
-   - network: 127.3.0.0/30
-     loader: python
+   - authentication_protocol: legacyAuthProtocol
+     authentication_key: legacyAuthKey
+     privacy_protocol: legacyPrivProtocol
+     privacy_key: legacyPrivKey
+     community: legacyCommunityString
+     version: legacySnmpVersion
+     network: 127.2.0.0/30
 `))
 	assert.NoError(t, err)
-
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
+	legacyConfig := conf.Configs[0]
 
-	assert.Equal(t, "core", conf.Configs[0].Loader)
-	assert.Equal(t, "core", conf.Configs[1].Loader)
-	assert.Equal(t, "python", conf.Configs[2].Loader)
-
+	assert.Equal(t, 15, conf.AllowedFailures)
+	assert.Equal(t, "legacyAuthProtocol", legacyConfig.AuthProtocol)
+	assert.Equal(t, "legacyAuthKey", legacyConfig.AuthKey)
+	assert.Equal(t, "legacyPrivProtocol", legacyConfig.PrivProtocol)
+	assert.Equal(t, "legacyPrivKey", legacyConfig.PrivKey)
+	assert.Equal(t, "legacyCommunityString", legacyConfig.CommunityString)
+	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
+	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
 }
