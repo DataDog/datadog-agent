@@ -13,8 +13,16 @@ import (
 type Report struct {
 	// Data contains arbitrary data linked to check evaluation
 	Data event.Data
+	// Resource associated with the report
+	Resource ReportResource
 	// Passed defines whether check was successful or not
 	Passed bool
 	// Error of th check evaluation
 	Error error
+}
+
+// ReportResource holds the id and type of the resource associated with a report
+type ReportResource struct {
+	ID   string
+	Type string
 }

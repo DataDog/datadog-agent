@@ -54,7 +54,7 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 		return nil, err
 	}
 
-	var instances []*eval.Instance
+	var instances []eval.Instance
 	for _, auditRule := range auditRules {
 		for _, path := range paths {
 			if auditRule.Path != path {
@@ -62,21 +62,20 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 			}
 
 			log.Debugf("%s: audit check - match %s", ruleID, path)
-			instances = append(instances, &eval.Instance{
-				Vars: eval.VarMap{
-					compliance.AuditFieldPath:        path,
-					compliance.AuditFieldEnabled:     true,
-					compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
-				},
-			})
+			instances = append(instances, newResolvedInstance(
+				eval.NewInstance(
+					eval.VarMap{
+						compliance.AuditFieldPath:        path,
+						compliance.AuditFieldEnabled:     true,
+						compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
+					}, nil,
+				),
+				auditRule.Path, "audit"),
+			)
 		}
 	}
 
-	return &resolvedIterator{
-		Iterator: &instanceIterator{
-			instances: instances,
-		},
-	}, nil
+	return newResolvedIterator(newInstanceIterator(instances)), nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

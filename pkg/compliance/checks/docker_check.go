@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -28,6 +29,45 @@ var (
 	}
 )
 
+type dockerImage struct {
+	eval.Instance
+	summary *types.ImageSummary
+}
+
+func (im *dockerImage) ID() string {
+	return strings.TrimPrefix(im.summary.ID, "sha256:")
+}
+
+func (im *dockerImage) Type() string {
+	return "docker_image"
+}
+
+type dockerContainer struct {
+	eval.Instance
+	container *types.Container
+}
+
+func (c *dockerContainer) ID() string {
+	return c.container.ID
+}
+
+func (c *dockerContainer) Type() string {
+	return "docker_container"
+}
+
+type dockerNetwork struct {
+	eval.Instance
+	network *types.NetworkResource
+}
+
+func (n *dockerNetwork) ID() string {
+	return n.network.ID
+}
+
+func (n *dockerNetwork) Type() string {
+	return "docker_network"
+}
+
 func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
@@ -44,30 +84,30 @@ func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance
 
 	var (
 		iterator eval.Iterator
-		instance *eval.Instance
+		instance eval.Instance
 		err      error
 	)
 
 	switch res.Docker.Kind {
 	case "image":
 		if iterator, err = newDockerImageIterator(ctx, client); err == nil {
-			return &resolvedIterator{Iterator: iterator}, nil
+			return newResolvedIterator(iterator), nil
 		}
 	case "container":
 		if iterator, err = newDockerContainerIterator(ctx, client); err == nil {
-			return &resolvedIterator{Iterator: iterator}, nil
+			return newResolvedIterator(iterator), nil
 		}
 	case "network":
 		if iterator, err = newDockerNetworkIterator(ctx, client); err == nil {
-			return &resolvedIterator{Iterator: iterator}, nil
+			return newResolvedIterator(iterator), nil
 		}
 	case "info":
 		if instance, err = newDockerInfoInstance(ctx, client); err == nil {
-			return &resolvedInstance{Instance: instance}, nil
+			return newResolvedInstance(instance, "daemon", "docker_daemon"), nil
 		}
 	case "version":
 		if instance, err = newDockerVersionInstance(ctx, client); err == nil {
-			return &resolvedInstance{Instance: instance}, nil
+			return newResolvedInstance(instance, "daemon", "docker_daemon"), nil
 		}
 	default:
 		return nil, dockerKindNotSupported(res.Docker.Kind)
@@ -76,27 +116,28 @@ func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance
 	return nil, err
 }
 
-func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (*eval.Instance, error) {
+func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (eval.Instance, error) {
 	info, err := client.Info(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return &eval.Instance{
-		Functions: eval.FunctionMap{
+	return eval.NewInstance(
+		nil,
+		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
 		},
-	}, nil
+	), nil
 }
 
-func newDockerVersionInstance(ctx context.Context, client env.DockerClient) (*eval.Instance, error) {
+func newDockerVersionInstance(ctx context.Context, client env.DockerClient) (eval.Instance, error) {
 	version, err := client.ServerVersion(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return &eval.Instance{
-		Vars: eval.VarMap{
+	return eval.NewInstance(
+		eval.VarMap{
 			compliance.DockerVersionFieldVersion:       version.Version,
 			compliance.DockerVersionFieldAPIVersion:    version.APIVersion,
 			compliance.DockerVersionFieldPlatform:      version.Platform.Name,
@@ -105,14 +146,14 @@ func newDockerVersionInstance(ctx context.Context, client env.DockerClient) (*ev
 			compliance.DockerVersionFieldArch:          version.Arch,
 			compliance.DokcerVersionFieldKernelVersion: version.KernelVersion,
 		},
-		Functions: eval.FunctionMap{
+		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, version),
 		},
-	}, nil
+	), nil
 }
 
 func dockerTemplateQuery(funcName, obj interface{}) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 1 {
 			return nil, fmt.Errorf(`invalid number of arguments in "%s()", expecting 1 got %d`, funcName, len(args))
 		}
@@ -148,7 +189,7 @@ func newDockerImageIterator(ctx context.Context, client env.DockerClient) (eval.
 	}, nil
 }
 
-func (it *dockerImageIterator) Next() (*eval.Instance, error) {
+func (it *dockerImageIterator) Next() (eval.Instance, error) {
 	if it.Done() {
 		return nil, ErrInvalidIteration
 	}
@@ -162,14 +203,17 @@ func (it *dockerImageIterator) Next() (*eval.Instance, error) {
 
 	it.index++
 
-	return &eval.Instance{
-		Vars: eval.VarMap{
-			compliance.DockerImageFieldID:   image.ID,
-			compliance.DockerImageFieldTags: imageInspect.RepoTags,
-		},
-		Functions: eval.FunctionMap{
-			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, imageInspect),
-		},
+	return &dockerImage{
+		Instance: eval.NewInstance(
+			eval.VarMap{
+				compliance.DockerImageFieldID:   image.ID,
+				compliance.DockerImageFieldTags: imageInspect.RepoTags,
+			},
+			eval.FunctionMap{
+				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, imageInspect),
+			},
+		),
+		summary: &image,
 	}, nil
 }
 
@@ -197,7 +241,7 @@ func newDockerContainerIterator(ctx context.Context, client env.DockerClient) (e
 	}, nil
 }
 
-func (it *dockerContainerIterator) Next() (*eval.Instance, error) {
+func (it *dockerContainerIterator) Next() (eval.Instance, error) {
 	if it.Done() {
 		return nil, ErrInvalidIteration
 	}
@@ -211,15 +255,18 @@ func (it *dockerContainerIterator) Next() (*eval.Instance, error) {
 
 	it.index++
 
-	return &eval.Instance{
-		Vars: eval.VarMap{
-			compliance.DockerContainerFieldID:    container.ID,
-			compliance.DockerContainerFieldName:  containerInspect.Name,
-			compliance.DockerContainerFieldImage: containerInspect.Image,
-		},
-		Functions: eval.FunctionMap{
-			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, containerInspect),
-		},
+	return &dockerContainer{
+		Instance: eval.NewInstance(
+			eval.VarMap{
+				compliance.DockerContainerFieldID:    container.ID,
+				compliance.DockerContainerFieldName:  containerInspect.Name,
+				compliance.DockerContainerFieldImage: containerInspect.Image,
+			},
+			eval.FunctionMap{
+				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, containerInspect),
+			},
+		),
+		container: &container,
 	}, nil
 }
 
@@ -247,7 +294,7 @@ func newDockerNetworkIterator(ctx context.Context, client env.DockerClient) (eva
 	}, nil
 }
 
-func (it *dockerNetworkIterator) Next() (*eval.Instance, error) {
+func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 	if it.Done() {
 		return nil, ErrInvalidIteration
 	}
@@ -256,14 +303,17 @@ func (it *dockerNetworkIterator) Next() (*eval.Instance, error) {
 
 	it.index++
 
-	return &eval.Instance{
-		Vars: eval.VarMap{
-			compliance.DockerNetworkFieldID:   network.ID,
-			compliance.DockerNetworkFieldName: network.Name,
-		},
-		Functions: eval.FunctionMap{
-			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, network),
-		},
+	return &dockerNetwork{
+		Instance: eval.NewInstance(
+			eval.VarMap{
+				compliance.DockerNetworkFieldID:   network.ID,
+				compliance.DockerNetworkFieldName: network.Name,
+			},
+			eval.FunctionMap{
+				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, network),
+			},
+		),
+		network: &network,
 	}, nil
 }
 

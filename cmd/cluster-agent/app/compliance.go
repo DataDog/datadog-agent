@@ -100,7 +100,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		checks.WithMatchRule(func(rule *compliance.Rule) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
-		checks.WithKubernetesClient(apiCl.DynamicCl),
+		checks.WithKubernetesClient(apiCl.DynamicCl, ""),
 		checks.WithIsLeader(isLeader),
 	)
 	if err != nil {

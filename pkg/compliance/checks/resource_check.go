@@ -32,13 +32,27 @@ var (
 type resolved interface {
 	Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report
 }
-type resolvedInstance struct {
-	*eval.Instance
-	ResourceID   string
-	ResourceType string
+type resolvedInstance interface {
+	eval.Instance
+	ID() string
+	Type() string
 }
 
-func (ri *resolvedInstance) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
+type _resolvedInstance struct {
+	eval.Instance
+	id   string
+	kind string
+}
+
+func (ri *_resolvedInstance) ID() string {
+	return ri.id
+}
+
+func (ri *_resolvedInstance) Type() string {
+	return ri.kind
+}
+
+func (ri *_resolvedInstance) Evaluate(conditionExpression *eval.IterableExpression, c *resourceCheck, env env.Env) []*compliance.Report {
 	if c.resource.Fallback != nil {
 		if c.fallback == nil {
 			return []*compliance.Report{compliance.BuildReportForError(ErrResourceFallbackMissing)}
@@ -62,8 +76,17 @@ func (ri *resolvedInstance) Evaluate(conditionExpression *eval.IterableExpressio
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
-	report := instanceToReport(ri.Instance, passed, c.reportedFields)
+
+	report := instanceToReport(ri, passed, c.reportedFields)
 	return []*compliance.Report{report}
+}
+
+func newResolvedInstance(instance eval.Instance, resourceID, resourceType string) *_resolvedInstance {
+	return &_resolvedInstance{
+		Instance: instance,
+		id:       resourceID,
+		kind:     resourceType,
+	}
 }
 
 type resolvedIterator struct {
@@ -87,6 +110,20 @@ func (ri *resolvedIterator) Evaluate(conditionExpression *eval.IterableExpressio
 	}
 
 	return reports
+}
+
+func newResolvedIterator(iterator eval.Iterator) *resolvedIterator {
+	return &resolvedIterator{
+		Iterator: iterator,
+	}
+}
+
+func newResolvedInstances(resolvedInstances []resolvedInstance) *resolvedIterator {
+	instances := make([]eval.Instance, len(resolvedInstances))
+	for i, ri := range resolvedInstances {
+		instances[i] = ri
+	}
+	return newResolvedIterator(newInstanceIterator(instances))
 }
 
 type resolveFunc func(ctx context.Context, e env.Env, ruleID string, resource compliance.Resource) (resolved, error)

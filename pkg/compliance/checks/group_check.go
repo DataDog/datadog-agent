@@ -59,14 +59,12 @@ func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resour
 		return nil, ErrGroupNotFound
 	}
 
-	return &resolvedInstance{
-		Instance: finder.instance,
-	}, nil
+	return newResolvedInstance(finder.instance, group.Name, "group"), nil
 }
 
 type groupFinder struct {
 	groupName string
-	instance  *eval.Instance
+	instance  eval.Instance
 }
 
 func (f *groupFinder) findGroup(line []byte) (bool, error) {
@@ -88,13 +86,14 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 		log.Errorf("failed to parse group ID for %s: %v", f.groupName, err)
 	}
 
-	f.instance = &eval.Instance{
-		Vars: eval.VarMap{
+	f.instance = eval.NewInstance(
+		eval.VarMap{
 			compliance.GroupFieldName:  f.groupName,
 			compliance.GroupFieldUsers: strings.Split(parts[3], ","),
 			compliance.GroupFieldID:    gid,
 		},
-	}
+		nil,
+	)
 
 	return true, nil
 }

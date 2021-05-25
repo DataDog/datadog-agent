@@ -58,12 +58,11 @@ func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res complianc
 		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
 	}
 
-	return &resolvedInstance{
-		Instance: &eval.Instance{
-			Vars: eval.VarMap{
-				compliance.CommandFieldExitCode: exitCode,
-				compliance.CommandFieldStdout:   string(stdout),
-			},
-		},
-	}, nil
+	return newResolvedInstance(eval.NewInstance(
+		eval.VarMap{
+			compliance.CommandFieldExitCode: exitCode,
+			compliance.CommandFieldStdout:   string(stdout),
+		}, nil),
+		execCommand.Name, "command",
+	), nil
 }
