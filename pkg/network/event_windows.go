@@ -35,6 +35,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -86,7 +87,7 @@ func convertV4Addr(addr [16]C.uint8_t) util.Address {
 
 func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
+	return util.V6AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport
@@ -116,6 +117,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	} else {
 		// V6 Address
 		srcAddr, dstAddr = convertV6Addr(flow.localAddress), convertV6Addr(flow.remoteAddress)
+		log.Infof("Converted v6 address %v %v", srcAddr, dstAddr)
 	}
 
 	cs.Source = srcAddr
