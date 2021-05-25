@@ -164,10 +164,15 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
     __u32 packets_in = 0;
     __u32 packets_out = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+    struct sock* skp = (struct sock*)PT_REGS_PARM2(ctx);
+    size_t size = (size_t)PT_REGS_PARM4(ctx);
+#else
     struct sock* skp = (struct sock*)PT_REGS_PARM1(ctx);
     size_t size = (size_t)PT_REGS_PARM3(ctx);
+#endif
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_sendmsg: pid_tgid: %d, size: %d\n", pid_tgid, size);
+    log_debug("kprobe/tcp_sendmsg: size: %d\n", size);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
@@ -176,26 +181,6 @@ int kprobe__tcp_sendmsg(struct pt_regs* ctx) {
 
     handle_tcp_stats(&t, skp);
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
-    return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
-}
-
-SEC("kprobe/tcp_sendmsg/pre_4_1_0")
-int kprobe__tcp_sendmsg__pre_4_1_0(struct pt_regs* ctx) {
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-
-    struct sock* sk = (struct sock*)PT_REGS_PARM2(ctx);
-    size_t size = (size_t)PT_REGS_PARM4(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_sendmsg/pre_4_1_0: pid_tgid: %d, size: %d\n", pid_tgid, size);
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, sk);
-    get_tcp_segment_counts(sk, &packets_in, &packets_out);
     return handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 }
 
