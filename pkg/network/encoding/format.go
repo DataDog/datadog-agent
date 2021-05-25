@@ -186,6 +186,8 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	laddr, lport := nat.GetLocalAddress(c)
 	raddr, rport := nat.GetRemoteAddress(c)
 
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
 	if network.IsEphemeralPort(int(lport)) {
 		return http.NewKey(laddr, raddr, lport, rport, "")
 	}
