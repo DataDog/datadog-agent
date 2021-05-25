@@ -270,7 +270,7 @@ func submitNodeResourceMetric(s aggregator.Sender, name string, metric ksmstore.
 		s.Gauge(ksmMetricPrefix+"node.pods_"+metricSuffix, metric.Val, hostname, tags)
 		return
 	case "ephemeral_storage":
-		s.Gauge(ksmMetricPrefix+"node.ephemeral_storage"+metricSuffix, metric.Val, hostname, tags)
+		s.Gauge(ksmMetricPrefix+"node.ephemeral_storage_"+metricSuffix, metric.Val, hostname, tags)
 		return
 	default:
 		log.Tracef("Ignoring node resource metric '%s': resource '%s' is not supported", name, resource)
