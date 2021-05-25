@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -66,6 +67,7 @@ func validateIdentifier(annotation string, containerIdentifiers map[string]struc
 		for validID := range containerIdentifiers {
 			validIDs = append(validIDs, validID)
 		}
+		sort.Strings(validIDs)
 		return fmt.Errorf("annotation %s is invalid: %s doesn't match a container identifier %v", annotation, idToValidate, validIDs)
 	}
 	return nil

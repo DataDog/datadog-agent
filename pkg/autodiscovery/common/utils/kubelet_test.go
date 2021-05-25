@@ -136,11 +136,12 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 					"nginx-custom": {},
 				},
 				containerNames: map[string]struct{}{
-					"not-nginx": {},
+					"not-nginx"     : {},
+					"also-not-nginx": {},
 				},
 			},
 			want: []error{
-				errors.New("annotation ad.datadoghq.com/nginx.check.id is invalid: nginx doesn't match a container identifier [not-nginx]"),
+				errors.New("annotation ad.datadoghq.com/nginx.check.id is invalid: nginx doesn't match a container identifier [also-not-nginx not-nginx]"),
 			},
 		},
 		{
