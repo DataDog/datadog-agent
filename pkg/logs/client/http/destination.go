@@ -104,7 +104,7 @@ func (d *Destination) Send(payload []byte) error {
 		d.waitForBackoff()
 	}
 
-	err := d.send(payload)
+	err := d.unconditionalSend(payload)
 
 	if _, ok := err.(*client.RetryableError); ok {
 		d.nbErrors = d.backoff.IncError(d.nbErrors)
@@ -117,7 +117,7 @@ func (d *Destination) Send(payload []byte) error {
 	return err
 }
 
-func (d *Destination) send(payload []byte) (err error) {
+func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
@@ -193,12 +193,12 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 			case payload := <-payloadChan:
 				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 				if cap(d.climit) == 0 {
-					d.send(payload) //nolint:errcheck
+					d.unconditionalSend(payload) //nolint:errcheck
 					break
 				}
 				d.climit <- struct{}{}
 				go func() {
-					d.send(payload) //nolint:errcheck
+					d.unconditionalSend(payload) //nolint:errcheck
 					<-d.climit
 				}()
 			case <-ctx.Done():
@@ -251,7 +251,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
 	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.send(emptyPayload)
+	err := destination.unconditionalSend(emptyPayload)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {
