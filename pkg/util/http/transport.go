@@ -30,13 +30,20 @@ var (
 	// NoProxyChanged map containing URL's whos proxy behavior will change in the future
 	NoProxyChanged = make(map[string]bool)
 
-	// NoProxyWarningMapMutex Lock for NoProxyIgnoredWarningMap
-	NoProxyWarningMapMutex = sync.Mutex{}
+	// NoProxyMapMutex Lock for all no proxy maps
+	NoProxyMapMutex = sync.Mutex{}
 )
 
+func logSafeUrlString(url *url.URL) string {
+	if url == nil {
+		return ""
+	}
+	return url.Scheme + "://" + url.Host
+}
+
 func warnOnce(warnMap map[string]bool, key string, format string, params ...interface{}) {
-	NoProxyWarningMapMutex.Lock()
-	defer NoProxyWarningMapMutex.Unlock()
+	NoProxyMapMutex.Lock()
+	defer NoProxyMapMutex.Unlock()
 	if _, ok := warnMap[key]; !ok {
 		warnMap[key] = true
 		log.Warnf(format, params...)
@@ -147,7 +154,7 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			return url, err
 		}
 
-		logSafeURL := r.URL.Scheme + "://" + r.URL.Host
+		logSafeURL := logSafeUrlString(r.URL)
 
 		// Print a warning if the url would ignore the proxy when no_proxy_nonexact_match is true
 		if url != nil && newURL == nil {
@@ -162,13 +169,13 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
 		if url == nil && newURL != nil {
-			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, newURLString)
+			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeUrlString(newURL))
 			return url, err
 		}
 
 		// Print a warning if the url uses the proxy and still will when no_proxy_nonexact_match is true but for some reason is different
 		if url.String() != newURLString {
-			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), newURLString)
+			warnOnce(NoProxyChanged, logSafeURL, "Deprecation warning: the HTTP request to %s uses proxy %s but will change to %s when the Agent configuration option no_proxy_nonexact_match defaults to true", logSafeURL, url.String(), logSafeUrlString(newURL))
 			return url, err
 		}
 
