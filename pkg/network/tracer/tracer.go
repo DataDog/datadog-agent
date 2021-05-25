@@ -864,7 +864,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
-		"state":     stateStats,
+		"state":     stateStats["telemetry"],
 		"tracer":    tracerStats,
 		"ebpf":      t.getEbpfTelemetry(),
 		"kprobes":   ddebpf.GetProbeStats(),

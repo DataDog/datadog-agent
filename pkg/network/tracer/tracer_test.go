@@ -65,6 +65,82 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestGetStats(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+
+	cfg := testConfig()
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	<-time.After(time.Second)
+
+	expected := map[string][]string{
+		"conntrack": {
+			"state_size",
+			"enobufs",
+			"throttles",
+			"sampling_pct",
+			"read_errors",
+			"msg_errors",
+		},
+		"state": {
+			"stats_resets",
+			"closed_conn_dropped",
+			"conn_dropped",
+			"time_sync_collisions",
+			"dns_stats_dropped",
+			"dns_pid_collisions",
+		},
+		"tracer": {
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"conn_valid_skipped",
+			"expired_tcp_conns",
+			"pid_collisions",
+		},
+		"ebpf": {
+			"tcp_sent_miscounts",
+			"missed_tcp_close",
+		},
+		"dns": {
+			"added",
+			"decoding_errors",
+			"errors",
+			"expired",
+			"ips",
+			"lookups",
+			"oversized",
+			"packets_captured",
+			"packets_dropped",
+			"packets_processed",
+			"queries",
+			"resolved",
+			"socket_polls",
+			"successes",
+			"timestamp_micro_secs",
+			"truncated_packets",
+		},
+		"kprobes": nil,
+	}
+
+	actual, _ := tr.GetStats()
+
+	for section, entries := range expected {
+		if section == "dns" && pre410Kernel {
+			// DNS stats not supported on <4.1.0
+			continue
+		}
+
+		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+		for _, name := range entries {
+			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
+		}
+	}
+}
+
 func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based system probe
 	tr, err := NewTracer(testConfig())
