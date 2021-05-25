@@ -62,13 +62,13 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 		},
 		{
 			name:         "scrub community no quote",
-			logLine:      []byte(`TEST: ContextName:cisco-nexus CommunityString:abcd PDUType:162`),
-			expectedLogs: "[TRACE] Write: TEST: ContextName:cisco-nexus CommunityString:******** PDUType:162",
+			logLine:      []byte(`TEST: ContextName:cisco-nexus Community:abcd PDUType:162`),
+			expectedLogs: "[TRACE] Write: TEST: ContextName:cisco-nexus Community:******** PDUType:162",
 		},
 		{
 			name:         "scrub community quote",
-			logLine:      []byte(`TEST: ContextName:"cisco-nexus", CommunityString:"abcd", PDUType:0xa5`),
-			expectedLogs: "[TRACE] Write: TEST: ContextName:\"cisco-nexus\", CommunityString:******** PDUType:0xa5",
+			logLine:      []byte(`TEST: ContextName:"cisco-nexus", Community:"abcd", PDUType:0xa5`),
+			expectedLogs: "[TRACE] Write: TEST: ContextName:\"cisco-nexus\", Community:******** PDUType:0xa5",
 		},
 		{
 			name:         "scrub ContextEngineID no quote",
