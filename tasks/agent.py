@@ -362,6 +362,27 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/',
                   "./cmd/trace-agent/windows_resources/trace-agent.rc")
 
+    # Test
+    do_sed_rename(ctx, 's/"\\\\\\\\StackState\\\\\\\\StackVista"/"\\\\\\\\StackState\\\\\\\\StackState Agent"/g',
+                  "./tools/windows/install-help/cal/stringtable.rc")
+    do_sed_rename(ctx, 's/"C:\\\\\\\\Program Files\\\\\\\\Datadog\\\\\\\\Datadog Agent\\\\\\\\"/"C:\\\\\\\\Program Files\\\\\\\\StackState\\\\\\\\StackState Agent\\\\\\\\"/g',
+                  "./tools/windows/install-help/install-cmd/cmdline.cpp")
+    do_sed_rename(ctx, 's/"C:\\\\\\\\ProgramData\\\\\\\\Datadog\\\\\\\\"/"C:\\\\\\\\ProgramData\\\\\\\\StackState\\\\\\\\"/g',
+                  "./tools/windows/install-help/install-cmd/cmdline.cpp")
+    do_sed_rename(ctx, 's/"C:\\\\\\\\Program Files\\\\\\\\Datadog\\\\\\\\Datadog Agent\\\\\\\\"/"C:\\\\\\\\Program Files\\\\\\\\StackState\\\\\\\\StackState Agent\\\\\\\\"/g',
+                  "./tools/windows/install-help/uninstall-cmd/cmdline.cpp")
+    do_sed_rename(ctx, 's/"C:\\\\\\\\ProgramData\\\\\\\\Datadog\\\\\\\\"/"C:\\\\\\\\ProgramData\\\\\\\\StackState\\\\\\\\"/g',
+                  "./tools/windows/install-help/uninstall-cmd/cmdline.cpp")
+    do_sed_rename(ctx, 's/c:\\\\\\\\programdata\\\\\\\\datadog/c:\\\\\\\\programdata\\\\\\\\StackState/g',
+                  "./pkg/config/config_windows.go")
+    do_sed_rename(ctx, 's/"c:\\\\\\\\programdata\\\\\\\\datadog\\\\\\\\datadog.yaml"/"c:\\\\\\\\programdata\\\\\\\\StackState\\\\\\\\stackstate.yaml"/g',
+                  "./pkg/trace/flags/flags_windows.go")
+    do_sed_rename(ctx, 's/datadog\\\\\\\\logs\\\\\\\\trace-agent.log"/StackState\\\\\\\\logs\\\\\\\\trace-agent.log"/g',
+                  "./pkg/trace/config/config_windows.go")
+    do_sed_rename(ctx, 's/Datadog\\\\\\\\Datadog Agent\\\\\\\\bin\\\\\\\\agent.exe"/StackState\\\\\\\\StackState Agent\\\\\\\\bin\\\\\\\\agent.exe"/g',
+                  "./pkg/trace/config/config_windows.go")
+    do_sed_rename(ctx, 's/DataDog\\\\\\\\datadog-agent.pid"/StackState\\\\\\\\stackstate-agent.pid"/g',
+                  "./pkg/pidfile/pidfile_windows.go")
 
     # Windows SysTray and GUI
     tray_replace = 's/ddtray/ststray/'
