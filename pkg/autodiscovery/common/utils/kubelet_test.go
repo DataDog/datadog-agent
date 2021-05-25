@@ -136,7 +136,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 					"nginx-custom": {},
 				},
 				containerNames: map[string]struct{}{
-					"not-nginx"     : {},
+					"not-nginx":      {},
 					"also-not-nginx": {},
 				},
 			},
