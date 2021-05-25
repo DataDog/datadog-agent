@@ -15,11 +15,9 @@ LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
 ETCDIR="/etc/datadog-agent"
 CONF="$ETCDIR/datadog.yaml"
 
-# DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
-# repodata and newly released packages
-# DATADOG_APT_KEY_382E94DE.public expires in 2022
-# DATADOG_APT_KEY_F14F620E.public expires in 2032
-APT_GPG_KEYS=("DATADOG_APT_KEY_CURRENT.public" "DATADOG_APT_KEY_F14F620E.public" "DATADOG_APT_KEY_382E94DE.public")
+# A2923DFF56EDA6E76E55E492D3A80E30382E94DE expires in 2022
+# D75CEA17048B9ACBF186794B32637D44F14F620E expires in 2032
+APT_GPG_KEYS=("A2923DFF56EDA6E76E55E492D3A80E30382E94DE" "D75CEA17048B9ACBF186794B32637D44F14F620E")
 
 # DATADOG_RPM_KEY_CURRENT.public always contains key used to sign current
 # repodata and newly released packages
@@ -226,6 +224,14 @@ else
   apt_repo_version="${agent_dist_channel} ${agent_major_version}"
 fi
 
+keyserver="hkp://keyserver.ubuntu.com:80"
+backup_keyserver="hkp://pool.sks-keyservers.net:80"
+# use this env var to specify another key server, such as
+# hkp://p80.pool.sks-keyservers.net:80 for example.
+if [ -n "$DD_KEYSERVER" ]; then
+  keyserver="$DD_KEYSERVER"
+fi
+
 report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
 if [ -n "$TESTING_REPORT_URL" ]; then
   report_failure_url=$TESTING_REPORT_URL
@@ -336,31 +342,39 @@ if [ "$OS" = "RedHat" ]; then
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
-    apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
-    apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
-    printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
+    printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
-    # installing curl might trigger install of additional version of libssl; this will fail the installation process,
-    # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
-    $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
-    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
-
-    if [ ! -f $apt_usr_share_keyring ]; then
-        $sudo_cmd touch $apt_usr_share_keyring
+    $sudo_cmd apt-get install -y apt-transport-https
+    # Only install dirmngr if it's available in the cache
+    # it may not be available on Ubuntu <= 14.04 but it's not required there
+    cache_output=`apt-cache search dirmngr`
+    if [ ! -z "$cache_output" ]; then
+      $sudo_cmd apt-get install -y dirmngr
     fi
+    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+    $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
 
     for key in "${APT_GPG_KEYS[@]}"; do
-        $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
-        cat "/tmp/${key}" | $sudo_cmd gpg --import --batch --no-default-keyring --keyring "$apt_usr_share_keyring"
+      for retries in {0..4}; do
+        $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" "${key}" && break
+        if [ "$retries" -eq 4 ]; then
+          ERROR_MESSAGE="ERROR
+  Couldn't fetch Datadog public key ${key}.
+  This might be due to a connectivity error with the key server
+  or a temporary service interruption.
+  *****
+  "
+          false
+        fi
+        printf "\033[33m\napt-key failed to retrieve Datadog's public key ${key}, retrying in 5 seconds...\n\033[0m\n"
+        sleep 5
+        if [ "$retries" -eq 1 ]; then
+          printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
+          keyserver="${backup_keyserver}"
+        fi
+      done
     done
-
-    release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
-    if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
-       { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
-        $sudo_cmd cp $apt_usr_share_keyring $apt_trusted_d_keyring
-    fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
