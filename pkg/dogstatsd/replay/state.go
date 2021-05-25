@@ -8,8 +8,6 @@ package replay
 import (
 	"errors"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -40,7 +38,6 @@ func ContainerIDForPID(pid int32) (string, error) {
 		return "", errPidMapUnavailable
 	}
 
-	log.Debugf("SEARCHING for pid: %d - %v", pid, pidMap[pid])
 	cID, found := pidMap[pid]
 	if !found {
 		return "", errContainerUnavailable

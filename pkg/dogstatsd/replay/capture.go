@@ -16,6 +16,9 @@ import (
 
 const (
 	// GUID will be used as the GUID during capture replays
+	// This is a magic number chosen for no particular reason other than the fact its
+	// quite large an improbable to match an actual Group ID on any given box. We
+	// need this number to identify replayed Unix socket ancillary credentials.
 	GUID = 999888777
 )
 

@@ -74,7 +74,6 @@ func (tc *TrafficCaptureReader) Read() {
 	tc.offset = uint32(len(datadogHeader))
 	tc.Unlock()
 
-iterate:
 	// The state must be read out of band, it makes zero sense in the context
 	// of the replaying process, it must be pushed to the agent. We just read
 	// and submit the packets here.
@@ -100,7 +99,7 @@ iterate:
 
 		select {
 		case <-tc.fuse:
-			break iterate
+			return
 		default:
 			continue
 		}
