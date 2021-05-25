@@ -10,6 +10,7 @@ package providers
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -22,14 +23,15 @@ import (
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
 	kubelet      kubelet.KubeUtilInterface
-	ConfigErrors map[string]ErrorMsgSet
+	configErrors map[string]ErrorMsgSet
+	sync.Mutex
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	return &KubeletConfigProvider{
-		ConfigErrors: make(map[string]ErrorMsgSet),
+		configErrors: make(map[string]ErrorMsgSet),
 	}, nil
 }
 
@@ -65,10 +67,10 @@ func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
 func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]integration.Config, error) {
 	var configs []integration.Config
 	var ADErrors = make(map[string]ErrorMsgSet)
-	var errors []error
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
 		var adExtractFormat string
+		var errs []error
 		for name := range pod.Metadata.Annotations {
 			if strings.HasPrefix(name, utils.NewPodAnnotationPrefix) {
 				adExtractFormat = utils.NewPodAnnotationFormat
@@ -104,6 +106,7 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 
 			for _, err := range errors {
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)
+				errs = append(errs, err)
 			}
 
 			for idx := range c {
@@ -112,15 +115,18 @@ func (k *KubeletConfigProvider) parseKubeletPodlist(podlist []*kubelet.Pod) ([]i
 
 			configs = append(configs, c...)
 		}
-		errors = append(errors, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames)...)
-		for _, err := range errors {
-			if _, found := ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name]; !found {
-				ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name] = map[string]struct{}{err.Error(): {}}
+		errs = append(errs, utils.ValidateAnnotationsMatching(pod.Metadata.Annotations, containerIdentifiers, containerNames)...)
+		namespacedName := pod.Metadata.Namespace + "/" + pod.Metadata.Name
+		for _, err := range errs {
+			if _, found := ADErrors[namespacedName]; !found {
+				ADErrors[namespacedName] = map[string]struct{}{err.Error(): {}}
 			} else {
-				ADErrors[pod.Metadata.Namespace+"/"+pod.Metadata.Name][err.Error()] = struct{}{}
+				ADErrors[namespacedName][err.Error()] = struct{}{}
 			}
 		}
-		k.ConfigErrors = ADErrors
+		k.Lock()
+		k.configErrors = ADErrors
+		k.Unlock()
 	}
 	return configs, nil
 }
@@ -131,5 +137,7 @@ func init() {
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod
 func (k *KubeletConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return k.ConfigErrors
+	k.Lock()
+	defer k.Unlock()
+	return k.configErrors
 }

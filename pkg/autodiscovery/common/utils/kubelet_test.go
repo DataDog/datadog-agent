@@ -245,7 +245,7 @@ func TestValidateAnnotationsMatching(t *testing.T) {
 				},
 			},
 			want: []error{
-				errors.New("unable to determine container identifier for annotation ad.datadoghq.com/.check_names"),
+				errors.New("annotation ad.datadoghq.com/.check_names is invalid:  doesn't match a container identifier [nginx-custom]"),
 			},
 		},
 	}

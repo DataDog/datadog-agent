@@ -11,11 +11,15 @@ import (
 )
 
 const (
-	checkIDAnnotationFormat   = "ad.datadoghq.com/%s.check.id"
-	checkIDSuffix             = ".check.id"
-	NewPodAnnotationPrefix    = "ad.datadoghq.com/"
-	NewPodAnnotationFormat    = NewPodAnnotationPrefix + "%s."
+	checkIDAnnotationFormat = "ad.datadoghq.com/%s.check.id"
+	checkIDSuffix           = ".check.id"
+	// NewPodAnnotationPrefix is the new autodiscovery prefix for pod annotations
+	NewPodAnnotationPrefix = "ad.datadoghq.com/"
+	// NewPodAnnotationFormat shows the prefix + identifier format for new autodiscovery annotations
+	NewPodAnnotationFormat = NewPodAnnotationPrefix + "%s."
+	// LegacyPodAnnotationPrefix is the legacy autodiscovery prefix for pod annotations
 	LegacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
+	// LegacyPodAnnotationFormat shows the prefix + identifier format for legacy autodiscovery annotations
 	LegacyPodAnnotationFormat = LegacyPodAnnotationPrefix + "%s."
 )
 
@@ -33,15 +37,20 @@ func ValidateAnnotationsMatching(annotations map[string]string, containerIdentif
 		if !strings.HasPrefix(annotation, NewPodAnnotationPrefix) {
 			continue
 		}
-		if strings.LastIndex(annotation, checkIDSuffix) >= len(NewPodAnnotationPrefix) {
+		var idToValidate string
+		checkIDIndex := strings.LastIndex(annotation, checkIDSuffix)
+		adSuffixIndex := strings.LastIndex(annotation, ".")
+		if checkIDIndex >= len(NewPodAnnotationPrefix) {
 			// validate check.id annotation
-			err := validateIdentifier(annotation, containerNames, strings.LastIndex(annotation, checkIDSuffix))
+			idToValidate = annotation[len(NewPodAnnotationPrefix):checkIDIndex]
+			err := validateIdentifier(annotation, containerNames, idToValidate)
 			if err != nil {
 				errors = append(errors, err)
 			}
-		} else if strings.LastIndex(annotation[len(NewPodAnnotationPrefix):], ".") >= 0 {
+		} else if adSuffixIndex >= len(NewPodAnnotationPrefix) {
 			// validate other AD annotations
-			err := validateIdentifier(annotation, containerIdentifiers, strings.LastIndex(annotation, "."))
+			idToValidate = annotation[len(NewPodAnnotationPrefix):adSuffixIndex]
+			err := validateIdentifier(annotation, containerIdentifiers, idToValidate)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -51,20 +60,13 @@ func ValidateAnnotationsMatching(annotations map[string]string, containerIdentif
 }
 
 // validateIdentifier checks an annotation's container identifier against a list of valid identifiers
-func validateIdentifier(annotation string, containerIdentifiers map[string]struct{}, adSuffixLen int) error {
-	var id string
-	if len(NewPodAnnotationPrefix) >= adSuffixLen {
-		return fmt.Errorf("unable to determine container identifier for annotation %s", annotation)
-	}
-	// annotation keys should only contain the characters [a-z0-9A-Z-_.]
-	// https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/#syntax-and-character-set
-	id = annotation[len(NewPodAnnotationPrefix):adSuffixLen]
-	if _, found := containerIdentifiers[id]; !found {
+func validateIdentifier(annotation string, containerIdentifiers map[string]struct{}, idToValidate string) error {
+	if _, found := containerIdentifiers[idToValidate]; !found {
 		validIDs := make([]string, 0, len(containerIdentifiers))
 		for validID := range containerIdentifiers {
 			validIDs = append(validIDs, validID)
 		}
-		return fmt.Errorf("annotation %s is invalid: %s doesn't match a container identifier %v", annotation, id, validIDs)
+		return fmt.Errorf("annotation %s is invalid: %s doesn't match a container identifier %v", annotation, idToValidate, validIDs)
 	}
 	return nil
 }

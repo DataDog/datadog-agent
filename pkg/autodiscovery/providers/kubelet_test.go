@@ -269,10 +269,13 @@ func TestParseKubeletPodlist(t *testing.T) {
 			assert.NoError(t, err)
 			checks, err := m.(*KubeletConfigProvider).parseKubeletPodlist([]*kubelet.Pod{tc.pod})
 			assert.NoError(t, err)
+
 			assert.Equal(t, len(tc.expectedCfg), len(checks))
 			assert.EqualValues(t, tc.expectedCfg, checks)
-			assert.Equal(t, len(tc.expectedErr), len(m.(*KubeletConfigProvider).ConfigErrors[tc.pod.Metadata.Namespace+"/"+tc.pod.Metadata.Name]))
-			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).ConfigErrors[tc.pod.Metadata.Namespace+"/"+tc.pod.Metadata.Name])
+
+			namespacedName := tc.pod.Metadata.Namespace + "/" + tc.pod.Metadata.Name
+			assert.Equal(t, len(tc.expectedErr), len(m.(*KubeletConfigProvider).configErrors[namespacedName]))
+			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).configErrors[namespacedName])
 		})
 	}
 }

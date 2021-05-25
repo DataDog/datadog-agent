@@ -10,11 +10,15 @@ Autodiscovery
 
   Errors
   ======
-    {{range $identifier, $errors := . }}
-    {{$identifier}}
-    {{printDashes $identifier "-"}}
-      {{- range $idx, $err := $errors}}
-        {{$idx}}
+  {{- range $configprovider, $configerrors := . }}
+  {{ if $configerrors }}
+    {{- range $identifier, $errmap := $configerrors }}
+    {{ $identifier }}
+    {{ printDashes $identifier "-" }}
+      {{- range $err, $empty := $errmap}}
+        {{ $err }}
       {{- end }}
     {{ end }}
+  {{- end }}
+  {{- end }}
 {{- end }}

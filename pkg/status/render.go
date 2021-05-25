@@ -62,7 +62,7 @@ func FormatStatus(data []byte) (string, error) {
 	if traps.IsEnabled() {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
-	if config.IsKubernetes() {
+	if config.IsContainerized() {
 		renderStatusTemplate(b, "/autodiscovery.tmpl", autodiscoveryErrors)
 	}
 
