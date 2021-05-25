@@ -67,46 +67,49 @@ func getClusterName(data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
-	data.clusterName = config.Datadog.GetString("cluster_name")
-	if data.clusterName != "" {
-		log.Infof("Got cluster name %s from config", data.clusterName)
-		// the host alias "hostname-clustername" must not exceed 255 chars
-		hostAlias := hostname + "-" + data.clusterName
-		if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
-			log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
-				"start with a lowercase letter followed by lowercase letters, numbers, or "+
-				"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen and \"%s\" must not "+
-				"exceed 255 chars", data.clusterName, hostAlias)
-			log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
-			data.clusterName = ""
+	if !data.initDone {
+		data.clusterName = config.Datadog.GetString("cluster_name")
+		if data.clusterName != "" {
+			log.Infof("Got cluster name %s from config", data.clusterName)
+			// the host alias "hostname-clustername" must not exceed 255 chars
+			hostAlias := hostname + "-" + data.clusterName
+			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
+				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
+					"start with a lowercase letter followed by lowercase letters, numbers, or "+
+					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen and \"%s\" must not "+
+					"exceed 255 chars", data.clusterName, hostAlias)
+				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
+				data.clusterName = ""
+			}
 		}
-	}
 
-	// autodiscover clustername through k8s providers' API
-	if data.clusterName == "" {
-		for cloudProvider, getClusterNameFunc := range ProviderCatalog {
-			log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
-			clusterName, err := getClusterNameFunc()
+		// autodiscover clustername through k8s providers' API
+		if data.clusterName == "" {
+			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
+				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
+				clusterName, err := getClusterNameFunc()
+				if err != nil {
+					log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
+					// try the next cloud provider
+					continue
+				}
+				if clusterName != "" {
+					log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+					data.clusterName = clusterName
+					break
+				}
+			}
+		}
+
+		if data.clusterName == "" {
+			clusterName, err := hostinfo.GetNodeClusterNameLabel()
 			if err != nil {
-				log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
-				// try the next cloud provider
-				continue
-			}
-			if clusterName != "" {
-				log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+			} else {
 				data.clusterName = clusterName
-				break
 			}
 		}
-	}
-
-	if data.clusterName == "" {
-		clusterName, err := hostinfo.GetNodeClusterNameLabel()
-		if err != nil {
-			log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-		} else {
-			data.clusterName = clusterName
-		}
+		data.initDone = true
 	}
 	return data.clusterName
 }
