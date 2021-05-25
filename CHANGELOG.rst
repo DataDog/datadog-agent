@@ -95,7 +95,8 @@ Enhancement Notes
 
 - Add ``jvm.gc.old_gen_size`` as an alias for ``Tenured Gen``.
   Prevent double signing of release artifacts.
-  JMXFetch upgraded to ``0.43.0 <https://github.com/DataDog/jmxfetch/releases/0.43.0>``
+
+- JMXFetch upgraded to `v0.44.0 <https://github.com/DataDog/jmxfetch/releases/0.44.0>`_.
 
 - The ``kubernetes_state_core`` check now collects two new metrics ``kubernetes_state.pod.age`` and ``kubernetes_state.pod.uptime``.
 
@@ -172,9 +173,6 @@ Other Notes
 -----------
 
 - The Agent, Logs Agent and the system-probe are now compiled with Go ``1.15.11``
-
-- JMXFetch upgraded from ``0.42.0`` to ``0.42.1`` as a part of the move to
-  a new release pipeline for this component.
 
 - Bump embedded Python 3 to ``3.8.8``
 
