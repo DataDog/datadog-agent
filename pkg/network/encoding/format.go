@@ -195,16 +195,13 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	laddr, lport := nat.GetLocalAddress(c)
 	raddr, rport := nat.GetRemoteAddress(c)
 
-	if http.IsHTTP(int(rport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.HTTPMethod(0))
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
+	if network.IsEphemeralPort(int(lport)) {
+		return http.NewKey(laddr, raddr, lport, rport, "", http.HTTPMethodUnknown)
 	}
 
-	if http.IsHTTP(int(lport)) {
-		// Since HTTP data is always indexed as (client, server), we flip the lookup key
-		return http.NewKey(raddr, laddr, rport, lport, "", http.HTTPMethod(0))
-	}
-
-	return http.Key{}
+	return http.NewKey(raddr, laddr, rport, lport, "", http.HTTPMethodUnknown)
 }
 
 func returnToPool(c *model.Connections) {
