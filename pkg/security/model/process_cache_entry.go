@@ -80,6 +80,7 @@ type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw [128]byte
 	Next      *ArgsEnvsCacheEntry
+	Last      *ArgsEnvsCacheEntry
 }
 
 func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
@@ -91,8 +92,8 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
 		if err != nil || entry.Size == 128 {
-			if len(values) > 0 {
-				v[len(values)-1] = v[len(values)-1] + "..."
+			if len(v) > 0 {
+				v[len(v)-1] = v[len(v)-1] + "..."
 			}
 			truncated = true
 		}
@@ -114,7 +115,7 @@ type ArgsEntry struct {
 	Truncated bool
 }
 
-// ToArray returns args/envs as array
+// ToArray returns args as array
 func (p *ArgsEntry) ToArray() ([]string, bool) {
 	if len(p.Values) > 0 {
 		return p.Values, p.Truncated
@@ -132,11 +133,12 @@ type EnvsEntry struct {
 	Truncated bool
 }
 
-// ToMap returns args/envs as array
+// ToMap returns envs as map
 func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 	if p.Values != nil {
 		return p.Values, p.Truncated
 	}
+
 	values, truncated := p.toArray()
 
 	envs := make(map[string]string, len(values))
@@ -151,4 +153,12 @@ func (p *EnvsEntry) ToMap() (map[string]string, bool) {
 	p.Values, p.Truncated = envs, truncated
 
 	return p.Values, p.Truncated
+}
+
+// Get returns the value for the given key
+func (p *EnvsEntry) Get(key string) string {
+	if p.Values == nil {
+		p.ToMap()
+	}
+	return p.Values[key]
 }

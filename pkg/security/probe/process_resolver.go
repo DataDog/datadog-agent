@@ -173,8 +173,10 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
 		prevEntry := e.(*model.ArgsEnvsCacheEntry)
-		prevEntry.Next = entry
+		prevEntry.Last.Next = entry
+		prevEntry.Last = entry
 	} else {
+		entry.Last = entry
 		p.argsEnvsCache.Add(event.ID, entry)
 	}
 }

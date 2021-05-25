@@ -148,10 +148,13 @@ func (a *APIServer) start(ctx context.Context) {
 					msg.tags[tag] = true
 				}
 
+				// recopy tags
 				var tags []string
 				for tag := range msg.tags {
 					tags = append(tags, tag)
 				}
+
+				fmt.Printf("TAGS: %+v\n", tags)
 
 				m := &api.SecurityEventMessage{
 					RuleID: msg.ruleID,

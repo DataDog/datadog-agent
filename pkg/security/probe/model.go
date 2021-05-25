@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+const (
+	// environment variable used to report service
+	ServiceEnvVar = "DD_SERVICE"
+)
+
 var eventZero Event
 
 // Model describes the data model for the runtime security agent probe events
@@ -412,6 +417,36 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	}
 
 	return ev.processCacheEntry
+}
+
+// GetProcessServiceTag returns the service tag based on the process context
+func (ev *Event) GetProcessServiceTag() string {
+	entry := ev.ResolveProcessCacheEntry()
+	if entry == nil {
+		return ""
+	}
+
+	// first search in the process context itself
+	if entry.EnvsEntry != nil {
+		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
+			return service
+		}
+	}
+
+	// while in container check for each ancestor
+	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
+		if ancestor.ContainerID == "" {
+			break
+		}
+
+		if ancestor.EnvsEntry != nil {
+			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
+				return service
+			}
+		}
+	}
+
+	return ""
 }
 
 // Clone returns a copy on the event
