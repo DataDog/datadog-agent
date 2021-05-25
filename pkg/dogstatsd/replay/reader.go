@@ -94,7 +94,6 @@ func (tc *TrafficCaptureReader) Read() {
 			break
 		}
 
-		// TODO: ensure proper cadence
 		if tc.last != 0 {
 			if msg.Timestamp > tc.last {
 				util.Wait(tsResolution * time.Duration(msg.Timestamp-tc.last))
