@@ -482,7 +482,7 @@ def generate_protobuf(ctx):
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
-            pass
+            print("{} folder already exists".format(mockgen_out))
 
         ctx.run(
             "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(

@@ -15,7 +15,6 @@ import (
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/fzipp/gocyclo"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
-	_ "github.com/golang/mock/mockgen"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/goware/modvendor"
