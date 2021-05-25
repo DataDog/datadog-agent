@@ -51,7 +51,7 @@ func StartServer(cfg *config.Config) error {
 }
 
 func init() {
-	expvar.Publish("system_probe", expvar.Func(func() interface{} {
+	expvar.Publish("modules", expvar.Func(func() interface{} {
 		return module.GetStats()
 	}))
 }
