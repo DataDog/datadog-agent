@@ -17,17 +17,17 @@ import (
 )
 
 type mockLauncher struct {
-	wg         sync.WaitGroup
-	m          sync.Mutex
-	retrier    retry.Retrier
-	isAvalible bool
-	startCount int
-	stopCount  int
-	attempt    uint
+	wg          sync.WaitGroup
+	m           sync.Mutex
+	retrier     retry.Retrier
+	isAvailable bool
+	startCount  int
+	stopCount   int
+	attempt     uint
 }
 
-func newMockLauncher(isAvalible bool) *mockLauncher {
-	l := &mockLauncher{isAvalible: isAvalible}
+func newMockLauncher(isAvailable bool) *mockLauncher {
+	l := &mockLauncher{isAvailable: isAvailable}
 	l.retrier.SetupRetrier(&retry.Config{
 		Name:          "testing",
 		AttemptMethod: func() error { return nil },
@@ -38,14 +38,14 @@ func newMockLauncher(isAvalible bool) *mockLauncher {
 	return l
 }
 
-func newMockLauncherBecomesAvalible(avalibleAfterRetries uint) *mockLauncher {
-	l := &mockLauncher{isAvalible: false}
+func newMockLauncherBecomesAvailable(AvailableAfterRetries uint) *mockLauncher {
+	l := &mockLauncher{isAvailable: false}
 	l.retrier.SetupRetrier(&retry.Config{
 		Name: "testing",
 		AttemptMethod: func() error {
 			l.attempt++
-			if l.attempt > avalibleAfterRetries {
-				l.isAvalible = true
+			if l.attempt > AvailableAfterRetries {
+				l.isAvailable = true
 				l.wg.Done()
 				return nil
 			}
@@ -58,17 +58,17 @@ func newMockLauncherBecomesAvalible(avalibleAfterRetries uint) *mockLauncher {
 	return l
 }
 
-func (m *mockLauncher) IsAvalible() (bool, *retry.Retrier) {
+func (m *mockLauncher) IsAvailable() (bool, *retry.Retrier) {
 	defer m.m.Unlock()
 	m.m.Lock()
 	m.retrier.TriggerRetry()
-	return m.isAvalible, &m.retrier
+	return m.isAvailable, &m.retrier
 }
 
-func (m *mockLauncher) SetAvalible(avalible bool) {
+func (m *mockLauncher) SetAvailable(Available bool) {
 	defer m.m.Unlock()
 	m.m.Lock()
-	m.isAvalible = avalible
+	m.isAvailable = Available
 }
 
 func (m *mockLauncher) Start() {
@@ -81,7 +81,7 @@ func (m *mockLauncher) Stop() {
 
 func (m *mockLauncher) ToLaunchable() Launchable {
 	return Launchable{
-		IsAvailable: m.IsAvalible,
+		IsAvailable: m.IsAvailable,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
 			return m
@@ -91,7 +91,7 @@ func (m *mockLauncher) ToLaunchable() Launchable {
 
 func (m *mockLauncher) ToErrLaunchable() Launchable {
 	return Launchable{
-		IsAvailable: m.IsAvalible,
+		IsAvailable: m.IsAvailable,
 		Launcher: func() restart.Restartable {
 			m.wg.Done()
 			return nil
@@ -139,7 +139,7 @@ func TestFailsThenSucceeds(t *testing.T) {
 	assert.Equal(t, 0, l1.startCount)
 	assert.Equal(t, 0, l2.startCount)
 
-	l2.SetAvalible(true)
+	l2.SetAvailable(true)
 	l2.wg.Wait()
 
 	assert.Equal(t, 0, l1.startCount)
@@ -147,7 +147,7 @@ func TestFailsThenSucceeds(t *testing.T) {
 }
 
 func TestFailsThenSucceedsRetrier(t *testing.T) {
-	l1 := newMockLauncherBecomesAvalible(3)
+	l1 := newMockLauncherBecomesAvailable(3)
 	l2 := newMockLauncher(false)
 
 	l1.wg.Add(3)
@@ -160,7 +160,7 @@ func TestFailsThenSucceedsRetrier(t *testing.T) {
 	assert.Equal(t, 0, l2.startCount)
 }
 
-func TestAvalibleLauncherReturnsNil(t *testing.T) {
+func TestAvailableLauncherReturnsNil(t *testing.T) {
 	l1 := newMockLauncher(false)
 	l2 := newMockLauncher(true)
 
@@ -216,7 +216,7 @@ func TestRestartFindLauncherLater(t *testing.T) {
 	assert.Equal(t, 0, l2.startCount)
 	assert.Equal(t, 0, l2.stopCount)
 
-	l1.SetAvalible(true)
+	l1.SetAvailable(true)
 
 	l1.wg.Add(2)
 	l.Start()
