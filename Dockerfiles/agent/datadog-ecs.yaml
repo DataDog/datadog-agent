@@ -7,3 +7,7 @@ apm_config:
 
 # Use java container support
 jmx_use_container_support: true
+
+# Set Cloud Provider to AWS
+cloud_provider_metadata:
+  - "aws"
