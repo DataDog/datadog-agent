@@ -149,7 +149,6 @@ func (p *Probe) Init(client *statsd.Client) error {
 	p.perfMap.PerfMapOptions = manager.PerfMapOptions{
 		DataHandler: p.reOrderer.HandleEvent,
 		LostHandler: p.handleLostEvents,
-		DataPool: true,
 	}
 
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
@@ -284,10 +283,6 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
-	// put back the data to the pool, after this step no more access to data is allowed
-	// all data should be copied or unmarshalled
-	defer p.perfMap.Put(data)
-
 	offset := 0
 	event := p.zeroEvent()
 	dataLen := uint64(len(data))

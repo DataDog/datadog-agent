@@ -154,8 +154,6 @@ func (a *APIServer) start(ctx context.Context) {
 					tags = append(tags, tag)
 				}
 
-				fmt.Printf("TAGS: %+v\n", tags)
-
 				m := &api.SecurityEventMessage{
 					RuleID: msg.ruleID,
 					Data:   msg.data,

@@ -317,7 +317,11 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("incorrect number of args %d: %s", n, args.(string))
 			}
 
-			if argv[n-1] != "..." {
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", args.(string))
 			}
 
