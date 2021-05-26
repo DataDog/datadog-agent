@@ -21,8 +21,8 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	return &Launcher{}
 }
 
-// IsAvalible retrurns false - not avalible
-func IsAvalible() (bool, *retry.Retrier) {
+// IsAvailable retrurns false - not available
+func IsAvailable() (bool, *retry.Retrier) {
 	return false, nil
 }
 

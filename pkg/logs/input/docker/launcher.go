@@ -59,21 +59,21 @@ type Launcher struct {
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
-// IsAvalible retrues true if the launcher is avalible and a retrier otherwise
-func IsAvalible() (bool, *retry.Retrier) {
+// IsAvailable retrues true if the launcher is available and a retrier otherwise
+func IsAvailable() (bool, *retry.Retrier) {
 	util, retrier := dockerutil.GetDockerUtilWithRetrier()
 	if util != nil {
-		log.Info("Docker launcher is avalible")
+		log.Info("Docker launcher is available")
 		return true, nil
 	}
-	log.Infof("Docker launcher is not avalible: %v", retrier.LastError())
+	log.Infof("Docker launcher is not available: %v", retrier.LastError())
 	return false, retrier
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
 	if _, err := dockerutil.GetDockerUtil(); err != nil {
-		log.Errorf("DockerUtil not avalible, failed to create launcher", err)
+		log.Errorf("DockerUtil not available, failed to create launcher", err)
 		return nil
 	}
 

@@ -52,18 +52,18 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
-// IsAvalible retrues true if the launcher is avalible and a retrier otherwise
-func IsAvalible() (bool, *retry.Retrier) {
+// IsAvailable retrues true if the launcher is available and a retrier otherwise
+func IsAvailable() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
-		log.Errorf("Kubernetes launcher is not avalible. Integration not avalible - %s not found", basePath)
+		log.Errorf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
 		return false, nil
 	}
 	util, retrier := kubelet.GetKubeUtilWithRetrier()
 	if util != nil {
-		log.Info("Kubernetes launcher is avalible")
+		log.Info("Kubernetes launcher is available")
 		return true, nil
 	}
-	log.Infof("Kubernetes launcher is not avalible: %v", retrier.LastError())
+	log.Infof("Kubernetes launcher is not available: %v", retrier.LastError())
 	return false, retrier
 }
 
@@ -71,7 +71,7 @@ func IsAvalible() (bool, *retry.Retrier) {
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		log.Errorf("KubeUtil not avalible, failed to create launcher", err)
+		log.Errorf("KubeUtil not available, failed to create launcher", err)
 		return nil
 	}
 	launcher := &Launcher{

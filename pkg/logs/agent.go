@@ -65,7 +65,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 
 	containerLaunchables := []container.Launchable{
 		{
-			IsAvailable: docker.IsAvalible,
+			IsAvailable: docker.IsAvailable,
 			Launcher: func() restart.Restartable {
 				return docker.NewLauncher(
 					time.Duration(coreConfig.Datadog.GetInt("logs_config.docker_client_read_timeout"))*time.Second,
@@ -78,7 +78,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 			},
 		},
 		{
-			IsAvailable: kubernetes.IsAvalible,
+			IsAvailable: kubernetes.IsAvailable,
 			Launcher: func() restart.Restartable {
 				return kubernetes.NewLauncher(sources, services, coreConfig.Datadog.GetBool("logs_config.container_collect_all"))
 			},
@@ -99,7 +99,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		traps.NewLauncher(sources, pipelineProvider),
 	}
 
-	// Only try to start the container launchers if we are in a container environment or docker is avalible
+	// Only try to start the container launchers if we are in a container environment or docker is available
 	if coreConfig.IsContainerized() || coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
 		inputs = append(inputs, container.NewLauncher(containerLaunchables))
 	}
