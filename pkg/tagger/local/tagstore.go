@@ -7,7 +7,6 @@ package local
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -92,6 +91,11 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 			log.Tracef("processTagInfo err: empty source name, skipping message")
 			continue
 		}
+		if info.SkipCache {
+			telemetry.CacheSkipped.Inc()
+			log.Tracef("processTagInfo: skipping message due to SkipCache")
+			continue
+		}
 
 		storedTags, exist := s.store[info.Entity]
 
@@ -113,13 +117,14 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 
 		// TODO: check if real change
 
-		telemetry.UpdatedEntities.Inc()
-
-		err := updateStoredTags(storedTags, info)
-		if err != nil {
-			log.Tracef("processTagInfo err: %v", err)
+		_, found := storedTags.sourceTags[info.Source]
+		if found && info.CacheMiss {
+			log.Tracef("processTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
 			continue
 		}
+
+		telemetry.UpdatedEntities.Inc()
+		updateStoredTags(storedTags, info)
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -132,13 +137,7 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 	}
 }
 
-func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
-	_, found := storedTags.sourceTags[info.Source]
-	if found && info.CacheMiss {
-		// check if the source tags is already present for this entry
-		return fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
-	}
-
+func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) {
 	storedTags.cacheValid = false
 	storedTags.sourceTags[info.Source] = sourceTags{
 		lowCardTags:          info.LowCardTags,
@@ -146,8 +145,6 @@ func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
 		highCardTags:         info.HighCardTags,
 		standardTags:         info.StandardTags,
 	}
-
-	return nil
 }
 
 func (s *tagStore) collectTelemetry() {
