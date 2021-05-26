@@ -653,7 +653,7 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 	for _, pd := range ac.providers {
 		configErrors := pd.provider.GetConfigErrors()
 		if len(configErrors) > 0 {
-			errors[pd.provider.String()] = pd.provider.GetConfigErrors()
+			errors[pd.provider.String()] = configErrors
 		}
 	}
 	return errors
