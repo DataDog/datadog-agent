@@ -56,10 +56,8 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		daemonSetMsgs = append(daemonSetMsgs, daemonSetModel)
 	}
 
-	groupSize := len(daemonSetMsgs) / cfg.MaxPerMessage
-	if len(daemonSetMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(daemonSetMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkDaemonSets(daemonSetMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -110,10 +108,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		cronJobMsgs = append(cronJobMsgs, cronJobModel)
 	}
 
-	groupSize := len(cronJobMsgs) / cfg.MaxPerMessage
-	if len(cronJobMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(cronJobMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkCronJobs(cronJobMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -177,10 +173,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		deployMsgs = append(deployMsgs, deployModel)
 	}
 
-	groupSize := len(deployMsgs) / cfg.MaxPerMessage
-	if len(deployMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(deployMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkDeployments(deployMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -243,10 +237,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		jobMsgs = append(jobMsgs, jobModel)
 	}
 
-	groupSize := len(jobMsgs) / cfg.MaxPerMessage
-	if len(jobMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(jobMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkJobs(jobMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -312,10 +304,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		rsMsgs = append(rsMsgs, rsModel)
 	}
 
-	groupSize := len(rsMsgs) / cfg.MaxPerMessage
-	if len(rsMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(rsMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkReplicaSets(rsMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -370,10 +360,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		serviceMsgs = append(serviceMsgs, serviceModel)
 	}
 
-	groupSize := len(serviceMsgs) / cfg.MaxPerMessage
-	if len(serviceMsgs)%cfg.MaxPerMessage > 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(serviceMsgs), cfg.MaxPerMessage)
 
 	chunks := chunkServices(serviceMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
@@ -484,10 +471,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
 
-	groupSize := len(nodeMsgs) / cfg.MaxPerMessage
-	if len(nodeMsgs)%cfg.MaxPerMessage > 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(nodeMsgs), cfg.MaxPerMessage)
 
 	chunks := chunkNodes(nodeMsgs, groupSize, cfg.MaxPerMessage)
 	nodeMessages := make([]model.MessageBody, 0, groupSize)

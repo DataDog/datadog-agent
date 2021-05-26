@@ -131,3 +131,12 @@ func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int)
 	}
 	return chunkStart, chunkEnd
 }
+
+// GroupSize returns the GroupSize/number of chunks.
+func GroupSize(msgs, maxPerMessage int) int {
+	groupSize := msgs / maxPerMessage
+	if msgs%maxPerMessage > 0 {
+		groupSize++
+	}
+	return groupSize
+}

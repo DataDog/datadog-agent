@@ -12,11 +12,7 @@ import (
 	"testing"
 )
 
-// TestChunkRange tests the chunking function. Note that the chunkCount is actually not given but calculated by running:
-// 	chunkCount := elements / chunkSize
-//	if elements%chunkSize != 0 {
-//		chunkCount++
-//	}
+// TestChunkRange tests the chunking function. Note that the chunkCount is actually not given but calculated by the function GroupSize
 func TestChunkRange(t *testing.T) {
 	type want struct {
 		start int
@@ -58,6 +54,38 @@ func TestChunkRange(t *testing.T) {
 				assert.Equal(t, tt.want[counter-1].start, chunkStart)
 				assert.Equal(t, tt.want[counter-1].end, chunkEnd)
 			}
+		})
+	}
+}
+
+func TestGroupSize(t *testing.T) {
+	tests := []struct {
+		name          string
+		msgs          int
+		maxPerMessage int
+		want          int
+	}{
+		{
+			name:          "10 groups",
+			msgs:          100,
+			maxPerMessage: 10,
+			want:          10,
+		}, {
+			name:          "1 group because max>msgs",
+			msgs:          100,
+			maxPerMessage: 10000,
+			want:          1,
+		}, {
+			name:          "3 groups to account leftover chunks",
+			msgs:          5,
+			maxPerMessage: 2,
+			want:          3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			groupSize := GroupSize(tt.msgs, tt.maxPerMessage)
+			assert.Equal(t, tt.want, groupSize)
 		})
 	}
 }
