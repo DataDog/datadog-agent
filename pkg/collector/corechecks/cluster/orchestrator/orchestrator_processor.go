@@ -32,6 +32,51 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	daemonSetMsgs := make([]*model.DaemonSet, 0, len(daemonSetList))
+
+	for _, daemonSet := range daemonSetList {
+		if orchestrator.SkipKubernetesResource(daemonSet.UID, daemonSet.ResourceVersion, orchestrator.K8sDaemonSet) {
+			continue
+		}
+
+		// extract daemonSet info
+		daemonSetModel := extractDaemonSet(daemonSet)
+
+		// k8s objects only have json "omitempty" annotations
+		// and marshalling is more performant than YAML
+		jsonDaemonSet, err := jsoniter.Marshal(daemonSet)
+		if err != nil {
+			log.Warnf("Could not marshal daemon sets to JSON: %s", err)
+			continue
+		}
+		daemonSetModel.Yaml = jsonDaemonSet
+
+		daemonSetMsgs = append(daemonSetMsgs, daemonSetModel)
+	}
+
+	groupSize := len(daemonSetMsgs) / cfg.MaxPerMessage
+	if len(daemonSetMsgs)%cfg.MaxPerMessage != 0 {
+		groupSize++
+	}
+	chunked := chunkDaemonSets(daemonSetMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorDaemonSet{
+			ClusterName: cfg.KubeClusterName,
+			DaemonSets:  chunked[i],
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d daemon sets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
+	return messages, nil
+}
+
 func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	cronJobMsgs := make([]*model.CronJob, 0, len(cronJobList))
@@ -565,6 +610,26 @@ func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node 
 			chunkEnd = len(nodes)
 		}
 		chunks = append(chunks, nodes[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// chunkDaemonSets chunks the given list of daemonSets, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkDaemonSets(daemonSets []*model.DaemonSet, chunkCount, chunkSize int) [][]*model.DaemonSet {
+	chunks := make([][]*model.DaemonSet, 0, chunkCount)
+
+	for c := 1; c <= chunkCount; c++ {
+		var (
+			chunkStart = chunkSize * (c - 1)
+			chunkEnd   = chunkSize * (c)
+		)
+		// last chunk may be smaller than the chunk size
+		if c == chunkCount {
+			chunkEnd = len(daemonSets)
+		}
+		chunks = append(chunks, daemonSets[chunkStart:chunkEnd])
 	}
 
 	return chunks

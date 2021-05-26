@@ -31,6 +31,8 @@ const (
 	K8sJob
 	// K8sCronJob represents a Kubernetes CronJob
 	K8sCronJob
+	// K8sDaemonSet represents a Kubernetes DaemonSet
+	K8sDaemonSet
 )
 
 var (
@@ -43,6 +45,7 @@ var (
 		K8sPod:        getTelemetryTags(K8sPod),
 		K8sReplicaSet: getTelemetryTags(K8sReplicaSet),
 		K8sService:    getTelemetryTags(K8sService),
+		K8sDaemonSet:  getTelemetryTags(K8sDaemonSet),
 	}
 )
 
@@ -52,6 +55,7 @@ func NodeTypes() []NodeType {
 		K8sCluster,
 		K8sCronJob,
 		K8sDeployment,
+		K8sDaemonSet,
 		K8sJob,
 		K8sNode,
 		K8sPod,
@@ -68,6 +72,8 @@ func (n NodeType) String() string {
 		return "CronJob"
 	case K8sDeployment:
 		return "Deployment"
+	case K8sDaemonSet:
+		return "DaemonSet"
 	case K8sJob:
 		return "Job"
 	case K8sNode:
@@ -87,7 +93,7 @@ func (n NodeType) String() string {
 // Orchestrator returns the orchestrator name for a node type.
 func (n NodeType) Orchestrator() string {
 	switch n {
-	case K8sCluster, K8sCronJob, K8sDeployment, K8sJob,
+	case K8sCluster, K8sCronJob, K8sDeployment, K8sDaemonSet, K8sJob,
 		K8sNode, K8sPod, K8sReplicaSet, K8sService:
 		return "k8s"
 	default:
