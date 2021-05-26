@@ -7,14 +7,11 @@ package agent
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,9 +19,9 @@ import (
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
 type telemetry struct {
+	sender                aggregator.Sender
 	detector              collectors.DetectorInterface
 	runtimeSecurityClient *RuntimeSecurityClient
-	statsdClient          *statsd.Client
 }
 
 func newTelemetry() (*telemetry, error) {
@@ -32,21 +29,15 @@ func newTelemetry() (*telemetry, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var statsdClient *statsd.Client
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		statsdAddr = fmt.Sprintf("%s:%d", coreconfig.GetBindHost(), coreconfig.Datadog.GetInt("dogstatsd_port"))
-	}
-
-	if statsdClient, err = statsd.New(statsdAddr); err != nil {
+	sender, err := aggregator.GetDefaultSender()
+	if err != nil {
 		return nil, err
 	}
 
 	return &telemetry{
+		sender:                sender,
 		detector:              collectors.NewDetector(""),
 		runtimeSecurityClient: runtimeSecurityClient,
-		statsdClient:          statsdClient,
 	}, nil
 }
 
@@ -97,8 +88,10 @@ func (t *telemetry) reportContainers() error {
 	}
 
 	for _, container := range containers {
-		_ = t.statsdClient.Gauge(metricName, 1.0, []string{"container_id:" + container.ID}, 1)
+		t.sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
 	}
+
+	t.sender.Commit()
 
 	return nil
 }
