@@ -55,6 +55,7 @@ pytest-dependency==0.5.1
 pytest-html==2.1.1
 pytest-metadata==1.10.0
 pytest-molecule==1.3.0
+pytest-only==1.2.2
 pytest-ordering==0.6
 pytest-plus==0.2
 python-dateutil==2.8.1
