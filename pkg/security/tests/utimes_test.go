@@ -62,7 +62,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	}))
 
@@ -104,7 +106,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	}))
 
@@ -149,7 +153,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	})
 }

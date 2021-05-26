@@ -192,6 +192,7 @@ build do
             # Do not strip eBPF programs
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
+            strip_exclude("*http*")
             strip_exclude("*runtime-security*")
         end
 
@@ -201,6 +202,9 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
+            
+            # remove docker configuration
+            delete "#{install_dir}/etc/conf.d/docker.d"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

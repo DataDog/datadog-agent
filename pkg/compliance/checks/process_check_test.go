@@ -37,14 +37,16 @@ func (f *processFixture) run(t *testing.T) {
 	}
 
 	env := &mocks.Env{}
+	env.On("MaxEventsPerRun").Return(30).Maybe()
+
 	defer env.AssertExpectations(t)
 
 	processCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := processCheck.check(env)
-	assert.Equal(f.expectReport, result)
-	assert.Equal(f.expectError, err)
+	reports := processCheck.check(env)
+	assert.Equal(f.expectReport, reports[0])
+	assert.Equal(f.expectError, reports[0].Error)
 }
 
 func TestProcessCheck(t *testing.T) {

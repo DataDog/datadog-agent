@@ -58,10 +58,7 @@ func (c *CRIConfig) Parse(data []byte) error {
 	// default values
 	c.CollectDisk = false
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, c)
 }
 
 // Configure parses the check configuration and init the check

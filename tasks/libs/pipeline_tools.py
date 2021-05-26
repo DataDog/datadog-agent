@@ -4,8 +4,47 @@ from time import sleep, time
 
 from .common.color import color_message
 from .common.gitlab import Gitlab
+from .common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
+
+
+def get_running_pipelines_on_same_ref(
+    gitlab, project, ref, sha=None,
+):
+    pipelines = gitlab.all_pipelines_for_ref(project, ref, sha=sha)
+
+    RUNNING_STATUSES = ["created", "pending", "running"]
+    running_pipelines = [pipeline for pipeline in pipelines if pipeline["status"] in RUNNING_STATUSES]
+
+    return running_pipelines
+
+
+def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
+    for pipeline in pipelines:
+        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline['id'])
+
+        print(
+            color_message("Pipeline", "blue"),
+            color_message(pipeline['id'], "bold"),
+            color_message("(https://gitlab.ddbuild.io/{}/pipelines/{})".format(project, pipeline['id']), "green"),
+        )
+
+        print(color_message("Started at", "blue"), pipeline['created_at'])
+
+        print(
+            color_message("Commit:", "blue"),
+            color_message(commit_title, "green"),
+            color_message("({})".format(commit_short_sha), "grey"),
+            color_message("by", "blue"),
+            color_message(commit_author, "bold"),
+        )
+
+        if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
+            gitlab.cancel_pipeline(project, pipeline['id'])
+            print("Pipeline {} has been cancelled.\n".format(color_message(pipeline['id'], "bold")))
+        else:
+            print("Pipeline {} will keep running.\n".format(color_message(pipeline['id'], "bold")))
 
 
 def trigger_agent_pipeline(
@@ -15,11 +54,15 @@ def trigger_agent_pipeline(
     release_version_6="nightly",
     release_version_7="nightly-a7",
     branch="nightly",
-    deploy=True,
+    deploy=False,
+    all_builds=False,
+    kitchen_tests=False,
 ):
     """
-    Trigger a pipeline to deploy an Agent to staging repos
-    (as specified with the DEPLOY_AGENT arg).
+    Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
+    - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
+    - run a pipeline with all kitchen tests,
+    - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
 
     if gitlab is None:
@@ -29,6 +72,20 @@ def trigger_agent_pipeline(
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
+
+    # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
+    # disabled on pipelines where they're activated by default (master & deploy pipelines)
+    # as that would make the pipeline fail (some jobs on master and deploy pipelines depend
+    # on jobs that are only run if RUN_ALL_BUILDS is true).
+    if all_builds:
+        args["RUN_ALL_BUILDS"] = "true"
+
+    # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
+    # enabled by default (master and deploy pipelines).
+    if kitchen_tests:
+        args["RUN_KITCHEN_TESTS"] = "true"
+    else:
+        args["RUN_KITCHEN_TESTS"] = "false"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6

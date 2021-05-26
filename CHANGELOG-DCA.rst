@@ -2,6 +2,79 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.12.0_dca-1.12.X:
+
+dca-1.12.0
+==========
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Prelude:
+
+Prelude
+-------
+
+  Pinned to datadog-agent v7.28.0-rc.5
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_New Features:
+
+New Features
+------------
+
+- The cluster-agent container now tries to remove any folder beginning by ``..`` in paths of
+  files mounted in ``/conf.d`` while copying them to the cluster-agent config folder
+
+- collect cluster resource for orchestrator explorer.
+
+- It's now possible to template the kube_cluster_name tag in DatadogMetric queries
+  Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%tag_kube_cluster_name%%}
+
+- It's now possible to template any environment variable (as seen by the Datadog Cluster Agent) as tag in DatadogMetric queries
+  Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%env_DD_CLUSTER_NAME%%}
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- It is now possible to configure a custom timeout for the MutatingWebhookConfigurations
+  objects controlled by the Cluster Agent via DD_ADMISSION_CONTROLLER_TIMEOUT_SECONDS. (Default: 30 seconds)
+
+- The Datadog Cluster Agent's Admission Controller now uses a namespaced secrets informer.
+  It no longer needs permissions to watch secrets at the cluster scope.
+
+- The cluster agent now uses the same configuration than the security agent for
+  the logs endpoints configuration. The parameters (such as `logs_dd_url` can be
+  either be specified in the `compliance_config.endpoints` section or through
+  environment variables (such as DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL).
+
+- Improve the resilience of the connection of controllers to the External Metrics Server by moving to a dynamic client for the WPA controller.
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change base Docker image used to build the Cluster Agent imges, moving from debian:bullseye to ubuntu:20.10.
+  In the future the Cluster Agent will follow Ubuntu stable versions.
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a potential file descriptors leak.
+
+- The Cluster Agent can now be configured to use tls 1.2 via DD_FORCE_TLS_12=true
+
+- Fix "Error creating expvar server" error log when running the Datadog Cluster Agent CLI commands.
+
+- Fix a bug preventing the
+  "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS" environment
+  variable to be read.
+
+
 .. _Release Notes_dca-1.11.0_dca-1.11.X:
 
 dca-1.11.0

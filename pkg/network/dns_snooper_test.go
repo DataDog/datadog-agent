@@ -45,7 +45,7 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), ddebpf.NewPerfHandler(1), false)
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), false)
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
@@ -53,7 +53,6 @@ func getSnooper(
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 		},
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,

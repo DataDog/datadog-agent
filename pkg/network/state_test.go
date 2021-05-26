@@ -1368,6 +1368,182 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.HTTP, 2)
 }
 
+func TestDetermineConnectionIntraHost(t *testing.T) {
+	tests := []struct {
+		name      string
+		conn      ConnectionStats
+		intraHost bool
+	}{
+		{
+			name: "equal source/dest",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  123,
+				DPort:  456,
+			},
+			intraHost: true,
+		},
+		{
+			name: "source/dest loopback",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.1"),
+				SPort:  123,
+				DPort:  456,
+			},
+			intraHost: true,
+		},
+		{
+			name: "dest nat'ed to loopback",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("2.2.2.2"),
+				SPort:  123,
+				DPort:  456,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
+					ReplDstIP:   util.AddressFromString("1.1.1.1"),
+					ReplSrcPort: 456,
+					ReplDstPort: 123,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection with nat on both sides",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("169.254.169.254"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1212,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
+					ReplDstIP:   util.AddressFromString("1.1.1.1"),
+					ReplSrcPort: 8181,
+					ReplDstPort: 12345,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection with nat on both sides",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("127.0.0.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     8181,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     1233,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+					ReplDstIP:   util.AddressFromString("169.254.169.254"),
+					ReplSrcPort: 12345,
+					ReplDstPort: 80,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "remote connection with source translation (redirect)",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("4.4.4.4"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: INCOMING,
+				NetNS:     2,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("2.2.2.2"),
+					ReplDstIP:   util.AddressFromString("127.0.0.1"),
+					ReplSrcPort: 12345,
+					ReplDstPort: 15006,
+				},
+			},
+			intraHost: false,
+		},
+		{
+			name: "local connection, same network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, same network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("2.2.2.2"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     80,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, different network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, different network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("2.2.2.2"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     80,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     2,
+			},
+			intraHost: true,
+		},
+		{
+			name: "remote connection",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("3.3.3.3"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: false,
+		},
+	}
+
+	var conns []ConnectionStats
+	for _, te := range tests {
+		conns = append(conns, te.conn)
+	}
+	state := newDefaultState().(*networkState)
+	state.determineConnectionIntraHost(conns)
+	for i, te := range tests {
+		assert.Equal(t, te.intraHost, conns[i].IntraHost, "name: %s, conn: %+v", te.name, conns[i])
+		if conns[i].Direction == INCOMING {
+			if conns[i].IntraHost {
+				assert.Nil(t, conns[i].IPTranslation, "name: %s, conn: %+v", te.name, conns[i])
+			} else {
+				assert.NotNil(t, conns[i].IPTranslation, "name: %s, conn: %+v", te.name, conns[i])
+			}
+		}
+	}
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {

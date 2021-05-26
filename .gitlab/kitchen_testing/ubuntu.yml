@@ -27,14 +27,14 @@
 
 .kitchen_scenario_ubuntu_a6:
   extends:
-    - .kitchen_os_ubuntu
     - .kitchen_agent_a6
+    - .kitchen_os_ubuntu
   needs: ["deploy_deb_testing-a6"]
 
 .kitchen_scenario_ubuntu_a7:
   extends:
-    - .kitchen_os_ubuntu
     - .kitchen_agent_a7
+    - .kitchen_os_ubuntu
   needs: ["deploy_deb_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)

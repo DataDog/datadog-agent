@@ -353,8 +353,7 @@ func (s *sender) do(req *http.Request) error {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	if resp.StatusCode/100 == 5 {
-		// 5xx errors can be retried
+	if isRetriable(resp.StatusCode) {
 		return &retriableError{
 			fmt.Errorf("server responded with %q", resp.Status),
 		}
@@ -365,6 +364,15 @@ func (s *sender) do(req *http.Request) error {
 		return errors.New(resp.Status)
 	}
 	return nil
+}
+
+// isRetriable reports whether the give HTTP status code should be retried.
+func isRetriable(code int) bool {
+	if code == http.StatusRequestTimeout {
+		return true
+	}
+	// 5xx errors can be retried
+	return code/100 == 5
 }
 
 // payloads specifies a payload to be sent by the sender.

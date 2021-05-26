@@ -20,31 +20,33 @@ func TestCheckRun(t *testing.T) {
 
 	const (
 		ruleID       = "rule-id"
+		frameworkID  = "cis"
 		resourceType = "resource-type"
 		resourceID   = "resource-id"
 	)
 
 	tests := []struct {
-		name        string
-		configErr   error
-		checkReport *compliance.Report
-		checkErr    error
-		expectEvent *event.Event
-		expectErr   error
+		name         string
+		checkReports []*compliance.Report
+		expectEvent  *event.Event
+		expectErr    error
 	}{
 		{
 			name: "successful check",
-			checkReport: &compliance.Report{
-				Passed: true,
-				Data: event.Data{
-					"file.permissions": 0644,
+			checkReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"file.permissions": 0644,
+					},
 				},
 			},
 			expectEvent: &event.Event{
-				AgentRuleID:  ruleID,
-				ResourceType: resourceType,
-				ResourceID:   resourceID,
-				Result:       "passed",
+				AgentRuleID:      ruleID,
+				AgentFrameworkID: frameworkID,
+				ResourceType:     resourceType,
+				ResourceID:       resourceID,
+				Result:           "passed",
 				Data: event.Data{
 					"file.permissions": 0644,
 				},
@@ -52,30 +54,39 @@ func TestCheckRun(t *testing.T) {
 		},
 		{
 			name: "failed check",
-			checkReport: &compliance.Report{
-				Passed: false,
-				Data: event.Data{
-					"file.permissions": 0644,
+			checkReports: []*compliance.Report{
+				{
+					Passed: false,
+					Data: event.Data{
+						"file.permissions": 0644,
+					},
 				},
 			},
 			expectEvent: &event.Event{
-				AgentRuleID:  ruleID,
-				ResourceType: resourceType,
-				ResourceID:   resourceID,
-				Result:       "failed",
+				AgentRuleID:      ruleID,
+				AgentFrameworkID: frameworkID,
+				ResourceType:     resourceType,
+				ResourceID:       resourceID,
+				Result:           "failed",
 				Data: event.Data{
 					"file.permissions": 0644,
 				},
 			},
 		},
 		{
-			name:     "check error",
-			checkErr: errors.New("check error"),
+			name: "check error",
+			checkReports: []*compliance.Report{
+				{
+					Passed: false,
+					Error:  errors.New("check error"),
+				},
+			},
 			expectEvent: &event.Event{
-				AgentRuleID:  ruleID,
-				ResourceType: resourceType,
-				ResourceID:   resourceID,
-				Result:       "error",
+				AgentRuleID:      ruleID,
+				AgentFrameworkID: frameworkID,
+				ResourceType:     resourceType,
+				ResourceID:       resourceID,
+				Result:           "error",
 				Data: event.Data{
 					"error": "check error",
 				},
@@ -102,14 +113,14 @@ func TestCheckRun(t *testing.T) {
 				resourceType: resourceType,
 				resourceID:   resourceID,
 				checkable:    checkable,
+
+				suiteMeta: &compliance.SuiteMeta{Framework: frameworkID},
 			}
 
-			if test.configErr == nil {
-				env.On("IsLeader").Return(true)
-				env.On("Reporter").Return(reporter)
-				reporter.On("Report", test.expectEvent).Once()
-				checkable.On("check", check).Return(test.checkReport, test.checkErr)
-			}
+			env.On("IsLeader").Return(true)
+			env.On("Reporter").Return(reporter)
+			reporter.On("Report", test.expectEvent).Once()
+			checkable.On("check", check).Return(test.checkReports)
 
 			err := check.Run()
 			assert.Equal(test.expectErr, err)

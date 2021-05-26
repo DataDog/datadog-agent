@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -24,6 +26,8 @@ var (
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
 )
+
+const hostnameStyleSetting = "azure_hostname_style"
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn() bool {
@@ -114,4 +118,56 @@ func getResponse(url string) (string, error) {
 	}
 
 	return string(all), nil
+}
+
+// GetHostname returns hostname based on Azure instance metadata.
+func GetHostname() (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
+	return getHostnameWithConfig(config.Datadog)
+}
+
+func getHostnameWithConfig(config config.Config) (string, error) {
+	style := config.GetString(hostnameStyleSetting)
+
+	if style == "os" {
+		return "", fmt.Errorf("azure_hostname_style is set to 'os'")
+	}
+
+	metadataJSON, err := getResponse(metadataURL + "/metadata/instance/compute?api-version=2017-08-01")
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
+	}
+
+	var metadata struct {
+		VMID              string
+		Name              string
+		ResourceGroupName string
+		SubscriptionID    string
+	}
+	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+		return "", fmt.Errorf("failed to parse Azure instance metadata: %s", err)
+	}
+
+	var name string
+	switch style {
+	case "vmid":
+		name = metadata.VMID
+	case "name":
+		name = metadata.Name
+	case "name_and_resource_group":
+		name = fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName)
+	case "full":
+		name = fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID)
+	default:
+		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
+	}
+
+	if err := validate.ValidHostname(name); err != nil {
+		return "", err
+	}
+
+	return name, nil
 }

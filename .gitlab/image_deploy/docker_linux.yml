@@ -26,6 +26,9 @@
 .if_deploy_on_nightly: &if_deploy_on_nightly
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
 
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+
 dev_branch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
@@ -77,6 +80,8 @@ dev_branch_google_container_registry-a7:
 dev_branch_multiarch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_6
       when: manual
       allow_failure: true
@@ -103,6 +108,8 @@ dev_branch_multiarch_docker_hub-a6:
 dev_branch_multiarch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_version_7
       when: manual
       allow_failure: true
@@ -180,6 +187,8 @@ dca_dev_branch_docker_hub:
 dca_dev_branch_multiarch_docker_hub:
   extends: .docker_tag_job_definition
   rules:
+    - <<: *if_not_run_all_builds
+      when: never
     - <<: *if_not_master_branch
       when: manual
       allow_failure: true

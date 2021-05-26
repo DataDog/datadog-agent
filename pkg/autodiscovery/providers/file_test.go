@@ -18,15 +18,15 @@ import (
 
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
-	config, err := GetIntegrationConfigFromFile("foo", "")
+	_, err := GetIntegrationConfigFromFile("foo", "")
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	config, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
+	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml, invalid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
+	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 

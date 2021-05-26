@@ -100,7 +100,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     // new installation or an upgrade, and what steps need to be taken
     ddUserExists = data.DoesUserExist();
 
-    if (!canInstall(data.GetTargetMachine().IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
+    if (!canInstall(data.GetTargetMachine()->IsDomainController(), ddUserExists, ddServiceExists, data, bResetPassword))
     {
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
@@ -203,7 +203,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     }
     hr = 0;
 
-    if (!data.GetTargetMachine().IsReadOnlyDomainController())
+    if (!data.GetTargetMachine()->IsReadOnlyDomainController())
     {
         er = AddUserToGroup(data.Sid(), L"S-1-5-32-558", L"Performance Monitor Users");
         if (er != NERR_Success)

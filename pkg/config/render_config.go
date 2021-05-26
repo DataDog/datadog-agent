@@ -24,7 +24,7 @@ type context struct {
 	Python            bool // Sub-option of Agent
 	BothPythonPresent bool // Sub-option of Agent - Python
 	Metadata          bool
-	Profiling         bool
+	InternalProfiling bool
 	Dogstatsd         bool
 	LogsAgent         bool
 	JMX               bool
@@ -60,7 +60,7 @@ func mkContext(buildType string) context {
 		Agent:             true,
 		Python:            true,
 		Metadata:          true,
-		Profiling:         false, // NOTE: hidden for now
+		InternalProfiling: false, // NOTE: hidden for now
 		Dogstatsd:         true,
 		LogsAgent:         true,
 		JMX:               true,

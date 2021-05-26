@@ -60,8 +60,10 @@ func TestRename(t *testing.T) {
 			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
-			testContainerPath(t, event, "rename.file.container_path")
-			testContainerPath(t, event, "rename.file.destination.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
@@ -91,8 +93,10 @@ func TestRename(t *testing.T) {
 			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
-			testContainerPath(t, event, "rename.file.container_path")
-			testContainerPath(t, event, "rename.file.destination.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
@@ -126,8 +130,10 @@ func TestRename(t *testing.T) {
 			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
-			testContainerPath(t, event, "rename.file.container_path")
-			testContainerPath(t, event, "rename.file.destination.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)

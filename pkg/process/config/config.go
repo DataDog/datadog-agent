@@ -24,6 +24,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 )
@@ -78,29 +79,32 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled              bool
-	HostName             string
-	APIEndpoints         []apicfg.Endpoint
-	LogFile              string
-	LogLevel             string
-	LogToConsole         bool
-	QueueSize            int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes    int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	Blacklist            []*regexp.Regexp
-	Scrubber             *DataScrubber
-	MaxPerMessage        int
-	MaxConnsPerMessage   int
-	AllowRealTime        bool
-	Transport            *http.Transport `json:"-"`
-	DDAgentBin           string
-	StatsdHost           string
-	StatsdPort           int
-	ProcessExpVarPort    int
-	ProfilingEnabled     bool
-	ProfilingSite        string
-	ProfilingURL         string
-	ProfilingAPIKey      string
-	ProfilingEnvironment string
+	Enabled                   bool
+	HostName                  string
+	APIEndpoints              []apicfg.Endpoint
+	LogFile                   string
+	LogLevel                  string
+	LogToConsole              bool
+	QueueSize                 int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist                 []*regexp.Regexp
+	Scrubber                  *DataScrubber
+	MaxPerMessage             int
+	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
+	MaxConnsPerMessage        int
+	AllowRealTime             bool
+	Transport                 *http.Transport `json:"-"`
+	DDAgentBin                string
+	StatsdHost                string
+	StatsdPort                int
+	ProcessExpVarPort         int
+	ProfilingEnabled          bool
+	ProfilingSite             string
+	ProfilingURL              string
+	ProfilingAPIKey           string
+	ProfilingEnvironment      string
+	ProfilingPeriod           time.Duration
+	ProfilingCPUDuration      time.Duration
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -140,8 +144,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint = "https://process.datadoghq.com"
-	maxMessageBatch        = 100
+	defaultProcessEndpoint         = "https://process.datadoghq.com"
+	maxMessageBatch                = 100
+	defaultMaxCtrProcsMessageBatch = 10000
+	maxCtrProcsMessageBatch        = 30000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -185,13 +191,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
 		QueueSize: 256,
 
-		MaxPerMessage:      100,
-		MaxConnsPerMessage: 600,
-		AllowRealTime:      true,
-		HostName:           "",
-		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
-		ContainerHostType:  model.ContainerHostType_notSpecified,
+		MaxPerMessage:             maxMessageBatch,
+		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
+		MaxConnsPerMessage:        600,
+		AllowRealTime:             true,
+		HostName:                  "",
+		Transport:                 NewDefaultTransport(),
+		ProcessExpVarPort:         6062,
+		ContainerHostType:         model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
@@ -244,17 +251,19 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 }
 
 func loadConfigIfExists(path string) error {
-	if util.PathExists(path) {
-		config.Datadog.AddConfigPath(path)
-		if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
-			config.Datadog.SetConfigFile(path)
-		}
+	if path != "" {
+		if util.PathExists(path) {
+			config.Datadog.AddConfigPath(path)
+			if strings.HasSuffix(path, ".yaml") { // If they set a config file directly, let's try to honor that
+				config.Datadog.SetConfigFile(path)
+			}
 
-		if _, err := config.LoadWithoutSecret(); err != nil {
-			return err
+			if _, err := config.LoadWithoutSecret(); err != nil {
+				return err
+			}
+		} else {
+			log.Infof("no config exists at %s, ignoring...", path)
 		}
-	} else {
-		log.Infof("no config exists at %s, ignoring...", path)
 	}
 	return nil
 }
@@ -323,8 +332,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		cfg.LogLevel = "warn"
 	}
 
-	if cfg.HostName == "" {
-		// lookup hostname if there is no config override
+	if err := validate.ValidHostname(cfg.HostName); err != nil {
+		// lookup hostname if there is no config override or if the override is invalid
 		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
@@ -376,7 +385,7 @@ func loadEnvVariables() {
 		{"DD_SCRUB_ARGS", "process_config.scrub_args"},
 		{"DD_STRIP_PROCESS_ARGS", "process_config.strip_proc_arguments"},
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
-		{"DD_PROCESS_AGENT_PROFILING_ENABLED", "process_config.profiling.enabled"},
+		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},

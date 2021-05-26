@@ -41,39 +41,39 @@ type resourceCheck struct {
 	reportedFields []string
 }
 
-func (c *resourceCheck) check(env env.Env) (*compliance.Report, error) {
+func (c *resourceCheck) check(env env.Env) []*compliance.Report {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	resolved, err := c.resolve(ctx, env, c.ruleID, c.resource)
 	if err != nil {
-		return nil, err
+		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
 	return c.evaluate(env, resolved)
 }
 
-func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) (*compliance.Report, error) {
+func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) []*compliance.Report {
 	conditionExpression, err := eval.Cache.ParseIterable(c.resource.Condition)
 	if err != nil {
-		return nil, err
+		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
 	switch resolved := resolved.(type) {
 	case *eval.Instance:
 		if c.resource.Fallback != nil {
 			if c.fallback == nil {
-				return nil, ErrResourceFallbackMissing
+				return []*compliance.Report{compliance.BuildReportForError(ErrResourceFallbackMissing)}
 			}
 
 			fallbackExpression, err := eval.Cache.ParseExpression(c.resource.Fallback.Condition)
 			if err != nil {
-				return nil, err
+				return []*compliance.Report{compliance.BuildReportForError(err)}
 			}
 
 			useFallback, err := fallbackExpression.BoolEvaluate(resolved)
 			if err != nil {
-				return nil, err
+				return []*compliance.Report{compliance.BuildReportForError(err)}
 			}
 			if useFallback {
 				return c.fallback.check(env)
@@ -82,22 +82,24 @@ func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) (*compliance
 
 		passed, err := conditionExpression.Evaluate(resolved)
 		if err != nil {
-			return nil, err
+			return []*compliance.Report{compliance.BuildReportForError(err)}
 		}
-		return instanceToReport(resolved, passed, c.reportedFields), nil
+		report := instanceToReport(resolved, passed, c.reportedFields)
+		return []*compliance.Report{report}
 
 	case eval.Iterator:
 		if c.resource.Fallback != nil {
-			return nil, ErrResourceCannotUseFallback
+			return []*compliance.Report{compliance.BuildReportForError(ErrResourceCannotUseFallback)}
 		}
 
-		result, err := conditionExpression.EvaluateIterator(resolved, globalInstance)
+		result, err := conditionExpression.EvaluateIterator(resolved, globalInstance, env.MaxEventsPerRun())
 		if err != nil {
-			return nil, err
+			return []*compliance.Report{compliance.BuildReportForError(err)}
 		}
-		return instanceResultToReport(result, c.reportedFields), nil
+		reports := instanceResultToReports(result, c.reportedFields)
+		return reports
 	default:
-		return nil, ErrResourceFailedToResolve
+		return []*compliance.Report{compliance.BuildReportForError(ErrResourceFailedToResolve)}
 	}
 }
 

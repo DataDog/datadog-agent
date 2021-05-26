@@ -13,6 +13,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -63,7 +64,6 @@ type Tracer struct {
 
 	httpMonitor *http.Monitor
 
-	perfMap       *manager.PerfMap
 	perfHandler   *ddebpf.PerfHandler
 	batchManager  *PerfBatchManager
 	flushIdle     chan chan struct{}
@@ -157,14 +157,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		enabledProbes[probes.SocketDnsFilter] = struct{}{}
 	}
 
-	// TODO: This is a hotfix to prevent the following error when HTTP monitoring is disabled
-	// couldn’t load eBPF programs: map http_in_flight: map create: cannot allocate memory
-	maxHTTPInFlightEntries := uint(1)
-	if config.EnableHTTPMonitoring && !pre410Kernel {
-		enabledProbes[probes.SocketHTTPFilter] = struct{}{}
-		maxHTTPInFlightEntries = config.MaxTrackedConnections
-	}
-
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -181,7 +173,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: uint32(maxHTTPInFlightEntries), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
@@ -223,8 +214,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	perfHandlerHTTP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := netebpf.NewManager(perfHandlerTCP, perfHandlerHTTP, runtimeTracer)
+	m := netebpf.NewManager(perfHandlerTCP, runtimeTracer)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -279,7 +269,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 reverseDNS,
-		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, m, perfHandlerHTTP),
+		httpMonitor:                newHTTPMonitor(!pre410Kernel, config),
 		buffer:                     make([]network.ConnectionStats, 0, 512),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -294,13 +284,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		gwLookup:                   newGatewayLookup(config, m),
 	}
 
-	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
+	tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
-	}
-
-	if err := tr.httpMonitor.Start(); err != nil {
-		log.Errorf("failed to initialize http monitor: %s", err)
 	}
 
 	if err = m.Start(); err != nil {
@@ -486,22 +472,13 @@ func (t *Tracer) populateExpvarStats() error {
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *PerfBatchManager, error) {
-	pm, found := t.m.GetPerfMap(string(probes.ConnCloseEventMap))
-	if !found {
-		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.ConnCloseEventMap)
-	}
-
+func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*PerfBatchManager, error) {
 	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
 	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
 	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
 	batchManager, err := NewPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := pm.Start(); err != nil {
-		return nil, nil, fmt.Errorf("error starting perf map: %s", err)
+		return nil, err
 	}
 
 	go func() {
@@ -546,7 +523,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 		}
 	}()
 
-	return pm, batchManager, nil
+	return batchManager, nil
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
@@ -580,7 +557,6 @@ func (t *Tracer) Stop() {
 	close(t.stop)
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
-	_ = t.perfMap.Stop(manager.CleanAll)
 	t.perfHandler.Stop()
 	t.httpMonitor.Stop()
 	close(t.flushIdle)
@@ -646,6 +622,10 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
 		tm.MonotonicDNSPacketsProcessed = pp
+	}
+
+	if ds, ok := dnsStats["dropped_stats"]; ok {
+		tm.DNSStatsDropped = ds
 	}
 
 	ebpfStats := t.getEbpfTelemetry()
@@ -1015,12 +995,18 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 		return true
 	}
 
-	ok, err := ctr.Exists(conn)
+	exists, err := ctr.Exists(conn)
 	if err != nil {
-		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", conn, err)
+	}
+	if !exists {
+		exists, err = ctr.ExistsInRootNS(conn)
+		if err != nil {
+			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn, err)
+		}
 	}
 
-	return !ok
+	return !exists
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {
@@ -1031,7 +1017,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
-func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *ddebpf.PerfHandler) *http.Monitor {
+func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
@@ -1041,7 +1027,19 @@ func newHTTPMonitor(supported bool, c *config.Config, m *manager.Manager, h *dde
 		return nil
 	}
 
-	monitor, err := http.NewMonitor(c.ProcRoot, c.MaxHTTPStatsBuffered, m, h)
+	monitor, err := http.NewMonitor(c)
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return nil
+	}
+
+	err = monitor.Start()
+
+	if errors.Is(err, syscall.ENOMEM) {
+		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+		return nil
+	}
+
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

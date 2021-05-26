@@ -18,7 +18,19 @@ $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
-& inv -e deps --verbose
+
+mkdir  .\bin\agent
+& inv -e customaction.build --arch=$archflag
+
+& $Env:BUILD_ROOT\bin\agent\customaction-tests.exe
+$err = $LASTEXITCODE
+Write-Host Test result is $err
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "custom action test failed $err"
+    [Environment]::Exit($err)
+}
+
+& inv -e deps
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE

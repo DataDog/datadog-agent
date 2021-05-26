@@ -9,7 +9,6 @@ package containerd
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -34,13 +33,14 @@ import (
 	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
 	cgroup "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
 	containerdCheckName = "containerd"
 )
 
-// ContainerCheck grabs containerd metrics and events
+// ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
@@ -69,10 +69,7 @@ func ContainerdFactory() check.Check {
 
 // Parse is used to get the configuration set by the user
 func (co *ContainerdConfig) Parse(data []byte) error {
-	if err := yaml.Unmarshal(data, co); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, co)
 }
 
 // Configure parses the check configuration and init the check
@@ -346,7 +343,6 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *v1.Mem
 	sender.Gauge(fmt.Sprintf("%s.failcnt", metricName), float64(stat.Failcnt), "", tags)
 	sender.Gauge(fmt.Sprintf("%s.limit", metricName), float64(stat.Limit), "", tags)
 	sender.Gauge(fmt.Sprintf("%s.max", metricName), float64(stat.Max), "", tags)
-
 }
 
 func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
@@ -365,7 +361,7 @@ func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.Linu
 
 	timeDiff := float64(currentTime.Sub(startTime).Nanoseconds()) // cpu.total is in nanoseconds
 	if timeDiff > 0 {
-		cpuLimitPct := float64(runtime.NumCPU())
+		cpuLimitPct := float64(system.HostCPUCount())
 		if cpuLimits != nil && cpuLimits.Period != nil && *cpuLimits.Period > 0 && cpuLimits.Quota != nil && *cpuLimits.Quota > 0 {
 			cpuLimitPct = float64(*cpuLimits.Quota) / float64(*cpuLimits.Period)
 		}

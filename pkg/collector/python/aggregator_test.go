@@ -40,3 +40,7 @@ func TestSubmitEvent(t *testing.T) {
 func TestSubmitHistogramBucket(t *testing.T) {
 	testSubmitHistogramBucket(t)
 }
+
+func TestSubmitEventPlatformEvent(t *testing.T) {
+	testSubmitEventPlatformEvent(t)
+}

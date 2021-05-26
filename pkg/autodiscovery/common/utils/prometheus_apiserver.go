@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// Kind and prefix in Kubernetes
 const (
 	kubePodKind   = "Pod"
 	KubePodPrefix = "kubernetes_pod://"

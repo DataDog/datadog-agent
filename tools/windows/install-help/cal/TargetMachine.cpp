@@ -1,5 +1,5 @@
-#include "TargetMachine.h"
 #include "stdafx.h"
+#include "TargetMachine.h"
 #include <DsGetDC.h>
 
 TargetMachine::TargetMachine()
@@ -86,7 +86,7 @@ DWORD TargetMachine::DetectMachineType()
         {
             // NetServerGetInfo will fail if the Server service isn't running,
             // but in that case it's safe to assume we are a workstation.
-            WcaLog(LOGMSG_STANDARD, "Failed to get server info: %S", FormatErrorMessage(status));
+            WcaLog(LOGMSG_STANDARD, "Failed to get server info: %S", FormatErrorMessage(status).c_str());
             WcaLog(LOGMSG_STANDARD, "Continuing assuming machine type is SV_TYPE_WORKSTATION.");
             _serverType = SV_TYPE_WORKSTATION;
             return ERROR_SUCCESS;
@@ -191,19 +191,14 @@ DWORD TargetMachine::DetectDomainInformation()
         WcaLog(LOGMSG_STANDARD, "Computer is joined to a workgroup");
         break;
     case NetSetupDomainName:
-        WcaLog(LOGMSG_STANDARD, "Computer is joined to domain \"%S\"", _joinedDomain.c_str());
+        // Print both domain names: NETBIOS and FQDN
+        WcaLog(LOGMSG_STANDARD, "Computer is joined to domain \"%S\" (\"%S\")", _joinedDomain.c_str(), _dnsDomainName.c_str());
         _isDomainJoined = true;
         break;
     }
 
     if (_isDomainJoined)
     {
-        if (_wcsicmp(_dnsDomainName.c_str(), _joinedDomain.c_str()) != 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "DNS domain name \"%S\" doesn't match the joined domain \"%S\"",
-                   _dnsDomainName.c_str(), _joinedDomain.c_str());
-        }
-
         // Detect if we are on a read-only domain controller
         if (IsDomainController())
         {

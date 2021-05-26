@@ -22,6 +22,10 @@
     - export KITCHEN_OSVERS="win2008r2,win2012,win2012r2,win2016,win2019"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+  # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
+  # Give them one more chance before failing.
+  # TODO: understand why they fail more often than Linux jobs on network errors.
+  retry: 2
 
 # Kitchen: tests
 # --------------
@@ -85,14 +89,14 @@
 
 .kitchen_scenario_windows_a6:
   extends:
-    - .kitchen_os_windows
     - .kitchen_agent_a6
+    - .kitchen_os_windows
   needs: ["deploy_windows_testing-a6"]
 
 .kitchen_scenario_windows_a7:
   extends:
-    - .kitchen_os_windows
     - .kitchen_agent_a7
+    - .kitchen_os_windows
   needs: ["deploy_windows_testing-a7"]
 
 # Kitchen: final test matrix (test types * scenarios)

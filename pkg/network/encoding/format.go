@@ -7,6 +7,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
@@ -42,6 +43,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
+	c.LastPacketsSent = conn.LastSentPackets
+	c.LastPacketsReceived = conn.LastRecvPackets
 	c.LastRetransmits = conn.LastRetransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
@@ -110,6 +113,7 @@ func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTe
 	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
 	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
 	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
+	t.DnsStatsDropped = tel.DNSStatsDropped
 	return t
 }
 
@@ -174,6 +178,21 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 	}
 
 	return aggregationsByKey
+}
+
+// Build the key for the http map based on whether the local or remote side is http.
+func httpKeyFromConn(c network.ConnectionStats) http.Key {
+	// Retrieve translated addresses
+	laddr, lport := nat.GetLocalAddress(c)
+	raddr, rport := nat.GetRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
+	if network.IsEphemeralPort(int(lport)) {
+		return http.NewKey(laddr, raddr, lport, rport, "")
+	}
+
+	return http.NewKey(raddr, laddr, rport, lport, "")
 }
 
 func returnToPool(c *model.Connections) {

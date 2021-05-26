@@ -21,9 +21,14 @@ build do
   gomodcache = Pathname.new("/gomodcache")
   env = {
     'GOPATH' => gopath.to_path,
-    'GOMODCACHE' => gomodcache.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
+
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
+    gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
+    env["GOMODCACHE"] = gomodcache.to_path
+  end
+
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 

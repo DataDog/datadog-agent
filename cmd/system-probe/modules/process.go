@@ -10,20 +10,21 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
 var ErrProcessUnsupported = errors.New("process module unsupported")
 
 // Process is a module that fetches process level data
-var Process = api.Factory{
+var Process = module.Factory{
 	Name: config.ProcessModule,
-	Fn: func(cfg *config.Config) (api.Module, error) {
+	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
@@ -35,7 +36,7 @@ var Process = api.Factory{
 	},
 }
 
-var _ api.Module = &process{}
+var _ module.Module = &process{}
 
 type process struct{ probe *procutil.Probe }
 
@@ -45,7 +46,7 @@ func (t *process) GetStats() map[string]interface{} {
 }
 
 // Register registers endpoints for the module to expose data
-func (t *process) Register(httpMux *http.ServeMux) error {
+func (t *process) Register(httpMux *mux.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()

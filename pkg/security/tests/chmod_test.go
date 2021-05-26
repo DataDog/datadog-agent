@@ -61,7 +61,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	})
 
@@ -83,7 +85,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	})
 
@@ -104,7 +108,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	}))
 

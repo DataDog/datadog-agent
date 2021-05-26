@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // Config represents an object that can load and store configuration parameters
@@ -40,6 +40,7 @@ type Config interface {
 	GetTime(key string) time.Time
 	GetDuration(key string) time.Duration
 	GetStringSlice(key string) []string
+	GetFloat64SliceE(key string) ([]float64, error)
 	GetStringMap(key string) map[string]interface{}
 	GetStringMapString(key string) map[string]string
 	GetStringMapStringSlice(key string) map[string][]string

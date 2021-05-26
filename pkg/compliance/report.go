@@ -15,4 +15,6 @@ type Report struct {
 	Data event.Data
 	// Passed defines whether check was successful or not
 	Passed bool
+	// Error of th check evaluation
+	Error error
 }
