@@ -135,21 +135,6 @@ func instanceToReport(instance *eval.Instance, passed bool, allowedFields []stri
 
 // instanceToReports converts an evaluated instanceResult to reports
 // filtering out fields not on the allowedFields list
-func instanceResultToReports(result *eval.InstanceResult, allowedFields []string) []*compliance.Report {
-	var reports []*compliance.Report
-
-	if len(result.Instances) > 0 {
-		for _, instance := range result.Instances {
-			reports = append(reports, instanceToReport(instance, result.Passed, allowedFields))
-
-			// report only one success instance
-			if result.Passed {
-				break
-			}
-		}
-	} else {
-		reports = append(reports, &compliance.Report{Passed: false})
-	}
-
-	return reports
+func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
+	return instanceToReport(result.Instance, result.Passed, allowedFields)
 }
