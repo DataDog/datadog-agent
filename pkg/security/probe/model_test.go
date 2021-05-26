@@ -92,14 +92,21 @@ func TestExecArgsFlags(t *testing.T) {
 		Event: model.Event{
 			Exec: model.ExecEvent{
 				Process: model.Process{
-					ArgsArray: []string{
-						"-abc", "--verbose", "test",
-						"-v=1", "--host=myhost",
-						"-9", "-", "--",
+					ArgsEntry: &model.ArgsEntry{
+						Values: []string{
+							"-abc", "--verbose", "test",
+							"-v=1", "--host=myhost",
+							"-9", "-", "--",
+						},
 					},
 				},
 			},
 		},
+	}
+
+	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	e.resolvers = &Resolvers{
+		ProcessResolver: resolver,
 	}
 
 	flags := e.ResolveExecArgsFlags(&e.Exec)
@@ -144,14 +151,21 @@ func TestExecArgsOptions(t *testing.T) {
 		Event: model.Event{
 			Exec: model.ExecEvent{
 				Process: model.Process{
-					ArgsArray: []string{
-						"--config", "/etc/myfile", "--host=myhost", "--verbose",
-						"-c", "/etc/myfile", "-h=myhost", "-v",
-						"--", "---", "-9",
+					ArgsEntry: &model.ArgsEntry{
+						Values: []string{
+							"--config", "/etc/myfile", "--host=myhost", "--verbose",
+							"-c", "/etc/myfile", "-h=myhost", "-v",
+							"--", "---", "-9",
+						},
 					},
 				},
 			},
 		},
+	}
+
+	resolver, _ := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
+	e.resolvers = &Resolvers{
+		ProcessResolver: resolver,
 	}
 
 	options := e.ResolveExecArgsOptions(&e.Exec)
