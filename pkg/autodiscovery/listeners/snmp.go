@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -414,6 +415,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "collect_device_metadata":
+		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
 	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	}

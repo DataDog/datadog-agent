@@ -6,6 +6,8 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"strings"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -59,4 +61,29 @@ func TestBuildSNMPParams(t *testing.T) {
 	}
 	_, err = config.BuildSNMPParams("192.168.0.1")
 	assert.Equal(t, "Unsupported privacy protocol: bar", err.Error())
+}
+
+func TestNewListenerConfig(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  collect_device_metadata: true
+  configs:
+   - network: 127.0.0.1/30
+   - network: 127.0.0.2/30
+     collect_device_metadata: true
+   - network: 127.0.0.3/30
+     collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, true, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 }

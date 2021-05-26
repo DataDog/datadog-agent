@@ -510,6 +510,7 @@ func InitConfig(config Config) {
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
+	config.SetKnown("snmp_listener.collect_device_metadata")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
@@ -674,6 +675,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
