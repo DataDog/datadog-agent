@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -151,7 +152,7 @@ dogstatsd_mapper_profiles:
 }
 
 func BenchmarkMapperControl(b *testing.B) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(b, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 

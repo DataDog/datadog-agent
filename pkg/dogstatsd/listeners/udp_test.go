@@ -9,7 +9,6 @@ package listeners
 import (
 	"fmt"
 	"net"
-	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 var (
@@ -34,7 +34,7 @@ func TestNewUDPListener(t *testing.T) {
 }
 
 func TestStartStopUDPListener(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
@@ -65,7 +65,7 @@ func TestStartStopUDPListener(t *testing.T) {
 }
 
 func TestUDPNonLocal(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
@@ -89,7 +89,7 @@ func TestUDPNonLocal(t *testing.T) {
 }
 
 func TestUDPLocalOnly(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
@@ -116,7 +116,7 @@ func TestUDPLocalOnly(t *testing.T) {
 
 func TestUDPReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -148,7 +148,7 @@ func TestUDPReceive(t *testing.T) {
 
 // Reproducer for https://github.com/DataDog/datadog-agent/issues/6803
 func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	assert.Nil(t, err)
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	conn, err := net.ListenUDP("udp", address)
@@ -161,26 +161,6 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
-}
-
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
 }
 
 // getLocalIP returns the first non loopback local IPv4 on that host
