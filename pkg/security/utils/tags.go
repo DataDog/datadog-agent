@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// GetTagValue returns the value of the given tag in the given list
 func GetTagValue(tagName string, tags []string) string {
 	for _, tag := range tags {
 		kv := strings.SplitN(tag, ":", 2)

@@ -65,7 +65,7 @@ func (t *TagsResolver) Resolve(id string) []string {
 	return tags
 }
 
-// Get return the tag value for the given id and tag name
+// GetValue return the tag value for the given id and tag name
 func (t *TagsResolver) GetValue(id string, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }

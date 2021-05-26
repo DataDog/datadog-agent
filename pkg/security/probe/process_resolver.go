@@ -122,6 +122,7 @@ type ProcessResolver struct {
 	argsEnvsPool *ArgsEnvsPool
 }
 
+// ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
 	pool sync.Pool
 }
@@ -549,6 +550,7 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 	return argv, pr.ArgsTruncated || truncated
 }
 
+// SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		pce.EnvsEntry = &model.EnvsEntry{

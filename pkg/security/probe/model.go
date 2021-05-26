@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// environment variable used to report service
+	// ServiceEnvVar environment variable used to report service
 	ServiceEnvVar = "DD_SERVICE"
 )
 

@@ -62,6 +62,7 @@ func (c *ContextPool) Put(ctx *Context) {
 	c.pool.Put(ctx)
 }
 
+// NewContextPool returns a new context pool
 func NewContextPool() *ContextPool {
 	return &ContextPool{
 		pool: sync.Pool{
