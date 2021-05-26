@@ -102,6 +102,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	sample = secondSample
 	m.On(metrics.GaugeType.String(), "system.cpu.user", 0.1913803067769472, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.interrupt", 0.2889653146879648, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0018948545225440318, "", []string(nil)).Return().Times(1)
@@ -114,7 +115,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck.Run()
 
 	m.AssertExpectations(t)
-	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
+	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 9)
 	if runtime.GOOS == "linux" {
 		m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 2)
 	}
