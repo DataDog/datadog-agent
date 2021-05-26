@@ -293,6 +293,9 @@ def load_release_versions(ctx, target_version):
     print("[load_release_versions] Loading deps for version ", target_version)
     with open("stackstate-deps.json", "r") as f:
         versions = json.load(f)
+        print("Using the following build environment:")
+        for k, v in versions.items():
+            print("[dep_version]", str(k), str(v))
         return {str(k):str(v) for k, v in versions.items()}
         # versions = json.load(f)
         # if target_version in versions:
