@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	utilTestUtil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"

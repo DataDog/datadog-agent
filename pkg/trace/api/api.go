@@ -148,8 +148,10 @@ func (r *HTTPReceiver) Start() {
 	}
 	go func() {
 		defer watchdog.LogOnPanic()
-		r.server.Serve(ln)
-		ln.Close()
+		if ln != nil {
+			r.server.Serve(ln)
+			ln.Close()
+		}
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -160,8 +162,10 @@ func (r *HTTPReceiver) Start() {
 		}
 		go func() {
 			defer watchdog.LogOnPanic()
-			r.server.Serve(ln)
-			ln.Close()
+			if ln != nil {
+				r.server.Serve(ln)
+				ln.Close()
+			}
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
 	}
