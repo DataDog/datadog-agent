@@ -425,6 +425,8 @@ def apply_branding(ctx):
                   "./cmd/process-agent/main_windows.go")
     do_sed_rename(ctx, 's/"datadog.yaml"/"stackstate.yaml"/g',
                   "./omnibus/config/projects/agent.rb")
+    do_sed_rename(ctx, 's/"SOFTWARE\\\\\\\\Datadog\\\\\\\\"/"SOFTWARE\\\\\\\\StackState\\\\\\\\"/g',
+                  "./pkg/util/winutil/shutil.go")
 
     # Windows SysTray and GUI
     tray_replace = 's/ddtray/ststray/'
