@@ -141,25 +141,25 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64) []ck
 // countBasedContextResolver allows tracking and expiring contexts based on the number
 // of calls of `expireContexts`.
 type countBasedContextResolver struct {
-	resolver               *contextResolver
-	keyByContextCountIndex map[ckey.ContextKey]int64
-	contextCountIndex      int64
-	expireContextsCount    int64
+	resolver            *contextResolver
+	expireCountByKey    map[ckey.ContextKey]int64
+	expireCount         int64
+	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireContextsCount int) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:               newContextResolver(),
-		keyByContextCountIndex: make(map[ckey.ContextKey]int64),
-		contextCountIndex:      0,
-		expireContextsCount:    int64(expireContextsCount),
+		resolver:            newContextResolver(),
+		expireCountByKey:    make(map[ckey.ContextKey]int64),
+		expireCount:         0,
+		expireCountInterval: int64(expireCountInterval),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	contextKey := cr.resolver.trackContext(metricSampleContext)
-	cr.keyByContextCountIndex[contextKey] = cr.contextCountIndex
+	cr.expireCountByKey[contextKey] = cr.expireCount
 	return contextKey
 }
 
@@ -171,13 +171,13 @@ func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 // call to `expireContexts` and returns the associated contextKeys
 func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
 	var keys []ckey.ContextKey
-	for key, index := range cr.keyByContextCountIndex {
-		if index <= cr.contextCountIndex-cr.expireContextsCount {
+	for key, index := range cr.expireCountByKey {
+		if index <= cr.expireCount-cr.expireCountInterval {
 			keys = append(keys, key)
-			delete(cr.keyByContextCountIndex, key)
+			delete(cr.expireCountByKey, key)
 		}
 	}
 	cr.resolver.removeKeys(keys)
-	cr.contextCountIndex++
+	cr.expireCount++
 	return keys
 }
