@@ -6,6 +6,19 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 )
 
+type HTTPMethod int
+
+const (
+	HTTPMethodUnknown = iota
+	HTTPMethodGet
+	HTTPMethodPost
+	HTTPMethodPut
+	HTTPMethodDelete
+	HTTPMethodHead
+	HTTPMethodOptions
+	HTTPMethodPatch
+)
+
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
 	SrcIPHigh uint64

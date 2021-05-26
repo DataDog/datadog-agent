@@ -17,19 +17,6 @@ const (
 	HTTPBufferSize = int(C.HTTP_BUFFER_SIZE)
 )
 
-type HTTPMethod int
-
-const (
-	HTTPMethodUnknown = iota
-	HTTPMethodGet
-	HTTPMethodPost
-	HTTPMethodPut
-	HTTPMethodDelete
-	HTTPMethodHead
-	HTTPMethodOptions
-	HTTPMethodPatch
-)
-
 type httpTX C.http_transaction_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
