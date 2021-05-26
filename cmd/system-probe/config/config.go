@@ -11,7 +11,7 @@ import (
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names

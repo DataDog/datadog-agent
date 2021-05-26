@@ -28,14 +28,14 @@ func TestGetOrCreateClusterID(t *testing.T) {
 	assert.True(t, errors.IsNotFound(err))
 
 	// kube-system does exist
-	kNs := corev1.Namespace{
+	kubeNs := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
 			UID:             "226430c6-5e57-11ea-91d5-42010a8400c6",
 			Name:            "kube-system",
 		},
 	}
-	client.Namespaces().Create(context.TODO(), &kNs, metav1.CreateOptions{})
+	client.Namespaces().Create(context.TODO(), &kubeNs, metav1.CreateOptions{})
 
 	GetOrCreateClusterID(client)
 

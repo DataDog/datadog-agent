@@ -27,7 +27,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	return &JMXCheckLoader{}, nil
 }
 
-// Load returns JMX loader name
+// Name returns JMX loader name
 func (jl *JMXCheckLoader) Name() string {
 	return "jmx"
 }

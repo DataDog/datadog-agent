@@ -25,10 +25,10 @@ repos:
       additional_dependencies: [] # Can be removed after this fix gets merged: https://github.com/jumanjihouse/pre-commit-hooks/pull/80
 - repo: local
   hooks:
-    - id: golint
-      name: golint
-      description: golint
-      entry: 'python3 tasks/git-hooks/golint.py'
+    - id: revive
+      name: revive
+      description: revive
+      entry: 'python3 tasks/git-hooks/revive.py'
       language: system
       files: \.go$
     - id: govet

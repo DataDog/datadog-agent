@@ -6,6 +6,10 @@
 package file
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +24,17 @@ import (
 
 // scanPeriod represents the period of time between two scans.
 const scanPeriod = 10 * time.Second
+
+// rxContainerID is used in the shouldIgnore func to do a best-effort validation
+// that the file currently scanned for a source is attached to the proper container.
+// If the container ID we parse from the filename isn't matching this regexp, we *will*
+// tail the file because we prefer a false-negative than a false-positive (best-effort).
+var rxContainerID = regexp.MustCompile("^[a-fA-F0-9]{64}$")
+
+// ContainersLogsDir is the directory in which we should find containers logsfile
+// with the container ID in their filename.
+// Public to be able to change it while running unit tests.
+var ContainersLogsDir = "/var/log/containers"
 
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
@@ -93,13 +108,10 @@ func (s *Scanner) cleanup() {
 	stopper.Stop()
 }
 
-// scan checks all the files we're expected to tail,
-// compares them to the currently tailed files,
+// scan checks all the files we're expected to tail, compares them to the currently tailed files,
 // and triggeres the required updates.
-// For instance, when a file is logrotated,
-// its tailer will keep tailing the rotated file.
-// The Scanner needs to stop that previous tailer,
-// and start a new one for the new file.
+// For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
+// The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Scanner) scan() {
 	files := s.fileProvider.FilesToTail(s.activeSources)
 	filesTailed := make(map[string]bool)
@@ -204,13 +216,36 @@ func (s *Scanner) launchTailers(source *config.LogSource) {
 			// FIXME: better detect a source that has been generated from a service discovery.
 			mode = config.Beginning
 		}
+
 		s.startNewTailer(file, mode)
 	}
 }
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
-// returns true if the operation succeeded, false otherwise
+// returns true if the operation succeeded, false otherwise.
 func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
+	if file == nil {
+		log.Debug("startNewTailer called with a nil file")
+		return false
+	}
+
+	// We also use the file scanner to look for containers and pods logs file, because of that
+	// we have to make sure that the file we just detected is tagged with the correct
+	// container ID.
+	// The way k8s is storing files in /var/log/pods doesn't let us do that properly
+	// (the filename doesn't contain the container ID).
+	// However, the symlinks present in /var/log/containers are pointing to /var/log/pods files,
+	// meaning that we can use them to validate that the file we have found is concerning us.
+	// That's what the function shouldIgnore is trying to do when the directory exists and is readable.
+	// See these links for more info:
+	//   - https://github.com/kubernetes/kubernetes/issues/58638
+	//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
+	if file.Source != nil &&
+		(file.Source.GetSourceType() == config.KubernetesSourceType || file.Source.GetSourceType() == config.DockerSourceType) &&
+		s.shouldIgnore(file) {
+		return false
+	}
+
 	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
 
 	var offset int64
@@ -223,7 +258,6 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 	}
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
-
 	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
@@ -232,6 +266,69 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 
 	s.tailers[tailer.file.GetScanKey()] = tailer
 	return true
+}
+
+// shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
+// to validate that we will be reading a file for the correct container.
+func (s *Scanner) shouldIgnore(file *File) bool {
+	// this method needs a source config to detect whether we should ignore that file or not
+	if file == nil || file.Source == nil || file.Source.Config == nil {
+		return false
+	}
+
+	infos := make(map[string]string)
+	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+		// we only wants to follow symlinks
+		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+			// not a symlink, we are not interested in this file
+			return nil
+		}
+
+		// resolve the symlink
+		podLogFilename, err2 := os.Readlink(containerLogFilename)
+		if err2 != nil {
+			log.Debug("Error while resolving symlink of", containerLogFilename, ":", err)
+			return nil
+		}
+
+		infos[podLogFilename] = containerLogFilename
+		return nil
+	})
+
+	// this is not an error if we we are not currently looking for container logs files,
+	// so not problem and just return false.
+	// Still, we write a debug message to be able to troubleshoot that
+	// in cases we're legitimately looking for containers logs.
+	if err != nil {
+		log.Debug("Can't look for symlinks in /var/log/containers:", err)
+		return false
+	}
+
+	// container id extracted from the file found in /var/log/containers
+	base := filepath.Base(infos[file.Path]) // only the file
+	ext := filepath.Ext(base)               // file extension
+	parts := strings.Split(base, "-")       // get only the container ID part from the file
+	var containerIDFromFilename string
+	if len(parts) > 1 {
+		containerIDFromFilename = strings.TrimSuffix(parts[len(parts)-1], ext)
+	}
+
+	// basic validation of the ID that has been parsed, if it doesn't look like
+	// an ID we don't want to compare another ID to it
+	if containerIDFromFilename == "" || !rxContainerID.Match([]byte(containerIDFromFilename)) {
+		return false
+	}
+
+	if file.Source.Config.Identifier != "" && containerIDFromFilename != "" {
+		if strings.TrimSpace(strings.ToLower(containerIDFromFilename)) != strings.TrimSpace(strings.ToLower(file.Source.Config.Identifier)) {
+			log.Debugf("We were about to tail a file attached to the wrong container (%s != %s), probably due to short-lived containers.",
+				containerIDFromFilename, file.Source.Config.Identifier)
+			// ignore this file, it is not concerning the container stored in file.Source
+			return true
+		}
+	}
+
+	return false
 }
 
 // handleTailingModeChange determines the tailing behaviour when the tailing mode for a given file has its

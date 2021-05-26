@@ -290,8 +290,8 @@ func TestCountAggregation(t *testing.T) {
 			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
 			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
 			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
-			kDefault := bucketAggregationKey{}
-			cDefault := payloadWithCounts(testTime, kDefault, 0, 2, 4)
+			keyDefault := bucketAggregationKey{}
+			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
 
 			assert.Len(a.out, 0)
 			a.add(testTime, deepCopy(c1))

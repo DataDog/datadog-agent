@@ -20,8 +20,8 @@ const (
 )
 
 var (
-	hostCPUCount           int64 = 0
-	hostCPUFailedAttempts  int   = 0
+	hostCPUCount           int64
+	hostCPUFailedAttempts  int
 	hostCPUCountUpdateLock sync.Mutex
 	cpuInfoFunc            func(context.Context, bool) (int, error)
 )

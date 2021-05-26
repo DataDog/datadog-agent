@@ -41,7 +41,7 @@ TOOL_LIST = [
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
-    'golang.org/x/lint/golint',
+    'github.com/mgechev/revive',
     'gotest.tools/gotestsum',
     'honnef.co/go/tools/cmd/staticcheck',
 ]

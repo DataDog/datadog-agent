@@ -246,17 +246,23 @@ IterCollectors:
 				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
+
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
-		low, orch, high, err := collector.Fetch(entity)
+
 		cacheMiss := false
+		skipCache := false
+		low, orch, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 			cacheMiss = true
+		case errors.IsPartial(err):
+			skipCache = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
 		}
+
 		tagArrays = append(tagArrays, low)
 		if cardinality == collectors.OrchestratorCardinality {
 			tagArrays = append(tagArrays, orch)
@@ -264,6 +270,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, orch)
 			tagArrays = append(tagArrays, high)
 		}
+
 		// Submit to cache for next lookup
 		t.store.processTagInfo([]*collectors.TagInfo{
 			{
@@ -273,6 +280,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
+				SkipCache:            skipCache,
 			},
 		})
 	}

@@ -39,9 +39,9 @@ import (
 var (
 	globalAPIClient     *APIClient
 	globalAPIClientOnce sync.Once
-	ErrNotFound         = errors.New("entity not found")
-	ErrIsEmpty          = errors.New("entity is empty")
-	ErrNotLeader        = errors.New("not Leader")
+	ErrNotFound         = errors.New("entity not found") //nolint:revive
+	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
+	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
 	isConnectVerbose    = false
 
 	gvrDDM = &schema.GroupVersionResource{

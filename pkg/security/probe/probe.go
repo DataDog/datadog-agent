@@ -203,10 +203,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	if err := p.monitor.Start(p.ctx); err != nil {
-		return err
-	}
-	return nil
+	return p.monitor.Start(p.ctx)
 }
 
 // SetEventHandler set the probe event handler

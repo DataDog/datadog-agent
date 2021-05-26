@@ -9,6 +9,7 @@ package docker
 
 import "gopkg.in/yaml.v2"
 
+// checkName constants used to call ServiceCheck
 const (
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"
@@ -33,8 +34,5 @@ func (c *DockerConfig) Parse(data []byte) error {
 	c.CollectEvent = true
 	c.CollectContainerSizeFreq = 5
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, c)
 }

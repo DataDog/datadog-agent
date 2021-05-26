@@ -32,6 +32,49 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	daemonSetMsgs := make([]*model.DaemonSet, 0, len(daemonSetList))
+
+	for _, daemonSet := range daemonSetList {
+		if orchestrator.SkipKubernetesResource(daemonSet.UID, daemonSet.ResourceVersion, orchestrator.K8sDaemonSet) {
+			continue
+		}
+
+		// extract daemonSet info
+		daemonSetModel := extractDaemonSet(daemonSet)
+
+		// k8s objects only have json "omitempty" annotations
+		// and marshalling is more performant than YAML
+		jsonDaemonSet, err := jsoniter.Marshal(daemonSet)
+		if err != nil {
+			log.Warnf("Could not marshal daemon sets to JSON: %s", err)
+			continue
+		}
+		daemonSetModel.Yaml = jsonDaemonSet
+
+		daemonSetMsgs = append(daemonSetMsgs, daemonSetModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(daemonSetMsgs), cfg.MaxPerMessage)
+
+	chunked := chunkDaemonSets(daemonSetMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorDaemonSet{
+			ClusterName: cfg.KubeClusterName,
+			DaemonSets:  chunked[i],
+			GroupId:     groupID,
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+			Tags:        cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d daemon sets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
+	return messages, nil
+}
+
 func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	cronJobMsgs := make([]*model.CronJob, 0, len(cronJobList))
@@ -40,6 +83,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		if orchestrator.SkipKubernetesResource(cronJob.UID, cronJob.ResourceVersion, orchestrator.K8sCronJob) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(cronJob.Annotations)
 
 		// extract cronJob info
 		cronJobModel := extractCronJob(cronJob)
@@ -64,10 +108,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		cronJobMsgs = append(cronJobMsgs, cronJobModel)
 	}
 
-	groupSize := len(cronJobMsgs) / cfg.MaxPerMessage
-	if len(cronJobMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(cronJobMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkCronJobs(cronJobMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -89,15 +131,8 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*model.CronJob {
 	chunks := make([][]*model.CronJob, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(cronJobs)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(cronJobs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, cronJobs[chunkStart:chunkEnd])
 	}
 
@@ -113,6 +148,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		if orchestrator.SkipKubernetesResource(depl.UID, depl.ResourceVersion, orchestrator.K8sDeployment) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(depl.Annotations)
 
 		// extract deployment info
 		deployModel := extractDeployment(depl)
@@ -137,10 +173,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		deployMsgs = append(deployMsgs, deployModel)
 	}
 
-	groupSize := len(deployMsgs) / cfg.MaxPerMessage
-	if len(deployMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(deployMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkDeployments(deployMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -162,15 +196,8 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 func chunkDeployments(deploys []*model.Deployment, chunkCount, chunkSize int) [][]*model.Deployment {
 	chunks := make([][]*model.Deployment, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(deploys)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(deploys), chunkCount, chunkSize, counter)
 		chunks = append(chunks, deploys[chunkStart:chunkEnd])
 	}
 
@@ -185,6 +212,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		if orchestrator.SkipKubernetesResource(job.UID, job.ResourceVersion, orchestrator.K8sJob) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(job.Annotations)
 
 		// extract job info
 		jobModel := extractJob(job)
@@ -209,10 +237,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		jobMsgs = append(jobMsgs, jobModel)
 	}
 
-	groupSize := len(jobMsgs) / cfg.MaxPerMessage
-	if len(jobMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(jobMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkJobs(jobMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -234,15 +260,8 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 func chunkJobs(jobs []*model.Job, chunkCount, chunkSize int) [][]*model.Job {
 	chunks := make([][]*model.Job, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(jobs)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(jobs), chunkCount, chunkSize, counter)
 		chunks = append(chunks, jobs[chunkStart:chunkEnd])
 	}
 
@@ -258,6 +277,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		if orchestrator.SkipKubernetesResource(r.UID, r.ResourceVersion, orchestrator.K8sReplicaSet) {
 			continue
 		}
+		redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 
 		// extract replica set info
 		rsModel := extractReplicaSet(r)
@@ -284,10 +304,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		rsMsgs = append(rsMsgs, rsModel)
 	}
 
-	groupSize := len(rsMsgs) / cfg.MaxPerMessage
-	if len(rsMsgs)%cfg.MaxPerMessage != 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(rsMsgs), cfg.MaxPerMessage)
+
 	chunked := chunkReplicaSets(rsMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
@@ -309,15 +327,8 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 func chunkReplicaSets(replicaSets []*model.ReplicaSet, chunkCount, chunkSize int) [][]*model.ReplicaSet {
 	chunks := make([][]*model.ReplicaSet, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(replicaSets)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(replicaSets), chunkCount, chunkSize, counter)
 		chunks = append(chunks, replicaSets[chunkStart:chunkEnd])
 	}
 
@@ -349,10 +360,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		serviceMsgs = append(serviceMsgs, serviceModel)
 	}
 
-	groupSize := len(serviceMsgs) / cfg.MaxPerMessage
-	if len(serviceMsgs)%cfg.MaxPerMessage > 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(serviceMsgs), cfg.MaxPerMessage)
 
 	chunks := chunkServices(serviceMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
@@ -377,15 +385,8 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 func chunkServices(services []*model.Service, chunkCount, chunkSize int) [][]*model.Service {
 	chunks := make([][]*model.Service, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(services)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(services), chunkCount, chunkSize, counter)
 		chunks = append(chunks, services[chunkStart:chunkEnd])
 	}
 
@@ -470,10 +471,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		nodeMsgs = append(nodeMsgs, nodeModel)
 	}
 
-	groupSize := len(nodeMsgs) / cfg.MaxPerMessage
-	if len(nodeMsgs)%cfg.MaxPerMessage > 0 {
-		groupSize++
-	}
+	groupSize := orchestrator.GroupSize(len(nodeMsgs), cfg.MaxPerMessage)
 
 	chunks := chunkNodes(nodeMsgs, groupSize, cfg.MaxPerMessage)
 	nodeMessages := make([]model.MessageBody, 0, groupSize)
@@ -551,16 +549,22 @@ func extractClusterMessage(cfg *config.OrchestratorConfig, clusterID string, cli
 func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node {
 	chunks := make([][]*model.Node, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(nodes)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(nodes), chunkCount, chunkSize, counter)
 		chunks = append(chunks, nodes[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// chunkDaemonSets chunks the given list of daemonSets, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkDaemonSets(daemonSets []*model.DaemonSet, chunkCount, chunkSize int) [][]*model.DaemonSet {
+	chunks := make([][]*model.DaemonSet, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(daemonSets), chunkCount, chunkSize, counter)
+		chunks = append(chunks, daemonSets[chunkStart:chunkEnd])
 	}
 
 	return chunks

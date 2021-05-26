@@ -8,6 +8,9 @@
 .if_not_version_7: &if_not_version_7
   if: $RELEASE_VERSION_7 == ""
 
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
+
 .setup_rpm_signing_key: &setup_rpm_signing_key
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
@@ -60,6 +63,7 @@ deploy_deb_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_kitchen
+    - <<: *if_default_kitchen
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -98,6 +102,7 @@ deploy_rpm_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_kitchen
+    - <<: *if_default_kitchen
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -134,6 +139,7 @@ deploy_suse_rpm_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_kitchen
+    - <<: *if_default_kitchen
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -166,6 +172,7 @@ deploy_windows_testing-a7:
     - <<: *if_not_version_7
       when: never
     - <<: *if_kitchen
+    - <<: *if_default_kitchen
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

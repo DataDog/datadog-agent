@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -66,7 +65,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestTracerExpvar(t *testing.T) {
+func TestGetStats(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
@@ -80,115 +79,64 @@ func TestTracerExpvar(t *testing.T) {
 
 	expected := map[string][]string{
 		"conntrack": {
-			"StateSize",
-			"Enobufs",
-			"Throttles",
-			"SamplingPct",
-			"ReadErrors",
-			"MsgErrors",
+			"state_size",
+			"enobufs",
+			"throttles",
+			"sampling_pct",
+			"read_errors",
+			"msg_errors",
 		},
 		"state": {
-			"StatsResets",
-			"ClosedConnDropped",
-			"ConnDropped",
-			"TimeSyncCollisions",
-			"DnsStatsDropped",
-			"DnsPidCollisions",
+			"stats_resets",
+			"closed_conn_dropped",
+			"conn_dropped",
+			"time_sync_collisions",
+			"dns_stats_dropped",
+			"dns_pid_collisions",
 		},
 		"tracer": {
-			"ClosedConnPollingLost",
-			"ClosedConnPollingReceived",
-			"ConnValidSkipped",
-			"ExpiredTcpConns",
-			"PidCollisions",
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"conn_valid_skipped",
+			"expired_tcp_conns",
+			"pid_collisions",
 		},
 		"ebpf": {
-			"TcpSentMiscounts",
-			"MissedTcpClose",
+			"tcp_sent_miscounts",
+			"missed_tcp_close",
 		},
 		"dns": {
-			"Added",
-			"DecodingErrors",
-			"Errors",
-			"Expired",
-			"Ips",
-			"Lookups",
-			"Oversized",
-			"PacketsCaptured",
-			"PacketsDropped",
-			"PacketsProcessed",
-			"Queries",
-			"Resolved",
-			"SocketPolls",
-			"Successes",
-			"TimestampMicroSecs",
-			"TruncatedPackets",
+			"added",
+			"decoding_errors",
+			"errors",
+			"expired",
+			"ips",
+			"lookups",
+			"oversized",
+			"packets_captured",
+			"packets_dropped",
+			"packets_processed",
+			"queries",
+			"resolved",
+			"socket_polls",
+			"successes",
+			"timestamp_micro_secs",
+			"truncated_packets",
 		},
-		"kprobes": {
-			"PTcpCleanupRbufHits",
-			"PTcpCleanupRbufMisses",
-			"PTcpCloseHits",
-			"PTcpCloseMisses",
-			"PTcpRetransmitSkbHits",
-			"PTcpRetransmitSkbMisses",
-			"PTcpSendmsgHits",
-			"PTcpSendmsgMisses",
-			"PTcpSetStateHits",
-			"PTcpSetStateMisses",
-			"PUdpDestroySockHits",
-			"PUdpDestroySockMisses",
-			"PUdpRecvmsgHits",
-			"PUdpRecvmsgMisses",
-			"PIpMakeSkbHits",
-			"PIpMakeSkbMisses",
-			"PInetBindHits",
-			"PInetBindMisses",
-			"PInet6BindHits",
-			"PInet6BindMisses",
-			"PIp6MakeSkbHits",
-			"PIp6MakeSkbMisses",
-			"RInetCskAcceptHits",
-			"RInetCskAcceptMisses",
-			"PInetCskListenStopHits",
-			"PInetCskListenStopMisses",
-			"RTcpCloseHits",
-			"RTcpCloseMisses",
-			"RUdpRecvmsgHits",
-			"RUdpRecvmsgMisses",
-			"RInetBindHits",
-			"RInetBindMisses",
-			"RInet6BindHits",
-			"RInet6BindMisses",
-		},
+		"kprobes": nil,
 	}
 
-	archSpecificKprobes := [][]string{}
+	actual, _ := tr.GetStats()
 
-	for _, et := range expvarTypes {
-		if et == "dns" && pre410Kernel {
+	for section, entries := range expected {
+		if section == "dns" && pre410Kernel {
 			// DNS stats not supported on <4.1.0
 			continue
 		}
 
-		expvar := map[string]float64{}
-		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		for _, name := range expected[et] {
-			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
-		}
-		// check variants of arch-specific syscall kprobes
-		if et == "kprobes" {
-			for _, options := range archSpecificKprobes {
-				inMap := false
-				for _, opt := range options {
-					_, inMap = expvar[opt]
-					if inMap {
-						break
-					}
-				}
-				if !inMap {
-					assert.Failf(t, "missing kprobe in expvar", "one of %v", options)
-				}
-			}
+		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+		for _, name := range entries {
+			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
 }
@@ -835,6 +783,56 @@ func TestUDPSendAndReceive(t *testing.T) {
 	require.True(t, incoming.IntraHost)
 }
 
+func TestUDPPeekCount(t *testing.T) {
+	config := testConfig()
+	config.BPFDebug = true
+	tr, err := NewTracer(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "testdata/peek.py")
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:34568")
+	require.NoError(t, err)
+
+	c, err := net.DialUDP("udp", laddr, raddr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	msg := []byte("asdf")
+	_, err = c.Write(msg)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+
+	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
+	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
+	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
+	require.True(t, incoming.IntraHost)
+}
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
