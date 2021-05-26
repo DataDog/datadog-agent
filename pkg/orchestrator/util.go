@@ -120,14 +120,14 @@ func getTelemetryTags(n NodeType) []string {
 }
 
 // ChunkRange returns the chunk start and end for an iteration.
-func ChunkRange(chunkLen, chunkCount, chunkSize, counter int) (int, int) {
+func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
 	var (
 		chunkStart = chunkSize * (counter - 1)
 		chunkEnd   = chunkSize * (counter)
 	)
 	// last chunk may be smaller than the chunk size
 	if counter == chunkCount {
-		chunkEnd = chunkLen
+		chunkEnd = numberOfElements
 	}
 	return chunkStart, chunkEnd
 }

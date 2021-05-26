@@ -578,15 +578,8 @@ func chunkNodes(nodes []*model.Node, chunkCount, chunkSize int) [][]*model.Node 
 func chunkDaemonSets(daemonSets []*model.DaemonSet, chunkCount, chunkSize int) [][]*model.DaemonSet {
 	chunks := make([][]*model.DaemonSet, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(daemonSets)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(daemonSets), chunkCount, chunkSize, counter)
 		chunks = append(chunks, daemonSets[chunkStart:chunkEnd])
 	}
 
