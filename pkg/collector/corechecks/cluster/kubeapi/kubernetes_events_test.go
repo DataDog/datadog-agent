@@ -120,6 +120,7 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
@@ -155,6 +156,7 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 
@@ -210,6 +212,7 @@ func TestProcessEvent(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:default:replicaset/dca-789976f5d7-2ljx6", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))

@@ -100,25 +100,7 @@ func testTopologyEventMissingFields(t *testing.T) {
 	sender.AssertEvent(t, metrics.Event{}, 0)
 }
 
-func testTopologyEventInvalidYaml(t *testing.T) {
-	sender := mocksender.NewMockSender("testID")
-	sender.SetupAcceptAll()
-
-	yamlString := C.CString(`I'm such A sentence!`)
-	SubmitTopologyEvent(C.CString("testID"), yamlString)
-	sender.AssertNotCalled(t, "Event")
-
-	yamlList := C.CString(`
-  - this
-  - is
-  - a
-  - list
-`)
-	SubmitTopologyEvent(C.CString("testID"), yamlList)
-	sender.AssertNotCalled(t, "Event")
-}
-
-func testTopologyEventWrongFields(t *testing.T) {
+func testTopologyEventWrongFieldType(t *testing.T) {
 	sender := mocksender.NewMockSender("testID")
 	sender.SetupAcceptAll()
 

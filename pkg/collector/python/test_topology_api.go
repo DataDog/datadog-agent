@@ -14,46 +14,6 @@ import (
 // #include <datadog_agent_rtloader.h>
 import "C"
 
-const yamlData = `
-key: value ®
-stringlist:
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue
-  animals:
-    legs: dog
-    wings: eagle
-    tail: crocodile
-`
-
-var expectedTopoData = topology.Data{
-	"key":        "value ®",
-	"stringlist": []interface{}{"a", "b", "c"},
-	"boollist":   []interface{}{true, false},
-	"intlist":    []interface{}{1},
-	"doublelist": []interface{}{0.7, 1.42},
-	"emptykey":   nil,
-	"nestedobject": map[string]interface{}{
-		"nestedkey": "nestedValue",
-		"animals": map[string]interface{}{
-			"legs":  "dog",
-			"wings": "eagle",
-			"tail":  "crocodile",
-		},
-	},
-}
-
 func testComponentTopology(t *testing.T) {
 	mockBatcher := batcher.NewMockBatcher()
 
@@ -67,17 +27,12 @@ func testComponentTopology(t *testing.T) {
 		&instanceKey,
 		C.CString("external-id"),
 		C.CString("component-type"),
-		C.CString(yamlData))
+		C.CString("some: data"))
 	SubmitStopSnapshot(checkId, &instanceKey)
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	for _, state := range expectedTopology {
-		for _, c := range state.Topology.Components {
-			c.JSONString()
-		}
-	}
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
 			Health: make(map[string]health.Health),
@@ -89,7 +44,7 @@ func testComponentTopology(t *testing.T) {
 					{
 						ExternalID: "external-id",
 						Type:       topology.Type{Name: "component-type"},
-						Data:       expectedTopoData,
+						Data:       topology.Data{"some": "data"},
 					},
 				},
 				Relations: []topology.Relation{},
@@ -111,16 +66,11 @@ func testRelationTopology(t *testing.T) {
 		C.CString("source-id"),
 		C.CString("target-id"),
 		C.CString("relation-type"),
-		C.CString(yamlData))
+		C.CString("some: data"))
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	for _, state := range expectedTopology {
-		for _, r := range state.Topology.Relations {
-			r.JSONString()
-		}
-	}
 	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
 			Health: make(map[string]health.Health),
@@ -135,7 +85,7 @@ func testRelationTopology(t *testing.T) {
 						SourceID:   "source-id",
 						TargetID:   "target-id",
 						Type:       topology.Type{Name: "relation-type"},
-						Data:       expectedTopoData,
+						Data:       topology.Data{"some": "data"},
 					},
 				},
 			},
