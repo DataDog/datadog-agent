@@ -49,7 +49,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.70.0+incompatible
+	github.com/DataDog/agent-payload v4.71.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.28.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.28.0-rc.3
 	github.com/DataDog/datadog-go v4.5.0+incompatible
@@ -67,7 +67,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17-0.20210211115548-6eac466e5fa3
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
-	github.com/alecthomas/participle v0.4.4
+	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v2.7.0+incompatible
@@ -117,7 +117,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/h2non/filetype v1.1.1
 	github.com/hashicorp/consul/api v1.8.1
-	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/huandu/xstrings v1.3.2 // indirect

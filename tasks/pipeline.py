@@ -16,7 +16,12 @@ from .libs.pipeline_notifications import (
     get_failed_tests,
     send_slack_message,
 )
-from .libs.pipeline_tools import trigger_agent_pipeline, wait_for_pipeline
+from .libs.pipeline_tools import (
+    cancel_pipelines_with_confirmation,
+    get_running_pipelines_on_same_ref,
+    trigger_agent_pipeline,
+    wait_for_pipeline,
+)
 from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
@@ -76,6 +81,38 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
 
 
 @task
+def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=False, sha=None):
+    """
+    Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
+    should be cancelled.
+    """
+
+    project_name = "DataDog/datadog-agent"
+    gitlab = Gitlab()
+    gitlab.test_project_found(project_name)
+
+    if here:
+        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    print("Fetching running pipelines on {}".format(git_ref))
+
+    if not sha and use_latest_sha:
+        sha = ctx.run("git rev-parse {}".format(git_ref), hide=True).stdout.strip()
+        print("Git sha not provided, using the one {} currently points to: {}".format(git_ref, sha))
+    elif not sha:
+        print("Git sha not provided, fetching all running pipelines on {}".format(git_ref))
+
+    pipelines = get_running_pipelines_on_same_ref(gitlab, project_name, git_ref, sha)
+
+    print(
+        "Found {} running pipeline(s) matching the request.".format(len(pipelines)),
+        "They are ordered from the newest one to the oldest one.\n",
+        sep='\n',
+    )
+    cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
+
+
+@task
 def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
     """
     DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
@@ -130,6 +167,9 @@ def run(
     To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
+    If other pipelines are already running on the git ref, the script will prompt the user to confirm if these previous
+    pipelines should be cancelled.
+
     Examples
     Run a pipeline on my-branch:
       inv pipeline.run --git-ref my-branch
@@ -173,6 +213,18 @@ def run(
 
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    pipelines = get_running_pipelines_on_same_ref(gitlab, project_name, git_ref)
+
+    if pipelines:
+        print(
+            "There are already {} pipeline(s) running on the target git ref.".format(len(pipelines)),
+            "For each of them, you'll be asked whether you want to cancel them or not.",
+            "If you don't need these pipelines, please cancel them to save CI resources.",
+            "They are ordered from the newest one to the oldest one.\n",
+            sep='\n',
+        )
+        cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
     pipeline_id = trigger_agent_pipeline(
         gitlab,

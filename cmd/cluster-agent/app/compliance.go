@@ -83,6 +83,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	runner.SetScheduler(scheduler)
 
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
 	hostname, err := util.GetHostname()
@@ -94,6 +95,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		scheduler,
 		configDir,
 		checks.WithInterval(checkInterval),
+		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
 		checks.WithMatchRule(func(rule *compliance.Rule) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)

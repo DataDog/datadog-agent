@@ -84,45 +84,47 @@ func (c *complianceCheck) Run() error {
 		return nil
 	}
 
-	report, err := c.checkable.check(c)
-	if err != nil {
-		log.Warnf("%s: check run failed: %v", c.ruleID, err)
-	}
-	data, result := reportToEventData(report, err)
+	var err error
 
-	e := &event.Event{
-		AgentRuleID:  c.ruleID,
-		ResourceID:   c.resourceID,
-		ResourceType: c.resourceType,
-		Result:       result,
-		Data:         data,
-	}
+	reports := c.checkable.check(c)
+	for _, report := range reports {
+		if report.Error != nil {
+			log.Debugf("%s: check run failed: %v", c.ruleID, report.Error)
+			err = report.Error
+		}
 
-	log.Debugf("%s: reporting [%s]", c.ruleID, e.Result)
+		data, result := reportToEventData(report)
 
-	c.Reporter().Report(e)
-	if c.eventNotify != nil {
-		c.eventNotify(c.ruleID, e)
+		e := &event.Event{
+			AgentRuleID:      c.ruleID,
+			AgentFrameworkID: c.suiteMeta.Framework,
+			ResourceID:       c.resourceID,
+			ResourceType:     c.resourceType,
+			Result:           result,
+			Data:             data,
+		}
+
+		log.Debugf("%s: reporting [%s]", c.ruleID, e.Result)
+
+		c.Reporter().Report(e)
+		if c.eventNotify != nil {
+			c.eventNotify(c.ruleID, e)
+		}
 	}
 
 	return err
 }
 
-func reportToEventData(report *compliance.Report, err error) (event.Data, string) {
-	var (
-		data   event.Data
-		passed bool
-	)
-	if report != nil {
-		data = report.Data
-		passed = report.Passed
-	}
-	if err != nil {
+func reportToEventData(report *compliance.Report) (event.Data, string) {
+	data := report.Data
+	passed := report.Passed
+
+	if report.Error != nil {
 		data = event.Data{
-			"error": err.Error(),
+			"error": report.Error.Error(),
 		}
 	}
-	return data, eventResult(passed, err)
+	return data, eventResult(passed, report.Error)
 }
 
 func eventResult(passed bool, err error) string {

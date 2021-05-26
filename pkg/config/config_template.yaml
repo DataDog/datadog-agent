@@ -214,12 +214,6 @@ api_key:
 #
 # forwarder_storage_max_disk_ratio: 0.95
 
-## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
-## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
-## the retry queue is full.
-#
-# forwarder_storage_path: /opt/datadog-agent/run/transactions_to_retry
-
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
 ## being discarded. During the Agent restart, if a retry file contains transactions that were
@@ -1001,6 +995,10 @@ api_key:
   ## @param check_interval - duration - optional - default: 20m
   ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
   # check_interval: 20m
+
+  ## @param check_max_events_per_run - integer
+  ## - optional - default: 30
+  # check_max_events_per_run: 30
 {{ end -}}
 {{- if .SystemProbe }}
 

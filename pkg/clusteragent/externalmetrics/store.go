@@ -26,7 +26,7 @@ type DatadogMetricInternalObserver struct {
 	DeleteFunc DatadogMetricInternalObserverFunc
 }
 
-// DatadogMetricsStore stores DatadogMetric with `Name` as a key
+// DatadogMetricsInternalStore stores DatadogMetric with `Name` as a key
 type DatadogMetricsInternalStore struct {
 	store         map[string]model.DatadogMetricInternal
 	lock          sync.RWMutex
@@ -83,7 +83,7 @@ func (ds *DatadogMetricsInternalStore) GetAll() []model.DatadogMetricInternal {
 	return ds.GetFiltered(func(model.DatadogMetricInternal) bool { return true })
 }
 
-// GetAll returns a copy of all store values matched by the `filter` function
+// GetFiltered returns a copy of all store values matched by the `filter` function
 func (ds *DatadogMetricsInternalStore) GetFiltered(filter func(model.DatadogMetricInternal) bool) []model.DatadogMetricInternal {
 	ds.lock.RLock()
 	defer ds.lock.RUnlock()

@@ -4,8 +4,47 @@ from time import sleep, time
 
 from .common.color import color_message
 from .common.gitlab import Gitlab
+from .common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
+
+
+def get_running_pipelines_on_same_ref(
+    gitlab, project, ref, sha=None,
+):
+    pipelines = gitlab.all_pipelines_for_ref(project, ref, sha=sha)
+
+    RUNNING_STATUSES = ["created", "pending", "running"]
+    running_pipelines = [pipeline for pipeline in pipelines if pipeline["status"] in RUNNING_STATUSES]
+
+    return running_pipelines
+
+
+def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
+    for pipeline in pipelines:
+        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline['id'])
+
+        print(
+            color_message("Pipeline", "blue"),
+            color_message(pipeline['id'], "bold"),
+            color_message("(https://gitlab.ddbuild.io/{}/pipelines/{})".format(project, pipeline['id']), "green"),
+        )
+
+        print(color_message("Started at", "blue"), pipeline['created_at'])
+
+        print(
+            color_message("Commit:", "blue"),
+            color_message(commit_title, "green"),
+            color_message("({})".format(commit_short_sha), "grey"),
+            color_message("by", "blue"),
+            color_message(commit_author, "bold"),
+        )
+
+        if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
+            gitlab.cancel_pipeline(project, pipeline['id'])
+            print("Pipeline {} has been cancelled.\n".format(color_message(pipeline['id'], "bold")))
+        else:
+            print("Pipeline {} will keep running.\n".format(color_message(pipeline['id'], "bold")))
 
 
 def trigger_agent_pipeline(

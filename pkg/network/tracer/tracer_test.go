@@ -835,6 +835,56 @@ func TestUDPSendAndReceive(t *testing.T) {
 	require.True(t, incoming.IntraHost)
 }
 
+func TestUDPPeekCount(t *testing.T) {
+	config := testConfig()
+	config.BPFDebug = true
+	tr, err := NewTracer(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "testdata/peek.py")
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:34568")
+	require.NoError(t, err)
+
+	c, err := net.DialUDP("udp", laddr, raddr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	msg := []byte("asdf")
+	_, err = c.Write(msg)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+
+	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
+	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
+	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
+	require.True(t, incoming.IntraHost)
+}
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
