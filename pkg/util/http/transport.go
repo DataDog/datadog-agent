@@ -167,6 +167,8 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 			newURLString = newURL.String()
 		}
 
+		// There are no known cases that will trigger the below warnings but because they are logically possible we should still include them.
+
 		// Print a warning if the url does not use the proxy - but will for some reason when no_proxy_nonexact_match is true
 		if url == nil && newURL != nil {
 			warnOnce(NoProxyUsedInFuture, logSafeURL, "Deprecation warning: the HTTP request to %s does not use a proxy but will use: %s when the Agent configuration option no_proxy_nonexact_match defaults to true in a future agent version.", logSafeURL, logSafeURLString(newURL))
