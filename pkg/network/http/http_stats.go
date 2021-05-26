@@ -9,14 +9,14 @@ import (
 type HTTPMethod int
 
 const (
-	HTTPMethodUnknown = iota
-	HTTPMethodGet
-	HTTPMethodPost
-	HTTPMethodPut
-	HTTPMethodDelete
-	HTTPMethodHead
-	HTTPMethodOptions
-	HTTPMethodPatch
+	MethodUnknown HTTPMethod = iota
+	MethodGet
+	MethodPost
+	MethodPut
+	MethodDelete
+	MethodHead
+	MethodOptions
+	MethodPatch
 )
 
 // Key is an identifier for a group of HTTP transactions

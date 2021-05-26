@@ -152,7 +152,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 		path := key.Path
 		method := key.Method
 		key.Path = ""
-		key.Method = http.HTTPMethodUnknown
+		key.Method = http.MethodUnknown
 
 		httpAggregations, ok := aggregationsByKey[key]
 		if !ok {
@@ -198,10 +198,10 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	// HTTP data is always indexed as (client, server), so we flip
 	// the lookup key if necessary using the port range heuristic
 	if network.IsEphemeralPort(int(lport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "", http.HTTPMethodUnknown)
+		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
 	}
 
-	return http.NewKey(raddr, laddr, rport, lport, "", http.HTTPMethodUnknown)
+	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
 }
 
 func returnToPool(c *model.Connections) {

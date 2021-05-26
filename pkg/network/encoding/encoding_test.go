@@ -72,7 +72,7 @@ func TestSerialization(t *testing.T) {
 				40,
 				80,
 				"/testpath",
-				http.HTTPMethodGet,
+				http.MethodGet,
 			): httpReqStats,
 		},
 	}
@@ -271,7 +271,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 		1000,
 		9000,
 		"/testpath",
-		http.HTTPMethodGet,
+		http.MethodGet,
 	)
 	statsByKey := map[http.Key]http.RequestStats{
 		key: httpReqStats,
@@ -280,7 +280,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 
 	// Now path will be nested in the map
 	key.Path = ""
-	key.Method = http.HTTPMethodUnknown
+	key.Method = http.MethodUnknown
 
 	endpointAggregations := formattedStats[key].EndpointAggregations
 	require.Len(t, endpointAggregations, 1)
