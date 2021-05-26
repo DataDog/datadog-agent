@@ -2,6 +2,181 @@
 Release Notes
 =============
 
+.. _Release Notes_7.28.0:
+
+7.28.0 / 6.28.0
+======
+
+.. _Release Notes_7.28.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-05-26
+
+- Please refer to the `7.28.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7280>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.28.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change base Docker image used to build the Agent images, moving from ``debian:bullseye`` to ``ubuntu:20.10``.
+  In the future the Agent will follow Ubuntu stable versions.
+
+- Windows Docker images based on Windows Core are now provided. Checks that didn't work on Nano should work on Core.
+
+
+.. _Release Notes_7.28.0_New Features:
+
+New Features
+------------
+
+- APM: Add a new feature flag ``component2name`` which determines the ``component`` tag value
+  on a span to become its operation name. This facititates compatibility with Opentracing.
+
+- Adds a functionality to allow capturing and replaying
+  of UDS dogstatsd traffic.
+
+- Expose new ``aggregator.submit_event_platform_event`` python API with two supported event types:
+  ``dbm-samples`` and ``dbm-metrics``.
+
+- Runtime security reports environment variables.
+
+- Runtime security now reports command line arguments as part of the
+  exec events.
+
+- The ``args_flags`` and ``args_options`` were added to the SECL
+  language to ease the writing of runtime security rules based
+  on command line arguments.
+  ``args_flags`` is used to catch arguments that start by either one
+  or two hyphen characters but do not accept any associated value.
+
+  Examples:
+
+  - ``version`` is part of ``args_flags`` for the command ``cat --version``
+  - ``l`` and ``n`` both are in ``args_flags`` for the command ``netstat -ln``
+  - ``T=8`` and ``width=8`` both are in ``args_options`` for the command
+    ``ls -T 8 --width=8``.
+
+- Add support for ARM64 to the runtime security agent
+
+
+.. _Release Notes_7.28.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add ``oid_batch_size`` configuration as init and instance config
+
+- Add ``oid_batch_size`` config to snmp_listener
+
+- Group the output of ``agent tagger-list`` by entity and by source.
+
+- On Windows on a Domain Controller, if no domain name is specified, the installer will use the controller's joined domain.
+
+- Windows installer can now use the command line key ``EC2_USE_WINDOWS_PREFIX_DETECTION`` to set the config
+  value of ``ec2_use_windows_prefix_detection``
+
+- APM: The trace writer will now consider 408 errors to be retriable.
+
+- Build RPMs that can be installed in FIPS mode. This change doesn't affect SUSE RPMs.
+
+  RPMs are now built with RPM 4.15.1 and have SHA256 digest headers, which are required by RPM on CentOS 8/RHEL 8 when running in FIPS mode.
+
+  Note that newly built RPMs are no longer installable on CentOS 5/RHEL 5.
+
+- Make the check_sampler bucket expiry configurable
+
+- The Agent can be configured to replace colon ``:`` characters in the ECS resource tag keys by underscores ``_``.
+  This can be done by enabling ``ecs_resource_tags_replace_colon: true`` in the Agent config file
+  or by configuring the environment variable ``DD_ECS_RESOURCE_TAGS_REPLACE_COLON=true``.
+
+- Add ``jvm.gc.old_gen_size`` as an alias for ``Tenured Gen``.
+  Prevent double signing of release artifacts.
+
+- JMXFetch upgraded to `v0.44.0 <https://github.com/DataDog/jmxfetch/releases/0.44.0>`_.
+
+- The ``kubernetes_state_core`` check now collects two new metrics ``kubernetes_state.pod.age`` and ``kubernetes_state.pod.uptime``.
+
+- Improve ``logs/sender`` throughput by adding optional concurrency for serializing & sending payloads.
+
+- Make kube_replica_set tag low cardinality
+
+- Runtime Security now supports regexp in SECL rules.
+
+- Add loader tag to snmp telemetry metrics
+
+- Network Performance Monitoring for windows now collects DNS stats, connections will be shows in the networks -> DNS page.
+
+
+.. _Release Notes_7.28.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- For internal profiling of agent processes, the ``profiling`` option
+  has been renamed to ``internal_profiling`` to avoid confusion.
+
+- The single dash variants of the system-probe flags are now deprecated. Please use ``--config`` and ``--pid`` instead.
+
+
+.. _Release Notes_7.28.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fixes bug where long service names and operation names were not normalized correctly.
+
+- On Windows, fixes a bug in process agent in which the process agent
+  would become unresponsive.
+
+- The Windows installer compares the DNS domain name and the joined domain name using a case-insensitive compare.
+  This avoids an incorrect warning when the domain names match but otherwise have different cases.
+
+- Replace usage of ``runtime.NumCPU`` when used to compute metrics related to CPU Hosts. On some Unix systems,
+  ``runtime.NumCPU`` can be influenced by CPU affinity set on the Agent, which should not affect the metrics
+  computed for other processes/containers. Affects the CPU Limits metrics (docker/containerd) as well as the
+  live containers page metrics.
+
+- Fix issue where Kube Apiserver cache sync timeout configuration is not used.
+
+- Fix the usage of ``DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL`` and ``DD_ORCHESTRATOR_EXPLORER_MAX_PER_MESSAGE`` environment variables.
+
+- Fix a ``panic`` that could occur in Docker AD listener when doing ``docker inspect`` fails
+
+- Fix a small leak where the Agent in some cases keeps in memory identifiers corresponding to dead objects (pods, containers).
+
+- Log file byte count now works correctly on Windows.
+
+- Agent log folder on Mac is moved from ``/var/log/datadog`` to ``/opt/datadog-agent/logs``. A link will be created at
+  ``/var/log/datadog`` pointing to ``/opt/datadog-agent/logs`` to maintain the compatibility. This is to workaround the
+  issue that some Mac OS releases purge ``/var/log`` folder on ugprade.
+
+- Packaging: ensure only one pip3 version is shipped in ``embedded/`` directory
+
+- Fix eBPF runtime compilation errors with ``tcp_queue_length`` and ``oom_kill`` checks on Ubuntu 20.10.
+
+- Add a validation step before accepting metrics set in HPAs.
+  This ensures that no obviously-broken metric is accepted and goes on to
+  break the whole metrics gathering process.
+
+- The Windows installer now log only once when it fails to replace a property.
+
+- Windows installer will not abort if the Server service is not running (introduced in 6.24.0/7.24.0).
+
+
+.. _Release Notes_7.28.0_Other Notes:
+
+Other Notes
+-----------
+
+- The Agent, Logs Agent and the system-probe are now compiled with Go ``1.15.11``
+
+- Bump embedded Python 3 to ``3.8.8``
+
+
 .. _Release Notes_7.27.1:
 
 7.27.1 / 6.27.1
