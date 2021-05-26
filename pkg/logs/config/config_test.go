@@ -412,7 +412,14 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 			UseSSL:           true,
 			UseCompression:   true,
 			CompressionLevel: 6,
+			BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 		},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
 	endpoints, err := BuildServerlessEndpoints()
