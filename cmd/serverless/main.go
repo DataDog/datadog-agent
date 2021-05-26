@@ -87,8 +87,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath                   = "/var/task/datadog.yaml"
-	fetchAccountIDTimeout time.Duration = 500.0 * time.Millisecond
+	datadogConfigPath     = "/var/task/datadog.yaml"
+	fetchAccountIDTimeout = 500.0 * time.Millisecond
 )
 
 const (
