@@ -17,6 +17,7 @@ var (
 	pfnMakeCounterSetInstances          = makeCounterSetIndexes
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddCounter                    = PdhAddCounter
+	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
 	pfnPdhCollectQueryData              = PdhCollectQueryData
 	pfnPdhEnumObjectItems               = pdhEnumObjectItems
 	pfnPdhRemoveCounter                 = PdhRemoveCounter
@@ -84,6 +85,28 @@ func (p *PdhCounterSet) Initialize(className string) error {
 		return err
 	}
 	return nil
+}
+
+// GetEnglishCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
+func GetEnglishCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
+	var p PdhSingleInstanceCounterSet
+	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to open PDH query handle %d", winerror)
+	}
+	path, err := pfnPdhMakeCounterPath("", className, instance, counterName)
+	if err != nil {
+		return p, fmt.Errorf("Failed tomake counter path %s: %v", counterName, err)
+	}
+	winerror = pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.singleCounter)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to add english counter %d", winerror)
+	}
+	winerror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to collect query data %d", winerror)
+	}
+	return p, nil
 }
 
 // GetSingleInstanceCounter returns a single instance counter object for the given counter class
