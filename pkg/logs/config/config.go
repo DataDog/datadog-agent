@@ -200,6 +200,11 @@ type LogsConfigKeys struct {
 	BatchMaxConcurrentSend  string
 	BatchMaxSize            string
 	BatchMaxContentSize     string
+	BackoffMinFactor        string
+	BackoffBaseTime         string
+	BackoffMaxTime          string
+	BackoffRecoveryInterval string
+	BackoffRecoveryReset    string
 }
 
 // logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
@@ -220,6 +225,11 @@ func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
 		BatchMaxConcurrentSend:  configPrefix + "batch_max_concurrent_send",
 		BatchMaxSize:            configPrefix + "batch_max_size",
 		BatchMaxContentSize:     configPrefix + "batch_max_content_size",
+		BackoffMinFactor:        configPrefix + "sender_backoff_factor",
+		BackoffBaseTime:         configPrefix + "sender_backoff_base",
+		BackoffMaxTime:          configPrefix + "sender_backoff_max",
+		BackoffRecoveryInterval: configPrefix + "sender_recovery_interval",
+		BackoffRecoveryReset:    configPrefix + "sender_recovery_reset",
 	}
 }
 
@@ -241,12 +251,44 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 		defaultUseCompression = coreConfig.Datadog.GetBool(logsConfig.UseCompression)
 	}
 
+	backoffFactor := coreConfig.DefaultLogsSenderBackoffFactor
+	if name := logsConfig.BackoffMinFactor; name != "" && coreConfig.Datadog.IsSet(name) {
+		backoffFactor = coreConfig.Datadog.GetFloat64(name)
+	}
+
+	backoffBase := coreConfig.DefaultLogsSenderBackoffBase
+	if name := logsConfig.BackoffBaseTime; name != "" && coreConfig.Datadog.IsSet(name) {
+		backoffBase = coreConfig.Datadog.GetFloat64(name)
+	}
+
+	backoffMax := coreConfig.DefaultLogsSenderBackoffMax
+	if name := logsConfig.BackoffMaxTime; name != "" && coreConfig.Datadog.IsSet(name) {
+		backoffMax = coreConfig.Datadog.GetFloat64(name)
+	}
+
+	recoveryInterval := coreConfig.DefaultLogsSenderBackoffRecoveryInterval
+	if name := logsConfig.BackoffRecoveryInterval; name != "" && coreConfig.Datadog.IsSet(name) {
+		recoveryInterval = coreConfig.Datadog.GetInt(name)
+	}
+
+	recoveryReset := false
+	if name := logsConfig.BackoffRecoveryReset; name != "" && coreConfig.Datadog.IsSet(name) {
+		recoveryReset = coreConfig.Datadog.GetBool(name)
+	}
+
 	main := Endpoint{
 		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
 		UseCompression:          defaultUseCompression,
 		CompressionLevel:        coreConfig.Datadog.GetInt(logsConfig.CompressionLevel),
 		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt(logsConfig.ConnectionResetInterval)) * time.Second,
+		BackoffFactor:           backoffFactor,
+		BackoffBase:             backoffBase,
+		BackoffMax:              backoffMax,
+		RecoveryInterval:        recoveryInterval,
+		RecoveryReset:           recoveryReset,
 	}
+
+	validateBackoffSettings(&main)
 
 	switch {
 	case isSetAndNotEmpty(coreConfig.Datadog, logsConfig.LogsDDURL):
@@ -274,6 +316,25 @@ func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix stri
 	batchMaxContentSize := batchMaxContentSizeFromKey(logsConfig.BatchMaxContentSize)
 
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
+}
+
+func validateBackoffSettings(e *Endpoint) {
+	if e.BackoffFactor < 2 {
+		e.BackoffFactor = coreConfig.DefaultLogsSenderBackoffFactor
+		log.Warnf("configured sender backoff factor is less than 2; %v will be used", e.BackoffFactor)
+	}
+	if e.BackoffBase <= 0 {
+		e.BackoffBase = coreConfig.DefaultLogsSenderBackoffBase
+		log.Warnf("configured sender base backoff time is not positive; %v will be used", e.BackoffBase)
+	}
+	if e.BackoffMax <= 0 {
+		e.BackoffFactor = coreConfig.DefaultLogsSenderBackoffMax
+		log.Warnf("configured sender base backoff time is not positive; %v will be used", e.BackoffMax)
+	}
+	if e.RecoveryInterval <= 0 {
+		e.RecoveryInterval = coreConfig.DefaultForwarderRecoveryInterval
+		log.Warnf("configured senderrecovery interval is not positive; %v will be used", e.RecoveryInterval)
+	}
 }
 
 func getAdditionalEndpoints() []Endpoint {
