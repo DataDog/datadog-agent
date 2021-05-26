@@ -45,9 +45,15 @@ var (
 	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
-	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
+		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
+	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
+	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+
+	// while we try to add the origin tag in the tlmProcessed metric, we want to
+	// avoid having it growing indefinitely, hence this safeguard to limit the
+	// size of this cache for long-running agent or environment with a lot of
+	// different container IDs.
+	maxOriginTagsCached = 200
 
 	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
@@ -62,6 +68,13 @@ func init() {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
+}
+
+type cachedTagsOriginMap struct {
+	origin         string // used as key of the cache map
+	originTagValue string // used value for the origin tag
+	ok             map[string]string
+	err            map[string]string
 }
 
 func initLatencyTelemetry() {
@@ -136,6 +149,13 @@ type Server struct {
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
+
+	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
+	// to avoid escaping these in the heap in this hot path.
+	// TODO(remy): There is a clean mechanism in place to avoid having this map
+	// infinitely growing over time.
+	cachedTlmOriginIds map[string]cachedTagsOriginMap
+	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
@@ -314,6 +334,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		},
 		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
+		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
 	}
 
 	// packets forwarding
@@ -547,11 +568,59 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
+// createOriginTagMaps  keeps these in a cache to avoid a lot of heap escape
+// that we can't avoid in this hot path
+func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
+	originTagValue := origin
+
+	if strings.HasPrefix(origin, "container_id://") {
+		originTagValue = origin[15:]
+	}
+
+	// TODO(remy): we probably want to cleanup the origin value here
+	// originTagValue = utils.CleanupTagValue(originTagValue) or something like this
+
+	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
+	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
+	okMap["origin"] = originTagValue
+	errorMap["origin"] = originTagValue
+	maps := cachedTagsOriginMap{
+		origin:         origin,
+		originTagValue: originTagValue,
+		ok:             okMap,
+		err:            errorMap,
+	}
+
+	s.cachedTlmOriginIds[origin] = maps
+	s.cachedOrder = append(s.cachedOrder, maps)
+
+	if len(s.cachedOrder) > maxOriginTagsCached {
+		// remove the oldest one from the cache
+		pop := s.cachedOrder[0]
+		delete(s.cachedTlmOriginIds, pop.origin)
+		s.cachedOrder = s.cachedOrder[1:]
+		// remove it from the telemetry metrics as well
+		tlmProcessed.DeleteWithTags(pop.ok)
+		tlmProcessed.DeleteWithTags(pop.err)
+	}
+
+	return maps
+}
+
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string) ([]metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
+		if origin != "" {
+			var maps cachedTagsOriginMap // errorMap and okMap for this origin
+			var exists bool
+			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
+				maps = s.createOriginTagMaps(origin)
+			}
+			tlmProcessed.IncWithTags(maps.err)
+		} else {
+			tlmProcessed.IncWithTags(tlmProcessedErrorTags)
+		}
 		return metricSamples, err
 	}
 	if s.mapper != nil {
@@ -577,7 +646,16 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		tlmProcessed.IncWithTags(tlmProcessedOkTags)
+		if origin != "" {
+			var maps cachedTagsOriginMap // errorMap and okMap for this origin
+			var exists bool
+			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
+				maps = s.createOriginTagMaps(origin)
+			}
+			tlmProcessed.IncWithTags(maps.ok)
+		} else {
+			tlmProcessed.IncWithTags(tlmProcessedOkTags)
+		}
 	}
 	return metricSamples, nil
 }
