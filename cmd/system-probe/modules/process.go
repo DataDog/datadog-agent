@@ -4,6 +4,7 @@ package modules
 
 import (
 	"errors"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
+	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -49,11 +51,22 @@ func (t *process) GetStats() map[string]interface{} {
 func (t *process) Register(httpMux *mux.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		start := time.Now()
-		stats, err := t.probe.StatsWithPermByPID()
+		pids, err := getPids(req)
+		if err != nil {
+			log.Errorf("%s", err)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		stats, err := t.probe.StatsWithPermByPID(pids)
 		if err != nil {
 			log.Errorf("unable to retrieve stats using process_tracer: %s", err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
@@ -96,4 +109,19 @@ func writeStats(w http.ResponseWriter, marshaler encoding.Marshaler, stats map[i
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf)
 	log.Tracef("/proc/stats: %d stats, %d bytes", len(stats), len(buf))
+}
+
+func getPids(r *http.Request) ([]int32, error) {
+	contentType := r.Header.Get("Content-Type")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	procReq, err := reqEncoding.GetUnmarshaler(contentType).Unmarshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	return procReq.Pids, nil
 }
