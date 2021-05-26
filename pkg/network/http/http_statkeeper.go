@@ -111,7 +111,7 @@ func (h *httpStatKeeper) newKey(tx httpTX) Key {
 		DstIPLow:  uint64(tx.tup.daddr_l),
 		DstPort:   uint16(tx.tup.dport),
 		Path:      pathString,
-		Method:    HTTPMethod(tx.request_method),
+		Method:    Method(tx.request_method),
 	}
 }
 
