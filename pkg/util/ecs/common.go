@@ -131,9 +131,9 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*con
 		}
 	}
 
-	if l, found := c.Limits[cpuKey]; found && l > 0 {
-		container.Limits.CPULimit = formatContainerCPULimit(float64(l))
-	} else if l, found := taskLimits[cpuKey]; found && l > 0 {
+	// The task limit is required in Fargate (so this should always exist). Use this as the basis for the CPU limit
+	// because the container limits configured are treated as CPU shares, rather than a fixed limit to adhere to.
+	if l, found := taskLimits[cpuKey]; found && l > 0 {
 		container.Limits.CPULimit = formatTaskCPULimit(l)
 	} else {
 		container.Limits.CPULimit = 100
@@ -146,12 +146,6 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*con
 	}
 
 	return container, dateError
-}
-
-func formatContainerCPULimit(val float64) float64 {
-	// The ECS API exposes the container CPU limit in CPU units
-	// Value is reported in Hz
-	return val / 1024 * 100
 }
 
 func formatTaskCPULimit(val float64) float64 {
