@@ -224,6 +224,9 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		if storagePath == "" {
+			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
+		}
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
