@@ -65,13 +65,13 @@ type Config struct {
 	Tags                        []string `mapstructure:"tags"`
 
 	// Legacy
-	NetworkLegacy         string `mapstructure:"network"`
-	VersionLegacy         string `mapstructure:"version"`
-	CommunityStringLegacy string `mapstructure:"community"`
-	AuthKeyLegacy         string `mapstructure:"authentication_key"`
-	AuthProtocolLegacy    string `mapstructure:"authentication_protocol"`
-	PrivKeyLegacy         string `mapstructure:"privacy_key"`
-	PrivProtocolLegacy    string `mapstructure:"privacy_protocol"`
+	NetworkLegacy      string `mapstructure:"network"`
+	VersionLegacy      string `mapstructure:"version"`
+	CommunityLegacy    string `mapstructure:"community"`
+	AuthKeyLegacy      string `mapstructure:"authentication_key"`
+	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
+	PrivKeyLegacy      string `mapstructure:"privacy_key"`
+	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
@@ -123,27 +123,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
-		if config.Community == "" && config.CommunityStringLegacy != "" {
-			config.Community = config.CommunityStringLegacy
-		}
-		if config.AuthKey == "" && config.AuthKeyLegacy != "" {
-			config.AuthKey = config.AuthKeyLegacy
-		}
-		if config.AuthProtocol == "" && config.AuthProtocolLegacy != "" {
-			config.AuthProtocol = config.AuthProtocolLegacy
-		}
-		if config.PrivKey == "" && config.PrivKeyLegacy != "" {
-			config.PrivKey = config.PrivKeyLegacy
-		}
-		if config.PrivProtocol == "" && config.PrivProtocolLegacy != "" {
-			config.PrivProtocol = config.PrivProtocolLegacy
-		}
-		if config.Network == "" && config.NetworkLegacy != "" {
-			config.Network = config.NetworkLegacy
-		}
-		if config.Version == "" && config.VersionLegacy != "" {
-			config.Version = config.VersionLegacy
-		}
+		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
+		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
+		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
+		config.PrivKey = firstNonEmpty(config.PrivKey, config.PrivKeyLegacy)
+		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, config.PrivProtocolLegacy)
+		config.Network = firstNonEmpty(config.Network, config.NetworkLegacy)
+		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
 	}
 	return snmpConfig, nil
 }
@@ -261,4 +247,11 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 	ipString := ip.String()
 	_, present := c.IgnoredIPAddresses[ipString]
 	return present
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
