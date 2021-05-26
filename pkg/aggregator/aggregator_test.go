@@ -16,6 +16,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -33,7 +34,7 @@ var checkID2 check.ID = "2"
 func TestRegisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, nil, "")
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -50,7 +51,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 func TestDeregisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil, "")
+	agg := InitAggregator(nil, nil, "")
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -65,7 +66,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, nil, "resolved-hostname")
 
 	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -94,7 +95,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "resolved-hostname")
+	agg := InitAggregator(nil, nil, "resolved-hostname")
 
 	agg.addEvent(metrics.Event{
 		// only populate required fields
@@ -140,7 +141,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 func TestSetHostname(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil, "hostname")
+	agg := InitAggregator(nil, nil, "hostname")
 	assert.Equal(t, "hostname", agg.hostname)
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -156,7 +157,7 @@ func TestSetHostname(t *testing.T) {
 func TestDefaultData(t *testing.T) {
 	resetAggregator()
 	s := &serializer.MockSerializer{}
-	agg := InitAggregator(s, "hostname")
+	agg := InitAggregator(s, nil, "hostname")
 	start := time.Now()
 
 	s.On("SendServiceChecks", metrics.ServiceChecks{{
@@ -193,7 +194,7 @@ func TestDefaultData(t *testing.T) {
 func TestRecurentSeries(t *testing.T) {
 	resetAggregator()
 	s := &serializer.MockSerializer{}
-	agg := NewBufferedAggregator(s, "hostname", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
 
 	// Add two recurrentSeries
 	AddRecurrentSeries(&metrics.Serie{
@@ -212,14 +213,6 @@ func TestRecurentSeries(t *testing.T) {
 	})
 
 	start := time.Now()
-
-	agentUp := metrics.ServiceChecks{{
-		CheckName: "datadog.agent.up",
-		Status:    metrics.ServiceCheckOK,
-		Ts:        start.Unix(),
-		Host:      agg.hostname,
-		Tags:      []string{},
-	}}
 
 	series := metrics.Series{&metrics.Serie{
 		Name:           "some.metric.1",
@@ -251,20 +244,30 @@ func TestRecurentSeries(t *testing.T) {
 		SourceTypeName: "System",
 	}}
 
-	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// Assert that recurrentSeries are sent on each flushed
-	s.On("SendServiceChecks", agentUp).Return(nil).Times(1)
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	s.On("SendSeries", series).Return(nil).Times(1)
-	agg.Flush(start, false)
+	agg.Flush(start, true)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
-
+	s.AssertExpectations(t)
 }
 
 func TestTags(t *testing.T) {
@@ -314,7 +317,7 @@ func TestTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, "hostname", time.Second)
+			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
 			agg.agentTags = tt.agentTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})

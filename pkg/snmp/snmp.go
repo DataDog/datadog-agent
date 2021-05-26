@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	"github.com/soniah/gosnmp"
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
+	"github.com/gosnmp/gosnmp"
 )
 
 const (
@@ -30,30 +30,35 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers           int      `mapstructure:"workers"`
-	DiscoveryInterval int      `mapstructure:"discovery_interval"`
-	AllowedFailures   int      `mapstructure:"allowed_failures"`
-	Configs           []Config `mapstructure:"configs"`
+	Workers               int      `mapstructure:"workers"`
+	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
+	AllowedFailures       int      `mapstructure:"allowed_failures"`
+	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
+	Configs               []Config `mapstructure:"configs"`
 }
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	Network            string          `mapstructure:"network"`
-	Port               uint16          `mapstructure:"port"`
-	Version            string          `mapstructure:"version"`
-	Timeout            int             `mapstructure:"timeout"`
-	Retries            int             `mapstructure:"retries"`
-	Community          string          `mapstructure:"community"`
-	User               string          `mapstructure:"user"`
-	AuthKey            string          `mapstructure:"authentication_key"`
-	AuthProtocol       string          `mapstructure:"authentication_protocol"`
-	PrivKey            string          `mapstructure:"privacy_key"`
-	PrivProtocol       string          `mapstructure:"privacy_protocol"`
-	ContextEngineID    string          `mapstructure:"context_engine_id"`
-	ContextName        string          `mapstructure:"context_name"`
-	IgnoredIPAddresses map[string]bool `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier       string          `mapstructure:"ad_identifier"`
-	Loader             string          `mapstructure:"loader"`
+	Network                     string          `mapstructure:"network"`
+	Port                        uint16          `mapstructure:"port"`
+	Version                     string          `mapstructure:"version"`
+	Timeout                     int             `mapstructure:"timeout"`
+	Retries                     int             `mapstructure:"retries"`
+	OidBatchSize                int             `mapstructure:"oid_batch_size"`
+	Community                   string          `mapstructure:"community"`
+	User                        string          `mapstructure:"user"`
+	AuthKey                     string          `mapstructure:"authentication_key"`
+	AuthProtocol                string          `mapstructure:"authentication_protocol"`
+	PrivKey                     string          `mapstructure:"privacy_key"`
+	PrivProtocol                string          `mapstructure:"privacy_protocol"`
+	ContextEngineID             string          `mapstructure:"context_engine_id"`
+	ContextName                 string          `mapstructure:"context_name"`
+	IgnoredIPAddresses          map[string]bool `mapstructure:"ignored_ip_addresses"`
+	ADIdentifier                string          `mapstructure:"ad_identifier"`
+	Loader                      string          `mapstructure:"loader"`
+	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
+	CollectDeviceMetadata       bool
+	Tags                        []string `mapstructure:"tags"`
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
@@ -93,6 +98,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Retries == 0 {
 			config.Retries = defaultRetries
 		}
+		if config.CollectDeviceMetadataConfig != nil {
+			config.CollectDeviceMetadata = *config.CollectDeviceMetadataConfig
+		} else {
+			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
+		}
 	}
 	return snmpConfig, nil
 }
@@ -128,7 +138,7 @@ func (c *Config) Digest(address string) string {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
+func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	if c.Community == "" && c.User == "" {
 		return nil, errors.New("No authentication mechanism specified")
 	}
@@ -184,6 +194,7 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 	}
 
 	return &gosnmp.GoSNMP{
+		Target:          deviceIP,
 		Port:            c.Port,
 		Community:       c.Community,
 		Transport:       "udp",

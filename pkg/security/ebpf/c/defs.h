@@ -181,9 +181,11 @@
 	})
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
+#define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
 
 enum event_type
 {
+    EVENT_ANY = 0,
     EVENT_FIRST_DISCARDER = 1,
     EVENT_OPEN = EVENT_FIRST_DISCARDER,
     EVENT_MKDIR,
@@ -208,29 +210,8 @@ enum event_type
     EVENT_SETGID,
     EVENT_CAPSET,
     EVENT_ARGS_ENVS,
+    EVENT_MOUNT_RELEASED,
     EVENT_MAX, // has to be the last one
-};
-
-enum syscall_type
-{
-    SYSCALL_OPEN        = 1 << EVENT_OPEN,
-    SYSCALL_MKDIR       = 1 << EVENT_MKDIR,
-    SYSCALL_LINK        = 1 << EVENT_LINK,
-    SYSCALL_RENAME      = 1 << EVENT_RENAME,
-    SYSCALL_UNLINK      = 1 << EVENT_UNLINK,
-    SYSCALL_RMDIR       = 1 << EVENT_RMDIR,
-    SYSCALL_CHMOD       = 1 << EVENT_CHMOD,
-    SYSCALL_CHOWN       = 1 << EVENT_CHOWN,
-    SYSCALL_UTIME       = 1 << EVENT_UTIME,
-    SYSCALL_MOUNT       = 1 << EVENT_MOUNT,
-    SYSCALL_UMOUNT      = 1 << EVENT_UMOUNT,
-    SYSCALL_SETXATTR    = 1 << EVENT_SETXATTR,
-    SYSCALL_REMOVEXATTR = 1 << EVENT_REMOVEXATTR,
-    SYSCALL_EXEC        = 1 << EVENT_EXEC,
-    SYSCALL_FORK        = 1 << EVENT_FORK,
-    SYSCALL_SETUID      = 1 << EVENT_SETUID,
-    SYSCALL_SETGID      = 1 << EVENT_SETGID,
-    SYSCALL_CAPSET      = 1 << EVENT_CAPSET,
 };
 
 struct kevent_t {
@@ -283,6 +264,17 @@ struct file_t {
     u32 flags;
     u32 padding;
     struct file_metadata_t metadata;
+};
+
+struct tracepoint_raw_syscalls_sys_exit_t
+{
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    long id;
+    long ret;
 };
 
 struct bpf_map_def SEC("maps/path_id") path_id = {
@@ -375,6 +367,81 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+
+
+// implemented in the discarder.h file
+int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id);
+
+struct mount_released_event_t {
+    struct kevent_t event;
+    u32 mount_id;
+    u32 discarder_revision;
+};
+
+struct mount_ref_t {
+    u32 umounted;
+    s32 counter;
+};
+
+struct bpf_map_def SEC("maps/mount_ref") mount_ref = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct mount_ref_t),
+    .max_entries = 64000,
+    .pinning = 0,
+    .namespace = "",
+};
+
+static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t zero = {};
+
+    bpf_map_update_elem(&mount_ref, &key, &zero, BPF_NOEXIST);
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        __sync_fetch_and_add(&ref->counter, 1);
+    }
+}
+
+static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        __sync_fetch_and_add(&ref->counter, -1);
+        if (ref->counter > 0 || !ref->umounted) {
+            return;
+        }
+        bpf_map_delete_elem(&mount_ref, &key);
+    } else {
+        return;
+    }
+
+    struct mount_released_event_t event = {
+        .mount_id = mount_id,
+        .discarder_revision = bump_discarder_revision(mount_id),
+    };
+
+    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+}
+
+static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mount_id) {
+    u32 key = mount_id;
+    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
+    if (ref) {
+        if (ref->counter <= 0) {
+            bpf_map_delete_elem(&mount_ref, &key);
+        } else {
+            ref->umounted = 1;
+            return;
+        }
+    }
+
+    struct mount_released_event_t event = {
+        .mount_id = mount_id,
+        .discarder_revision = bump_discarder_revision(mount_id),
+    };
+    send_event(ctx, EVENT_MOUNT_RELEASED, event);
+}
 
 static __attribute__((always_inline)) u32 ord(u8 c) {
     if (c >= 49 && c <= 57) {

@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,14 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/soniah/gosnmp"
 )
 
 const (
 	defaultWorkers           = 2
 	defaultAllowedFailures   = 3
 	defaultDiscoveryInterval = 3600
+	tagSeparator             = ","
 )
 
 func init() {
@@ -56,7 +57,6 @@ var _ Service = &SNMPService{}
 type snmpSubnet struct {
 	adIdentifier   string
 	config         snmp.Config
-	defaultParams  *gosnmp.GoSNMP
 	startingIP     net.IP
 	network        net.IPNet
 	cacheKey       string
@@ -144,9 +144,12 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-	params := *job.subnet.defaultParams
 	deviceIP := job.currentIP.String()
-	params.Target = deviceIP
+	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
+	if err != nil {
+		log.Errorf("Error building params for device %s: %v", deviceIP, err)
+		return
+	}
 	entityID := job.subnet.config.Digest(deviceIP)
 	if err := params.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
@@ -155,6 +158,8 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		defer params.Conn.Close()
 
 		oids := []string{"1.3.6.1.2.1.1.2.0"}
+		// Since `params<GoSNMP>.ContextEngineID` is empty
+		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
 		value, err := params.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
@@ -178,12 +183,6 @@ func (l *SNMPListener) checkDevices() {
 			continue
 		}
 
-		defaultParams, err := config.BuildSNMPParams()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		configHash := config.Digest(config.Network)
@@ -196,7 +195,6 @@ func (l *SNMPListener) checkDevices() {
 		subnet := snmpSubnet{
 			adIdentifier:   adIdentifier,
 			config:         config,
-			defaultParams:  defaultParams,
 			startingIP:     startingIP,
 			network:        *ipNet,
 			cacheKey:       cacheKey,
@@ -395,6 +393,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(fmt.Sprintf("%d", s.config.Timeout)), nil
 	case "retries":
 		return []byte(fmt.Sprintf("%d", s.config.Retries)), nil
+	case "oid_batch_size":
+		return []byte(fmt.Sprintf("%d", s.config.OidBatchSize)), nil
 	case "community":
 		return []byte(s.config.Community), nil
 	case "user":
@@ -415,6 +415,21 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "collect_device_metadata":
+		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
+	case "tags":
+		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	}
 	return []byte{}, ErrNotSupported
+}
+
+func convertToCommaSepTags(tags []string) string {
+	normalizedTags := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		// Convert comma `,` to `_` since comma is used as separator.
+		// `,` is not an allowed character for tags and will be converted to `_` by backend anyway,
+		// so, converting `,` to `_` shouldn't have any impact.
+		normalizedTags = append(normalizedTags, strings.ReplaceAll(tag, tagSeparator, "_"))
+	}
+	return strings.Join(normalizedTags, tagSeparator)
 }

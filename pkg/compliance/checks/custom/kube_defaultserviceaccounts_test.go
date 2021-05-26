@@ -11,30 +11,52 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func newServiceAccount(ns, name string, automount bool) *unstructured.Unstructured {
-	sa := newUnstructured("v1", "ServiceAccount", ns, name, nil)
-	sa.Object["automountServiceAccountToken"] = automount
-	return sa
+func newServiceAccount(ns, name string, automount bool) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ServiceAccount",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		AutomountServiceAccountToken: &automount,
+	}
 }
 
-func newRoleBinding(ns, name, roletype string, subjects []rbacv1.Subject) *unstructured.Unstructured {
-	rb := newUnstructured("rbac.authorization.k8s.io/v1", roletype, ns, name, nil)
-	unstructuredSubjects := make([]interface{}, 0, len(subjects))
-	for _, subject := range subjects {
-		unstructuredSubject := map[string]interface{}{
-			"kind":      subject.Kind,
-			"namespace": subject.Namespace,
-			"name":      subject.Name,
-		}
-		unstructuredSubjects = append(unstructuredSubjects, unstructuredSubject)
+func newRoleBinding(ns, name string, subjects []rbacv1.Subject) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Subjects: subjects,
 	}
-	rb.Object["subjects"] = unstructuredSubjects
-	return rb
+}
+
+func newClusterRoleBinding(ns, name string, subjects []rbacv1.Subject) *rbacv1.ClusterRoleBinding {
+	return &rbacv1.ClusterRoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ClusterRoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Subjects: subjects,
+	}
 }
 
 func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
@@ -61,7 +83,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 			checkFunc: kubernetesDefaultServiceAccountsCheck,
 			objects: []runtime.Object{
 				newServiceAccount("ns1", "default", true),
-				newRoleBinding("ns1", "rb1", "RoleBinding", []rbacv1.Subject{}),
+				newRoleBinding("ns1", "rb1", []rbacv1.Subject{}),
 			},
 			expectReport: &compliance.Report{
 				Passed: false,
@@ -79,7 +101,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 			checkFunc: kubernetesDefaultServiceAccountsCheck,
 			objects: []runtime.Object{
 				newServiceAccount("ns1", "default", false),
-				newRoleBinding("ns1", "rb1", "RoleBinding", []rbacv1.Subject{
+				newRoleBinding("ns1", "rb1", []rbacv1.Subject{
 					{
 						Kind:      rbacv1.ServiceAccountKind,
 						Namespace: "ns1",
@@ -103,7 +125,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 			checkFunc: kubernetesDefaultServiceAccountsCheck,
 			objects: []runtime.Object{
 				newServiceAccount("ns1", "default", false),
-				newRoleBinding("", "crb1", "ClusterRoleBinding", []rbacv1.Subject{
+				newClusterRoleBinding("", "crb1", []rbacv1.Subject{
 					{
 						Kind:      rbacv1.ServiceAccountKind,
 						Namespace: "ns1",
@@ -127,14 +149,14 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 			checkFunc: kubernetesDefaultServiceAccountsCheck,
 			objects: []runtime.Object{
 				newServiceAccount("ns1", "default", false),
-				newRoleBinding("ns2", "rb2", "RoleBinding", []rbacv1.Subject{
+				newRoleBinding("ns2", "rb2", []rbacv1.Subject{
 					{
 						Kind:      rbacv1.ServiceAccountKind,
 						Namespace: "ns2",
 						Name:      "default",
 					},
 				}),
-				newRoleBinding("", "crb1", "ClusterRoleBinding", []rbacv1.Subject{
+				newClusterRoleBinding("", "crb1", []rbacv1.Subject{
 					{
 						Kind:      rbacv1.ServiceAccountKind,
 						Namespace: "ns1",

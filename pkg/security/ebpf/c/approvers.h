@@ -3,7 +3,7 @@
 
 #include "syscalls.h"
 
-#define BASENAME_FILTER_SIZE 32
+#define BASENAME_FILTER_SIZE 255
 
 struct basename_t {
     char value[BASENAME_FILTER_SIZE];

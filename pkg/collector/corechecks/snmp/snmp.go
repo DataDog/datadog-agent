@@ -14,7 +14,10 @@ import (
 
 const (
 	snmpCheckName = "snmp"
+	snmpLoaderTag = "loader:core"
 )
+
+var timeNow = time.Now
 
 // Check aggregates metrics from one Check instance
 type Check struct {
@@ -26,7 +29,7 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	start := time.Now()
+	startTime := time.Now()
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -37,26 +40,21 @@ func (c *Check) Run() error {
 	staticTags := c.config.getStaticTags()
 
 	var checkErr error
-	tags, checkErr := c.processSnmpMetrics(staticTags)
+	tags, checkErr := c.processMetricsAndMetadata(staticTags)
 	if checkErr != nil {
 		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
 		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckOK, "", tags, "")
 	}
 
-	c.sender.gauge("snmp.devices_monitored", float64(1), "", tags)
-
-	// SNMP Performance metrics
-	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(start.UnixNano()).Seconds(), "", tags)
-	c.sender.gauge("datadog.snmp.check_duration", time.Since(start).Seconds(), "", tags)
-	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", tags)
+	c.submitTelemetryMetrics(startTime, tags)
 
 	// Commit
 	sender.Commit()
 	return checkErr
 }
 
-func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
+func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error) {
 	tags := copyStrings(staticTags)
 
 	// Create connection
@@ -93,15 +91,35 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 	if c.config.oidConfig.hasOids() {
 		c.config.addUptimeMetric()
 
+		collectionTime := timeNow()
 		valuesStore, err := fetchValues(c.session, c.config)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetch values: %s", err)
 		}
-		log.Debugf("fetched valuesStore: %#v", valuesStore)
+		log.Debugf("fetched valuesStore: %v", valuesStore)
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+
+		if c.config.collectDeviceMetadata {
+			// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
+			// `checkSender.checkTags` are added for metrics, service checks, events only.
+			// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
+			deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
+			c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime)
+		}
 	}
 	return tags, nil
+}
+
+func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
+	newTags := append(copyStrings(tags), snmpLoaderTag)
+
+	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
+
+	// SNMP Performance metrics
+	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
+	c.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
+	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks

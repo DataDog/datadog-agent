@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +43,7 @@ func init() {
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
-	forwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is

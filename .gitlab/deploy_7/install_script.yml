@@ -2,14 +2,14 @@
 .if_not_master_branch: &if_not_master_branch
   if: $CI_COMMIT_BRANCH != "master"
 
-.if_kitchen_deploy: &if_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
 promote_install_script:
   rules:
     - <<: *if_not_master_branch
       when: never
-    - <<: *if_kitchen_deploy
+    - <<: *if_kitchen
       when: manual
       allow_failure: true
   stage: deploy7

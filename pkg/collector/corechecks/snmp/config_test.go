@@ -6,14 +6,17 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -92,6 +95,10 @@ metric_tags:
       prefix: '\1'
       suffix: '\2'
 profile: f5-big-ip
+tags:
+  - tag1
+  - tag2:val2
+  - autodiscovery_subnet:127.0.0.0/30
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -102,10 +109,12 @@ global_metrics:
 - symbol:
     OID: 1.2.3.4
     name: aGlobalMetric
+oid_batch_size: 10
 `)
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
+	assert.Equal(t, 10, check.config.oidBatchSize)
 	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
@@ -117,6 +126,7 @@ global_metrics:
 	assert.Equal(t, "aes", check.config.privProtocol)
 	assert.Equal(t, "my-privKey", check.config.privKey)
 	assert.Equal(t, "my-contextName", check.config.contextName)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: metricTagConfigList{
@@ -180,16 +190,30 @@ global_metrics:
 				"suffix": "\\2",
 			},
 		},
+		{
+			OID:     "1.3.6.1.2.1.1.5.0",
+			Name:    "sysName",
+			Match:   "(\\w)(\\w+)",
+			pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			Tags: map[string]string{
+				"some_tag": "some_tag_value",
+				"prefix":   "\\1",
+				"suffix":   "\\2",
+			},
+		},
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
 	assert.Equal(t, metrics, check.config.metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
+	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
+	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -216,8 +240,20 @@ community_string: abc
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.profiles["f5-big-ip"].Metrics)
 }
 
+func TestIPAddressConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default port
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address:
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.EqualError(t, err, "build config failed: ip_address config must be provided")
+}
+
 func TestPortConfiguration(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	// TEST Default port
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -242,8 +278,65 @@ community_string: abc
 	assert.Equal(t, uint16(1234), check.config.port)
 }
 
+func TestBatchSizeConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default batch size
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 60, check.config.oidBatchSize)
+
+	// TEST Instance config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+oid_batch_size: 10
+`)
+	err = check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 10, check.config.oidBatchSize)
+
+	// TEST Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 15, check.config.oidBatchSize)
+
+	// TEST Instance & Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+oid_batch_size: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, 20, check.config.oidBatchSize)
+}
+
 func TestGlobalMetricsConfigurations(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -273,7 +366,7 @@ global_metrics:
 }
 
 func TestUseGlobalMetricsFalse(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	check := Check{session: &snmpSession{}}
 	// language=yaml
@@ -302,52 +395,8 @@ global_metrics:
 	assert.Equal(t, metrics, check.config.metrics)
 }
 
-func Test_oidConfig_hasOids(t *testing.T) {
-	tests := []struct {
-		name            string
-		scalarOids      []string
-		columnOids      []string
-		expectedHasOids bool
-	}{
-		{
-			"has scalar oids",
-			[]string{"1.2.3"},
-			[]string{},
-			true,
-		},
-		{
-			"has scalar and column oids",
-			[]string{"1.2.3"},
-			[]string{"1.2.4"},
-			true,
-		},
-		{
-			"has no oids",
-			[]string{},
-			[]string{},
-			false,
-		},
-		{
-			"has no oids nil",
-			nil,
-			nil,
-			false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			oc := &oidConfig{
-				scalarOids: tt.scalarOids,
-				columnOids: tt.columnOids,
-			}
-			hasOids := oc.hasOids()
-			assert.Equal(t, tt.expectedHasOids, hasOids)
-		})
-	}
-}
-
 func Test_buildConfig(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	tests := []struct {
 		name              string
@@ -579,7 +628,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 }
 
 func TestNumberConfigsUsingStrings(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	check := Check{session: &snmpSession{}}
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -595,4 +644,194 @@ retries: "5"
 	assert.Equal(t, 15, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
 
+}
+
+func TestExtraTags(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+
+	// language=yaml
+	rawInstanceConfigWithExtraTags := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+extra_tags: "extratag1:val1,extratag2:val2"
+`)
+	err = check.Configure(rawInstanceConfigWithExtraTags, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, check.config.getStaticTags())
+}
+
+func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
+	c := &snmpConfig{
+		ipAddress:    "1.2.3.4",
+		extraTags:    []string{"extratag1:val1", "extratag2"},
+		instanceTags: []string{"instancetag1:val1", "instancetag2"},
+	}
+	actualTags := c.getDeviceIDTags()
+
+	expectedTags := []string{"extratag1:val1", "extratag2", "instancetag1:val1", "instancetag2", "snmp_device:1.2.3.4"}
+	assert.Equal(t, expectedTags, actualTags)
+}
+
+func Test_snmpConfig_refreshWithProfile(t *testing.T) {
+	metrics := []metricsConfig{
+		{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+		{
+			Symbols: []symbolConfig{
+				{
+					OID:  "1.2.3.4.6",
+					Name: "abc",
+				},
+			},
+			MetricTags: metricTagConfigList{
+				metricTagConfig{
+					Column: symbolConfig{
+						OID: "1.2.3.4.7",
+					},
+				},
+			},
+		},
+	}
+	profile1 := profileDefinition{
+		Device: deviceMeta{
+			Vendor: "a-vendor",
+		},
+		Metrics: metrics,
+		MetricTags: []metricTagConfig{
+			{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+		},
+		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+	}
+	mockProfiles := profileDefinitionMap{
+		"profile1": profile1,
+	}
+	c := &snmpConfig{
+		ipAddress: "1.2.3.4",
+		profiles:  mockProfiles,
+	}
+	err := c.refreshWithProfile("f5")
+	assert.EqualError(t, err, "unknown profile `f5`")
+
+	err = c.refreshWithProfile("profile1")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "profile1", c.profile)
+	assert.Equal(t, profile1, *c.profileDef)
+	assert.Equal(t, metrics, c.metrics)
+	assert.Equal(t, []metricTagConfig{
+		{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+	}, c.metricTags)
+	assert.Equal(t, oidConfig{
+		scalarOids: []string{"1.2.3.4.5"},
+		columnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
+	}, c.oidConfig)
+	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
+
+	c = &snmpConfig{
+		ipAddress:             "1.2.3.4",
+		profiles:              mockProfiles,
+		collectDeviceMetadata: true,
+	}
+	err = c.refreshWithProfile("profile1")
+	assert.NoError(t, err)
+	assert.Equal(t, oidConfig{
+		scalarOids: []string{
+			"1.2.3.4.5",
+			"1.3.6.1.2.1.1.5.0",
+			"1.3.6.1.2.1.1.1.0",
+			"1.3.6.1.2.1.1.2.0",
+		},
+		columnOids: []string{
+			"1.2.3.4.6",
+			"1.2.3.4.7",
+			"1.3.6.1.2.1.31.1.1.1.1",
+			"1.3.6.1.2.1.31.1.1.1.18",
+			"1.3.6.1.2.1.2.2.1.2",
+			"1.3.6.1.2.1.2.2.1.6",
+			"1.3.6.1.2.1.2.2.1.7",
+			"1.3.6.1.2.1.2.2.1.8",
+		},
+	}, c.oidConfig)
+}
+
+func Test_getSubnetFromTags(t *testing.T) {
+	subnet, err := getSubnetFromTags([]string{"aa", "bb"})
+	assert.Equal(t, "", subnet)
+	assert.EqualError(t, err, "subnet not found in tags [aa bb]")
+
+	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:127.0.0.0/30", "bb"})
+	assert.NoError(t, err)
+	assert.Equal(t, "127.0.0.0/30", subnet)
+
+	// make sure we don't panic if the subnet if empty
+	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:", "bb"})
+	assert.NoError(t, err)
+	assert.Equal(t, "", subnet)
+}
+
+func Test_buildConfig_collectDeviceMetadata(t *testing.T) {
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, false, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_device_metadata: true
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_device_metadata: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, true, check.config.collectDeviceMetadata)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_device_metadata: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_device_metadata: true
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, false, check.config.collectDeviceMetadata)
 }

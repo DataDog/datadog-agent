@@ -8,6 +8,7 @@ package snmp
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -71,16 +72,17 @@ func createMockSession() *mockSession {
 	return session
 }
 
-func setConfdPath() {
+func setConfdPathAndCleanProfiles() {
+	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
 }
 
 func TestBasicSample(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
-	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -218,6 +220,7 @@ tags:
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := append(copyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(copyStrings(snmpGlobalTags), "loader:core")
 	row1Tags := append(copyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
 	row2Tags := append(copyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
 	scalarTags := append(copyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -231,13 +234,13 @@ tags:
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(201), "", row1Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.ifOutErrors", float64(202), "", row2Tags)
 
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTags)
-	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTags)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
+	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", snmpGlobalTagsWithLoader)
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -304,13 +307,21 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	setConfdPath()
+	timeNow = mockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	setConfdPathAndCleanProfiles()
+
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 profile: f5-big-ip
+collect_device_metadata: true
+tags:
+  - "mytag:val1"
+  - "mytag:val1" # add duplicate tag for testing deduplication
+  - "autodiscovery_subnet:127.0.0.0/30"
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -326,6 +337,7 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -334,6 +346,16 @@ profiles:
 				Name:  "1.3.6.1.2.1.1.5.0",
 				Type:  gosnmp.OctetString,
 				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.1.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("my_desc"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
 			},
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
@@ -361,6 +383,26 @@ profiles:
 				Value: 141,
 			},
 			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
 				Type:  gosnmp.OctetString,
 				Value: []byte("nameRow1"),
@@ -379,6 +421,26 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.2",
 				Type:  gosnmp.Integer,
 				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
 			},
 			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
@@ -410,11 +472,48 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
+	session.On("Get", []string{
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.2.3.4.5",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	}).Return(&packet, nil)
+	session.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -431,11 +530,73 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
+	// language=json
+	event := []byte(`
+{
+  "subnet": "127.0.0.0/30",
+  "devices": [
+    {
+      "id": "173b2077d0770b8",
+      "id_tags": [
+        "mytag:val1",
+        "snmp_device:1.2.3.4"
+      ],
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "ip_address": "1.2.3.4",
+      "sys_object_id": "1.2.3.4",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "subnet": "127.0.0.0/30",
+      "tags": [
+        "autodiscovery_subnet:127.0.0.0/30",
+        "device_vendor:f5",
+        "mytag:val1",
+        "prefix:f",
+        "snmp_device:1.2.3.4",
+        "snmp_host:foo_sys_name",
+        "snmp_profile:f5-big-ip",
+        "some_tag:some_tag_value",
+        "suffix:oo_sys_name"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "173b2077d0770b8",
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "ifDescRow1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "173b2077d0770b8",
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "ifDescRow2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
@@ -560,7 +721,8 @@ profiles:
 	err = check.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
+	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
+		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
 	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
@@ -574,7 +736,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	session := createMockSession()
 	session.connectErr = fmt.Errorf("can't connect")
 	check := Check{session: session}
@@ -605,7 +767,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckID(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	// language=yaml
@@ -684,6 +846,11 @@ func TestCheck_Run(t *testing.T) {
 				Value: []byte("foo_sys_name"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
@@ -740,7 +907,7 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setConfdPath()
+			setConfdPathAndCleanProfiles()
 			session := createMockSession()
 			session.connectErr = tt.sessionConnError
 			check := Check{session: session}
@@ -756,7 +923,7 @@ ip_address: 1.2.3.4
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+				aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 			}
 
 			mocksender.SetSender(sender, check.ID())
@@ -785,7 +952,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	setConfdPath()
+	setConfdPathAndCleanProfiles()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)

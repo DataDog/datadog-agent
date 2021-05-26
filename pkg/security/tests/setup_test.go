@@ -11,11 +11,13 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"golang.org/x/sys/unix"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -25,17 +27,22 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
+
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,13 +64,13 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
-    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -139,6 +146,7 @@ type testModule struct {
 	listener     net.Listener
 	events       chan testEvent
 	discarders   chan *testDiscarder
+	cmdWrapper   cmdWrapper
 }
 
 var testMod *testModule
@@ -216,10 +224,61 @@ func getInode(t *testing.T, path string) uint64 {
 	return stats.Ino
 }
 
-func setTestConfig(dir string, opts testOpts) error {
+func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
+	t.Helper()
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong mode")
+	}
+	assert.Equal(t, strconv.FormatUint(uint64(actualMode), 8), strconv.FormatUint(uint64(expectedMode), 8), msgAndArgs...)
+}
+
+func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
+	t.Helper()
+	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
+}
+
+func assertNearTime(t *testing.T, event time.Time) {
+	t.Helper()
+	now := time.Now()
+	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
+		t.Errorf("expected time close to %s, got %s", now, event)
+	}
+}
+
+func assertTriggeredRule(t *testing.T, r *eval.Rule, id string) {
+	t.Helper()
+	assert.Equal(t, r.ID, id, "wrong triggered rule")
+}
+
+func assertReturnValue(t *testing.T, retval, expected int64) {
+	t.Helper()
+	assert.Equal(t, retval, expected, "wrong return value")
+}
+
+func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Equal(t, fieldValue, value, msgAndArgs...)
+	}
+}
+
+func assertFieldOneOf(t *testing.T, e *probe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Assert(t, is.Contains(values, fieldValue))
+	}
+}
+
+func setTestConfig(dir string, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -233,11 +292,17 @@ func setTestConfig(dir string, opts testOpts) error {
 		"DisableDiscarders":    opts.disableDiscarders,
 		"EventsCountThreshold": opts.eventsCountThreshold,
 	}); err != nil {
-		return err
+		return "", err
 	}
 
-	aconfig.Datadog.SetConfigType("yaml")
-	return aconfig.Datadog.ReadConfig(buffer)
+	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	if err != nil {
+		return "", err
+	}
+	defer sysprobeConfig.Close()
+
+	_, err = io.Copy(sysprobeConfig, buffer)
+	return sysprobeConfig.Name(), err
 }
 
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
@@ -287,7 +352,8 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, err
 	}
 
-	if err := setTestConfig(st.root, opts); err != nil {
+	sysprobeConfig, err := setTestConfig(st.root, opts)
+	if err != nil {
 		return nil, err
 	}
 
@@ -297,16 +363,33 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 	defer os.Remove(cfgFilename)
 
+	var cmdWrapper cmdWrapper
+	if testEnvironment == DockerEnvironment {
+		cmdWrapper = newStdCmdWrapper()
+	} else {
+		wrapper, err := newDockerCmdWrapper(st.Root())
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
+		} else {
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
+		}
+	}
+
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.cleanup()
 	}
 
-	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	agentConfig, err := sysconfig.New(sysprobeConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
@@ -337,6 +420,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
 			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
 		},
+		cmdWrapper: cmdWrapper,
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -349,6 +433,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	testMod.probe.SetEventHandler(testMod.probeHandler)
 
 	return testMod, nil
+}
+
+func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	tm.cmdWrapper.Run(t, name, fnc)
 }
 
 func (tm *testModule) reset() {
@@ -460,8 +548,8 @@ func (tm *testModule) GetProbeEvent(timeout time.Duration, eventType ...eval.Eve
 	}
 }
 
-func (tm *testModule) Path(filename string) (string, unsafe.Pointer, error) {
-	return tm.st.Path(filename)
+func (tm *testModule) Path(filename ...string) (string, unsafe.Pointer, error) {
+	return tm.st.Path(filename...)
 }
 
 func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
@@ -471,16 +559,14 @@ func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) 
 	}
 
 	// Create file
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, uintptr(mode))
-	if errno != 0 {
-		return testFile, testFilePtr, error(errno)
+	f, err := os.OpenFile(testFile, os.O_CREATE, os.FileMode(mode))
+	if err != nil {
+		return "", nil, err
 	}
-	syscall.Close(int(fd))
+	f.Close()
 
 	// Chown the file
-	if _, _, errno := syscall.Syscall(syscall.SYS_CHOWN, uintptr(testFilePtr), uintptr(user), uintptr(group)); errno != 0 {
-		return testFile, testFilePtr, error(errno)
-	}
+	err = os.Chown(testFile, user, group)
 	return testFile, testFilePtr, err
 }
 
@@ -504,11 +590,17 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 
 type tracePipeLogger struct {
 	*TracePipe
-	stop chan struct{}
+	stop       chan struct{}
+	executable string
 }
 
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
-	if event.PID == strconv.Itoa(os.Getpid()) {
+	// for some reason, the event task is resolved to "<...>"
+	// so we check that event.PID is the ID of a task of the running process
+	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	_, err := os.Stat(taskPath)
+
+	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
 		log.Debug(event.Raw)
 	}
 }
@@ -546,9 +638,15 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		return nil, err
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
 	logger := &tracePipeLogger{
-		TracePipe: tracePipe,
-		stop:      make(chan struct{}),
+		TracePipe:  tracePipe,
+		stop:       make(chan struct{}),
+		executable: filepath.Base(executable),
 	}
 	logger.Start()
 
@@ -588,13 +686,15 @@ func (t *simpleTest) ProcessName() string {
 	return path.Base(executable)
 }
 
-func (t *simpleTest) Path(filename string) (string, unsafe.Pointer, error) {
-	filename = path.Join(t.root, filename)
-	filenamePtr, err := syscall.BytePtrFromString(filename)
+func (t *simpleTest) Path(filename ...string) (string, unsafe.Pointer, error) {
+	components := []string{t.root}
+	components = append(components, filename...)
+	path := path.Join(components...)
+	filenamePtr, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return "", nil, err
 	}
-	return filename, unsafe.Pointer(filenamePtr), nil
+	return path, unsafe.Pointer(filenamePtr), nil
 }
 
 func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (err error) {
@@ -693,19 +793,34 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
-func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
-	if testEnvironment != DockerEnvironment {
-		return
-	}
+func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string, expected string) {
+	t.Helper()
 
-	path, err := event.GetFieldValue(fieldPath)
+	// check container path
+	value, err := event.GetFieldValue(fieldPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s", path)
+	switch value.(type) {
+	case string:
+		if !strings.Contains(value.(string), expected) {
+			t.Errorf("expected value `%s` for `%s` not found: %+v", expected, fieldPath, event)
+		}
+	case []string:
+		for _, v := range value.([]string) {
+			if strings.Contains(v, expected) {
+				return
+			}
+		}
+		t.Errorf("expected value `%s` for `%s` not found in for `%+v`: %+v", expected, fieldPath, value, event)
 	}
+}
+
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	t.Helper()
+
+	testStringFieldContains(t, event, fieldPath, "docker")
 }
 
 func (tm *testModule) flushChannels(duration time.Duration) {
@@ -734,6 +849,19 @@ func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.E
 		case <-timeout:
 			return nil, errors.New("timeout")
 		}
+	}
+}
+
+func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		syscallNB, found := supportedSyscalls[syscall]
+		if !found {
+			t.Skipf("%s is not supported", syscall)
+		}
+
+		test(t, syscallNB)
 	}
 }
 

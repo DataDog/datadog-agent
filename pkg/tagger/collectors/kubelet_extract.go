@@ -134,11 +134,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			case kubernetes.ReplicaSetKind:
 				deployment := parseDeploymentForReplicaSet(owner.Name)
 				if len(deployment) > 0 {
-					tags.AddOrchestrator(kubernetes.ReplicaSetTagName, owner.Name)
 					tags.AddLow(kubernetes.DeploymentTagName, deployment)
-				} else {
-					tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
 				}
+				tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
 			default:
 				log.Debugf("unknown owner kind %s for pod %s", owner.Kind, pod.Metadata.Name)
 			}

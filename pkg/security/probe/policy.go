@@ -32,7 +32,7 @@ const (
 	PolicyFlagMode     PolicyFlag = 4
 
 	// need to be aligned with the kernel size
-	BasenameFilterSize = 32
+	BasenameFilterSize = 255
 )
 
 func (m PolicyMode) String() string {

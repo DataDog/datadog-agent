@@ -93,7 +93,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.14`. Make
+You must [install Golang](https://golang.org/doc/install) version `1.15`. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any
 additional tool it might need.
 
@@ -104,7 +104,7 @@ binary properly.**
 
 ## Installing dependencies
 
-From the root of `datadog-agent`, run `invoke deps`. This uses `go` to install the necessary dependencies.
+From the root of `datadog-agent`, run `invoke install-tools` to install go tooling, then `invoke deps` to install go dependencies. This uses `go` to install the necessary dependencies.
 
 ## System or Embedded?
 
@@ -146,11 +146,6 @@ and build dependencies, so you need a recent `ruby` environment with `bundler`
 installed. See [how to build Agent packages with Omnibus][agent-omnibus] for more
 details.
 
-If you want to perform an Embedded build, you need to set the `use_system_libs`
-boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
-changing the `invoke.yaml` file or passing the corresponding arg to the build and
-test tasks, like `invoke build --use-system-libs=false`.
-
 ### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.
@@ -190,10 +185,13 @@ To get the dependency graphs, you may also need to install the `dot` executable 
 ## Pre-commit hooks
 
 It is optional but recommended to install `pre-commit` to run a number of checks done by the CI locally.
+
+### Installation
+
 To install it, run:
 
 ```sh
-pip install pre-commit
+python3 -m pip install pre-commit
 pre-commit install
 ```
 
@@ -205,6 +203,21 @@ inv install-shellcheck --destination <path>
 ```
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
+
+### Skipping `pre-commit`
+
+If you want to skip `pre-commit` for a specific commit you can add `--no-verify` to the `git commit` command.
+
+### Running `pre-commit` manually
+
+If you want to run one of the checks manually, you can run `pre-commit run <check name>`.
+
+You can run it on all files with the `--all-files` flag.
+```sh
+pre-commit run flake8 --all-files  # run flake8 on all files
+```
+
+See `pre-commit run --help` for further options.
 
 # Setting up your Windows development environment
 

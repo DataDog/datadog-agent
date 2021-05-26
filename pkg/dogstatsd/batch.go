@@ -1,6 +1,8 @@
 package dogstatsd
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -51,7 +53,11 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 
 func (b *batcher) flushSamples() {
 	if b.samplesCount > 0 {
+		t1 := time.Now()
 		b.choutSamples <- b.samples[:b.samplesCount]
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
+
 		b.samplesCount = 0
 		b.samples = b.metricSamplePool.GetBatch()
 	}
@@ -61,11 +67,19 @@ func (b *batcher) flushSamples() {
 func (b *batcher) flush() {
 	b.flushSamples()
 	if len(b.events) > 0 {
+		t1 := time.Now()
 		b.choutEvents <- b.events
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "events")
+
 		b.events = []*metrics.Event{}
 	}
 	if len(b.serviceChecks) > 0 {
+		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
+		t2 := time.Now()
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "service_checks")
+
 		b.serviceChecks = []*metrics.ServiceCheck{}
 	}
 }

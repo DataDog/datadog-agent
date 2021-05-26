@@ -14,7 +14,6 @@ package cpu
 import (
 	"fmt"
 	"strconv"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -35,32 +34,17 @@ var (
 
 const cpuCheckName = "cpu"
 
-// For testing purpose
-var times = Times
-
-// TimesStat contains the amounts of time the CPU has spent performing different
-// kinds of work. Time units are in USER_HZ or Jiffies (typically hundredths of
-// a second). It is based on linux /proc/stat file.
-type TimesStat struct {
-	CPU    string
-	User   float64
-	System float64
-	Idle   float64
-}
+// For testing purposes
+var cpuInfo = cpu.GetCpuInfo
 
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	nbCPU       float64
-	lastNbCycle float64
-	lastTimes   TimesStat
-	counter     *pdhutil.PdhMultiInstanceCounterSet
-}
-
-// Total returns the total number of seconds in a CPUTimesStat
-func (c TimesStat) Total() float64 {
-	total := c.User + c.System + c.Idle
-	return total
+	nbCPU             float64
+	interruptsCounter *pdhutil.PdhMultiInstanceCounterSet
+	idleCounter       *pdhutil.PdhMultiInstanceCounterSet
+	userCounter       *pdhutil.PdhMultiInstanceCounterSet
+	privilegedCounter *pdhutil.PdhMultiInstanceCounterSet
 }
 
 // Run executes the check
@@ -70,49 +54,45 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	cpuTimes, err := times()
-	if err != nil {
-		log.Errorf("cpu.Check: could not retrieve cpu stats: %s", err)
-		return err
-	} else if len(cpuTimes) < 1 {
-		errEmpty := fmt.Errorf("no cpu stats retrieve (empty results)")
-		log.Errorf("cpu.Check: %s", errEmpty)
-		return errEmpty
-	}
-	t := cpuTimes[0]
-
-	nbCycle := t.Total() / c.nbCPU
-
 	sender.Gauge("system.cpu.num_cores", c.nbCPU, "", nil)
-	if c.lastNbCycle != 0 {
-		// gopsutil return the sum of every CPU
-		toPercent := 100 / (nbCycle - c.lastNbCycle)
 
-		user := ((t.User) - (c.lastTimes.User)) / c.nbCPU
-		system := ((t.System) - (c.lastTimes.System)) / c.nbCPU
-		iowait := float64(0)
-		idle := (t.Idle - c.lastTimes.Idle) / c.nbCPU
-		stolen := float64(0)
-		guest := float64(0)
-
-		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
-		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
-		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
-		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
-		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
-		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
-	}
-	vals, err := c.counter.GetAllValues()
+	vals, err := c.interruptsCounter.GetAllValues()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
 		val := vals["_Total"]
 		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
 	}
+
+	vals, err = c.idleCounter.GetAllValues()
+	if err != nil {
+		log.Warnf("Error getting handle value %v", err)
+	} else {
+		val := vals["_Total"]
+		sender.Gauge("system.cpu.idle", float64(val), "", nil)
+	}
+
+	vals, err = c.userCounter.GetAllValues()
+	if err != nil {
+		log.Warnf("Error getting handle value %v", err)
+	} else {
+		val := vals["_Total"]
+		sender.Gauge("system.cpu.user", float64(val), "", nil)
+	}
+
+	vals, err = c.privilegedCounter.GetAllValues()
+	if err != nil {
+		log.Warnf("Error getting handle value %v", err)
+	} else {
+		val := vals["_Total"]
+		sender.Gauge("system.cpu.system", float64(val), "", nil)
+	}
+
+	sender.Gauge("system.cpu.iowait", 0.0, "", nil)
+	sender.Gauge("system.cpu.stolen", 0.0, "", nil)
+	sender.Gauge("system.cpu.guest", 0.0, "", nil)
 	sender.Commit()
 
-	c.lastNbCycle = nbCycle
-	c.lastTimes = t
 	return nil
 }
 
@@ -123,16 +103,30 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 	}
 
 	// do nothing
-	info, err := cpu.GetCpuInfo()
+	info, err := cpuInfo()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
 
-	c.counter, err = pdhutil.GetMultiInstanceCounter("Processor", "% Interrupt Time", &[]string{"_Total"}, nil)
+	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
+	// you visibility about other applications running on the same processor as you
+	c.interruptsCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Interrupt Time", &[]string{"_Total"}, nil)
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
+	}
+	c.idleCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Idle Time", &[]string{"_Total"}, nil)
+	if err != nil {
+		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
+	}
+	c.userCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% User Time", &[]string{"_Total"}, nil)
+	if err != nil {
+		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
+	}
+	c.privilegedCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Privileged Time", &[]string{"_Total"}, nil)
+	if err != nil {
+		return fmt.Errorf("cpu.Check could not establish system time counter %v", err)
 	}
 	return nil
 }
@@ -145,38 +139,4 @@ func cpuFactory() check.Check {
 
 func init() {
 	core.RegisterCheck(cpuCheckName, cpuFactory)
-}
-
-// FILETIME is a copy of the Windows FILETIME structure
-type FILETIME struct {
-	DwLowDateTime  uint32
-	DwHighDateTime uint32
-}
-
-// Times returns times stat per cpu and combined for all CPUs
-func Times() ([]TimesStat, error) {
-	var ret []TimesStat
-	var lpIdleTime FILETIME
-	var lpKernelTime FILETIME
-	var lpUserTime FILETIME
-	r, _, _ := procGetSystemTimes.Call(
-		uintptr(unsafe.Pointer(&lpIdleTime)),
-		uintptr(unsafe.Pointer(&lpKernelTime)),
-		uintptr(unsafe.Pointer(&lpUserTime)))
-	if r == 0 {
-		return ret, windows.GetLastError()
-	}
-
-	idle := uint64(uint64(lpIdleTime.DwHighDateTime)<<32) + uint64(lpIdleTime.DwLowDateTime)
-	user := uint64(uint64(lpUserTime.DwHighDateTime)<<32) + uint64(lpUserTime.DwLowDateTime)
-	kernel := uint64(uint64(lpKernelTime.DwHighDateTime)<<32) + uint64(lpKernelTime.DwLowDateTime)
-	system := (kernel - idle)
-
-	ret = append(ret, TimesStat{
-		CPU:    "cpu-total",
-		Idle:   float64(idle),
-		User:   float64(user),
-		System: float64(system),
-	})
-	return ret, nil
 }

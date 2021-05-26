@@ -221,7 +221,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	s := serializer.NewSerializer(f, orchestratorForwarder)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
@@ -277,6 +277,7 @@ func start(cmd *cobra.Command, args []string) error {
 			SecretInformers:  apiCl.CertificateSecretInformerFactory,
 			WebhookInformers: apiCl.WebhookConfigInformerFactory,
 			Client:           apiCl.Cl,
+			DiscoveryClient:  apiCl.DiscoveryCl,
 			StopCh:           stopCh,
 		}
 		err = admissionpkg.StartControllers(admissionCtx)
@@ -299,8 +300,8 @@ func start(cmd *cobra.Command, args []string) error {
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx)
 		if err == nil {
-			api.ModifyRouter(func(r *mux.Router) {
-				dcav1.Install(r.PathPrefix("/api/v1").Subrouter(), clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+			api.ModifyAPIRouter(func(r *mux.Router) {
+				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
 		} else {
 			log.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)

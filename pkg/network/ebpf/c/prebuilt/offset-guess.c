@@ -133,8 +133,9 @@ static __always_inline int guess_offsets(tracer_status_t* status, struct sock* s
         bpf_probe_read(&new_status.rtt_var, sizeof(new_status.rtt_var), ((char*)skp) + status->offset_rtt_var);
         break;
     case GUESS_DADDR_IPV6:
-        if (!check_family(skp, status, AF_INET6))
+        if (!check_family(skp, status, AF_INET6)) {
             break;
+        }
 
         bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, ((char*)skp) + status->offset_daddr_ipv6);
         break;

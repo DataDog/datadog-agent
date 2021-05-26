@@ -102,7 +102,9 @@ def build(
     """
 
     if not exclude_rtloader and not iot:
-        rtloader_make(ctx, python_runtimes=python_runtimes)
+        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
+        # in the embedded path folder because that's what is used in get_build_flags()
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -351,8 +353,21 @@ def get_omnibus_env(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     env = load_release_versions(ctx, release_version)
+
+    # If the host has a GOMODCACHE set, try to reuse it
+    if not go_mod_cache and os.environ.get('GOMODCACHE'):
+        go_mod_cache = os.environ.get('GOMODCACHE')
+
+    if go_mod_cache:
+        env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
+    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    # Only overrides the env var if the value is a non-empty string.
+    if integrations_core_version:
+        env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
@@ -453,6 +468,7 @@ def omnibus_build(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -469,6 +485,11 @@ def omnibus_build(
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
+    if base_dir is not None and sys.platform == 'win32':
+        # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
+        # error 'no matched files for glob copy' at the end of the build.
+        base_dir = base_dir.replace(os.path.sep, '/')
+
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
@@ -479,6 +500,7 @@ def omnibus_build(
         system_probe_bin=system_probe_bin,
         libbcc_tarball=libbcc_tarball,
         with_bcc=with_bcc,
+        go_mod_cache=go_mod_cache,
     )
 
     target_project = "agent"
@@ -530,6 +552,7 @@ def omnibus_manifest(
     system_probe_bin=None,
     libbcc_tarball=None,
     with_bcc=True,
+    go_mod_cache=None,
 ):
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -544,6 +567,7 @@ def omnibus_manifest(
         system_probe_bin=system_probe_bin,
         libbcc_tarball=libbcc_tarball,
         with_bcc=with_bcc,
+        go_mod_cache=go_mod_cache,
     )
 
     target_project = "agent"

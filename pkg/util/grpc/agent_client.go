@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -13,17 +14,30 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking, so
+var defaultBackoffConfig = backoff.Config{
+	BaseDelay:  1.0 * time.Second,
+	Multiplier: 1.1,
+	Jitter:     0.2,
+	MaxDelay:   2 * time.Second,
+}
+
+// defaultAgentDialOpts default dial options to the main agent which blocks and retries based on the backoffConfig
+var defaultAgentDialOpts = []grpc.DialOption{
+	grpc.WithConnectParams(grpc.ConnectParams{Backoff: defaultBackoffConfig}),
+	grpc.WithBlock(),
+}
+
+// GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
 // it is up to the caller to supply a context with appropriate timeout/cancel options
-func GetDDAgentClient(ctx context.Context) (pb.AgentClient, error) {
+func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
 	// This is needed as the server hangs when using "grpc.WithInsecure()"
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 
-	opts := []grpc.DialOption{
-		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.DefaultConfig}),
-		grpc.WithBlock(),
-		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)),
+	if len(opts) == 0 {
+		opts = defaultAgentDialOpts
 	}
+
+	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)))
 
 	target, err := getIPCAddressPort()
 	if err != nil {

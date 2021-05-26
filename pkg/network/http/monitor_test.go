@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"math/rand"
 	nethttp "net/http"
 	"regexp"
@@ -15,14 +14,10 @@ import (
 	"testing"
 	"time"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 )
 
 func TestHTTPMonitorIntegration(t *testing.T) {
@@ -32,38 +27,59 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
 	}
 
-	srvDoneFn := serverSetup(t)
+	targetAddr := "localhost:8080"
+	serverAddr := "localhost:8080"
+	testHTTPMonitor(t, targetAddr, serverAddr, 100)
+}
+
+func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
+	}
+
+	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+	testutil.SetupDNAT(t)
+	defer testutil.TeardownDNAT(t)
+
+	targetAddr := "2.2.2.2:8080"
+	serverAddr := "1.1.1.1:8080"
+	testHTTPMonitor(t, targetAddr, serverAddr, 10)
+}
+
+func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
+	srvDoneFn := serverSetup(t, serverAddr)
 	defer srvDoneFn()
 
-	// Create a monitor that simply buffers all HTTP requests
-	var buffer []httpTX
-	handlerFn := func(transactions []httpTX) {
-		buffer = append(buffer, transactions...)
-	}
-	monitor, doneFn := monitorSetup(t, handlerFn)
-	defer doneFn()
+	monitor, err := NewMonitor(config.New())
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
 
 	// Perform a number of random requests
-	requestFn := requestGenerator(t)
+	requestFn := requestGenerator(t, targetAddr)
 	var requests []*nethttp.Request
-	for i := 0; i < 50; i++ {
+	for i := 0; i < numReqs; i++ {
 		requests = append(requests, requestFn())
 	}
 
 	// Ensure all captured transactions get sent to user-space
 	time.Sleep(10 * time.Millisecond)
-	monitor.Sync()
+	stats := monitor.GetHTTPStats()
 
 	// Assert all requests made were correctly captured by the monitor
 	for _, req := range requests {
-		hasMatchingTX(t, req, buffer)
+		includesRequest(t, stats, req)
 	}
 }
 
-func hasMatchingTX(t *testing.T, req *nethttp.Request, transactions []httpTX) {
+func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
 	expectedStatus := statusFromPath(req.URL.Path)
-	for _, tx := range transactions {
-		if tx.Path() == req.URL.Path && int(tx.response_status_code) == expectedStatus && tx.Method() == req.Method {
+	for key, stats := range allStats {
+		i := expectedStatus/100 - 1
+		if key.Path == req.URL.Path && stats[i].Count == 1 {
 			return
 		}
 	}
@@ -80,7 +96,7 @@ func hasMatchingTX(t *testing.T, req *nethttp.Request, transactions []httpTX) {
 // Example:
 // * GET /200/foo returns a 200 status code;
 // * PUT /404/bar returns a 404 status code;
-func serverSetup(t *testing.T) func() {
+func serverSetup(t *testing.T, addr string) func() {
 	handler := func(w nethttp.ResponseWriter, req *nethttp.Request) {
 		statusCode := statusFromPath(req.URL.Path)
 		io.Copy(ioutil.Discard, req.Body)
@@ -88,7 +104,7 @@ func serverSetup(t *testing.T) func() {
 	}
 
 	srv := &nethttp.Server{
-		Addr:         "localhost:8080",
+		Addr:         addr,
 		Handler:      nethttp.HandlerFunc(handler),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
@@ -103,80 +119,7 @@ func serverSetup(t *testing.T) func() {
 	return func() { srv.Shutdown(context.Background()) }
 }
 
-func monitorSetup(t *testing.T, handlerFn func([]httpTX)) (*Monitor, func()) {
-	mgr, perfHandler := eBPFSetup(t)
-	monitor, err := NewMonitor("/proc", mgr, perfHandler)
-	require.NoError(t, err)
-	monitor.handler = handlerFn
-
-	// Start HTTP monitor
-	err = monitor.Start()
-	require.NoError(t, err)
-
-	// Start manager
-	err = mgr.Start()
-	require.NoError(t, err)
-
-	doneFn := func() {
-		monitor.Stop()
-		mgr.Stop(manager.CleanAll)
-	}
-	return monitor, doneFn
-}
-
-func eBPFSetup(t *testing.T) (*manager.Manager, *ddebpf.PerfHandler) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
-		t.Skip("HTTP feature not available on pre 4.1.0 kernels")
-		return nil, nil
-	}
-
-	httpPerfHandler := ddebpf.NewPerfHandler(10)
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), httpPerfHandler, false)
-	mgrOptions := manager.Options{
-		MapSpecEditors: map[string]manager.MapSpecEditor{
-			string(probes.HttpInFlightMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-
-			// These maps are unrelated to HTTP but need to have their `MaxEntries` set because the eBPF library loads all of them
-			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-		},
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.SocketHTTPFilter),
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: string(probes.TCPSendMsgReturn),
-				},
-			},
-		},
-	}
-
-	for _, p := range mgr.Probes {
-		if p.Section != string(probes.SocketHTTPFilter) && p.Section != string(probes.TCPSendMsgReturn) {
-			mgrOptions.ExcludedSections = append(mgrOptions.ExcludedSections, p.Section)
-		}
-	}
-
-	elf, err := netebpf.ReadBPFModule("build", true)
-	require.NoError(t, err)
-	err = mgr.InitWithOptions(elf, mgrOptions)
-	require.NoError(t, err)
-	return mgr, httpPerfHandler
-}
-
-func requestGenerator(t *testing.T) func() *nethttp.Request {
+func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	var (
 		methods     = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 		statusCodes = []int{200, 300, 400, 500}
@@ -189,7 +132,7 @@ func requestGenerator(t *testing.T) func() *nethttp.Request {
 		idx++
 		method := methods[random.Intn(len(methods))]
 		status := statusCodes[random.Intn(len(statusCodes))]
-		url := fmt.Sprintf("http://localhost:8080/%d/request-%d", status, idx)
+		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
 		req, err := nethttp.NewRequest(method, url, nil)
 		require.NoError(t, err)
 

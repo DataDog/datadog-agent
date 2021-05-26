@@ -11,7 +11,12 @@ REGISTRY=gcr.io/datadog-public/datadog
 FULL_TAG=$1
 SHORT_TAG=$(echo "$FULL_TAG" | cut -d '.' -f 1-2)
 
-echo "### Make sure you published operator images with versions: '$FULL_TAG/$SHORT_TAG' at '$REGISTRY/operator' before submitting to marketplace"
+echo "### Copying operator '$FULL_TAG/$SHORT_TAG' from DockerHub to '$REGISTRY/operator'"
+
+gcrane cp datadog/operator:$FULL_TAG $REGISTRY/datadog-operator:$FULL_TAG
+gcrane cp datadog/operator:$FULL_TAG $REGISTRY/datadog-operator:$SHORT_TAG
+
+echo "### Publishing Deployer"
 
 APP_VERSION=$(yq eval '.spec.descriptor.version' chart/datadog-mp/templates/application.yaml)
 if [ "$APP_VERSION" != "$FULL_TAG" ];

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,10 +19,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
@@ -57,7 +57,7 @@ type Module struct {
 }
 
 // Register the runtime security agent module
-func (m *Module) Register(httpMux *http.ServeMux) error {
+func (m *Module) Register(_ *mux.Router) error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -76,6 +76,9 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 			log.Error(err)
 		}
 	}()
+
+	// start api server
+	m.apiServer.Start(m.ctx)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -156,15 +159,40 @@ func (m *Module) Reload() error {
 
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
-	ruleSet := m.probe.NewRuleSet(rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, m.getEventTypeEnabled(), sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, agentLogger.DatadogAgentLogger{}))
+	newRuleSetOpts := func() *rules.Opts {
+		return rules.NewOptsWithParams(
+			model.SECLConstants,
+			sprobe.SupportedDiscarders,
+			m.getEventTypeEnabled(),
+			sprobe.AllCustomRuleIDs(),
+			model.SECLLegacyAttributes,
+			agentLogger.DatadogAgentLogger{})
+	}
+
+	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
 	}
 
+	model := &model.Model{}
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
+	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	if loadErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies: %+v", loadErr.Error())
+	}
+
+	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		return err
+	}
+
+	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
+	m.ruleSets[m.currentRuleSet] = ruleSet
+
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet)
+	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
 		return err
 	}
@@ -179,9 +207,6 @@ func (m *Module) Reload() error {
 	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
 
-	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
-	m.ruleSets[m.currentRuleSet] = ruleSet
-
 	m.displayReport(report)
 
 	// report that a new policy was loaded
@@ -194,6 +219,7 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	m.cancelFnc()
 
 	if m.grpcServer != nil {
 		m.grpcServer.Stop()
@@ -227,18 +253,26 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event)
+	m.SendEvent(rule, event, func() []string { return nil })
 }
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	m.SendEvent(rule, event)
+	// prepare the event
+	m.probe.OnRuleMatch(rule, event.(*probe.Event))
+
+	id := event.(*probe.Event).ContainerContext.ID
+	extTagsCb := func() []string {
+		return m.probe.GetResolvers().TagsResolver.Resolve(id)
+	}
+
+	m.SendEvent(rule, event, extTagsCb)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (m *Module) SendEvent(rule *rules.Rule, event Event) {
+func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event)
+		m.apiServer.SendEvent(rule, event, extTagsCb)
 	} else {
 		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
@@ -266,10 +300,9 @@ func (m *Module) metricsSender() {
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 			if m.config.RuntimeEnabled {
-				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentRuntimeRunning, 1, tags, 1)
-			}
-			if m.config.FIMEnabled {
-				_ = m.statsdClient.Gauge(metrics.MetricsSecurityAgentFIMRunning, 1, tags, 1)
+				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
+			} else if m.config.FIMEnabled {
+				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
 			}
 		case <-m.ctx.Done():
 			return
@@ -301,7 +334,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *config.Config) (api.Module, error) {
+func NewModule(cfg *config.Config) (module.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
@@ -326,7 +359,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
-	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 5, Burst: 10}
+	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 0, Burst: 0}
 
 	m := &Module{
 		config:         cfg,

@@ -47,16 +47,29 @@ func TestOOMKill(t *testing.T) {
 	data := msgpTraces(t, traces)
 
 	var wg sync.WaitGroup
+	errs := make(chan error, 50)
 	for tries := 0; tries < 50; tries++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if _, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data)); err != nil {
-				t.Fatal(err)
+				errs <- err
+				return
 			}
 		}()
 	}
-	wg.Wait()
+
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	timeout := time.After(500 * time.Millisecond)
 loop:
 	for {

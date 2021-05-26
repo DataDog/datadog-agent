@@ -1,28 +1,24 @@
+// +build linux
+
 package modules
 
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
-
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
 // TCPQueueLength Factory
-var TCPQueueLength = api.Factory{
-	Name: "tcp_queue_length_tracer",
-	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled(config.TCPQueueLengthCheckName) {
-			log.Infof("TCP queue length tracer disabled")
-			return nil, api.ErrNotEnabled
-		}
-
-		t, err := probe.NewTCPQueueLengthTracer(ebpf.SysProbeConfigFromConfig(cfg))
+var TCPQueueLength = module.Factory{
+	Name: config.TCPQueueLengthTracerModule,
+	Fn: func(cfg *config.Config) (module.Module, error) {
+		t, err := probe.NewTCPQueueLengthTracer(ebpf.NewConfig())
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to start the TCP queue length tracer")
 		}
@@ -31,13 +27,13 @@ var TCPQueueLength = api.Factory{
 	},
 }
 
-var _ api.Module = &tcpQueueLengthModule{}
+var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer
 }
 
-func (t *tcpQueueLengthModule) Register(httpMux *http.ServeMux) error {
+func (t *tcpQueueLengthModule) Register(httpMux *mux.Router) error {
 	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

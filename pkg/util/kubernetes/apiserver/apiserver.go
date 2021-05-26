@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 	"sync"
 	"time"
@@ -20,8 +19,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
-	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -33,17 +34,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	dd_client "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
-	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
 )
 
 var (
 	globalAPIClient     *APIClient
 	globalAPIClientOnce sync.Once
-	ErrNotFound         = errors.New("entity not found")
-	ErrIsEmpty          = errors.New("entity is empty")
-	ErrNotLeader        = errors.New("not Leader")
+	ErrNotFound         = errors.New("entity not found") //nolint:revive
+	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
+	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
 	isConnectVerbose    = false
+
+	gvrDDM = &schema.GroupVersionResource{
+		Group:    "datadoghq.com",
+		Version:  "v1alpha1",
+		Resource: "datadogmetrics",
+	}
 )
 
 const (
@@ -76,17 +81,26 @@ type APIClient struct {
 	// WPAClient gives access to WPA API
 	WPAClient dynamic.Interface
 	// WPAInformerFactory gives access to informers for Watermark Pod Autoscalers.
-	WPAInformerFactory dynamic_informer.DynamicSharedInformerFactory
+	WPAInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
 	// DDClient gives access to all datadoghq/ custom types
-	DDClient dd_client.Interface
+	DDClient dynamic.Interface
 	// DDInformerFactory gives access to informers for all datadoghq/ custom types
-	DDInformerFactory dd_informers.SharedInformerFactory
+	DDInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
-	// used to setup the APIClient
-	initRetry      retry.Retrier
-	Cl             kubernetes.Interface
-	DynamicCl      dynamic.Interface
+	// initRetry used to setup the APIClient
+	initRetry retry.Retrier
+
+	// Cl holds the main kubernetes client
+	Cl kubernetes.Interface
+
+	// DynamicCl holds a dynamic kubernetes client
+	DynamicCl dynamic.Interface
+
+	// DiscoveryCl holds kubernetes discovery client
+	DiscoveryCl discovery.DiscoveryInterface
+
+	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
 }
 
@@ -140,7 +154,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
-func getClientConfig() (*rest.Config, error) {
+func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -162,28 +176,42 @@ func getClientConfig() (*rest.Config, error) {
 	if config.Datadog.GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
+
+	clientConfig.Timeout = timeout
+
 	return clientConfig, nil
 }
 
 func getKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
-	clientConfig, err := getClientConfig()
+	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
+	rest.SetDefaultWarningHandler(CustomWarningLogger{})
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
+
 	return kubernetes.NewForConfig(clientConfig)
 }
 
 func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig()
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
+
 	return dynamic.NewForConfig(clientConfig)
 }
 
-func getWPAInformerFactory() (dynamic_informer.DynamicSharedInformerFactory, error) {
+func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return discovery.NewDiscoveryClientForConfig(clientConfig)
+}
+
+func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeDynamicClient(0) // No timeout for the Informers, to allow long watch.
@@ -191,27 +219,27 @@ func getWPAInformerFactory() (dynamic_informer.DynamicSharedInformerFactory, err
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
 	}
-	return dynamic_informer.NewDynamicSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+	return dynamicinformer.NewDynamicSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
-func getDDClient(timeout time.Duration) (dd_client.Interface, error) {
-	clientConfig, err := getClientConfig()
+func getDDClient(timeout time.Duration) (dynamic.Interface, error) {
+	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.Timeout = timeout
-	return dd_client.NewForConfig(clientConfig)
+
+	return dynamic.NewForConfig(clientConfig)
 }
 
-func getDDInformerFactory() (dd_informers.SharedInformerFactory, error) {
+func getDDInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getDDClient(0) // No timeout for the Informers, to allow long watch.
+	client, err := getKubeDynamicClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return nil, err
 	}
-	return dd_informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+	return dynamicinformer.NewDynamicSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactory() (informers.SharedInformerFactory, error) {
@@ -224,14 +252,14 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
-func getInformerFactoryWithOption(options informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
+func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
 	client, err := getKubeClient(0) // No timeout for the Informers, to allow long watch.
 	if err != nil {
 		log.Errorf("Could not get apiserver client: %v", err)
 		return nil, err
 	}
-	return informers.NewSharedInformerFactoryWithOptions(client, resyncPeriodSeconds*time.Second, options), nil
+	return informers.NewSharedInformerFactoryWithOptions(client, resyncPeriodSeconds*time.Second, options...), nil
 }
 
 func (c *APIClient) connect() error {
@@ -246,6 +274,12 @@ func (c *APIClient) connect() error {
 		c.DynamicCl, err = getKubeDynamicClient(time.Duration(c.timeoutSeconds) * time.Second)
 		if err != nil {
 			log.Infof("Could not get apiserver dynamic client: %v", err)
+			return err
+		}
+
+		c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
+		if err != nil {
+			log.Infof("Could not get apiserver discovery client: %v", err)
 			return err
 		}
 	}
@@ -270,8 +304,9 @@ func (c *APIClient) connect() error {
 		optionsForService := func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog.GetString("admission_controller.certificate.secret_name")).String()
 		}
-		c.CertificateSecretInformerFactory, err = getInformerFactoryWithOption(
+		c.CertificateSecretInformerFactory, _ = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForService),
+			informers.WithNamespace(common.GetResourcesNamespace()),
 		)
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
@@ -280,6 +315,7 @@ func (c *APIClient) connect() error {
 		c.WebhookConfigInformerFactory, err = getInformerFactoryWithOption(
 			informers.WithTweakListOptions(optionsForWebhook),
 		)
+
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
@@ -379,7 +415,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	}
 
 	if c.DDClient != nil {
-		_, err = c.DDClient.DatadoghqV1alpha1().DatadogMetrics("").List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
+		_, err = c.DDClient.Resource(*gvrDDM).List(context.TODO(), metav1.ListOptions{Limit: 1, TimeoutSeconds: &c.timeoutSeconds})
 		if err != nil {
 			errorMessages = append(errorMessages, fmt.Sprintf("DatadogMetric collection: %q", err.Error()))
 		}

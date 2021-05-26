@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,7 +38,7 @@ func (f *SyncForwarder) Start() error {
 func (f *SyncForwarder) Stop() {
 }
 
-func (f *SyncForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
+func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
 			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)

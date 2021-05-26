@@ -45,7 +45,7 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), ddebpf.NewPerfHandler(1), false)
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), false)
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
@@ -53,7 +53,6 @@ func getSnooper(
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 		},
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -98,6 +97,7 @@ func getSnooper(
 			CollectLocalDNS:   collectLocalDNS,
 			DNSTimeout:        dnsTimeout,
 			CollectDNSDomains: collectDNSDomains,
+			MaxDNSStats:       10000,
 		},
 		packetSrc,
 	)
@@ -137,7 +137,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -199,7 +199,7 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) (*manager.Man
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) (*manager.Manager, *SocketFilterSnooper) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -412,7 +412,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
 		require.Equal(t, 1, len(allStats[key1][d].DNSCountByRcode))
-		assert.Equal(t, uint32(1), allStats[key1][d].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
+		assert.Equal(t, uint32(1), allStats[key1][d].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][d])
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
@@ -475,7 +475,7 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -548,4 +548,8 @@ func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
 	answer.SetReply(r)
 	answer.SetRcode(r, dns.RcodeNameError)
 	w.WriteMsg(answer) //nolint:errcheck
+}
+
+func testConfig() *config.Config {
+	return config.New()
 }

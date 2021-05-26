@@ -37,8 +37,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	}
 	evaluator, _ := f.model.GetEvaluator(field, "")
 
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	value := evaluator.(eval.Evaluator).Eval(ctx)
 
@@ -183,7 +182,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetApprovers("open", caps)
+	approvers, err := rs.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +202,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	approvers, err = rs.GetApprovers("open", caps)
+	approvers, err = rs.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +218,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	_, err = rs.GetApprovers("open", caps)
+	_, err = rs.GetEventApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -243,7 +242,7 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	_, err := rs.GetApprovers("open", caps)
+	_, err := rs.GetEventApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -263,7 +262,7 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetApprovers("open", caps)
+	approvers, err := rs.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +294,7 @@ func TestRuleSetFilters3(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetApprovers("open", caps)
+	approvers, err := rs.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +321,7 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetApprovers("open", caps); err == nil {
+	if _, err := rs.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
 
@@ -333,7 +332,7 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetApprovers("open", caps); err != nil {
+	if _, err := rs.GetEventApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
 	}
 }
@@ -355,7 +354,7 @@ func TestRuleSetFilters5(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetApprovers("open", caps); err != nil {
+	if _, err := rs.GetEventApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
 	}
 }
@@ -376,7 +375,7 @@ func TestRuleSetFilters6(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetApprovers("open", caps); err == nil {
+	if _, err := rs.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
 }

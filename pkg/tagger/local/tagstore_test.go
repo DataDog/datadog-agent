@@ -121,7 +121,7 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 	assert.Nil(s.T(), sources)
 }
 
-func (s *StoreTestSuite) TestPrune() {
+func (s *StoreTestSuite) TestPruneDeletedEntities() {
 	s.store.processTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
@@ -164,7 +164,7 @@ func (s *StoreTestSuite) TestPrune() {
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	s.store.prune()
+	s.store.pruneDeletedEntities()
 
 	// deletion map should be empty now
 	assert.Len(s.T(), s.store.toDelete, 0)
@@ -197,8 +197,7 @@ func (s *StoreTestSuite) TestPrune() {
 		},
 	})
 
-	err := s.store.prune()
-	assert.Nil(s.T(), err)
+	s.store.pruneDeletedEntities()
 
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
@@ -206,6 +205,69 @@ func (s *StoreTestSuite) TestPrune() {
 	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
+}
+
+func (s *StoreTestSuite) TestPruneEmptyEntries() {
+	s.store.processTagInfo([]*collectors.TagInfo{
+		{
+			Source:               "source1",
+			Entity:               "test1",
+			LowCardTags:          []string{"s1tag"},
+			OrchestratorCardTags: []string{"s1tag"},
+			HighCardTags:         []string{"s1tag"},
+		},
+		{
+			Source:       "source2",
+			Entity:       "test2",
+			HighCardTags: []string{"s2tag"},
+		},
+		{
+			Source:      "emptySource1",
+			Entity:      "emptyEntity1",
+			LowCardTags: []string{},
+		},
+		{
+			Source:       "emptySource2",
+			Entity:       "emptyEntity2",
+			StandardTags: []string{},
+		},
+		{
+			Source:      "emptySource3",
+			Entity:      "test3",
+			LowCardTags: []string{},
+		},
+		{
+			Source:      "source3",
+			Entity:      "test3",
+			LowCardTags: []string{"s3tag"},
+		},
+	})
+
+	assert.Len(s.T(), s.store.store, 5)
+	s.store.pruneEmptyEntries()
+	assert.Len(s.T(), s.store.store, 3)
+
+	// Assert non-empty tags aren't deleted
+	tagsHigh, sourcesHigh := s.store.lookup("test1", collectors.HighCardinality)
+	assert.Len(s.T(), tagsHigh, 3)
+	assert.Len(s.T(), sourcesHigh, 1)
+	tagsOrch, sourcesOrch := s.store.lookup("test1", collectors.OrchestratorCardinality)
+	assert.Len(s.T(), tagsOrch, 2)
+	assert.Len(s.T(), sourcesOrch, 1)
+	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
+	assert.Len(s.T(), tagsHigh, 1)
+	assert.Len(s.T(), sourcesHigh, 1)
+	tagsLow, sourcesLow := s.store.lookup("test3", collectors.LowCardinality)
+	assert.Len(s.T(), tagsLow, 1)
+	assert.Len(s.T(), sourcesLow, 2)
+
+	// Assert empty entities are deleted
+	emptyTags1, emptySource1 := s.store.lookup("emptyEntity1", collectors.HighCardinality)
+	assert.Len(s.T(), emptyTags1, 0)
+	assert.Len(s.T(), emptySource1, 0)
+	emptyTags2, emptySource2 := s.store.lookup("emptyEntity2", collectors.HighCardinality)
+	assert.Len(s.T(), emptyTags2, 0)
+	assert.Len(s.T(), emptySource2, 0)
 }
 
 func TestStoreSuite(t *testing.T) {
@@ -351,7 +413,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.prune()
+	store.pruneDeletedEntities()
 
 	store.processTagInfo([]*collectors.TagInfo{
 		{
@@ -361,7 +423,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.prune()
+	store.pruneDeletedEntities()
 
 	var wg sync.WaitGroup
 	wg.Add(2)

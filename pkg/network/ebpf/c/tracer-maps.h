@@ -5,8 +5,8 @@
 #include "bpf_helpers.h"
 
 typedef struct {
-    struct sock * sk;
-    struct msghdr * msg;
+    struct sock *sk;
+    struct msghdr *msg;
 } udp_recv_sock_t;
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
@@ -110,46 +110,6 @@ struct bpf_map_def SEC("maps/pending_bind") pending_bind = {
     .key_size = sizeof(__u64),
     .value_size = sizeof(bind_syscall_args_t),
     .max_entries = 8192,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
-struct bpf_map_def SEC("maps/http_in_flight") http_in_flight = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(http_transaction_t),
-    .max_entries = 0, // This will get overridden at runtime using max_tracked_connections
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map used for notifying userspace that a HTTP batch is ready to be consumed */
-struct bpf_map_def SEC("maps/http_notifications") http_notifications = {
-    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(__u32),
-    .max_entries = 0, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map stores finished HTTP transactions in batches so they can be consumed by userspace*/
-struct bpf_map_def SEC("maps/http_batches") http_batches = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(http_batch_key_t),
-    .value_size = sizeof(http_batch_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/* This map holds one entry per CPU storing state associated to current http batch*/
-struct bpf_map_def SEC("maps/http_batch_state") http_batch_state = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u32),
-    .value_size = sizeof(http_batch_state_t),
-    .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };

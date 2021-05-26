@@ -10,7 +10,7 @@ package ksm
 import (
 	"regexp"
 
-	"k8s.io/kube-state-metrics/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 // ksmMetricPrefix defines the KSM metrics namespace
@@ -66,6 +66,10 @@ var (
 		"kube_node_info":                                                                           "node.count",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
+		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
+		"kube_pod_container_resource_limits_cpu_cores":                                             "container.cpu_limit",
+		"kube_pod_container_resource_limits_memory_bytes":                                          "container.memory_limit",
+		"kube_pod_container_resource_requests_memory_bytes":                                        "container.memory_requested",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",
@@ -114,20 +118,17 @@ var (
 
 	// metadata metrics are useful for label joins
 	// but shouldn't be submitted to Datadog
-	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels)")
+	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels|status_reason)")
 
-	// deniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
-	deniedMetrics = options.MetricSet{
-		// deny all *_created metrics except for kube_node_created
-		"^_created|^(?:[^k]|k[^u]|ku[^b]|kub[^e]|kube[^_]|kube_[^n]|kube_n[^o]|kube_no[^d]|kube_nod[^e]|kube_node.).*_created": {},
+	// defaultDeniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
+	defaultDeniedMetrics = options.MetricSet{
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_owner":                                   {},
-		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
-		"kube_pod_.*_time":                                 {},
+		"kube_pod_completion_time":                         {},
+		"kube_pod_status_scheduled_time":                   {},
 		"kube_cronjob_status_active":                       {},
-		"kube_namespace_status_phase":                      {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
 		"kube_job_spec_active_dealine_seconds":             {},
@@ -171,6 +172,10 @@ var (
 		"kube_pod_labels": {
 			LabelsToMatch: []string{"pod", "namespace"},
 			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_pod_status_reason": {
+			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 // SnmpPacket is the type of packets yielded by server listeners.
@@ -113,7 +113,7 @@ func startSNMPv2Listener(c *Config, packets PacketsChannel) (*gosnmp.TrapListene
 
 	select {
 	// Wait for listener to be started and listening to traps.
-	// See: https://godoc.org/github.com/soniah/gosnmp#TrapListener.Listening
+	// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
 	case <-listener.Listening():
 		break
 	// If the listener failed to start (eg because it couldn't bind to a socket),

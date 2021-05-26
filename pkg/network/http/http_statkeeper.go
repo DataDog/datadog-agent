@@ -4,51 +4,121 @@ package http
 
 import (
 	"C"
-	"sync"
 )
+import "sync/atomic"
 
 type httpStatKeeper struct {
-	mux   sync.Mutex
-	stats map[Key]map[string]RequestStats
+	stats      map[Key]RequestStats
+	incomplete map[Key]httpTX
+	maxEntries int
+	telemetry  *telemetry
+
+	// http path buffer
+	buffer []byte
+
+	// map containing interned path strings
+	// this is rotated  with the stats map
+	interned map[string]string
 }
 
-func newHTTPStatkeeper() *httpStatKeeper {
+func newHTTPStatkeeper(maxEntries int, telemetry *telemetry) *httpStatKeeper {
 	return &httpStatKeeper{
-		stats: make(map[Key]map[string]RequestStats),
+		stats:      make(map[Key]RequestStats),
+		incomplete: make(map[Key]httpTX),
+		maxEntries: maxEntries,
+		buffer:     make([]byte, HTTPBufferSize),
+		interned:   make(map[string]string),
+		telemetry:  telemetry,
 	}
 }
 
 func (h *httpStatKeeper) Process(transactions []httpTX) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-
 	for _, tx := range transactions {
-		key := Key{
-			SourceIP:   tx.SourceIP(),
-			DestIP:     tx.DestIP(),
-			SourcePort: tx.SourcePort(),
-			DestPort:   tx.DestPort(),
+		if tx.Incomplete() {
+			h.handleIncomplete(tx)
+			continue
 		}
-		path := tx.Path()
-		statusClass := tx.StatusClass()
-		latency := tx.RequestLatency()
 
-		if _, ok := h.stats[key]; !ok {
-			h.stats[key] = make(map[string]RequestStats)
-		}
-		stats := h.stats[key][path]
-		stats.AddRequest(statusClass, latency)
-		h.stats[key][path] = stats
+		h.add(tx)
 	}
+
+	atomic.StoreInt64(&h.telemetry.aggregations, int64(len(h.stats)))
 }
 
-func (h *httpStatKeeper) GetAndResetAllStats() map[Key]map[string]RequestStats {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-
+func (h *httpStatKeeper) GetAndResetAllStats() map[Key]RequestStats {
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
-	h.stats = make(map[Key]map[string]RequestStats)
+	h.stats = make(map[Key]RequestStats)
+	h.incomplete = make(map[Key]httpTX)
+	h.interned = make(map[string]string)
 	return ret
 }
 
-func (h *httpStatKeeper) Close() {}
+func (h *httpStatKeeper) add(tx httpTX) {
+	key := h.newKey(tx)
+	stats, ok := h.stats[key]
+	if !ok && len(h.stats) >= h.maxEntries {
+		atomic.AddInt64(&h.telemetry.dropped, 1)
+		return
+	}
+
+	stats.AddRequest(tx.StatusClass(), tx.RequestLatency())
+	h.stats[key] = stats
+}
+
+// handleIncomplete is responsible for handling incomplete transactions
+// (eg. httpTX objects that have either only the request or response information)
+// this happens only in the context of localhost traffic with NAT and these disjoint
+// parts of the transactions are joined here by src port
+func (h *httpStatKeeper) handleIncomplete(tx httpTX) {
+	key := Key{
+		SrcIPHigh: uint64(tx.tup.saddr_h),
+		SrcIPLow:  uint64(tx.tup.saddr_l),
+		SrcPort:   uint16(tx.tup.sport),
+	}
+
+	otherHalf, ok := h.incomplete[key]
+	if !ok {
+		if len(h.incomplete) >= h.maxEntries {
+			atomic.AddInt64(&h.telemetry.dropped, 1)
+		} else {
+			h.incomplete[key] = tx
+		}
+
+		return
+	}
+
+	request, response := tx, otherHalf
+	if response.StatusClass() == 0 {
+		request, response = response, request
+	}
+
+	// Merge response into request
+	request.response_status_code = response.response_status_code
+	request.response_last_seen = response.response_last_seen
+	h.add(request)
+	delete(h.incomplete, key)
+}
+
+func (h *httpStatKeeper) newKey(tx httpTX) Key {
+	path := tx.Path(h.buffer)
+	pathString := h.intern(path)
+
+	return Key{
+		SrcIPHigh: uint64(tx.tup.saddr_h),
+		SrcIPLow:  uint64(tx.tup.saddr_l),
+		SrcPort:   uint16(tx.tup.sport),
+		DstIPHigh: uint64(tx.tup.daddr_h),
+		DstIPLow:  uint64(tx.tup.daddr_l),
+		DstPort:   uint16(tx.tup.dport),
+		Path:      pathString,
+	}
+}
+
+func (h *httpStatKeeper) intern(b []byte) string {
+	v, ok := h.interned[string(b)]
+	if !ok {
+		v = string(b)
+		h.interned[v] = v
+	}
+	return v
+}

@@ -27,6 +27,7 @@ type Clients interface {
 // Configuration provides an abstraction for various environment methods used by checks
 type Configuration interface {
 	Hostname() string
+	MaxEventsPerRun() int
 	EtcGroupPath() string
 	NormalizeToHostRoot(path string) string
 	RelativeToHostRoot(path string) string

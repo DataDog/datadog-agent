@@ -71,7 +71,7 @@ func (b *bbsCacheFake) GetTagsForNode(nodename string) (map[string][]string, err
 var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
-	var lastRefreshCount int64 = 0
+	var lastRefreshCount int64
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	cfl := CloudFoundryListener{

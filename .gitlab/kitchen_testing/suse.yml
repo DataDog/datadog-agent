@@ -18,7 +18,7 @@
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="suse"
-    - export KITCHEN_OSVERS="sles-12,sles15"
+    - export KITCHEN_OSVERS="sles-12,sles-15"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -27,14 +27,14 @@
 
 .kitchen_scenario_suse_a6:
   extends:
-    - .kitchen_os_suse
     - .kitchen_agent_a6
+    - .kitchen_os_suse
   needs: ["deploy_suse_rpm_testing-a6"]
 
 .kitchen_scenario_suse_a7:
   extends:
-    - .kitchen_os_suse
     - .kitchen_agent_a7
+    - .kitchen_os_suse
   needs: ["deploy_suse_rpm_testing-a7"]
 
 # Kitchen: final test matrix (tests * scenarios)

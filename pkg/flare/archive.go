@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/mholt/archiver"
+	"github.com/mholt/archiver/v3"
 	"gopkg.in/yaml.v2"
 )
 
@@ -305,7 +305,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
-	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
+	// File format is determined based on `zipFilePath` extension
+	err = archiver.Archive([]string{filepath.Join(tempDir, hostname)}, zipFilePath)
 	if err != nil {
 		return "", err
 	}

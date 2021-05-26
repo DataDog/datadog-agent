@@ -8,7 +8,6 @@
 package model
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -24,16 +23,16 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// the proc_cache LRU ejects an entry.
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
-	if len(parent.ContainerContext.ID) > 0 && len(child.ContainerContext.ID) == 0 {
-		child.ContainerContext.ID = parent.ContainerContext.ID
+	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
+		child.ContainerID = parent.ContainerID
 		child.ContainerPath = parent.ContainerPath
 	}
 }
 
 func (pc *ProcessCacheEntry) compactArgsEnvs() {
 	// TODO: do not copy for the moment, need to handle memory usage properly
-	pc.Args = []string{}
-	pc.Envs = []string{}
+	pc.ArgsArray = []string{}
+	pc.EnvsArray = []string{}
 }
 
 // Exec replace a process
@@ -53,51 +52,29 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
 	childEntry.Ancestor = pc
+	childEntry.TTYName = pc.TTYName
+	childEntry.Comm = pc.Comm
+	childEntry.FileFields = pc.FileFields
+	childEntry.PathnameStr = pc.PathnameStr
+	childEntry.BasenameStr = pc.BasenameStr
+	childEntry.Filesystem = pc.Filesystem
+	childEntry.ContainerPath = pc.ContainerPath
+	childEntry.ExecTimestamp = pc.ExecTimestamp
+	childEntry.Credentials = pc.Credentials
+	childEntry.Cookie = pc.Cookie
 
-	// keep some context if not present in the ebpf event
-	if childEntry.ExecTime.IsZero() {
-		childEntry.TTYName = pc.TTYName
-		childEntry.Comm = pc.Comm
-		childEntry.FileFields = pc.FileFields
-		childEntry.PathnameStr = pc.PathnameStr
-		childEntry.BasenameStr = pc.BasenameStr
-		childEntry.ContainerPath = pc.ContainerPath
-		childEntry.ExecTimestamp = pc.ExecTimestamp
-		childEntry.Cookie = pc.Cookie
-
-		copyProcessContext(pc, childEntry)
-	}
+	copyProcessContext(pc, childEntry)
 }
 
-func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.Args)
+/*func (pc *ProcessCacheEntry) String() string {
+	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {
 		for j := 0; j <= i; j++ {
 			s += "\t"
 		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.Args)
+		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.ArgsArray)
 		ancestor = ancestor.Ancestor
 	}
 	return s
-}
-
-// UnmarshalBinary reads the binary representation of itself
-func (pc *ProcessCacheEntry) UnmarshalBinary(data []byte, unmarshalContext bool) (int, error) {
-	var read int
-
-	if unmarshalContext {
-		offset, err := UnmarshalBinary(data, &pc.ContainerContext)
-		if err != nil {
-			return 0, err
-		}
-		read += offset
-	}
-
-	offset, err := pc.Process.UnmarshalBinary(data[read:])
-	if err != nil {
-		return 0, err
-	}
-
-	return read + offset, nil
-}
+}*/

@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM debian:bullseye-slim as builder
+FROM ubuntu:21.04 as builder
 
 WORKDIR /output
 
@@ -25,7 +25,7 @@ RUN chmod 755 entrypoint.sh \
 # Actual docker image construction #
 ####################################
 
-FROM debian:bullseye-slim
+FROM ubuntu:21.04
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 

@@ -90,3 +90,21 @@ instances:
       # The autodiscovery subnet the device is part of.
       # Used by Agent autodiscovery to pass subnet name.
       - "autodiscovery_subnet:%%extra_autodiscovery_subnet%%"
+
+    ## @param extra_tags - string - optional
+    ## Comma separated tags to attach to every metric, event and service check emitted by this integration.
+    ## Example:
+    ##  extra_tags: "tag1:val1,tag2:val2"
+    #
+    extra_tags: "%%extra_tags%%"
+
+    ## @param oid_batch_size - integer - optional - default: 60
+    ## The number of OIDs handled by each batch. Increasing this number improves performance but
+    ## uses more resources.
+    #
+    oid_batch_size: "%%extra_oid_batch_size%%"
+
+    ## @param collect_device_metadata - bool - optional - default: false
+    ## Enable device metadata collection
+    #
+    collect_device_metadata: "%%extra_collect_device_metadata%%"

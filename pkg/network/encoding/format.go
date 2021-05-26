@@ -7,6 +7,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 )
@@ -32,7 +33,7 @@ type RouteIdx struct {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats model.HTTPAggregations) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -42,6 +43,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
+	c.LastPacketsSent = conn.LastSentPackets
+	c.LastPacketsReceived = conn.LastRecvPackets
 	c.LastRetransmits = conn.LastRetransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
@@ -60,7 +63,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	c.HttpStatsByPath = formatHTTPStatsByPath(conn.HTTPStatsByPath)
+	c.HttpAggregations, _ = proto.Marshal(&httpStats)
+
 	return c
 }
 
@@ -109,6 +113,7 @@ func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTe
 	t.MonotonicUdpSendsProcessed = tel.MonotonicUDPSendsProcessed
 	t.MonotonicUdpSendsMissed = tel.MonotonicUDPSendsMissed
 	t.ConntrackSamplingPercent = tel.ConntrackSamplingPercent
+	t.DnsStatsDropped = tel.DNSStatsDropped
 	return t
 }
 
@@ -127,6 +132,67 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		ret[asset] = t
 	}
 	return ret
+}
+
+// FormatHTTPStats converts the HTTP map into a suitable format for serialization
+func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model.HTTPAggregations {
+	var (
+		aggregationsByKey = make(map[http.Key]model.HTTPAggregations, len(httpData))
+
+		// Pre-allocate some of the objects
+		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
+		ptrPool  = make([]*model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
+		poolIdx  = 0
+	)
+
+	for key, stats := range httpData {
+		path := key.Path
+		key.Path = ""
+
+		httpAggregations := aggregationsByKey[key]
+		statsByPath := httpAggregations.ByPath
+		if statsByPath == nil {
+			statsByPath = make(map[string]*model.HTTPStats)
+			aggregationsByKey[key] = model.HTTPAggregations{ByPath: statsByPath}
+		}
+
+		ms := &model.HTTPStats{
+			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
+		}
+
+		for i := 0; i < len(stats); i++ {
+			data := &dataPool[poolIdx+i]
+			ms.StatsByResponseStatus[i] = data
+			data.Count = uint32(stats[i].Count)
+
+			if latencies := stats[i].Latencies; latencies != nil {
+				blob, _ := proto.Marshal(latencies.ToProto())
+				data.Latencies = blob
+			} else {
+				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
+			}
+		}
+
+		poolIdx += http.NumStatusClasses
+		statsByPath[path] = ms
+	}
+
+	return aggregationsByKey
+}
+
+// Build the key for the http map based on whether the local or remote side is http.
+func httpKeyFromConn(c network.ConnectionStats) http.Key {
+	// Retrieve translated addresses
+	laddr, lport := nat.GetLocalAddress(c)
+	raddr, rport := nat.GetRemoteAddress(c)
+
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
+	if network.IsEphemeralPort(int(lport)) {
+		return http.NewKey(laddr, raddr, lport, rport, "")
+	}
+
+	return http.NewKey(raddr, laddr, rport, lport, "")
 }
 
 func returnToPool(c *model.Connections) {
@@ -248,31 +314,4 @@ func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
 
 func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
-}
-
-func formatHTTPStatsByPath(statsByPath map[string]http.RequestStats) map[string]*model.HTTPStats {
-	formattedStatsByPath := make(map[string]*model.HTTPStats)
-
-	for path, stats := range statsByPath {
-		var ms model.HTTPStats
-		ms.StatsByResponseStatus = make([]*model.HTTPStats_Data, 5)
-
-		for i := 0; i < 5; i++ {
-			status := model.HTTPResponseStatus(i)
-			count := uint32(stats.Count(status))
-
-			var latencyBytes []byte
-			if latencies := stats.Latencies(status); latencies != nil {
-				latencyBytes, _ = proto.Marshal(latencies.ToProto())
-			}
-
-			ms.StatsByResponseStatus[status] = &model.HTTPStats_Data{
-				Count:     count,
-				Latencies: latencyBytes,
-			}
-		}
-		formattedStatsByPath[path] = &ms
-	}
-
-	return formattedStatsByPath
 }

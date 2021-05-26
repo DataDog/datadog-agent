@@ -18,7 +18,7 @@ COMMIT_USER=$(git log -1 --pretty=format:'%ae' | tr -d '[:space:]')
 REGION="${REGION:-us-east-1}"
 
 SPOT_REQUEST_ID=$(aws ec2 request-spot-instances \
-                      --spot-price "0.015" \
+                      --spot-price "0.150" \
                       --instance-count 1 \
                       --type "one-time" \
                       --valid-until $(($(date +%s) + 3300)) \

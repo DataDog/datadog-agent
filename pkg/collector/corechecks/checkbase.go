@@ -233,11 +233,11 @@ func (c *CheckBase) GetWarnings() []error {
 	return w
 }
 
-// GetMetricStats returns the stats from the last run of the check.
-func (c *CheckBase) GetMetricStats() (map[string]int64, error) {
+// GetSenderStats returns the stats from the last run of the check.
+func (c *CheckBase) GetSenderStats() (check.SenderStats, error) {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve a sender: %v", err)
+		return check.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
-	return sender.GetMetricStats(), nil
+	return sender.GetSenderStats(), nil
 }

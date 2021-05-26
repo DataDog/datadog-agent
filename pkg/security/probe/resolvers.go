@@ -18,6 +18,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,10 +33,11 @@ type Resolvers struct {
 	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
+	TagsResolver      *TagsResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
+func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*Resolvers, error) {
 	dentryResolver, err := NewDentryResolver(probe)
 	if err != nil {
 		return nil, err
@@ -58,6 +60,7 @@ func NewResolvers(probe *Probe, client *statsd.Client) (*Resolvers, error) {
 		TimeResolver:      timeResolver,
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
+		TagsResolver:      NewTagsResolver(config),
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.CookieCacheSize))
@@ -84,40 +87,42 @@ func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
 	return containerPath
 }
 
-// resolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) resolveInode(e *model.FileFields) (string, error) {
+// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound || err != nil {
+	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, err := r.MountResolver.GetMountPath(e.MountID)
-	if err == nil {
-		if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-			pathStr = strings.Replace(pathStr, rootPath, "", 1)
-		}
-		pathStr = path.Join(mountPath, pathStr)
+	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
+	if mountErr != nil {
+		return pathStr, mountErr
 	}
+
+	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
+		pathStr = strings.Replace(pathStr, rootPath, "", 1)
+	}
+	pathStr = path.Join(mountPath, pathStr)
 
 	return pathStr, err
 }
 
-// ResolveInode resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveInode(e *model.FileEvent) string {
-	path, _ := r.resolveInode(&e.FileFields)
+// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
+	path, _ := r.resolveFileFieldsPath(&e.FileFields)
 	return path
 }
 
-// ResolveUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveUser(e *model.FileFields) string {
+// ResolveFileFieldsUser resolves the user id of the file to a username
+func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
 		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
-// ResolveGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveGroup(e *model.FileFields) string {
+// ResolveFileFieldsGroup resolves the group id of the file to a group name
+func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
@@ -172,35 +177,14 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
-// ResolveProcessContextUser resolves the user id of the process to a username
-func (r *Resolvers) ResolveProcessContextUser(p *model.ProcessContext) string {
-	if len(p.User) == 0 {
-		p.User, _ = r.UserGroupResolver.ResolveUser(int(p.UID))
-	}
-	return p.User
-}
-
-// ResolveProcessContextGroup resolves the group id of the process to a group name
-func (r *Resolvers) ResolveProcessContextGroup(p *model.ProcessContext) string {
-	if len(p.Group) == 0 {
-		p.Group, _ = r.UserGroupResolver.ResolveGroup(int(p.GID))
-	}
-	return p.Group
-}
-
-// ResolveFilesystem resolves the filesystem a file resides in
-func (r *Resolvers) ResolveFilesystem(f *model.FileFields) string {
-	return r.MountResolver.GetFilesystem(f.MountID)
-}
-
-// ResolveInUpperLayer resolves whether the file is in an upper layer
-func (r *Resolvers) ResolveInUpperLayer(f *model.FileFields) bool {
-	return f.Flags&model.UpperLayer != 0
-}
-
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
+		return err
+	}
+	r.MountResolver.Start(ctx)
+
+	if err := r.TagsResolver.Start(ctx); err != nil {
 		return err
 	}
 
@@ -212,6 +196,8 @@ func (r *Resolvers) Snapshot() error {
 	if err := retry.Do(r.snapshot, retry.Delay(0), retry.Attempts(5)); err != nil {
 		return errors.Wrap(err, "unable to snapshot processes")
 	}
+
+	r.ProcessResolver.SetState(snapshotted)
 
 	return nil
 }

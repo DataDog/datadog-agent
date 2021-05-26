@@ -5,7 +5,7 @@
 
 // FIXME: we require the `cgo` build tag because of this dep relationship:
 // github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/process`,
-// which has a hard dependency on `github.com/DataDog/zstd`, which requires CGO.
+// which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/process` can be imported with CGO disabled.
 // +build cgo
 // +build linux
@@ -60,10 +60,7 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	// default values
 	t.CollectTCPQueueLength = true
 
-	if err := yaml.Unmarshal(data, t); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, t)
 }
 
 //Configure parses the check configuration and init the check

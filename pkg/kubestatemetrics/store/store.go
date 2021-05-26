@@ -15,7 +15,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kube-state-metrics/pkg/metric"
+	"k8s.io/kube-state-metrics/v2/pkg/metric"
 )
 
 // MetricsStore implements the k8s.io/client-go/tools/cache.Store
@@ -72,9 +72,9 @@ func (d *DDMetricsFam) extract(f metric.Family) {
 	}
 }
 
-// Implementing k8s.io/client-go/tools/cache.Store interface
 // Add inserts adds to the MetricsStore by calling the metrics generator functions and
 // adding the generated metrics to the metrics map that underlies the MetricStore.
+// Implementing k8s.io/client-go/tools/cache.Store interface
 func (s *MetricsStore) Add(obj interface{}) error {
 	o, err := meta.Accessor(obj)
 	if err != nil {

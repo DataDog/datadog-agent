@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -106,12 +106,14 @@ func (m *MetricSample) GetHost() string {
 }
 
 func findOriginTags(origin string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) {
-	if origin != listeners.NoOrigin {
+	if origin != packets.NoOrigin {
 		if err := tagger.TagBuilder(origin, cardinality, tb); err != nil {
 			log.Errorf(err.Error())
 		}
 	}
+}
 
+func addOrchestratorTags(cardinality collectors.TagCardinality, tb *util.TagsBuilder) {
 	// Include orchestrator scope tags if the cardinality is set to orchestrator
 	if cardinality == collectors.OrchestratorCardinality {
 		if err := tagger.OrchestratorScopeTagBuilder(tb); err != nil {
@@ -122,12 +124,13 @@ func findOriginTags(origin string, cardinality collectors.TagCardinality, tb *ut
 
 // EnrichTags expend a tag list with origin detection tags
 func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardinality string) {
-	if originID != "" {
-		findOriginTags(originID, taggerCardinality(cardinality), tb)
-	}
+	taggerCard := taggerCardinality(cardinality)
+
+	findOriginTags(originID, taggerCard, tb)
+	addOrchestratorTags(taggerCard, tb)
 
 	if k8sOriginID != "" {
-		if err := tagger.TagBuilder(k8sOriginID, taggerCardinality(cardinality), tb); err != nil {
+		if err := tagger.TagBuilder(k8sOriginID, taggerCard, tb); err != nil {
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}

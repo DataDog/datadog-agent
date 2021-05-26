@@ -18,13 +18,15 @@ func getEmptyDDSketch() []byte {
 // ClientStatsTests contains a suite of tests for testing the stats endpoint.
 var ClientStatsTests = []struct {
 	In  pb.ClientStatsPayload
-	Out pb.StatsPayload
+	Out []pb.StatsPayload
 }{
 	{
 		In: pb.ClientStatsPayload{
-			Hostname: "testhost",
-			Env:      "testing",
-			Version:  "0.1-alpha",
+			Hostname:  "testhost",
+			Env:       "testing",
+			Version:   "0.1-alpha",
+			RuntimeID: "1",
+			Sequence:  2,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -47,20 +49,27 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: pb.StatsPayload{
+		Out: []pb.StatsPayload{{
+			AgentHostname:  "agent-hostname",
+			AgentEnv:       "agent-env",
+			ClientComputed: true,
 			Stats: []pb.ClientStatsPayload{{
-				Hostname: "testhost",
-				Env:      "testing",
-				Version:  "0.1-alpha",
+				Hostname:      "testhost",
+				Env:           "testing",
+				Version:       "0.1-alpha",
+				Lang:          "go",
+				TracerVersion: "0.2.0",
+				RuntimeID:     "1",
+				Sequence:      2,
 				Stats: []pb.ClientStatsBucket{
 					{
-						Start:    1,
+						Start:    0,
 						Duration: 2,
 						Stats: []pb.ClientGroupedStats{
 							{
-								Service:        "",
-								Name:           "___noname00___",
-								Resource:       "",
+								Service:        "unnamed-go-service",
+								Name:           "noname00",
+								Resource:       "noname00",
 								HTTPStatusCode: 200,
 								Type:           "web",
 								Synthetics:     true,
@@ -76,12 +85,15 @@ var ClientStatsTests = []struct {
 			},
 			},
 		},
+		},
 	},
 	{
 		In: pb.ClientStatsPayload{
-			Hostname: "testhost",
-			Env:      "testing",
-			Version:  "0.1-alpha",
+			Hostname:  "testhost",
+			Env:       "testing",
+			Version:   "0.1-alpha",
+			RuntimeID: "1",
+			Sequence:  2,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -93,7 +105,6 @@ var ClientStatsTests = []struct {
 							Resource:       "/rsc/path",
 							HTTPStatusCode: 200,
 							Type:           "web",
-							DBType:         "",
 							Hits:           22,
 							Errors:         33,
 							Duration:       44,
@@ -105,7 +116,6 @@ var ClientStatsTests = []struct {
 							Name:         "sql.query",
 							Resource:     "SELECT * FROM users WHERE id=4 AND name='John'",
 							Type:         "sql",
-							DBType:       "mysql",
 							Hits:         5,
 							Errors:       7,
 							Duration:     8,
@@ -123,7 +133,6 @@ var ClientStatsTests = []struct {
 							Name:         "sql.query",
 							Resource:     "SELECT * FROM profiles WHERE name='Mary'",
 							Type:         "sql",
-							DBType:       "oracle",
 							Hits:         11,
 							Errors:       12,
 							Duration:     13,
@@ -134,63 +143,83 @@ var ClientStatsTests = []struct {
 				},
 			},
 		},
-		Out: pb.StatsPayload{
-			Stats: []pb.ClientStatsPayload{{
-				Hostname: "testhost",
-				Env:      "testing",
-				Version:  "0.1-alpha",
-				Stats: []pb.ClientStatsBucket{
+		Out: []pb.StatsPayload{
+			{
+				AgentHostname:  "agent-hostname",
+				AgentEnv:       "agent-env",
+				ClientComputed: true,
+				Stats: []pb.ClientStatsPayload{
 					{
-						Start:    1,
-						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Hostname:         "testhost",
+						Env:              "testing",
+						Version:          "0.1-alpha",
+						Lang:             "go",
+						TracerVersion:    "0.2.0",
+						RuntimeID:        "1",
+						Sequence:         2,
+						AgentAggregation: "distributions",
+						Stats: []pb.ClientStatsBucket{
 							{
-								Service:        "svc",
-								Name:           "noname00",
-								Resource:       "/rsc/path",
-								HTTPStatusCode: 200,
-								Type:           "web",
-								DBType:         "",
-								Hits:           22,
-								Errors:         33,
-								Duration:       44,
-								OkSummary:      getEmptyDDSketch(),
-								ErrorSummary:   getEmptyDDSketch(),
-							},
-							{
-								Service:      "users-db",
-								Name:         "sql.query",
-								Resource:     "SELECT * FROM users WHERE id=4 AND name='John'",
-								Type:         "sql",
-								DBType:       "mysql",
-								Hits:         5,
-								Errors:       7,
-								Duration:     8,
-								OkSummary:    getEmptyDDSketch(),
-								ErrorSummary: getEmptyDDSketch(),
+								Start:    0,
+								Duration: 2,
+								Stats: []pb.ClientGroupedStats{
+									{
+										Service:        "svc",
+										Name:           "noname00",
+										Resource:       "/rsc/path",
+										HTTPStatusCode: 200,
+										Type:           "web",
+										Hits:           0,
+										Errors:         0,
+										Duration:       0,
+										OkSummary:      getEmptyDDSketch(),
+										ErrorSummary:   getEmptyDDSketch(),
+									},
+									{
+										Service:      "users-db",
+										Name:         "sql.query",
+										Resource:     "SELECT * FROM users WHERE id = ? AND name = ?",
+										Type:         "sql",
+										Hits:         0,
+										Errors:       0,
+										Duration:     0,
+										OkSummary:    getEmptyDDSketch(),
+										ErrorSummary: getEmptyDDSketch(),
+									},
+								},
 							},
 						},
 					},
 					{
-						Start:    3,
-						Duration: 4,
-						Stats: []pb.ClientGroupedStats{
+						Hostname:         "testhost",
+						Env:              "testing",
+						Version:          "0.1-alpha",
+						Lang:             "go",
+						TracerVersion:    "0.2.0",
+						RuntimeID:        "1",
+						Sequence:         2,
+						AgentAggregation: "distributions",
+						Stats: []pb.ClientStatsBucket{
 							{
-								Service:      "profiles-db",
-								Name:         "sql.query",
-								Resource:     "SELECT * FROM profiles WHERE name='Mary'",
-								Type:         "sql",
-								DBType:       "oracle",
-								Hits:         11,
-								Errors:       12,
-								Duration:     13,
-								OkSummary:    getEmptyDDSketch(),
-								ErrorSummary: getEmptyDDSketch(),
+								Start:    0,
+								Duration: 4,
+								Stats: []pb.ClientGroupedStats{
+									{
+										Service:      "profiles-db",
+										Name:         "sql.query",
+										Resource:     "SELECT * FROM profiles WHERE name = ?",
+										Type:         "sql",
+										Hits:         0,
+										Errors:       0,
+										Duration:     0,
+										OkSummary:    getEmptyDDSketch(),
+										ErrorSummary: getEmptyDDSketch(),
+									},
+								},
 							},
 						},
 					},
 				},
-			},
 			},
 		},
 	},

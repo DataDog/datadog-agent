@@ -10,21 +10,20 @@ struct mount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int mount_id;
-    int group_id;
+    u32 mount_id;
+    u32 group_id;
     dev_t device;
-    int parent_mount_id;
+    u32 parent_mount_id;
     unsigned long parent_ino;
     unsigned long root_ino;
-    int root_mount_id;
+    u32 root_mount_id;
     u32 padding;
     char fstype[FSTYPE_LEN];
 };
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_MOUNT,
-        .mount.fstype = fstype,
+        .type = EVENT_MOUNT,
     };
 
     cache_syscall(&syscall);
@@ -33,7 +32,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 
 SEC("kprobe/attach_recursive_mnt")
 int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
 
@@ -47,12 +46,16 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
     resolve_dentry(dentry, syscall->mount.root_key, 0);
 
+    struct super_block *sb = get_dentry_sb(dentry);
+    struct file_system_type *s_type = get_super_block_fs(sb);
+    bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
+
     return 0;
 }
 
 SEC("kprobe/propagate_mnt")
 int kprobe__propagate_mnt(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_MOUNT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
 
@@ -66,12 +69,15 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
     resolve_dentry(dentry, syscall->mount.root_key, 0);
 
+    struct super_block *sb = get_dentry_sb(dentry);
+    struct file_system_type *s_type = get_super_block_fs(sb);
+    bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
+
     return 0;
 }
 
-SYSCALL_COMPAT_KRETPROBE(mount) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_MOUNT);
-    if (!syscall)
+int __attribute__((always_inline)) do_sys_mount_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    if (retval)
         return 0;
 
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
@@ -81,7 +87,7 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     };
 
     struct mount_event_t event = {
-        .syscall.retval = PT_REGS_RC(ctx),
+        .syscall.retval = retval,
         .mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .device = get_mount_dev(syscall->mount.src_mnt),
@@ -104,6 +110,24 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     send_event(ctx, EVENT_MOUNT, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_mount_exit")
+int handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    if (!syscall)
+        return 0;
+
+    return do_sys_mount_ret(args, syscall, args->ret);
+}
+
+SYSCALL_COMPAT_KRETPROBE(mount) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_mount_ret(ctx, syscall, retval);
 }
 
 #endif

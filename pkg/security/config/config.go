@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // Policy represents a policy file in the configuration file
@@ -46,6 +46,8 @@ type Config struct {
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 	// CookieCacheSize is the size of the cookie cache used to cache process context
@@ -67,17 +69,19 @@ type Config struct {
 	FIMEnabled bool
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
+	// RemoteTaggerEnabled defines whether the remote tagger is enabled
+	RemoteTaggerEnabled bool
 }
 
-// IsEnabled returns true if any feature is enabled
+// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *Config) IsEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
 // NewConfig returns a new Config object
-func NewConfig(cfg *config.AgentConfig) (*Config, error) {
+func NewConfig(cfg *config.Config) (*Config, error) {
 	c := &Config{
-		Config:                             *ebpf.SysProbeConfigFromConfig(cfg),
+		Config:                             *ebpf.NewConfig(),
 		RuntimeEnabled:                     aconfig.Datadog.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:                         aconfig.Datadog.GetBool("runtime_security_config.fim_enabled"),
 		EnableKernelFilters:                aconfig.Datadog.GetBool("runtime_security_config.enable_kernel_filters"),
@@ -89,6 +93,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
 		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
@@ -98,6 +103,7 @@ func NewConfig(cfg *config.AgentConfig) (*Config, error) {
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 	}
 
 	// if runtime is enabled then we force fim
