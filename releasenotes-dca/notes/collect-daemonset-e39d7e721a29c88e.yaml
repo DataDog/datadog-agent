@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    collect daemonSets resource for orchestrator explorer.
+    Collect the DaemonSet resources for the orchestrator explorer.
