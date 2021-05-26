@@ -41,10 +41,10 @@ var cpuInfo = cpu.GetCpuInfo
 type Check struct {
 	core.CheckBase
 	nbCPU             float64
-	interruptsCounter *pdhutil.PdhMultiInstanceCounterSet
-	idleCounter       *pdhutil.PdhMultiInstanceCounterSet
-	userCounter       *pdhutil.PdhMultiInstanceCounterSet
-	privilegedCounter *pdhutil.PdhMultiInstanceCounterSet
+	interruptsCounter pdhutil.PdhSingleInstanceCounterSet
+	idleCounter       pdhutil.PdhSingleInstanceCounterSet
+	userCounter       pdhutil.PdhSingleInstanceCounterSet
+	privilegedCounter pdhutil.PdhSingleInstanceCounterSet
 }
 
 // Run executes the check
@@ -56,35 +56,31 @@ func (c *Check) Run() error {
 
 	sender.Gauge("system.cpu.num_cores", c.nbCPU, "", nil)
 
-	vals, err := c.interruptsCounter.GetAllValues()
+	val, err := c.interruptsCounter.GetValue()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
-		val := vals["_Total"]
 		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
 	}
 
-	vals, err = c.idleCounter.GetAllValues()
+	val, err = c.idleCounter.GetValue()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
-		val := vals["_Total"]
 		sender.Gauge("system.cpu.idle", float64(val), "", nil)
 	}
 
-	vals, err = c.userCounter.GetAllValues()
+	val, err = c.userCounter.GetValue()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
-		val := vals["_Total"]
 		sender.Gauge("system.cpu.user", float64(val), "", nil)
 	}
 
-	vals, err = c.privilegedCounter.GetAllValues()
+	val, err = c.privilegedCounter.GetValue()
 	if err != nil {
 		log.Warnf("Error getting handle value %v", err)
 	} else {
-		val := vals["_Total"]
 		sender.Gauge("system.cpu.system", float64(val), "", nil)
 	}
 
@@ -112,19 +108,19 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 
 	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
 	// you visibility about other applications running on the same processor as you
-	c.interruptsCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Interrupt Time", &[]string{"_Total"}, nil)
+	c.interruptsCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Interrupt Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
 	}
-	c.idleCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Idle Time", &[]string{"_Total"}, nil)
+	c.idleCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Idle Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
 	}
-	c.userCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% User Time", &[]string{"_Total"}, nil)
+	c.userCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% User Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
 	}
-	c.privilegedCounter, err = pdhutil.GetMultiInstanceCounter("Processor Information", "% Privileged Time", &[]string{"_Total"}, nil)
+	c.privilegedCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Privileged Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish system time counter %v", err)
 	}
