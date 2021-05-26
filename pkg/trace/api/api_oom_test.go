@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	utiltestutil "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOOMKill(t *testing.T) {
@@ -29,6 +31,10 @@ func TestOOMKill(t *testing.T) {
 
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
+	port, err := utiltestutil.GetAvailableUDPPort()
+	require.Nil(t, err)
+	conf.ReceiverPort = port
+
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
 

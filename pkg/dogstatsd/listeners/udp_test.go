@@ -26,6 +26,10 @@ var (
 )
 
 func TestNewUDPListener(t *testing.T) {
+	port, err := testutil.GetAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.Set("dogstatsd_port", port)
+	defer config.Datadog.Set("dogstatsd_port", nil)
 	s, err := NewUDPListener(nil, packetPoolManagerUDP, nil)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)

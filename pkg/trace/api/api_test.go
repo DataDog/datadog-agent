@@ -59,6 +59,11 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
+	port, err := utilTestUtil.GetAvailableUDPPort()
+	if err != nil {
+		panic("Cannot find available port")
+	}
+	conf.ReceiverPort = port
 
 	return conf
 }
