@@ -118,7 +118,7 @@ def apply_branding(ctx):
                   "./cmd/agent/common/common_windows.go")
     do_sed_rename(ctx, 's/"ProgramData\\\\\\\\datadog"/"ProgramData\\\\\\\\StackState"/g',
                   "./cmd/agent/common/common_windows.go")
-    do_sed_rename(ctx, 's/"Datadog"/"Stackstate"/g',
+    do_sed_rename(ctx, 's/"Datadog"/"StackState"/g',
                   "./cmd/agent/common/common_windows.go")
     do_sed_rename(ctx, 's/"ProgramData\\\\\\\\DataDog"/"ProgramData\\\\\\\\StackState"/g',
                   "./cmd/agent/common/common_windows.go")
@@ -185,6 +185,8 @@ def apply_branding(ctx):
                   "./pkg/trace/flags/flags_windows.go")
     do_sed_rename(ctx, 's/"ProgramData\\\\\\\\DataDog"/"ProgramData\\\\\\\\StackState"/g',
                   "./pkg/trace/flags/flags_windows.go")
+    do_sed_rename(ctx, 's/"Datadog"/"StackState"/g',
+                  "./pkg/util/winutil/shutil.go")
 
     # ApiKeys
     dd_api_key_repl = '"\\"DD-Api-Key\\" -> \\"sts-api-key\\""'
