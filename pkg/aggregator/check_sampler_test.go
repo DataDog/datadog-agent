@@ -307,7 +307,21 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	checkSampler.commit(12401.0)
 	_, flushed = checkSampler.flush()
 
+	expSketch := &quantile.Sketch{}
+	// linear interpolated values (only 2 since we stored the delta)
+	expSketch.Insert(quantile.Default(), 10.0, 15.0)
+
 	assert.Equal(t, 1, len(flushed))
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: []string{"foo", "bar"},
+		Points: []metrics.SketchPoint{
+			{Ts: 12400.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0], .03)
+
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
