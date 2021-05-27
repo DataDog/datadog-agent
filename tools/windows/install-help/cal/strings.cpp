@@ -224,6 +224,7 @@ void getHostInformation() {
 void getOsStrings()
 {
     PWSTR outstr = NULL;
+    PWSTR programdata = NULL;
     // build up all the path-based strings
     std::wstring programfiles;
 
@@ -231,9 +232,9 @@ void getOsStrings()
     std::wstring confroot;
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
-        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &programdata) == S_OK)
         {
-            programdataroot = outstr;
+            programdataroot = programdata;
             programdataroot += datadogdir;
         }
         if(programdataroot.back() != L'\\'){
@@ -258,8 +259,8 @@ void getOsStrings()
     logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + outstr + L"datadog.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + outstr + L"datadog.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
