@@ -130,6 +130,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 
 				if _, found := incomp[existingListener.Name]; found {
 					log.Debugf("Discarding discovered listener: %s as incompatible with listener from config: %s", listener.Name, existingListener.Name)
+					skipListener = true
 					break
 				}
 			}
