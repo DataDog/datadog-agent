@@ -236,7 +236,8 @@ void getOsStrings()
     if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
     {
         // [sts] Apply this new route to the original variable
-        programdata = outstr + L"\\";
+        programdata = outstr;
+        programdata += L"\\";
     }
 
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
