@@ -211,6 +211,10 @@ func (c *reverseDNSCache) getNamesForIP(ip util.Address) []string {
 
 type dnsCacheVal struct {
 	names map[string]time.Time
+	// inUse keeps track of whether this dns cache record is currently in use by a connection.
+	// This flag is reset to false every time reverseDnsCache.Get is called.
+	// This flag is only set to true if reverseDNSCache.getNamesForIP returns this struct.
+	// If inUse is set, then this record will not be expired out.
 	inUse bool
 }
 
