@@ -31,7 +31,7 @@ func TestECSParseTasks(t *testing.T) {
 	for nb, tc := range []struct {
 		input    []v1.Task
 		expected []*TagInfo
-		handler  func(containerID string, tags *utils.TagList)
+		handler  func(containerID string, tags *utils.TagList) error
 		err      error
 	}{
 		{
@@ -101,7 +101,7 @@ func TestECSParseTasks(t *testing.T) {
 					},
 				},
 			},
-			handler: func(containerID string, tags *utils.TagList) {
+			handler: func(containerID string, tags *utils.TagList) error {
 				task := v3.Task{
 					ContainerInstanceTags: map[string]string{
 						"instance_type": "type1",
@@ -113,6 +113,7 @@ func TestECSParseTasks(t *testing.T) {
 				}
 				addResourceTags(tags, task.ContainerInstanceTags)
 				addResourceTags(tags, task.TaskTags)
+				return nil
 			},
 			expected: []*TagInfo{
 				{

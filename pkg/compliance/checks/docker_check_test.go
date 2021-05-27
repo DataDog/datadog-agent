@@ -53,10 +53,10 @@ func TestDockerImageCheck(t *testing.T) {
 	assert.NoError(loadTestJSON("./testdata/docker/image-list.json", &images))
 	client.On("ImageList", mockCtx, types.ImageListOptions{All: true}).Return(images, nil)
 
-	// Only iterated images here (second item stops the iteration)
 	imageIDMap := map[string]string{
 		"sha256:09f3f4e9394f7620fb6f1025755c85dac07f7e7aa4fca4ba19e4a03590b63750": "./testdata/docker/image-09f3f4e9394f.json",
 		"sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c": "./testdata/docker/image-f9b990972689.json",
+		"sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910": "./testdata/docker/image-89ec9da68213.json",
 	}
 
 	for id, path := range imageIDMap {
@@ -68,7 +68,6 @@ func TestDockerImageCheck(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	env.On("MaxEventsPerRun").Return(1)
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
@@ -76,9 +75,30 @@ func TestDockerImageCheck(t *testing.T) {
 
 	reports := dockerCheck.check(env)
 
-	assert.False(reports[0].Passed)
-	assert.Equal("sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c", reports[0].Data["image.id"])
-	assert.Equal([]string{"redis:latest"}, reports[0].Data["image.tags"])
+	expected := map[string]struct {
+		Passed bool
+		Tags   []string
+	}{
+		"sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c": {
+			Passed: false,
+			Tags:   []string{"redis:latest"},
+		},
+		"sha256:09f3f4e9394f7620fb6f1025755c85dac07f7e7aa4fca4ba19e4a03590b63750": {
+			Passed: true,
+			Tags:   []string{"nginx-healthcheck:latest"},
+		},
+		"sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910": {
+			Passed: false,
+			Tags:   []string{"nginx:alpine"},
+		},
+	}
+
+	assert.Equal(len(reports), 3)
+
+	for _, report := range reports {
+		assert.Equal(expected[report.Data["image.id"].(string)].Passed, report.Passed, report.Data["image.id"])
+		assert.Equal(expected[report.Data["image.id"].(string)].Tags, report.Data["image.tags"], report.Data["image.id"])
+	}
 }
 
 func TestDockerNetworkCheck(t *testing.T) {
@@ -101,7 +121,6 @@ func TestDockerNetworkCheck(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	env.On("MaxEventsPerRun").Return(30)
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
@@ -216,7 +235,6 @@ func TestDockerContainerCheck(t *testing.T) {
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
 
-			env.On("MaxEventsPerRun").Return(30)
 			env.On("DockerClient").Return(client)
 
 			dockerCheck, err := newResourceCheck(env, "rule-id", resource)
@@ -252,7 +270,6 @@ func TestDockerInfoCheck(t *testing.T) {
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
 
-	env.On("MaxEventsPerRun").Return(30).Maybe()
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)

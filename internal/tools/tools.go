@@ -19,6 +19,7 @@ import (
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/goware/modvendor"
 	_ "github.com/mgechev/revive"
+	_ "github.com/stormcat24/protodep"
 	_ "golang.org/x/mobile/bind"
 	_ "golang.org/x/mobile/bind/java"
 	_ "golang.org/x/mobile/cmd/gobind"

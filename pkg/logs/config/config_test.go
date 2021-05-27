@@ -397,3 +397,33 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
+
+func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.batch_wait", 1)
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:   true,
+		BatchWait: 1 * time.Second,
+		Main: Endpoint{
+			APIKey:           "123",
+			Host:             "lambda-http-intake.logs.datadoghq.com",
+			Port:             0,
+			UseSSL:           true,
+			UseCompression:   true,
+			CompressionLevel: 6,
+			BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+	}
+
+	endpoints, err := BuildServerlessEndpoints()
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}

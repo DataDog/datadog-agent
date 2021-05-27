@@ -92,11 +92,17 @@ func (c *resourceCheck) evaluate(env env.Env, resolved interface{}) []*complianc
 			return []*compliance.Report{compliance.BuildReportForError(ErrResourceCannotUseFallback)}
 		}
 
-		result, err := conditionExpression.EvaluateIterator(resolved, globalInstance, env.MaxEventsPerRun())
+		results, err := conditionExpression.EvaluateIterator(resolved, globalInstance)
 		if err != nil {
 			return []*compliance.Report{compliance.BuildReportForError(err)}
 		}
-		reports := instanceResultToReports(result, c.reportedFields)
+
+		var reports []*compliance.Report
+		for _, result := range results {
+			report := instanceResultToReport(result, c.reportedFields)
+			reports = append(reports, report)
+		}
+
 		return reports
 	default:
 		return []*compliance.Report{compliance.BuildReportForError(ErrResourceFailedToResolve)}

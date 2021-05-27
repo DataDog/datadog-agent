@@ -118,3 +118,25 @@ func getTelemetryTags(n NodeType) []string {
 		strings.ToLower(n.String()),
 	}
 }
+
+// ChunkRange returns the chunk start and end for an iteration.
+func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
+	var (
+		chunkStart = chunkSize * (counter - 1)
+		chunkEnd   = chunkSize * (counter)
+	)
+	// last chunk may be smaller than the chunk size
+	if counter == chunkCount {
+		chunkEnd = numberOfElements
+	}
+	return chunkStart, chunkEnd
+}
+
+// GroupSize returns the GroupSize/number of chunks.
+func GroupSize(msgs, maxPerMessage int) int {
+	groupSize := msgs / maxPerMessage
+	if msgs%maxPerMessage > 0 {
+		groupSize++
+	}
+	return groupSize
+}

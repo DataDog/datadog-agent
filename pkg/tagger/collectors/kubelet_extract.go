@@ -45,8 +45,8 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags := utils.NewTagList()
 
 		// Pod name
-		tags.AddOrchestrator("pod_name", pod.Metadata.Name)
-		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
+		tags.AddOrchestrator(kubernetes.PodTagName, pod.Metadata.Name)
+		tags.AddLow(kubernetes.NamespaceTagName, pod.Metadata.Namespace)
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
@@ -102,8 +102,8 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Creator
 		for _, owner := range pod.Owners() {
-			tags.AddLow("kube_ownerref_kind", strings.ToLower(owner.Kind))
-			tags.AddOrchestrator("kube_ownerref_name", owner.Name)
+			tags.AddLow(kubernetes.OwnerRefKindTagName, strings.ToLower(owner.Kind))
+			tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
 
 			switch owner.Kind {
 			case "":

@@ -11,15 +11,25 @@
 .if_deploy_7: &if_deploy_7
   if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
 
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
+
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
+
+.if_not_version_7: &if_not_version_7
+  if: $RELEASE_VERSION_7 == ""
+
 # Kitchen: OSes
 # -------------
 
 .kitchen_os_windows:
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=windows
-    - export KITCHEN_OSVERS="win2008r2,win2012,win2012r2,win2016,win2019"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
@@ -31,33 +41,36 @@
 # --------------
 
 .kitchen_test_windows_installer:
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2012r2"
   before_script:  # Use a smaller set of TEST_PLATFORMS than .kitchen_os_windows
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=windows
-    - export KITCHEN_OSVERS="win2012r2"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver:
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2012r2,win2016,win2019,win1903,win1909,win2004,win20h2"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=windows
-    - export KITCHEN_OSVERS="win2012r2,win2016,win2019,win1903,win1909,win2004,win20h2"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2016"
   before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=windows
-    - export KITCHEN_OSVERS="win2016"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
@@ -108,6 +121,14 @@ kitchen_windows_installer_npm_install_scenarios-a7:
     - .kitchen_test_windows_installer_npm
 
 kitchen_windows_installer_npm_driver-a7:
+  # Run NPM driver installer test on branches, on a reduced number of platforms
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_kitchen
+    - <<: *if_default_kitchen
+      variables:
+        KITCHEN_OSVERS: "win20h2"
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_driver
@@ -128,6 +149,14 @@ kitchen_windows_chef_agent-a6:
     - .kitchen_test_chef_agent
 
 kitchen_windows_chef_agent-a7:
+  # Run chef test on branches, on a reduced number of platforms
+  rules:
+    - <<: *if_not_version_7
+      when: never
+    - <<: *if_kitchen
+    - <<: *if_default_kitchen
+      variables:
+        KITCHEN_OSVERS: "win2019"
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_chef_agent

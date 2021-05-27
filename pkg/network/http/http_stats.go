@@ -6,6 +6,28 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 )
 
+// Method is the type used to represent HTTP request methods
+type Method int
+
+const (
+	// MethodUnknown represents an unknown request method
+	MethodUnknown Method = iota
+	// MethodGet represents the GET request method
+	MethodGet
+	// MethodPost represents the POST request method
+	MethodPost
+	// MethodPut represents the PUT request method
+	MethodPut
+	// MethodDelete represents the DELETE request method
+	MethodDelete
+	// MethodHead represents the HEAD request method
+	MethodHead
+	// MethodOptions represents the OPTIONS request method
+	MethodOptions
+	// MethodPatch represents the PATCH request method
+	MethodPatch
+)
+
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
 	SrcIPHigh uint64
@@ -16,11 +38,12 @@ type Key struct {
 	DstIPLow  uint64
 	DstPort   uint16
 
-	Path string
+	Path   string
+	Method Method
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method Method) Key {
 	saddrl, saddrh := util.ToLowHigh(saddr)
 	daddrl, daddrh := util.ToLowHigh(daddr)
 	return Key{
@@ -31,6 +54,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string) Key {
 		DstIPLow:  daddrl,
 		DstPort:   dport,
 		Path:      path,
+		Method:    method,
 	}
 }
 

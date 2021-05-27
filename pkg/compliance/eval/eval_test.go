@@ -641,11 +641,11 @@ func (i *iteratorMock) Done() bool {
 }
 
 type iterableTest struct {
-	name         string
-	expression   string
-	global       Instance
-	expectResult bool
-	expectError  error
+	name          string
+	expression    string
+	global        Instance
+	expectResults []bool
+	expectError   error
 }
 
 func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
@@ -658,12 +658,17 @@ func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	value, err := expr.EvaluateIterator(iterator, &test.global, 1)
+	results, err := expr.EvaluateIterator(iterator, &test.global)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
 	} else {
 		assert.NoError(err)
-		assert.Equal(test.expectResult, value.Passed)
+
+		var passed []bool
+		for _, result := range results {
+			passed = append(passed, result.Passed)
+		}
+		assert.Equal(test.expectResults, passed)
 	}
 }
 
@@ -716,19 +721,19 @@ func TestEvalIterable(t *testing.T) {
 
 	iterableTests{
 		{
-			name:         "count",
-			expression:   `count(has("important-property") || file.permissions == 0644) == 2`,
-			expectResult: true,
+			name:          "count",
+			expression:    `count(has("important-property") || file.permissions == 0644) == 2`,
+			expectResults: []bool{true},
 		},
 		{
-			name:         "count unsigned",
-			expression:   `count(has("important-property") || file.permissions == 0644) == 0x2`,
-			expectResult: true,
+			name:          "count unsigned",
+			expression:    `count(has("important-property") || file.permissions == 0644) == 0x2`,
+			expectResults: []bool{true},
 		},
 		{
-			name:         "count everything",
-			expression:   `count(_) == 3`,
-			expectResult: true,
+			name:          "count everything",
+			expression:    `count(_) == 3`,
+			expectResults: []bool{true},
 		},
 		{
 			name:        "count invalid comparison",
@@ -741,34 +746,34 @@ func TestEvalIterable(t *testing.T) {
 			expectError: newLexerError(35, `unknown variable "EXPECTED"`),
 		},
 		{
-			name:         "all",
-			expression:   `all(file.owner == "root")`,
-			expectResult: true,
+			name:          "all",
+			expression:    `all(file.owner == "root")`,
+			expectResults: []bool{true},
 		},
 		{
-			name:         "all early iteration exit",
-			expression:   `all(file.owner == "alice")`,
-			expectResult: false,
+			name:          "all early iteration exit",
+			expression:    `all(file.owner == "alice")`,
+			expectResults: []bool{false},
 		},
 		{
-			name:         "none",
-			expression:   `none(file.owner == "alice")`,
-			expectResult: true,
+			name:          "none",
+			expression:    `none(file.owner == "alice")`,
+			expectResults: []bool{true},
 		},
 		{
-			name:         "none early iteration exit",
-			expression:   `none(file.owner == "root")`,
-			expectResult: false,
+			name:          "none early iteration exit",
+			expression:    `none(file.owner == "root")`,
+			expectResults: []bool{false},
 		},
 		{
-			name:         "no function",
-			expression:   `file.owner == "alice"`,
-			expectResult: false,
+			name:          "no function",
+			expression:    `file.owner == "alice"`,
+			expectResults: []bool{false, false, false},
 		},
 		{
-			name:         "no function second item",
-			expression:   `file.permissions != 0644`,
-			expectResult: false,
+			name:          "no function second item",
+			expression:    `file.permissions != 0644`,
+			expectResults: []bool{true, false, true},
 		},
 		{
 			name:        "unknown function",

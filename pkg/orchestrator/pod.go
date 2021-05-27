@@ -129,15 +129,8 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
 
-	for c := 1; c <= chunkCount; c++ {
-		var (
-			chunkStart = chunkSize * (c - 1)
-			chunkEnd   = chunkSize * (c)
-		)
-		// last chunk may be smaller than the chunk size
-		if c == chunkCount {
-			chunkEnd = len(pods)
-		}
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := ChunkRange(len(pods), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
 
