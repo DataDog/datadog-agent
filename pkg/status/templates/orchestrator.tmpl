@@ -62,6 +62,12 @@ Orchestrator Explorer
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
     Cluster:
       Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Clusters}} Miss: {{.CacheMiss.Clusters}})
+    Job:
+      Last Run: (Hits: {{.JobsStats.CacheHits}} Miss: {{.JobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Jobs}} Miss: {{.CacheMiss.Jobs}})
+    CronJob:
+      Last Run: (Hits: {{.CronJobsStats.CacheHits}} Miss: {{.CronJobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.CronJobs}} Miss: {{.CacheMiss.CronJobs}})
+    Daemonset:
+      Last Run: (Hits: {{.DaemonSetsStats.CacheHits}} Miss: {{.DaemonSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.DaemonSets}} Miss: {{.CacheMiss.DaemonSets}})
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}

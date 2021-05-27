@@ -3,6 +3,7 @@ package module
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,7 @@ func init() {
 type loader struct {
 	sync.Mutex
 	modules map[config.ModuleName]Module
+	stats   map[string]interface{}
 	cfg     *config.Config
 	httpMux *mux.Router
 	closed  bool
@@ -65,19 +67,15 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		return errors.New("no module could be loaded")
 	}
 
+	go updateStats()
 	return nil
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
-func GetStats() map[config.ModuleName]interface{} {
+func GetStats() map[string]interface{} {
 	l.Lock()
 	defer l.Unlock()
-
-	stats := make(map[config.ModuleName]interface{})
-	for name, module := range l.modules {
-		stats[name] = module.GetStats()
-	}
-	return stats
+	return l.stats
 }
 
 // RestartModule triggers a module restart
@@ -122,5 +120,27 @@ func Close() {
 	l.closed = true
 	for _, module := range l.modules {
 		module.Close()
+	}
+}
+
+func updateStats() {
+	then := time.Now()
+	ticker := time.NewTicker(10 * time.Second)
+	for now := range ticker.C {
+		l.Lock()
+		if l.closed {
+			l.Unlock()
+			return
+		}
+
+		l.stats = make(map[string]interface{})
+		for name, module := range l.modules {
+			l.stats[string(name)] = module.GetStats()
+		}
+
+		l.stats["updated_at"] = now
+		l.stats["delta_seconds"] = now.Sub(then).Seconds()
+		then = now
+		l.Unlock()
 	}
 }

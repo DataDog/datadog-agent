@@ -138,6 +138,41 @@ func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 	return &cronJob
 }
 
+func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
+	daemonSet := model.DaemonSet{
+		Metadata: orchestrator.ExtractMetadata(&ds.ObjectMeta),
+		Spec: &model.DaemonSetSpec{
+			MinReadySeconds: ds.Spec.MinReadySeconds,
+		},
+		Status: &model.DaemonSetStatus{
+			CurrentNumberScheduled: ds.Status.CurrentNumberScheduled,
+			NumberMisscheduled:     ds.Status.NumberMisscheduled,
+			DesiredNumberScheduled: ds.Status.DesiredNumberScheduled,
+			NumberReady:            ds.Status.NumberReady,
+			UpdatedNumberScheduled: ds.Status.UpdatedNumberScheduled,
+			NumberAvailable:        ds.Status.NumberAvailable,
+			NumberUnavailable:      ds.Status.NumberUnavailable,
+		},
+	}
+
+	if ds.Spec.RevisionHistoryLimit != nil {
+		daemonSet.Spec.RevisionHistoryLimit = *ds.Spec.RevisionHistoryLimit
+	}
+
+	daemonSet.Spec.DeploymentStrategy = string(ds.Spec.UpdateStrategy.Type)
+	if ds.Spec.UpdateStrategy.Type == "RollingUpdate" && ds.Spec.UpdateStrategy.RollingUpdate != nil {
+		if ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable != nil {
+			daemonSet.Spec.MaxUnavailable = ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.StrVal
+		}
+	}
+
+	if ds.Spec.Selector != nil {
+		daemonSet.Spec.Selectors = extractLabelSelector(ds.Spec.Selector)
+	}
+
+	return &daemonSet
+}
+
 func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: orchestrator.ExtractMetadata(&rs.ObjectMeta),

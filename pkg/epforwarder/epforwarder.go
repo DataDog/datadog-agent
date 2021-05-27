@@ -19,6 +19,9 @@ import (
 const (
 	eventTypeDBMSamples = "dbm-samples"
 	eventTypeDBMMetrics = "dbm-metrics"
+
+	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
+	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -38,6 +41,14 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesMetadata,
+		endpointsConfigPrefix:         "network_devices.metadata.",
+		hostnameEndpointPrefix:        "network-devices.",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }

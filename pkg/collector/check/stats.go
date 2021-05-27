@@ -22,8 +22,9 @@ const (
 
 // EventPlatformNameTranslations contains human readable translations for event platform event types
 var EventPlatformNameTranslations = map[string]string{
-	"dbm-samples": "Database Monitoring Query Samples",
-	"dbm-metrics": "Database Monitoring Query Metrics",
+	"dbm-samples":              "Database Monitoring Query Samples",
+	"dbm-metrics":              "Database Monitoring Query Metrics",
+	"network-devices-metadata": "Network Devices Metadata",
 }
 
 var (

@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -70,6 +69,18 @@ const (
 
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+
+	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
+	DefaultLogsSenderBackoffFactor = 2.0
+
+	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
+	DefaultLogsSenderBackoffBase = 0.05
+
+	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
+	DefaultLogsSenderBackoffMax = 1.0
+
+	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
+	DefaultLogsSenderBackoffRecoveryInterval = 2
 )
 
 // Datadog is the global configuration object
@@ -207,7 +218,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
+	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 1) // The number of commits before expiring a context
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -353,8 +364,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	// Forwarder storage on disk
-	defaultForwarderStoragePath := path.Join(config.GetString("run_path"), "transactions_to_retry")
-	config.BindEnvAndSetDefault("forwarder_storage_path", defaultForwarderStoragePath)
+	config.BindEnvAndSetDefault("forwarder_storage_path", "")
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
@@ -500,6 +510,7 @@ func InitConfig(config Config) {
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
+	config.SetKnown("snmp_listener.collect_device_metadata")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
@@ -664,6 +675,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -853,6 +865,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
+
+	// Serverless Agent
+	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
+	config.BindEnvAndSetDefault("enhanced_metrics", true)
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -1104,6 +1120,11 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
 	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
 	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_base", DefaultLogsSenderBackoffBase)
+	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
+	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
