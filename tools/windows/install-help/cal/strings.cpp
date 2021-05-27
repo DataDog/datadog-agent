@@ -32,7 +32,7 @@ std::wstring datadogdir;
 std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
 
-std::wstring programdatastackstate;             // IDS_PROGRAMDATASTACKSTATE
+std::wstring programDataStackState;             // IDS_PROGRAMDATASTACKSTATE
 
 std::wstring programdataroot;
 std::wstring logfilename;
@@ -79,8 +79,8 @@ std::wstring* loadStrings[] = {
     &logsdirsuffix,
     &datadogdir,
     &strRollbackKeyName,
-    &strUninstallKeyName
-    &programdatastackstate
+    &strUninstallKeyName,
+    &programDataStackState
 };
 
 // strings for tracking install state
@@ -256,15 +256,15 @@ void getOsStrings()
             installdir += L"\\";
         }
     }
-    logfilename = programdatastackstate + logsSuffix;
-    authtokenfilename = programdatastackstate + authTokenSuffix;
-    datadogyamlfile = programdatastackstate + datadogyaml;
-    confddir = programdatastackstate + confdsuffix;
-    logdir = programdatastackstate + logsdirsuffix;
+    logfilename = programDataStackState + logsSuffix;
+    authtokenfilename = programDataStackState + authTokenSuffix;
+    datadogyamlfile = programDataStackState + datadogyaml;
+    confddir = programDataStackState + confdsuffix;
+    logdir = programDataStackState + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdatastackstate + L"datadog.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdatastackstate + L"datadog.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programDataStackState + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programDataStackState + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
