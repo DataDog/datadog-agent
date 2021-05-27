@@ -182,17 +182,19 @@ func (c ContainerCgroup) SoftMemLimit() (uint64, error) {
 }
 
 // CPU returns the CPU status for this cgroup instance
-// If the cgroup file does not exist then we just log debug return nothing.
+// If the cgroup file does not exist then we return an error; otherwise
+// the metrics struct will be defaulted and set CPU values to 0.
 func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
-	ret := &metrics.ContainerCPUStats{}
 	statfile := c.cgroupFilePath("cpuacct", "cpuacct.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
-		log.Debugf("Missing cgroup file: %s", statfile)
-		return ret, nil
+		log.Warnf("Missing cgroup file: %s", statfile)
+		return nil, fmt.Errorf("cgroup file does not exist")
 	} else if err != nil {
 		return nil, err
 	}
+
+	ret := &metrics.ContainerCPUStats{}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
