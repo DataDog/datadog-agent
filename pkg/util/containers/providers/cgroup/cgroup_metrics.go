@@ -182,8 +182,9 @@ func (c ContainerCgroup) SoftMemLimit() (uint64, error) {
 }
 
 // CPU returns the CPU status for this cgroup instance
-// If the cgroup file does not exist then we return an error; otherwise
-// the metrics struct will be defaulted and set CPU values to 0.
+// If the cgroup file does not exist then we return an error; otherwise the metrics
+// struct will be defaulted and set CPU values to 0, leading to misleading results
+// (since CPU is reported cumulatively).
 func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	statfile := c.cgroupFilePath("cpuacct", "cpuacct.stat")
 	f, err := os.Open(statfile)
