@@ -78,7 +78,7 @@ func TestConvertMetaV2Container(t *testing.T) {
 				StartedAt:   1517518511,
 				Type:        "ECS",
 				AddressList: []containers.NetworkAddress{},
-				Limits:      metrics.ContainerLimits{CPULimit: 50, MemLimit: 1024000000},
+				Limits:      metrics.ContainerLimits{CPULimit: 100, MemLimit: 1024000000},
 			},
 		},
 		{
@@ -158,7 +158,7 @@ func TestConvertMetaV2Container(t *testing.T) {
 				Name:        "ecs-nginx-5-nginx-curl-ccccb9f49db0dfe0d901",
 				Type:        "ECS",
 				AddressList: []containers.NetworkAddress{},
-				Limits:      metrics.ContainerLimits{CPULimit: 50, MemLimit: 1024000000},
+				Limits:      metrics.ContainerLimits{CPULimit: 100, MemLimit: 1024000000},
 			},
 		},
 	}
