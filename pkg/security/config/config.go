@@ -69,6 +69,10 @@ type Config struct {
 	FIMEnabled bool
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
+	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
+	ERPCDentryResolutionEnabled bool
+	// MapDentryResolutionEnabled determines if the map resolution is enabled
+	MapDentryResolutionEnabled bool
 	// RemoteTaggerEnabled defines whether the remote tagger is enabled
 	RemoteTaggerEnabled bool
 }
@@ -103,6 +107,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:        aconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 	}
 
@@ -125,6 +131,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 
 	if !c.EnableApprovers && !c.EnableDiscarders {
 		c.EnableKernelFilters = false
+	}
+
+	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {
+		c.MapDentryResolutionEnabled = true
 	}
 
 	return c, nil

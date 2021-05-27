@@ -28,8 +28,12 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_umount_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
     if (retval)
+        return 0;
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
+    if (!syscall)
         return 0;
 
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
@@ -49,22 +53,14 @@ int __attribute__((always_inline)) do_sys_umount_ret(void *ctx, struct syscall_c
     return 0;
 }
 
-SEC("tracepoint/handle_sys_umount_exit")
-int handle_sys_umount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
-    if (!syscall)
-        return 0;
-
-    return do_sys_umount_ret(args, syscall, args->ret);
+SEC("tracepoint/syscalls/sys_exit_umount")
+int handle_sys_umount_exit(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_umount_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(umount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
-    if (!syscall)
-        return 0;
-
     int retval = PT_REGS_RC(ctx);
-    return do_sys_umount_ret(ctx, syscall, retval);
+    return sys_umount_ret(ctx, retval);
 }
 
 #endif

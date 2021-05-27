@@ -76,9 +76,6 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
 
-    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    resolve_dentry(syscall->rename.src_dentry, syscall->rename.src_file.path_key, 0);
-
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
@@ -90,13 +87,26 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
         return mark_as_discarded(syscall);
     }
 
+    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    syscall->resolver.dentry = syscall->rename.src_dentry;
+    syscall->resolver.key = syscall->rename.src_file.path_key;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_rename_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
 
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
@@ -109,53 +119,86 @@ int __attribute__((always_inline)) do_sys_rename_ret(void *ctx, struct syscall_c
     invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
 
     if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
-        struct rename_event_t event = {
-            .syscall.retval = retval,
-            .old = syscall->rename.src_file,
-            .new = syscall->rename.target_file,
-            .discarder_revision = bump_discarder_revision(syscall->rename.target_file.path_key.mount_id),
-        };
-
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_container_context(entry, &event.container);
-
         // for centos7, use src dentry for target resolution as the pointers have been swapped
-        resolve_dentry(syscall->rename.src_dentry, syscall->rename.target_file.path_key, 0);
+        syscall->resolver.key = syscall->rename.target_file.path_key;
+        syscall->resolver.dentry = syscall->rename.src_dentry;
+        syscall->resolver.discarder_type = 0;
+        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_RENAME_CALLBACK_KPROBE_KEY : DR_RENAME_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.iteration = 0;
+        syscall->resolver.ret = 0;
 
-        send_event(ctx, EVENT_RENAME, event);
+        resolve_dentry(ctx, dr_type);
     }
+
+    // if the tail call failed we need to pop the syscall cache entry
+    pop_syscall(EVENT_RENAME);
+    return 0;
+}
+
+int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE);
+}
+
+SEC("tracepoint/syscalls/sys_exit_rename")
+int tracepoint_syscalls_sys_exit_rename(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(rename) {
+    return kprobe_sys_rename_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_renameat")
+int tracepoint_syscalls_sys_exit_renameat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(renameat) {
+    return kprobe_sys_rename_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_renameat2")
+int tracepoint_syscalls_sys_exit_renameat2(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(renameat2) {
+    return kprobe_sys_rename_ret(ctx);
+}
+
+int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    if (!syscall)
+        return 0;
+
+    struct rename_event_t event = {
+        .syscall.retval = retval,
+        .old = syscall->rename.src_file,
+        .new = syscall->rename.target_file,
+        .discarder_revision = bump_discarder_revision(syscall->rename.target_file.path_key.mount_id),
+    };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+
+    send_event(ctx, EVENT_RENAME, event);
 
     return 0;
 }
 
-SEC("tracepoint/handle_sys_rename_exit")
-int handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
-    if (!syscall)
-        return 0;
-
-    return do_sys_rename_ret(args, syscall, args->ret);
+SEC("kprobe/dr_rename_callback")
+int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    return dr_rename_callback(ctx, ret);
 }
 
-int __attribute__((always_inline)) trace__sys_rename_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    return do_sys_rename_ret(ctx, syscall, retval);
-}
-
-SYSCALL_KRETPROBE(rename) {
-    return trace__sys_rename_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(renameat) {
-    return trace__sys_rename_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(renameat2) {
-    return trace__sys_rename_ret(ctx);
+SEC("tracepoint/dr_rename_callback")
+int __attribute__((always_inline)) tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_rename_callback(args, args->ret);
 }
 
 #endif

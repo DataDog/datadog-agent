@@ -193,7 +193,7 @@ SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, 
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_exec_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
     if (syscall->exec.is_parsed) {
         return 0;
     }
@@ -221,9 +221,6 @@ int __attribute__((always_inline)) handle_exec_event(struct syscall_cache_t *sys
     };
     fill_file_metadata(exec_dentry, &entry.executable.metadata);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
-
-    // cache dentry
-    resolve_dentry(syscall->exec.dentry, syscall->exec.file.path_key, 0);
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
@@ -253,6 +250,15 @@ int __attribute__((always_inline)) handle_exec_event(struct syscall_cache_t *sys
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
     }
 
+    // resolve dentry
+    syscall->resolver.key = syscall->exec.file.path_key;
+    syscall->resolver.dentry = syscall->exec.dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
     return 0;
 }
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,15 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func TestProbeMonitor(t *testing.T) {
-	var truncatedParents, truncatedSegment string
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		truncatedParents += "a/"
-	}
-	for i := 0; i <= model.MaxSegmentLength+1; i++ {
-		truncatedSegment += "a"
-	}
-
+func TestRulesetLoaded(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
 		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
@@ -38,16 +31,6 @@ func TestProbeMonitor(t *testing.T) {
 
 	probeMonitorOpts := testOpts{}
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%stest-open", truncatedParents))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	truncatedSegmentFile, _, err := test.Path(fmt.Sprintf("%s/test-open", truncatedSegment))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,26 +50,28 @@ func TestProbeMonitor(t *testing.T) {
 			assert.Equal(t, ruleEvent.RuleID, probe.RulesetLoadedRuleID, "wrong rule")
 		}
 	})
+}
 
-	t.Run("truncated_segment", func(t *testing.T) {
-		if os.MkdirAll(path.Dir(truncatedSegmentFile), 0755) != nil {
-			t.Fatal(err)
-		}
+func truncatedParents(t *testing.T, opts testOpts) {
+	var truncatedParents string
+	for i := 0; i < model.MaxPathDepth; i++ {
+		truncatedParents += "a/"
+	}
 
-		f, err := os.OpenFile(truncatedSegmentFile, os.O_CREATE, 0755)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(truncatedSegmentFile)
-		defer f.Close()
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.file.path =~ "*/a" && open.flags & O_CREAT != 0`,
+	}
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedSegmentEventType.String())
-		if err != nil {
-			t.Error(err)
-		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
-		}
-	})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%s", truncatedParents))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("truncated_parents", func(t *testing.T) {
 		if os.MkdirAll(path.Dir(truncatedParentsFile), 0755) != nil {
@@ -100,13 +85,43 @@ func TestProbeMonitor(t *testing.T) {
 		defer os.Remove(truncatedParentsFile)
 		defer f.Close()
 
-		ruleEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
+		customEvent, err := test.GetProbeCustomEvent(3*time.Second, model.CustomTruncatedParentsEventType.String())
+		if err != nil {
+			t.Error(err)
+			return
+		} else {
+			assert.Equal(t, customEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+		}
+
+		event, _, err := test.GetEvent()
 		if err != nil {
 			t.Error(err)
 		} else {
-			assert.Equal(t, ruleEvent.RuleID, probe.AbnormalPathRuleID, "wrong rule")
+			// check the length of the filepath that triggered the custom event
+			filepath, err := event.GetFieldValue("open.file.path")
+			if err == nil {
+				splittedFilepath := strings.Split(filepath.(string), "/")
+				for len(splittedFilepath) > 1 && splittedFilepath[0] != "a" {
+					// Remove the initial "" and all subsequent parents introduced by the mount point, we only want to
+					// count the "a"s.
+					splittedFilepath = splittedFilepath[1:]
+				}
+				t.Logf("%s", filepath.(string))
+				t.Logf("%v", splittedFilepath)
+				assert.Equal(t, splittedFilepath[0], "a", "invalid path resolution at the left edge")
+				assert.Equal(t, splittedFilepath[len(splittedFilepath)-1], "a", "invalid path resolution at the right edge")
+				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")
+			}
 		}
 	})
+}
+
+func TestTruncatedParentsMap(t *testing.T) {
+	truncatedParents(t, testOpts{disableERPCDentryResolution: true})
+}
+
+func TestTruncatedParentsERPC(t *testing.T) {
+	truncatedParents(t, testOpts{disableMapDentryResolution: true})
 }
 
 func TestNoisyProcess(t *testing.T) {
