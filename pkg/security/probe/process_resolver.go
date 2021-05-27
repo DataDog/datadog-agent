@@ -698,7 +698,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return nil, false
 	}
 

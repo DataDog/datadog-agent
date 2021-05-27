@@ -14,6 +14,10 @@ type MyNumber struct {
 	SomeNum Number `yaml:"my_field"`
 }
 
+type MyBoolean struct {
+	SomeBool Boolean `yaml:"my_field"`
+}
+
 func TestStringArray_UnmarshalYAML_array(t *testing.T) {
 	myStruct := MyStringArray{}
 	expected := MyStringArray{SomeIds: StringArray{"aaa", "bbb"}}
@@ -97,4 +101,57 @@ my_field: ""
 			assert.Equal(t, tt.result, myStruct)
 		})
 	}
+}
+
+func Test_Boolean_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name   string
+		data   []byte
+		result MyBoolean
+	}{
+		{
+			name: "boolean true",
+			data: []byte(`
+my_field: true
+`),
+			result: MyBoolean{SomeBool: true},
+		},
+		{
+			name: "string boolean true",
+			data: []byte(`
+my_field: "true"
+`),
+			result: MyBoolean{SomeBool: true},
+		},
+		{
+			name: "boolean false",
+			data: []byte(`
+my_field: false
+`),
+			result: MyBoolean{SomeBool: false},
+		},
+		{
+			name: "string boolean false",
+			data: []byte(`
+my_field: "false"
+`),
+			result: MyBoolean{SomeBool: false},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			myStruct := MyBoolean{}
+			yaml.Unmarshal(tt.data, &myStruct)
+			assert.Equal(t, tt.result, myStruct)
+		})
+	}
+}
+
+func Test_Boolean_UnmarshalYAML_invalid(t *testing.T) {
+	myStruct := MyBoolean{}
+	data := []byte(`
+my_field: "foo"
+`)
+	err := yaml.Unmarshal(data, &myStruct)
+	assert.EqualError(t, err, "cannot convert `foo` to boolean")
 }

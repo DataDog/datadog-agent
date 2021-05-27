@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,6 +47,9 @@ type Destination struct {
 	once                sync.Once
 	payloadChan         chan []byte
 	climit              chan struct{} // semaphore for limiting concurrent background sends
+	backoff             backoff.Policy
+	nbErrors            int
+	blockedUntil        time.Time
 }
 
 // NewDestination returns a new Destination.
@@ -60,6 +64,15 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 	if maxConcurrentBackgroundSends < 0 {
 		maxConcurrentBackgroundSends = 0
 	}
+
+	policy := backoff.NewPolicy(
+		endpoint.BackoffFactor,
+		endpoint.BackoffBase,
+		endpoint.BackoffMax,
+		endpoint.RecoveryInterval,
+		endpoint.RecoveryReset,
+	)
+
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
@@ -69,6 +82,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		backoff:             policy,
 	}
 }
 
@@ -84,7 +98,26 @@ func errorToTag(err error) string {
 
 // Send sends a payload over HTTP,
 // the error returned can be retryable and it is the responsibility of the callee to retry.
-func (d *Destination) Send(payload []byte) (err error) {
+func (d *Destination) Send(payload []byte) error {
+	if d.blockedUntil.After(time.Now()) {
+		log.Debugf("%s: sleeping until %v before retrying", d.url, d.blockedUntil)
+		d.waitForBackoff()
+	}
+
+	err := d.unconditionalSend(payload)
+
+	if _, ok := err.(*client.RetryableError); ok {
+		d.nbErrors = d.backoff.IncError(d.nbErrors)
+	} else {
+		d.nbErrors = d.backoff.DecError(d.nbErrors)
+	}
+
+	d.blockedUntil = time.Now().Add(d.backoff.GetBackoffDuration(d.nbErrors))
+
+	return err
+}
+
+func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
@@ -160,12 +193,12 @@ func (d *Destination) sendInBackground(payloadChan chan []byte) {
 			case payload := <-payloadChan:
 				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 				if cap(d.climit) == 0 {
-					d.Send(payload) //nolint:errcheck
+					d.unconditionalSend(payload) //nolint:errcheck
 					break
 				}
 				d.climit <- struct{}{}
 				go func() {
-					d.Send(payload) //nolint:errcheck
+					d.unconditionalSend(payload) //nolint:errcheck
 					<-d.climit
 				}()
 			case <-ctx.Done():
@@ -218,11 +251,17 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
 	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.Send(emptyPayload)
+	err := destination.unconditionalSend(emptyPayload)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}
 	return err == nil
+}
+
+func (d *Destination) waitForBackoff() {
+	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), d.blockedUntil)
+	defer cancel()
+	<-ctx.Done()
 }

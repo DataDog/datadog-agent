@@ -20,6 +20,12 @@ type Endpoint struct {
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	ConnectionResetInterval time.Duration
+
+	BackoffFactor    float64
+	BackoffBase      float64
+	BackoffMax       float64
+	RecoveryInterval int
+	RecoveryReset    bool
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
