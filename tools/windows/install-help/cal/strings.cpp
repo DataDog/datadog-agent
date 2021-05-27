@@ -32,8 +32,6 @@ std::wstring datadogdir;
 std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
 
-std::wstring programDataStackState;             // IDS_PROGRAMDATASTACKSTATE
-
 std::wstring programdataroot;
 std::wstring logfilename;
 std::wstring authtokenfilename;
@@ -79,8 +77,7 @@ std::wstring* loadStrings[] = {
     &logsdirsuffix,
     &datadogdir,
     &strRollbackKeyName,
-    &strUninstallKeyName,
-    &programDataStackState
+    &strUninstallKeyName
 };
 
 // strings for tracking install state
@@ -232,7 +229,6 @@ void getOsStrings()
 
     ddRegKey ddroot;
     std::wstring confroot;
-
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
         if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
@@ -244,7 +240,6 @@ void getOsStrings()
             programdataroot += L"\\";
         }
     }
-
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
         if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
@@ -256,15 +251,15 @@ void getOsStrings()
             installdir += L"\\";
         }
     }
-    logfilename = programDataStackState + logsSuffix;
-    authtokenfilename = programDataStackState + authTokenSuffix;
-    datadogyamlfile = programDataStackState + datadogyaml;
-    confddir = programDataStackState + confdsuffix;
-    logdir = programDataStackState + logsdirsuffix;
+    logfilename = programdataroot + logsSuffix;
+    authtokenfilename = programdataroot + authTokenSuffix;
+    datadogyamlfile = programdataroot + datadogyaml;
+    confddir = programdataroot + confdsuffix;
+    logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programDataStackState + L"datadog.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programDataStackState + L"datadog.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + outstr + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + outstr + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
