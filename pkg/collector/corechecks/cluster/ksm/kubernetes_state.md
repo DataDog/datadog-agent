@@ -82,6 +82,9 @@
 `kubernetes_state.node.pods_allocatable`
 : The allocatable memory of a node that is available for scheduling. Tags:`node` `resource` `unit`.
 
+`kubernetes_state.node.ephemeral_storage_allocatable`
+: The allocatable ephemeral-storage of a node that is available for scheduling. Tags:`node` `resource` `unit`.
+
 `kubernetes_state.node.cpu_capacity`
 : The CPU capacity of a node. Tags:`node` `resource` `unit`.
 
@@ -90,6 +93,9 @@
 
 `kubernetes_state.node.pods_capacity`
 : The pods capacity of a node. Tags:`node` `resource` `unit`.
+
+`kubernetes_state.node.ephemeral_storage_capacity`
+: The ephemeral-storage capacity of a node. Tags:`node` `resource` `unit`.
 
 `kubernetes_state.node.by_condition`
 : The condition of a cluster node. Tags:`condition` `node` `status`.
