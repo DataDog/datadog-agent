@@ -361,6 +361,10 @@ def apply_branding(ctx):
                   "./tools/windows/install-help/cal/stopservices.cpp")
     do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/',
                   "./tools/windows/install-help/cal/stopservices.cpp")
+    do_sed_rename(ctx, 's/"DataDog Process Agent"/"StackState Process Agent"/',
+                  "./tools/windows/install-help/cal/stopservices.cpp")
+    do_sed_rename(ctx, 's/"Send process metrics to DataDog"/"Send process metrics to StackState"/',
+                  "./tools/windows/install-help/cal/stopservices.cpp")
     do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/',
                   "./cmd/trace-agent/windows_resources/trace-agent.rc")
 
