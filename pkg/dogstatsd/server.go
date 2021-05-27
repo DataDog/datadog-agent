@@ -664,12 +664,12 @@ func (s *Server) parseEventMessage(parser *parser, message []byte, origin string
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
-		tlmProcessed.Inc("events", "error")
+		tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
 	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	event.Tags = append(event.Tags, s.extraTags...)
-	tlmProcessed.Inc("events", "ok")
+	tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -678,13 +678,13 @@ func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
-		tlmProcessed.Inc("service_checks", "error")
+		tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
-	tlmProcessed.Inc("service_checks", "ok")
+	tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
 }
 
