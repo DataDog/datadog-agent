@@ -228,7 +228,7 @@ func (p *Probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 			continue
 		}
 
-		fds := p.getFDCount(pathForPID)
+		fds := p.getFDCountImproved(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled

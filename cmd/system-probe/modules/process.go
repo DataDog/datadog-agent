@@ -65,7 +65,7 @@ func (t *process) Register(httpMux *mux.Router) error {
 
 		stats, err := t.probe.StatsWithPermByPID(pids)
 		if err != nil {
-			log.Errorf("unable to retrieve stats using process_tracer: %s", err)
+			log.Errorf("unable to retrieve process stats: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

@@ -1,8 +1,9 @@
 package request
 
 import (
-	"github.com/gogo/protobuf/jsonpb"
 	"strings"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	model "github.com/DataDog/agent-payload/process"
 )

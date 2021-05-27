@@ -93,7 +93,7 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s", procStatsURL), bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", procStatsURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
