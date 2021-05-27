@@ -5,6 +5,8 @@ import os
 
 from invoke import Collection
 
+from tasks.utils import generate_config
+
 from . import (
     agent,
     android,
@@ -91,6 +93,7 @@ ns.add_task(install_shellcheck)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(generate_config)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

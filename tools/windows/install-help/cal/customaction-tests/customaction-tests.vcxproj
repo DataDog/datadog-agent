@@ -51,6 +51,7 @@
       <DependentUpon>ReplaceYamlProperties_Tests.cpp</DependentUpon>
     </ClCompile>
     <ClCompile Include="ReplaceYamlProperties_Tests.cpp" />
+    <ClCompile Include="ReplaceYamlProperties_IntegrationTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\customaction.vcxproj">
@@ -60,6 +61,7 @@
   <ItemGroup>
     <ClInclude Include="CustomActionDataTest.h" />
     <ClInclude Include="ReplaceYamlProperties.h" />
+    <ClInclude Include="ReplaceYamlProperties_IntegrationTests.h" />
     <ClInclude Include="customaction-tests.h" />
     <ClInclude Include="TargetMachineMock.h" />
   </ItemGroup>
