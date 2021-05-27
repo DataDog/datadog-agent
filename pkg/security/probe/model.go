@@ -433,9 +433,11 @@ func (ev *Event) GetProcessServiceTag() string {
 		}
 	}
 
+	inContainer := entry.ContainerID != ""
+
 	// while in container check for each ancestor
 	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
-		if ancestor.ContainerID == "" {
+		if inContainer && ancestor.ContainerID == "" {
 			break
 		}
 
