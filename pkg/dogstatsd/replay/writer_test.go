@@ -35,16 +35,22 @@ func TestWriter(t *testing.T) {
 	var wg sync.WaitGroup
 	const iterations = 5
 
+	start := make(chan struct{})
+
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
 
+		close(start)
 		writer.Capture(5 * time.Second)
 	}(&wg)
 
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
+
+		<-start
+
 		for i := 0; i < iterations; i++ {
 			buff := CapPool.Get().(*CaptureBuffer)
 			pkt := manager.Get().(*packets.Packet)

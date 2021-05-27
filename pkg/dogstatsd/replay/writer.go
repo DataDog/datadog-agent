@@ -269,12 +269,17 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) {
+func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
+	qd := false
+
 	tc.RLock()
 	if tc.ongoing {
 		tc.Traffic <- msg
+		qd = true
 	}
 	tc.RUnlock()
+
+	return qd
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.
