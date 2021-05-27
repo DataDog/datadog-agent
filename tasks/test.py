@@ -58,6 +58,7 @@ TOOL_LIST = [
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'honnef.co/go/tools/cmd/staticcheck',
+    'github.com/vektra/mockery/v2',
 ]
 
 TOOL_LIST_PROTO = [
