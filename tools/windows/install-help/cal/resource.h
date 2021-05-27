@@ -3,7 +3,7 @@
 // Used by customaction.rc
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        101
@@ -49,6 +49,8 @@
 
 #define IDS_REGKEY_ROLLBACK_KEY_NAME        (STRINGTABLE_BASE + 20)
 #define IDS_REGKEY_UNINSTALL_KEY_NAME       (STRINGTABLE_BASE + 21)
+
+#define IDS_PROGRAMDATASTACKSTATE           (STRINGTABLE_BASE + 22)
 
 
 #define INSTALLTABLE_BASE 200
