@@ -72,13 +72,16 @@ func TestSerialization(t *testing.T) {
 				40,
 				80,
 				"/testpath",
+				http.MethodGet,
 			): httpReqStats,
 		},
 	}
 
 	httpOut := &model.HTTPAggregations{
-		ByPath: map[string]*model.HTTPStats{
-			"/testpath": {
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{
 						Count:     0,
@@ -268,6 +271,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 		1000,
 		9000,
 		"/testpath",
+		http.MethodGet,
 	)
 	statsByKey := map[http.Key]http.RequestStats{
 		key: httpReqStats,
@@ -276,8 +280,15 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 
 	// Now path will be nested in the map
 	key.Path = ""
+	key.Method = http.MethodUnknown
+
+	endpointAggregations := formattedStats[key].EndpointAggregations
+	require.Len(t, endpointAggregations, 1)
+	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
+	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
+
 	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := formattedStats[key].ByPath["/testpath"].StatsByResponseStatus
+	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
 	assert.Len(t, statsByResponseStatus, 5)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
