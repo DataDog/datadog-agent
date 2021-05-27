@@ -72,7 +72,7 @@ var endpoints = []endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
 	},
 	{
-		Pattern: "/proxy/",
+		Pattern: "api.trace-agent-proxy.datadoghq.com/api/v1/events",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.tracingProxyHandler() },
 	},
 	{

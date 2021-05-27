@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"path"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -126,14 +124,20 @@ type multiProxyTransport struct {
 	keys    []string
 }
 
+// func newMultiProxyTransport() *multiProxyTransport {
+//
+// }
+
 func (m *multiProxyTransport) setTarget(r *http.Request, u *url.URL, apiKey string) error {
-	if !strings.HasPrefix(r.URL.Path, "/proxy/") {
-		return fmt.Errorf("Bad URL (WIP)")
-	}
-	subPath := strings.Replace(r.URL.Path, "/proxy/", "/", 1)
+	// if !strings.HasPrefix(r.URL.Path, "/proxy/") {
+	// 	return fmt.Errorf("Bad URL (WIP)")
+	// }
+	log.Errorf("hostname: %s", r.Host)
+	// subPath := strings.Replace(r.URL.Path, "/proxy/", "/", 1)
 
 	newUrl := *u
-	newUrl.Path = path.Join(u.Path, subPath)
+	// newUrl.Path = path.Join(u.Path, r.URL.Path)
+	newUrl.Path = r.URL.Path
 
 	r.Host = u.Host
 	r.URL = &newUrl
