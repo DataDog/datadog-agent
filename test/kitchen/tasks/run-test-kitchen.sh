@@ -118,4 +118,6 @@ cp kitchen.yml ./.kitchen/generated_kitchen.yml
 rm -rf cookbooks
 rm -f Berksfile.lock
 berks vendor ./cookbooks
-bundle exec kitchen test "^dd*.*-${KITCHEN_PROVIDER}\$" -c -d always
+
+# Test every suite, as we only generate those we want to run
+bundle exec kitchen test ".*" -c -d always

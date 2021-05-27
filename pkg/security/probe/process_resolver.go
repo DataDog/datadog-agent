@@ -534,9 +534,6 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 func (p *ProcessResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
 		tty := utils.PidTTY(int32(pce.Pid))
-		if tty == "" {
-			tty = "null"
-		}
 		pce.TTYName = tty
 	}
 	return pce.TTYName
@@ -701,7 +698,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return nil, false
 	}
 

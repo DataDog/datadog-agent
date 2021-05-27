@@ -111,7 +111,7 @@ func dogstatsdCapture() error {
 		return err
 	}
 
-	fmt.Printf("Capture started, capture file being written to: %s", resp.Path)
+	fmt.Printf("Capture started, capture file being written to: %s\n", resp.Path)
 
 	return nil
 }

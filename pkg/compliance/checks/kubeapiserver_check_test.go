@@ -63,10 +63,7 @@ func (in *MyObj) DeepCopy() *MyObj {
 }
 
 func (in *MyObj) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
+	return in.DeepCopy()
 }
 
 func (in *MyObjList) DeepCopy() *MyObjList {
@@ -92,10 +89,7 @@ func (in *MyObjList) DeepCopyInto(out *MyObjList) {
 }
 
 func (in *MyObjList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
+	return in.DeepCopy()
 }
 
 func addKnownTypes(scheme *runtime.Scheme) error {
@@ -111,7 +105,6 @@ type kubeApiserverFixture struct {
 	resource     compliance.Resource
 	objects      []runtime.Object
 	expectReport *compliance.Report
-	expectError  error
 }
 
 func newMyObj(namespace, name string) *MyObj {
@@ -141,6 +134,8 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	assert := assert.New(t)
 
 	env := &mocks.Env{}
+	env.On("MaxEventsPerRun").Return(30).Maybe()
+
 	defer env.AssertExpectations(t)
 
 	kubeClient := fake.NewSimpleDynamicClient(scheme, f.objects...)
@@ -149,10 +144,11 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	kubeCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	report, err := kubeCheck.check(env)
-	assert.Equal(f.expectReport, report)
-	if f.expectError != nil {
-		assert.EqualError(err, f.expectError.Error())
+	reports := kubeCheck.check(env)
+	assert.Equal(f.expectReport.Passed, reports[0].Passed)
+	assert.Equal(f.expectReport.Data, reports[0].Data)
+	if f.expectReport.Error != nil {
+		assert.EqualError(reports[0].Error, f.expectReport.Error.Error())
 	}
 }
 
@@ -324,7 +320,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy2"),
 			},
-			expectError: errors.New(`unable to get Kube resource:'mygroup.com/v1, Resource=myobjs', ns:'testns' name:'dummy1', err: myobjs.mygroup.com "dummy1" not found`),
+			expectReport: &compliance.Report{
+				Passed: false,
+				Error:  errors.New(`unable to get Kube resource:'mygroup.com/v1, Resource=myobjs', ns:'testns' name:'dummy1', err: myobjs.mygroup.com "dummy1" not found`),
+			},
 		},
 		{
 			name: "Error case property does not exist",
@@ -373,7 +372,10 @@ func TestKubeApiserverCheck(t *testing.T) {
 			objects: []runtime.Object{
 				newMyObj("testns", "dummy1"),
 			},
-			expectError: errors.New(`1:1: call to "kube.resource.jq()" failed: 1:7: unexpected token "@" (expected "]")`),
+			expectReport: &compliance.Report{
+				Passed: false,
+				Error:  errors.New(`1:1: call to "kube.resource.jq()" failed: 1:7: unexpected token "@" (expected "]")`),
+			},
 		},
 		{
 			name: "List with json query selectors",

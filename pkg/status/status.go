@@ -73,9 +73,12 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
-		httputils.NoProxyWarningMapMutex.Lock()
-		stats["TransportWarnings"] = httputils.NoProxyWarningMap
-		httputils.NoProxyWarningMapMutex.Unlock()
+		httputils.NoProxyMapMutex.Lock()
+		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
+		stats["NoProxyIgnoredWarningMap"] = httputils.NoProxyIgnoredWarningMap
+		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
+		stats["NoProxyChanged"] = httputils.NoProxyChanged
+		httputils.NoProxyMapMutex.Unlock()
 	}
 
 	return stats, nil

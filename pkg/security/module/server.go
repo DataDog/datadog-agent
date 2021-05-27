@@ -27,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type pendingMsg struct {
+	ruleID    string
+	data      []byte
+	tags      map[string]bool
+	extTagsCb func() []string
+	sendAfter time.Time
+}
+
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
@@ -36,6 +44,8 @@ type APIServer struct {
 	rate          *Limiter
 	statsdClient  *statsd.Client
 	probe         *sprobe.Probe
+	queue         []*pendingMsg
+	retention     time.Duration
 }
 
 // GetEvents waits for security events
@@ -95,8 +105,91 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 	}, nil
 }
 
+func (a *APIServer) enqueue(msg *pendingMsg) {
+	a.Lock()
+	a.queue = append(a.queue, msg)
+	a.Unlock()
+}
+
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
+	a.Lock()
+	defer a.Unlock()
+
+	var i int
+	var msg *pendingMsg
+
+	for i != len(a.queue) {
+		msg = a.queue[i]
+		if msg.sendAfter.After(now) {
+			break
+		}
+		cb(msg)
+
+		i++
+	}
+
+	if i >= len(a.queue) {
+		a.queue = a.queue[0:0]
+	} else if i > 0 {
+		a.queue = a.queue[i:]
+	}
+}
+
+func (a *APIServer) start(ctx context.Context) {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case now := <-ticker.C:
+			a.dequeue(now, func(msg *pendingMsg) {
+				for _, tag := range msg.extTagsCb() {
+					msg.tags[tag] = true
+				}
+
+				var tags []string
+				for tag := range msg.tags {
+					tags = append(tags, tag)
+				}
+
+				m := &api.SecurityEventMessage{
+					RuleID: msg.ruleID,
+					Data:   msg.data,
+					Tags:   tags,
+				}
+
+				select {
+				case a.msgs <- m:
+					break
+				default:
+					// The channel is full, consume the oldest event
+					oldestMsg := <-a.msgs
+					// Try to send the event again
+					select {
+					case a.msgs <- m:
+						break
+					default:
+						// Looks like the channel is full again, expire the current message too
+						a.expireEvent(m)
+						break
+					}
+					a.expireEvent(oldestMsg)
+					break
+				}
+			})
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// Start the api server, starts to consume the msg queue
+func (a *APIServer) Start(ctx context.Context) {
+	go a.start(ctx)
+}
+
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	agentContext := &AgentContext{
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
@@ -128,30 +221,25 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event) {
 	data = append(data, ruleEventJSON[1:]...)
 	log.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
-	msg := &api.SecurityEventMessage{
-		RuleID: rule.Definition.ID,
-		Data:   data,
-		Tags:   append(rule.Tags, append(event.GetTags(), "rule_id:"+rule.Definition.ID)...),
+	msg := &pendingMsg{
+		ruleID:    rule.Definition.ID,
+		data:      data,
+		extTagsCb: extTagsCb,
+		tags:      make(map[string]bool),
+		sendAfter: time.Now().Add(a.retention),
 	}
 
-	select {
-	case a.msgs <- msg:
-		break
-	default:
-		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
-		// Try to send the event again
-		select {
-		case a.msgs <- msg:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireEvent(msg)
-			break
-		}
-		a.expireEvent(oldestMsg)
-		break
+	msg.tags["rule_id:"+rule.Definition.ID] = true
+
+	for _, tag := range rule.Tags {
+		msg.tags[tag] = true
 	}
+
+	for _, tag := range event.GetTags() {
+		msg.tags[tag] = true
+	}
+
+	a.enqueue(msg)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule
@@ -212,6 +300,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client
 		rate:          NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
+		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
 	}
 	return es
 }

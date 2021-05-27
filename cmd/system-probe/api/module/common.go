@@ -2,9 +2,9 @@ package module
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/gorilla/mux"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -20,6 +20,6 @@ type Factory struct {
 // Module defines the common API implemented by every System Probe Module
 type Module interface {
 	GetStats() map[string]interface{}
-	Register(*http.ServeMux) error
+	Register(*mux.Router) error
 	Close()
 }

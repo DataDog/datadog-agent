@@ -4,7 +4,6 @@ package tracer
 
 import (
 	"net"
-	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -13,16 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 const maxRouteCacheSize = int(^uint(0) >> 1) // max int
+const maxSubnetCacheSize = 1024
 
 type gatewayLookup struct {
 	routeCache          network.RouteCache
-	subnetCache         map[int]network.Subnet // interface index to subnet map
+	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
-
-	logLimiter *util.LogLimit
 }
 
 type cloudProvider interface {
@@ -58,11 +57,11 @@ func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup 
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
+	lru, _ := simplelru.NewLRU(maxSubnetCacheSize, nil)
 	return &gatewayLookup{
-		subnetCache:         make(map[int]network.Subnet),
+		subnetCache:         lru,
 		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-		logLimiter:          util.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -83,7 +82,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	s, ok := g.subnetCache[r.IfIndex]
+	v, ok := g.subnetCache.Get(r.IfIndex)
 	if !ok {
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
@@ -95,21 +94,26 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			return nil
 		}
 
+		var s network.Subnet
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-			if g.logLimiter.ShouldLog() {
-				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
-			}
+			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+			// cache an empty result so that we don't keep hitting the
+			// ec2 metadata endpoint for this interface
+			g.subnetCache.Add(r.IfIndex, nil)
 			return nil
 		}
 
-		g.subnetCache[r.IfIndex] = s
+		g.subnetCache.Add(r.IfIndex, s)
+		v = s
+	} else if v == nil {
+		return nil
 	}
 
-	return &network.Via{Subnet: s}
+	return &network.Via{Subnet: v.(network.Subnet)}
 }
 
 func (g *gatewayLookup) purge() {
-	g.subnetCache = make(map[int]network.Subnet)
+	g.subnetCache.Purge()
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {

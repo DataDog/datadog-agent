@@ -59,6 +59,18 @@ func TestEnsureConntrack(t *testing.T) {
 	require.Equal(t, 2, n)
 }
 
+func TestCachedConntrackIgnoreErrExists(t *testing.T) {
+	cache := newCachedConntrack("/proc", func(_ int) (netlink.Conntrack, error) {
+		require.FailNow(t, "unexpected call to conntrack creator")
+		return nil, nil
+	}, 1)
+	defer cache.Close()
+
+	ctrk, err := cache.ensureConntrack(0, 0)
+	require.Nil(t, ctrk)
+	require.NoError(t, err)
+}
+
 func TestCachedConntrackExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

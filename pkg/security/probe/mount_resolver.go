@@ -280,9 +280,13 @@ func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 
 func (mr *MountResolver) dequeue(now time.Time) {
 	mr.lock.Lock()
-	for i, req := range mr.deleteQueue {
+
+	var i int
+	var req deleteRequest
+
+	for i != len(mr.deleteQueue) {
+		req = mr.deleteQueue[i]
 		if req.timeoutAt.After(now) {
-			mr.deleteQueue = mr.deleteQueue[i:]
 			break
 		}
 
@@ -290,7 +294,16 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		if prev := mr.mounts[req.mount.MountID]; prev == req.mount {
 			mr.delete(req.mount)
 		}
+
+		i++
 	}
+
+	if i >= len(mr.deleteQueue) {
+		mr.deleteQueue = mr.deleteQueue[0:0]
+	} else if i > 0 {
+		mr.deleteQueue = mr.deleteQueue[i:]
+	}
+
 	mr.lock.Unlock()
 }
 

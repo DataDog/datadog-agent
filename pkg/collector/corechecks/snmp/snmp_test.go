@@ -8,6 +8,7 @@ package snmp
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -306,13 +307,21 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	timeNow = mockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
+
 	session := createMockSession()
 	check := Check{session: session}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 profile: f5-big-ip
+collect_device_metadata: true
+tags:
+  - "mytag:val1"
+  - "mytag:val1" # add duplicate tag for testing deduplication
+  - "autodiscovery_subnet:127.0.0.0/30"
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -328,6 +337,7 @@ profiles:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -338,9 +348,14 @@ profiles:
 				Value: []byte("foo_sys_name"),
 			},
 			{
-				Name:  "1.3.6.1.2.1.1.5.0",
+				Name:  "1.3.6.1.2.1.1.1.0",
 				Type:  gosnmp.OctetString,
-				Value: []byte("foo_sys_name"),
+				Value: []byte("my_desc"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
 			},
 			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
@@ -368,6 +383,26 @@ profiles:
 				Value: 141,
 			},
 			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
 				Type:  gosnmp.OctetString,
 				Value: []byte("nameRow1"),
@@ -386,6 +421,26 @@ profiles:
 				Name:  "1.3.6.1.2.1.2.2.1.14.2",
 				Type:  gosnmp.Integer,
 				Value: 142,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
 			},
 			{
 				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
@@ -417,11 +472,48 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
+	session.On("Get", []string{
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.2.3.4.5",
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	}).Return(&packet, nil)
+	session.On("GetBulk", []string{
+		"1.3.6.1.2.1.2.2.1.13",
+		"1.3.6.1.2.1.2.2.1.14",
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -437,6 +529,68 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
+
+	// language=json
+	event := []byte(`
+{
+  "subnet": "127.0.0.0/30",
+  "devices": [
+    {
+      "id": "173b2077d0770b8",
+      "id_tags": [
+        "mytag:val1",
+        "snmp_device:1.2.3.4"
+      ],
+      "name": "foo_sys_name",
+      "description": "my_desc",
+      "ip_address": "1.2.3.4",
+      "sys_object_id": "1.2.3.4",
+      "profile": "f5-big-ip",
+      "vendor": "f5",
+      "subnet": "127.0.0.0/30",
+      "tags": [
+        "autodiscovery_subnet:127.0.0.0/30",
+        "device_vendor:f5",
+        "mytag:val1",
+        "prefix:f",
+        "snmp_device:1.2.3.4",
+        "snmp_host:foo_sys_name",
+        "snmp_profile:f5-big-ip",
+        "some_tag:some_tag_value",
+        "suffix:oo_sys_name"
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "173b2077d0770b8",
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "ifDescRow1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "173b2077d0770b8",
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "ifDescRow2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 }
@@ -561,7 +715,7 @@ profiles:
 	}
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
@@ -748,7 +902,7 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket: sysObjectIDPacketOkMock,
 			valuesPacket:      valuesPacketErrMock,
 			valuesError:       fmt.Errorf("no value"),
-			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -775,7 +929,7 @@ ip_address: 1.2.3.4
 			mocksender.SetSender(sender, check.ID())
 
 			session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

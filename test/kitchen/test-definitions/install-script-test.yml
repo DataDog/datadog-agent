@@ -1,7 +1,7 @@
 suites:
 
 # Installs the latest release candidate using the install script
-- name: dd-agent-install-script
+- name: install-script
   <% if ENV['AGENT_FLAVOR'] == "datadog-iot-agent" %> # IoT Agent doesn't work on SLES 11 (no SysVInit files)
   excludes: <% if (sles11_platforms.nil? || sles11_platforms.empty?) %>[]<% end %>
     <% sles11_platforms.each do |p| %>

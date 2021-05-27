@@ -60,7 +60,7 @@ func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: true,
 	})
-	assert.Equal(t, "https://foo/v1/input/bar", url)
+	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
@@ -69,7 +69,7 @@ func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo/v1/input/bar", url)
+	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
@@ -79,7 +79,7 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 		Port:   1234,
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo:1234/v1/input/bar", url)
+	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestDestinationSend200(t *testing.T) {

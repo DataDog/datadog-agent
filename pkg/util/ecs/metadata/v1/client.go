@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// Default introspection endpoint port.
+	// DefaultAgentPort is the default introspection endpoint port.
 	DefaultAgentPort = 51678
 
 	// Metadata v1 API paths

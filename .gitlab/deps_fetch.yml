@@ -3,6 +3,9 @@
 # Contains jobs which fetch go dependencies for various Linux platforms, in order
 # to reuse them in further jobs that need them.
 
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+
 .go_deps:
   stage: deps_fetch
   needs: []
@@ -26,5 +29,7 @@ linux_arm64_go_deps:
 
 linux_armhf_go_deps:
   extends: .go_deps
+  rules:
+    - <<: *if_run_all_builds
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]

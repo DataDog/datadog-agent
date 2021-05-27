@@ -296,12 +296,14 @@ func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, c
 func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		tags := []string{
-			fmt.Sprintf("map:%s", m.Name),
-			fmt.Sprintf("cpu:%d", cpu),
-			fmt.Sprintf("event_type:%s", eventType),
-		}
-		_ = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, 1, tags, 1.0)
+		// Comment this out for now, until we fix the cardinality of the perf_buffer.* metrics.
+		//
+		// tags := []string{
+		// 	fmt.Sprintf("map:%s", m.Name),
+		// 	fmt.Sprintf("cpu:%d", cpu),
+		// 	fmt.Sprintf("event_type:%s", eventType),
+		// }
+		// _ = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, 1, tags, 1.0)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
@@ -464,8 +466,5 @@ func (pbm *PerfBufferMonitor) SendStats() error {
 		return err
 	}
 
-	if err := pbm.sendLostEventsReadStats(pbm.statsdClient); err != nil {
-		return err
-	}
-	return nil
+	return pbm.sendLostEventsReadStats(pbm.statsdClient)
 }

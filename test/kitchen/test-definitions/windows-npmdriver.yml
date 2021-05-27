@@ -1,6 +1,6 @@
 suites:
 
-- name: dd-agent-win-with-npm-option
+- name: win-npm-with-npm-option
   run_list:
     - "recipe[dd-agent-install]"
   attributes:

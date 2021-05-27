@@ -35,10 +35,12 @@ const (
 	PayloadTypeNode = "node"
 	// PayloadTypeCluster is the name of the cluster payload type
 	PayloadTypeCluster = "cluster"
-	// PayloadTypeJob is the name of the cluster payload type
+	// PayloadTypeJob is the name of the job payload type
 	PayloadTypeJob = "job"
-	// PayloadTypeCronJob is the name of the cluster payload type
+	// PayloadTypeCronJob is the name of the cronjob payload type
 	PayloadTypeCronJob = "cronjob"
+	// PayloadTypeDaemonset is the name of the daemonset payload type
+	PayloadTypeDaemonset = "daemonset"
 )
 
 const (
@@ -224,6 +226,9 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		if storagePath == "" {
+			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
+		}
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
@@ -568,6 +573,8 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeCronJob.Add(1)
 	case PayloadTypeCluster:
 		transactionsIntakeCluster.Add(1)
+	case PayloadTypeDaemonset:
+		transactionsIntakeDaemonSet.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)

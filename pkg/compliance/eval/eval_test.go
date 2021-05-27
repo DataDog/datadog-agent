@@ -658,7 +658,7 @@ func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	value, err := expr.EvaluateIterator(iterator, &test.global)
+	value, err := expr.EvaluateIterator(iterator, &test.global, 1)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
 	} else {

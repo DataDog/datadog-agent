@@ -12,7 +12,7 @@ import (
 
 // checkable abstracts a resource check
 type checkable interface {
-	check(env env.Env) (*compliance.Report, error)
+	check(env env.Env) []*compliance.Report
 }
 
 // checkableList abstracts a list of resource checks
@@ -22,17 +22,30 @@ type checkableList []checkable
 // note that this implements AND for all checkables in a check:
 // failure or error from a single checkable fails the check, all checkables must
 // return Passed in order for the check to be successful.
-func (list checkableList) check(env env.Env) (*compliance.Report, error) {
+func (list checkableList) check(env env.Env) []*compliance.Report {
 	var (
-		result *compliance.Report
-		err    error
+		reports []*compliance.Report
+		last    *compliance.Report
+		succeed = true
 	)
 
 	for _, c := range list {
-		result, err = c.check(env)
-		if err != nil || !result.Passed {
-			break
+		for _, last = range c.check(env) {
+			if !last.Passed {
+				succeed = false
+
+				if len(reports) < env.MaxEventsPerRun() {
+					reports = append(reports, last)
+				} else {
+					break
+				}
+			}
 		}
 	}
-	return result, err
+
+	if succeed {
+		return []*compliance.Report{last}
+	}
+
+	return reports
 }

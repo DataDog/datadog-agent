@@ -42,7 +42,7 @@ type subscriber struct {
 	isRunning           bool
 }
 
-func CreateEventSubscriber(name string, ns string, f []string) *subscriber {
+func CreateEventSubscriber(name string, ns string, f []string) *subscriber { //nolint:revive
 	return &subscriber{
 		Name:                name,
 		Namespace:           ns,

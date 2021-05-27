@@ -390,6 +390,57 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	assert.Equal(t, 2, len(scanner.tailers))
 }
 
+func TestContainerIDInContainerLogFile(t *testing.T) {
+	assert := assert.New(t)
+	//func (s *Scanner) shouldIgnore(file *File) bool {
+	logSource := config.NewLogSource("mylogsource", nil)
+	logSource.SetSourceType(config.DockerSourceType)
+	logSource.Config = &config.LogsConfig{
+		Type: config.FileType,
+		Path: "/var/log/pods/file-uuid-foo-bar.log",
+
+		Identifier: "abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd",
+	}
+
+	// create an empty file that will represent the log file that would have been found in /var/log/containers
+	ContainersLogsDir = "/tmp/"
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+
+	err := os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	defer func() {
+		// cleaning up after the test run
+		os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+		os.Remove("/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	}()
+
+	assert.NoError(err, "error while creating the temporary file")
+
+	file := File{
+		Path:           "/var/log/pods/file-uuid-foo-bar.log",
+		IsWildcardPath: false,
+		Source:         logSource,
+	}
+
+	scanner := &Scanner{}
+
+	// we've found a symlink validating that the file we have just scanned is concerning the container we're currently processing for this source
+	assert.False(scanner.shouldIgnore(&file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
+
+	// now, let's change the container for which we are trying to scan files,
+	// because the symlink is pointing from another container, we should ignore
+	// that log file
+	file.Source.Config.Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
+	assert.True(scanner.shouldIgnore(&file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
+
+	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	assert.False(scanner.shouldIgnore(&file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
+
+	// in this scenario, the file we've found doesn't look like a container ID
+	os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	assert.False(scanner.shouldIgnore(&file), "no container ID found, we don't want to ignore this scanned file")
+}
+
 func getScanKey(path string, source *config.LogSource) string {
 	return NewFile(path, source, false).GetScanKey()
 }
