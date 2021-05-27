@@ -682,7 +682,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(newFloat64ListPool())
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "")
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -796,7 +796,7 @@ dogstatsd_mapper_profiles:
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
 				parser := newParser(newFloat64ListPool())
-				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "")
+				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
 					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})

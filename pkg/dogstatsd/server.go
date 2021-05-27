@@ -70,11 +70,11 @@ func init() {
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
 }
 
+// used in debug mode to add the origin on the processed metric as a tag
 type cachedTagsOriginMap struct {
-	origin         string // used as key of the cache map
-	originTagValue string // used value for the origin tag
-	ok             map[string]string
-	err            map[string]string
+	origin string
+	ok     map[string]string
+	err    map[string]string
 }
 
 func initLatencyTelemetry() {
@@ -152,8 +152,6 @@ type Server struct {
 
 	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
 	// to avoid escaping these in the heap in this hot path.
-	// TODO(remy): There is a clean mechanism in place to avoid having this map
-	// infinitely growing over time.
 	cachedTlmOriginIds map[string]cachedTagsOriginMap
 	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
@@ -535,13 +533,16 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin)
+				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
+
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
 				}
+
 				for idx := range samples {
-					if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+					if debugEnabled {
 						s.storeMetricStats(samples[idx])
 					}
 					batcher.appendSample(samples[idx])
@@ -571,24 +572,14 @@ func (s *Server) errLog(format string, params ...interface{}) {
 // createOriginTagMaps  keeps these in a cache to avoid a lot of heap escape
 // that we can't avoid in this hot path
 func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
-	originTagValue := origin
-
-	if strings.HasPrefix(origin, "container_id://") {
-		originTagValue = origin[15:]
-	}
-
-	// TODO(remy): we probably want to cleanup the origin value here
-	// originTagValue = utils.CleanupTagValue(originTagValue) or something like this
-
 	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
 	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
-	okMap["origin"] = originTagValue
-	errorMap["origin"] = originTagValue
+	okMap["origin"] = origin
+	errorMap["origin"] = origin
 	maps := cachedTagsOriginMap{
-		origin:         origin,
-		originTagValue: originTagValue,
-		ok:             okMap,
-		err:            errorMap,
+		origin: origin,
+		ok:     okMap,
+		err:    errorMap,
 	}
 
 	s.cachedTlmOriginIds[origin] = maps
@@ -607,11 +598,11 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 	return maps
 }
 
-func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string) ([]metrics.MetricSample, error) {
+func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		if origin != "" {
+		if origin != "" && telemetry {
 			var maps cachedTagsOriginMap // errorMap and okMap for this origin
 			var exists bool
 			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
@@ -646,7 +637,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		if origin != "" {
+		if origin != "" && telemetry {
 			var maps cachedTagsOriginMap // errorMap and okMap for this origin
 			var exists bool
 			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
