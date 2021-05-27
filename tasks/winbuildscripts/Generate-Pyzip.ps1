@@ -51,7 +51,8 @@ $dlfullpath = "$Env:TEMP\$dlfilename"
 function Get-Installer {
     param  (
         [string]$url,
-        [string]$dlfullpath
+        [string]$dlfullpath,
+        [string]$md5sum
     )
 
     Write-Host -ForegroundColor Green "Downloading file from $url..."
@@ -59,7 +60,7 @@ function Get-Installer {
     Write-Host -ForegroundColor Green "... Done."
 
     ## do md5 check if we have it
-    if($md5sum){
+    if ($md5sum){
         $downloadedhash = (Get-FileHash -Algorithm md5 $dlfullpath).Hash.ToLower()
         if($downloadedhash -ne $md5sum.ToLower()){
             Write-Host -ForegroundColor Red "MD5Sums Don't Match"
@@ -75,7 +76,7 @@ function Get-Installer {
 $pythonRoot = "c:\pythonroot"
 
 if($maj -eq "2") {
-    Get-Installer -url $url -dlfullpath $dlfullpath
+    Get-Installer -url $url -dlfullpath $dlfullpath -md5sum $md5sum
     Write-Host -ForegroundColor Green "Installing package in container..."
     $p = Start-Process msiexec -ArgumentList "/q /i $dlfullpath TARGETDIR=""$pythonRoot"" ADDLOCAL=DefaultFeature,Tools,TclTk,Testsuite" -Wait -Passthru
 
@@ -87,8 +88,6 @@ if($maj -eq "2") {
 elseif ($maj -eq "3") {
     $Env:PATH="$Env:PATH;c:\tools\msys64\mingw64\bin"
 
-    $needInstall = $false
-    $needUninstall = $false
     try {
         $installedPythonVersion = python --version
         $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d.\d.\d)').Groups[1].Value
@@ -101,19 +100,8 @@ elseif ($maj -eq "3") {
             exit 1   
         }
 
-        if (!(($installedMin -eq $min) -and ($installedPatch -eq $patch))) {
-            $needInstall = $true
-            $needUninstall = $true
-        }
-    }
-    catch {
-        # No python command found
-        $needInstall = $true
-    }
-
-    if ($needUninstall) {
         # Python is already installed in the buildimage, but is the wrong version uninstall it
-        Get-Installer -url (Get-Installer-Url -version $installedPythonVersion) -dlfullpath $dlfullpath
+        Get-Installer -url (Get-Installer-Url -version $installedPythonVersion) -dlfullpath $dlfullpath -md5sum $null
         Write-Host -ForegroundColor Yellow "Uninstalling Python $installedPythonVersion"
         $p = Start-Process $dlfullpath -ArgumentList "/quiet /uninstall" -Wait -Passthru
         if ($p.ExitCode -ne 0) {
@@ -122,21 +110,16 @@ elseif ($maj -eq "3") {
         }
         Remove-Item $dlfullpath
     }
-
-    if ($needInstall) {
-        Get-Installer -url $url -dlfullpath $dlfullpath
-        Write-Host -ForegroundColor Green "Installing Python $Version"
-        $p = Start-Process $dlfullpath -ArgumentList "/quiet /log C:\mnt\install.log DefaultJustForMeTargetDir=""$pythonRoot"" DefaultAllUsersTargetDir=""$pythonRoot"" AssociateFiles=0 Include_doc=0 Include_launcher=0 Include_pip=0 Include_tcltk=0" -Wait -Passthru
-        if ($p.ExitCode -ne 0) {
-            Write-Host -ForegroundColor Red ("Failed to install Python, exit code 0x{0:X}" -f $p.ExitCode)
-            exit 1
-        }
+    catch {
+        # Python command not found
     }
 
-    if (!$needInstall -and !$needUninstall) {
-        # The Python from the buildimage matches our target python. However its install path might be different.
-        $pythonRoot = (Get-Command python).Path | Split-Path -parent
-        Write-Host -ForegroundColor Green "Using Python from $pythonRoot"
+    Get-Installer -url $url -dlfullpath $dlfullpath -md5sum $md5sum
+    Write-Host -ForegroundColor Green "Installing Python $Version"
+    $p = Start-Process $dlfullpath -ArgumentList "/quiet /log C:\mnt\install.log DefaultJustForMeTargetDir=""$pythonRoot"" DefaultAllUsersTargetDir=""$pythonRoot"" AssociateFiles=0 Include_doc=0 Include_launcher=0 Include_pip=0 Include_tcltk=0" -Wait -Passthru
+    if ($p.ExitCode -ne 0) {
+        Write-Host -ForegroundColor Red ("Failed to install Python, exit code 0x{0:X}" -f $p.ExitCode)
+        exit 1
     }
 
     if (Test-Path $pythonRoot\vcruntime*.dll) {
