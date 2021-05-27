@@ -237,6 +237,7 @@ void getOsStrings()
     {
         // [sts] Apply this new route to the original variable
         programdata = outstr;
+        programdata += L"\\";
     }
 
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
@@ -269,8 +270,8 @@ void getOsStrings()
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     // [sts] Replaced the target path to a valid location
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdata + L"\\datadog.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdata + L"\\datadog.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
