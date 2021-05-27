@@ -8,6 +8,7 @@ package eval
 import (
 	"container/list"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -917,6 +918,11 @@ func TestOptimizer(t *testing.T) {
 }
 
 func TestDuration(t *testing.T) {
+	// time reliability issue
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	event := &testEvent{
 		process: testProcess{
 			createdAt: time.Now().UnixNano(),

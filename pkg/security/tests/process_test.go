@@ -26,7 +26,6 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"gotest.tools/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
