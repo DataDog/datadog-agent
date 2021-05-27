@@ -142,10 +142,9 @@ func TestStatsWriter(t *testing.T) {
 			assert.Equal(1, len(payloads[i].Stats))
 			assert.Equal(1, len(payloads[i].Stats[0].Stats))
 			assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
-			previous := payloads[i].Stats[0].Stats
-			payloads[i].Stats[0].Stats = nil
-			assert.Equal(baseClientPayload, payloads[i].Stats[0])
-			payloads[i].Stats[0].Stats = previous
+			actual := payloads[i].Stats[0]
+			actual.Stats = nil
+			assert.Equal(baseClientPayload, actual)
 		}
 		assert.Equal(extractCounts([]pb.StatsPayload{stats}), extractCounts(payloads))
 		for _, p := range payloads {
