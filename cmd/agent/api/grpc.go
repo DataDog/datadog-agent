@@ -13,19 +13,17 @@ package api
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 
-	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,7 +85,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 // and streams them to clients as pb.StreamTagsResponse events. Filtering is as
 // of yet not implemented.
 func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecure_TaggerStreamEntitiesServer) error {
-	cardinality, err := pb2taggerCardinality(in.Cardinality)
+	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
 	if err != nil {
 		return err
 	}
@@ -104,7 +102,7 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	for events := range eventCh {
 		responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
 		for _, event := range events {
-			e, err := tagger2pbEntityEvent(event)
+			e, err := pbutils.Tagger2PbEntityEvent(event)
 			if err != nil {
 				log.Warnf("can't convert tagger entity to protobuf: %s", err)
 				continue
@@ -135,7 +133,7 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 	}
 
 	entityID := fmt.Sprintf("%s://%s", in.Id.Prefix, in.Id.Uid)
-	cardinality, err := pb2taggerCardinality(in.Cardinality)
+	cardinality, err := pbutils.Pb2TaggerCardinality(in.Cardinality)
 	if err != nil {
 		return nil, err
 	}
@@ -150,62 +148,6 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 		Cardinality: in.Cardinality,
 		Tags:        tags,
 	}, nil
-}
-
-func tagger2pbEntityID(entityID string) (*pb.EntityId, error) {
-	parts := strings.SplitN(entityID, "://", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid entity id %q", entityID)
-	}
-
-	return &pb.EntityId{
-		Prefix: parts[0],
-		Uid:    parts[1],
-	}, nil
-}
-
-func tagger2pbEntityEvent(event types.EntityEvent) (*pb.StreamTagsEvent, error) {
-	entity := event.Entity
-	entityID, err := tagger2pbEntityID(entity.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	var eventType pb.EventType
-	switch event.EventType {
-	case types.EventTypeAdded:
-		eventType = pb.EventType_ADDED
-	case types.EventTypeModified:
-		eventType = pb.EventType_MODIFIED
-	case types.EventTypeDeleted:
-		eventType = pb.EventType_DELETED
-	default:
-		return nil, fmt.Errorf("invalid event type %q", event.EventType)
-	}
-
-	return &pb.StreamTagsEvent{
-		Type: eventType,
-		Entity: &pb.Entity{
-			Id:                          entityID,
-			HighCardinalityTags:         entity.HighCardinalityTags,
-			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
-			LowCardinalityTags:          entity.LowCardinalityTags,
-			StandardTags:                entity.StandardTags,
-		},
-	}, nil
-}
-
-func pb2taggerCardinality(pbCardinality pb.TagCardinality) (collectors.TagCardinality, error) {
-	switch pbCardinality {
-	case pb.TagCardinality_LOW:
-		return collectors.LowCardinality, nil
-	case pb.TagCardinality_ORCHESTRATOR:
-		return collectors.OrchestratorCardinality, nil
-	case pb.TagCardinality_HIGH:
-		return collectors.HighCardinality, nil
-	}
-
-	return 0, status.Errorf(codes.InvalidArgument, "invalid cardinality %q", pbCardinality)
 }
 
 func init() {
