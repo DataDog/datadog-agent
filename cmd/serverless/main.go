@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	_ "expvar"
 	"fmt"
 	_ "net/http/pprof"
@@ -19,8 +18,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
@@ -409,77 +406,4 @@ func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 			return
 		}
 	}
-}
-
-// decryptKMS deciphered the cipherText given as parameter.
-// Function stolen and adapted from datadog-lambda-go/internal/metrics/kms_decrypter.go
-func decryptKMS(cipherText string) (string, error) {
-	kmsClient := kms.New(session.New(nil))
-	decodedBytes, err := base64.StdEncoding.DecodeString(cipherText)
-	if err != nil {
-		return "", fmt.Errorf("Failed to encode cipher text to base64: %v", err)
-	}
-
-	params := &kms.DecryptInput{
-		CiphertextBlob: decodedBytes,
-	}
-
-	response, err := kmsClient.Decrypt(params)
-	if err != nil {
-		return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
-	}
-	// Plaintext is a byte array, so convert to string
-	decrypted := string(response.Plaintext[:])
-
-	return decrypted, nil
-}
-
-// readAPIKeyFromKMS reads an API Key in KMS if the env var DD_KMS_API_KEY has
-// been set.
-// If none has been set, it is returning an empty string and a nil error
-func readAPIKeyFromKMS() (string, error) {
-	ciphered := os.Getenv(kmsAPIKeyEnvVar)
-	if ciphered == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_KMS_API_KEY value, trying to decipher it.")
-	rv, err := decryptKMS(ciphered)
-	if err != nil {
-		return "", fmt.Errorf("decryptKMS error: %s", err)
-	}
-	return rv, nil
-}
-
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
-// has been set.
-// If none has been set, it is returning an empty string and a nil error.
-func readAPIKeyFromSSM() (string, error) {
-	arn := os.Getenv(ssmAPIKeyEnvVar)
-	if arn == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
-	ssmClient := secretsmanager.New(session.New(nil))
-	secret := &secretsmanager.GetSecretValueInput{}
-	secret.SetSecretId(arn)
-
-	output, err := ssmClient.GetSecretValue(secret)
-	if err != nil {
-		return "", fmt.Errorf("SSM read error: %s", err)
-	}
-
-	if output.SecretString != nil {
-		secretString := *output.SecretString // create a copy to not return an object within the AWS response
-		return secretString, nil
-	} else if output.SecretBinary != nil {
-		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
-		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
-		if err != nil {
-			return "", fmt.Errorf("Can't base64 decode SSM secret: %s", err)
-		}
-		return string(decodedBinarySecretBytes[:len]), nil
-	}
-	// should not happen but let's handle this gracefully
-	log.Warn("SSM returned something but there seems to be no data available;")
-	return "", nil
 }
