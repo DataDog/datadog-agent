@@ -1,0 +1,69 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
+      # These dependencies are replaced in the main go.mod file.
+      # They are ignored since bumping them would have no effect on the build.
+      # To update them automatically, it is necessary to remove the `replace` directive.
+      - dependency-name: k8s.io/*
+      - dependency-name: github.com/grpc-ecosystem/grpc-gateway
+      - dependency-name: google.golang.org/grpc
+      - dependency-name: github.com/cihub/seelog
+      - dependency-name: github.com/containerd/cgroups
+      - dependency-name: github.com/containerd/containerd
+      - dependency-name: github.com/coreos/go-systemd
+      # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
+      - dependency-name: github.com/docker/*
+      - dependency-name: github.com/florianl/go-conntrack
+      - dependency-name: github.com/iovisor/gobpf
+      - dependency-name: github.com/lxn/walk
+      - dependency-name: github.com/mholt/archiver
+      - dependency-name: github.com/prometheus/client_golang
+      - dependency-name: github.com/spf13/cast
+      - dependency-name: github.com/ugorji/go
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/util/log
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+    milestone: 22
+    ignore: 
+      - dependency-name: github.com/cihub/seelog
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/util/winutil
+    labels:
+      - dependencies
+      - team/agent-platform
+      - changelog/no-changelog
+    milestone: 22
+    ignore: 
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /internal/tools
+    labels:
+      - dependencies
+      - dev/tooling
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+    milestone: 22
+    schedule:
+      interval: monthly

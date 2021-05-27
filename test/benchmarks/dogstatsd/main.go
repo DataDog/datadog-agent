@@ -226,7 +226,7 @@ func main() {
 	mockConfig.Set("dogstatsd_stats_enable", true)
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
-	aggr := aggregator.InitAggregator(s, "localhost")
+	aggr := aggregator.InitAggregator(s, nil, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), nil)
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)

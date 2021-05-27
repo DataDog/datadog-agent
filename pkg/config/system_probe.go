@@ -2,6 +2,7 @@ package config
 
 import (
 	"strings"
+	"time"
 )
 
 const (
@@ -19,7 +20,21 @@ const (
 	defaultOffsetThreshold = 400
 )
 
-func setupSystemProbe(cfg Config) {
+func isSystemProbeConfigInit(cfg Config) bool {
+	keys := cfg.GetKnownKeys()
+	_, ok := keys[join(spNS, "enabled")]
+	return ok
+}
+
+// InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
+// This function should not be called before ResolveSecrets,
+// unless you call `cmd/system-probe/config.New` or `cmd/system-probe/config.Merge` in-between.
+// This is to prevent the in-memory values from being fixed before the file-based values have had a chance to be read.
+func InitSystemProbeConfig(cfg Config) {
+	if isSystemProbeConfigInit(cfg) {
+		return
+	}
+
 	// settings for system-probe in general
 	cfg.BindEnvAndSetDefault(join(spNS, "enabled"), false, "DD_SYSTEM_PROBE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
@@ -34,11 +49,13 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.enabled"), false, "DD_SYSTEM_PROBE_PROFILING_ENABLED")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_PROFILING_SITE", "DD_SITE")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.profile_dd_url"), "", "DD_SYSTEM_PROBE_PROFILING_DD_URL", "DD_APM_PROFILING_DD_URL")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.api_key"), "", "DD_SYSTEM_PROBE_PROFILING_API_KEY", "DD_API_KEY")
-	cfg.BindEnvAndSetDefault(join(spNS, "profiling.env"), "", "DD_SYSTEM_PROBE_PROFILING_ENV", "DD_ENV")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.profile_dd_url"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_DD_URL", "DD_APM_INTERNAL_PROFILING_DD_URL")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.api_key"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_API_KEY", "DD_API_KEY")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.env"), "", "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENV", "DD_ENV")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.period"), 5*time.Minute, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD")
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.cpu_duration"), 1*time.Minute, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION")
 
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
@@ -50,7 +67,9 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
 
 	// network_tracer settings
-	cfg.BindEnvAndSetDefault(join(netNS, "enabled"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLED")
+	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
+	cfg.SetKnown(join(netNS, "enabled"))
+	_ = cfg.BindEnv(join(netNS, "enabled"), "DD_SYSTEM_PROBE_NETWORK_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_tcp"), false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_udp"), false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_ipv6"), false, "DD_DISABLE_IPV6_TRACING")
@@ -65,7 +84,7 @@ func setupSystemProbe(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_stats"), true, "DD_COLLECT_DNS_STATS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_local_dns"), false, "DD_COLLECT_LOCAL_DNS")
 	cfg.BindEnvAndSetDefault(join(spNS, "collect_dns_domains"), false, "DD_COLLECT_DNS_DOMAINS")
-	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 10000)
+	cfg.BindEnvAndSetDefault(join(spNS, "max_dns_stats"), 20000)
 	cfg.BindEnvAndSetDefault(join(spNS, "dns_timeout_in_s"), 15)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack"), true)

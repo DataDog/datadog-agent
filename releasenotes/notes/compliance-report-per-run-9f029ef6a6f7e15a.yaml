@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Compliance agents can now generated multiple reports per run.

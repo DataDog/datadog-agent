@@ -153,6 +153,17 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
+	// The maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
+	if k := key(ns, "max_ctr_procs_per_message"); config.Datadog.IsSet(k) {
+		if maxCtrProcessesPerMessage := config.Datadog.GetInt(k); maxCtrProcessesPerMessage <= 0 {
+			log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", defaultMaxCtrProcsMessageBatch)
+		} else if maxCtrProcessesPerMessage <= maxCtrProcsMessageBatch {
+			a.MaxCtrProcessesPerMessage = maxCtrProcessesPerMessage
+		} else {
+			log.Warnf("Overriding the configured max container processes count per message limit because it exceeds maximum limit of %d", maxCtrProcsMessageBatch)
+		}
+	}
+
 	// Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
 	a.DDAgentBin = defaultDDAgentBin
 	if k := key(ns, "dd_agent_bin"); config.Datadog.IsSet(k) {
@@ -192,14 +203,16 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
-	// use `profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
+	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
-	if config.Datadog.IsSet(key(ns, "profiling.enabled")) {
-		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "profiling.enabled"))
+	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
+		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
-		a.ProfilingURL = config.Datadog.GetString("profiling.profile_dd_url")
+		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
+		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
+		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
 	}
 
 	// Used to override container source auto-detection

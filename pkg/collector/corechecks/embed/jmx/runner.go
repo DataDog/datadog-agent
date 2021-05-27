@@ -43,10 +43,7 @@ func (r *runner) configureRunner(instance, initConfig integration.Data) error {
 	if err := r.jmxfetch.ConfigureFromInstance(instance); err != nil {
 		return err
 	}
-	if err := r.jmxfetch.ConfigureFromInitConfig(initConfig); err != nil {
-		return err
-	}
-	return nil
+	return r.jmxfetch.ConfigureFromInitConfig(initConfig)
 }
 
 func (r *runner) stopRunner() error {

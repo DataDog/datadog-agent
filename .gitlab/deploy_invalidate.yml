@@ -18,7 +18,7 @@
   tags: ["runner:main", "size:large"]
   dependencies: []
   script:
-    - cd ~/deploy_scripts/cloudfront-invalidation
+    - cd /deploy_scripts/cloudfront-invalidation
     - "REPO=apt RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
     - "REPO=yum RUNNER_ENV=build-stable REPO_ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 

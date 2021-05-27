@@ -361,9 +361,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 				in.Delim('[')
 				if out.CapEffective == nil {
 					if !in.IsDelim(']') {
-						out.CapEffective = make([]string, 0, 4)
+						out.CapEffective = make(JStringArray, 0, 4)
 					} else {
-						out.CapEffective = []string{}
+						out.CapEffective = JStringArray{}
 					}
 				} else {
 					out.CapEffective = (out.CapEffective)[:0]
@@ -384,9 +384,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 				in.Delim('[')
 				if out.CapPermitted == nil {
 					if !in.IsDelim(']') {
-						out.CapPermitted = make([]string, 0, 4)
+						out.CapPermitted = make(JStringArray, 0, 4)
 					} else {
-						out.CapPermitted = []string{}
+						out.CapPermitted = JStringArray{}
 					}
 				} else {
 					out.CapPermitted = (out.CapPermitted)[:0]
@@ -490,33 +490,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 		out.RawString(prefix)
 		out.String(string(in.FSGroup))
 	}
-	if len(in.CapEffective) != 0 {
+	{
 		const prefix string = ",\"cap_effective\":"
 		out.RawString(prefix)
-		{
-			out.RawByte('[')
-			for v3, v4 := range in.CapEffective {
-				if v3 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v4))
-			}
-			out.RawByte(']')
-		}
+		out.Raw((in.CapEffective).MarshalJSON())
 	}
-	if len(in.CapPermitted) != 0 {
+	{
 		const prefix string = ",\"cap_permitted\":"
 		out.RawString(prefix)
-		{
-			out.RawByte('[')
-			for v5, v6 := range in.CapPermitted {
-				if v5 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v6))
-			}
-			out.RawByte(']')
-		}
+		out.Raw((in.CapPermitted).MarshalJSON())
 	}
 	out.RawByte('}')
 }
@@ -590,17 +572,17 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 					out.Ancestors = (out.Ancestors)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v7 *ProcessCacheEntrySerializer
+					var v3 *ProcessCacheEntrySerializer
 					if in.IsNull() {
 						in.Skip()
-						v7 = nil
+						v3 = nil
 					} else {
-						if v7 == nil {
-							v7 = new(ProcessCacheEntrySerializer)
+						if v3 == nil {
+							v3 = new(ProcessCacheEntrySerializer)
 						}
-						(*v7).UnmarshalEasyJSON(in)
+						(*v3).UnmarshalEasyJSON(in)
 					}
-					out.Ancestors = append(out.Ancestors, v7)
+					out.Ancestors = append(out.Ancestors, v3)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -717,9 +699,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 					out.Args = (out.Args)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v8 string
-					v8 = string(in.String())
-					out.Args = append(out.Args, v8)
+					var v4 string
+					v4 = string(in.String())
+					out.Args = append(out.Args, v4)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -742,9 +724,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 					out.Envs = (out.Envs)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v9 string
-					v9 = string(in.String())
-					out.Envs = append(out.Envs, v9)
+					var v5 string
+					v5 = string(in.String())
+					out.Envs = append(out.Envs, v5)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -781,14 +763,14 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		}
 		{
 			out.RawByte('[')
-			for v10, v11 := range in.Ancestors {
-				if v10 > 0 {
+			for v6, v7 := range in.Ancestors {
+				if v6 > 0 {
 					out.RawByte(',')
 				}
-				if v11 == nil {
+				if v7 == nil {
 					out.RawString("null")
 				} else {
-					(*v11).MarshalEasyJSON(out)
+					(*v7).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
@@ -924,11 +906,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v12, v13 := range in.Args {
-				if v12 > 0 {
+			for v8, v9 := range in.Args {
+				if v8 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v13))
+				out.String(string(v9))
 			}
 			out.RawByte(']')
 		}
@@ -943,11 +925,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v14, v15 := range in.Envs {
-				if v14 > 0 {
+			for v10, v11 := range in.Envs {
+				if v10 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v15))
+				out.String(string(v11))
 			}
 			out.RawByte(']')
 		}
@@ -1114,9 +1096,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 					out.Args = (out.Args)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v16 string
-					v16 = string(in.String())
-					out.Args = append(out.Args, v16)
+					var v12 string
+					v12 = string(in.String())
+					out.Args = append(out.Args, v12)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1139,9 +1121,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 					out.Envs = (out.Envs)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v17 string
-					v17 = string(in.String())
-					out.Envs = append(out.Envs, v17)
+					var v13 string
+					v13 = string(in.String())
+					out.Envs = append(out.Envs, v13)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1288,11 +1270,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v18, v19 := range in.Args {
-				if v18 > 0 {
+			for v14, v15 := range in.Args {
+				if v14 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v19))
+				out.String(string(v15))
 			}
 			out.RawByte(']')
 		}
@@ -1307,11 +1289,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v20, v21 := range in.Envs {
-				if v20 > 0 {
+			for v16, v17 := range in.Envs {
+				if v16 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v21))
+				out.String(string(v17))
 			}
 			out.RawByte(']')
 		}
@@ -1444,9 +1426,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 					out.Flags = (out.Flags)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v22 string
-					v22 = string(in.String())
-					out.Flags = append(out.Flags, v22)
+					var v18 string
+					v18 = string(in.String())
+					out.Flags = append(out.Flags, v18)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1587,7 +1569,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 		}
 		out.String(string(in.Filesystem))
 	}
-	if in.UID != 0 {
+	{
 		const prefix string = ",\"uid\":"
 		if first {
 			first = false
@@ -1597,103 +1579,58 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 		}
 		out.Uint32(uint32(in.UID))
 	}
-	if in.GID != 0 {
+	{
 		const prefix string = ",\"gid\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Uint32(uint32(in.GID))
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.User))
 	}
 	if in.Group != "" {
 		const prefix string = ",\"group\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
 	if in.XAttrName != "" {
 		const prefix string = ",\"attribute_name\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.XAttrName))
 	}
 	if in.XAttrNamespace != "" {
 		const prefix string = ",\"attribute_namespace\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.XAttrNamespace))
 	}
 	if len(in.Flags) != 0 {
 		const prefix string = ",\"flags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v23, v24 := range in.Flags {
-				if v23 > 0 {
+			for v19, v20 := range in.Flags {
+				if v19 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v24))
+				out.String(string(v20))
 			}
 			out.RawByte(']')
 		}
 	}
 	if in.Atime != nil {
 		const prefix string = ",\"access_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Atime).MarshalJSON())
 	}
 	if in.Mtime != nil {
 		const prefix string = ",\"modification_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Mtime).MarshalJSON())
 	}
 	if in.Ctime != nil {
 		const prefix string = ",\"change_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Ctime).MarshalJSON())
 	}
 	out.RawByte('}')
@@ -1837,9 +1774,9 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jle
 					out.Flags = (out.Flags)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v25 string
-					v25 = string(in.String())
-					out.Flags = append(out.Flags, v25)
+					var v21 string
+					v21 = string(in.String())
+					out.Flags = append(out.Flags, v21)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2030,7 +1967,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 		}
 		out.String(string(in.Filesystem))
 	}
-	if in.UID != 0 {
+	{
 		const prefix string = ",\"uid\":"
 		if first {
 			first = false
@@ -2040,103 +1977,58 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 		}
 		out.Uint32(uint32(in.UID))
 	}
-	if in.GID != 0 {
+	{
 		const prefix string = ",\"gid\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Uint32(uint32(in.GID))
 	}
 	if in.User != "" {
 		const prefix string = ",\"user\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.User))
 	}
 	if in.Group != "" {
 		const prefix string = ",\"group\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
 	if in.XAttrName != "" {
 		const prefix string = ",\"attribute_name\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.XAttrName))
 	}
 	if in.XAttrNamespace != "" {
 		const prefix string = ",\"attribute_namespace\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.String(string(in.XAttrNamespace))
 	}
 	if len(in.Flags) != 0 {
 		const prefix string = ",\"flags\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v26, v27 := range in.Flags {
-				if v26 > 0 {
+			for v22, v23 := range in.Flags {
+				if v22 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v27))
+				out.String(string(v23))
 			}
 			out.RawByte(']')
 		}
 	}
 	if in.Atime != nil {
 		const prefix string = ",\"access_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Atime).MarshalJSON())
 	}
 	if in.Mtime != nil {
 		const prefix string = ",\"modification_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Mtime).MarshalJSON())
 	}
 	if in.Ctime != nil {
 		const prefix string = ",\"change_time\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Raw((*in.Ctime).MarshalJSON())
 	}
 	out.RawByte('}')
@@ -2470,17 +2362,17 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jl
 				in.Delim('[')
 				if out.CapEffective == nil {
 					if !in.IsDelim(']') {
-						out.CapEffective = make([]string, 0, 4)
+						out.CapEffective = make(JStringArray, 0, 4)
 					} else {
-						out.CapEffective = []string{}
+						out.CapEffective = JStringArray{}
 					}
 				} else {
 					out.CapEffective = (out.CapEffective)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v28 string
-					v28 = string(in.String())
-					out.CapEffective = append(out.CapEffective, v28)
+					var v24 string
+					v24 = string(in.String())
+					out.CapEffective = append(out.CapEffective, v24)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2493,17 +2385,17 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jl
 				in.Delim('[')
 				if out.CapPermitted == nil {
 					if !in.IsDelim(']') {
-						out.CapPermitted = make([]string, 0, 4)
+						out.CapPermitted = make(JStringArray, 0, 4)
 					} else {
-						out.CapPermitted = []string{}
+						out.CapPermitted = JStringArray{}
 					}
 				} else {
 					out.CapPermitted = (out.CapPermitted)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v29 string
-					v29 = string(in.String())
-					out.CapPermitted = append(out.CapPermitted, v29)
+					var v25 string
+					v25 = string(in.String())
+					out.CapPermitted = append(out.CapPermitted, v25)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2582,33 +2474,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(out *j
 		out.RawString(prefix)
 		out.String(string(in.FSGroup))
 	}
-	if len(in.CapEffective) != 0 {
+	{
 		const prefix string = ",\"cap_effective\":"
 		out.RawString(prefix)
-		{
-			out.RawByte('[')
-			for v30, v31 := range in.CapEffective {
-				if v30 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v31))
-			}
-			out.RawByte(']')
-		}
+		out.Raw((in.CapEffective).MarshalJSON())
 	}
-	if len(in.CapPermitted) != 0 {
+	{
 		const prefix string = ",\"cap_permitted\":"
 		out.RawString(prefix)
-		{
-			out.RawByte('[')
-			for v32, v33 := range in.CapPermitted {
-				if v32 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v33))
-			}
-			out.RawByte(']')
-		}
+		out.Raw((in.CapPermitted).MarshalJSON())
 	}
 	out.RawByte('}')
 }
@@ -2730,17 +2604,17 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 				in.Delim('[')
 				if out.CapEffective == nil {
 					if !in.IsDelim(']') {
-						out.CapEffective = make([]string, 0, 4)
+						out.CapEffective = make(JStringArray, 0, 4)
 					} else {
-						out.CapEffective = []string{}
+						out.CapEffective = JStringArray{}
 					}
 				} else {
 					out.CapEffective = (out.CapEffective)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v34 string
-					v34 = string(in.String())
-					out.CapEffective = append(out.CapEffective, v34)
+					var v26 string
+					v26 = string(in.String())
+					out.CapEffective = append(out.CapEffective, v26)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2753,17 +2627,17 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 				in.Delim('[')
 				if out.CapPermitted == nil {
 					if !in.IsDelim(']') {
-						out.CapPermitted = make([]string, 0, 4)
+						out.CapPermitted = make(JStringArray, 0, 4)
 					} else {
-						out.CapPermitted = []string{}
+						out.CapPermitted = JStringArray{}
 					}
 				} else {
 					out.CapPermitted = (out.CapPermitted)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v35 string
-					v35 = string(in.String())
-					out.CapPermitted = append(out.CapPermitted, v35)
+					var v27 string
+					v27 = string(in.String())
+					out.CapPermitted = append(out.CapPermitted, v27)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2782,39 +2656,15 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 	out.RawByte('{')
 	first := true
 	_ = first
-	if len(in.CapEffective) != 0 {
+	{
 		const prefix string = ",\"cap_effective\":"
-		first = false
 		out.RawString(prefix[1:])
-		{
-			out.RawByte('[')
-			for v36, v37 := range in.CapEffective {
-				if v36 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v37))
-			}
-			out.RawByte(']')
-		}
+		out.Raw((in.CapEffective).MarshalJSON())
 	}
-	if len(in.CapPermitted) != 0 {
+	{
 		const prefix string = ",\"cap_permitted\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		{
-			out.RawByte('[')
-			for v38, v39 := range in.CapPermitted {
-				if v38 > 0 {
-					out.RawByte(',')
-				}
-				out.String(string(v39))
-			}
-			out.RawByte(']')
-		}
+		out.RawString(prefix)
+		out.Raw((in.CapPermitted).MarshalJSON())
 	}
 	out.RawByte('}')
 }

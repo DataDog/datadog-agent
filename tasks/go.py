@@ -5,8 +5,12 @@ Golang related tasks go here
 
 import copy
 import datetime
+import glob
+import json
 import os
 import shutil
+import tempfile
+from pathlib import Path
 
 import yaml
 from invoke import task
@@ -76,7 +80,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
 @task
 def lint(ctx, targets):
     """
-    Run golint on targets. If targets are not specified,
+    Run revive (the fork of golint) on targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
 
     Example invokation:
@@ -89,7 +93,7 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("golint {}".format(' '.join(targets_list)))
+    result = ctx.run("revive {}".format(' '.join(targets_list)))
     if result.stdout:
         files = []
         skipped_files = set()
@@ -108,7 +112,7 @@ def lint(ctx, targets):
             for skipped in skipped_files:
                 print("Allowed errors in whitelisted file {}".format(skipped))
 
-    print("golint found no issues")
+    print("revive found no issues")
 
 
 @task
@@ -164,7 +168,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
-        inv golangci_lint --targets=./pkg/collector/check,./pkg/aggregator
+        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -349,12 +353,20 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
+
+    # local imports
+    from urllib.parse import urlparse
+
+    import requests
+    from requests.exceptions import RequestException
+
     # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
     deps_vendored(ctx)
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
     exceptions = []
+    additional = {}
     with open('.wwhrd.yml') as wwhrd_conf_yml:
         wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
         for pkg in wwhrd_conf['exceptions']:
@@ -363,6 +375,9 @@ def get_licenses_list(ctx):
                 exceptions_wildcard.append(pkg[: -len("/...")])
             else:
                 exceptions.append(pkg)
+
+        for pkg, license in wwhrd_conf.get('additional', {}).items():
+            additional[pkg] = license
 
     def is_excluded(pkg):
         if package in exceptions:
@@ -391,9 +406,89 @@ def get_licenses_list(ctx):
                         print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
                     else:
                         licenses.append("core,\"{}\",{}".format(package, license))
+
+    # Additional Licenses
+    for pkg, lic in additional.items():
+        url = urlparse(lic)
+        url = url._replace(scheme='https', netloc=url.path, path='')
+        try:
+            resp = requests.get(url.geturl())
+            resp.raise_for_status()
+
+            with tempfile.TemporaryDirectory() as tempdir:
+                with open(os.path.join(tempdir, 'LICENSE'), 'w') as lfp:
+                    lfp.write(resp.text)
+                    lfp.flush()
+
+                    temp_path = os.path.dirname(lfp.name)
+                    result = ctx.run("license-detector -f json {}".format(temp_path))
+                    if result.stdout:
+                        results = json.loads(result.stdout)
+                        for project in results:
+                            if 'error' in project:
+                                continue
+
+                            # we get the first match
+                            license = project['matches'][0]['license']
+                            licenses.append("core,\"{}\",{}".format(pkg, license))
+        except RequestException:
+            print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
+            raise Exit(code=1)
+
     licenses.sort()
     shutil.rmtree("vendor/")
     return licenses
+
+
+@task
+def generate_protobuf(ctx):
+    """
+    Generates protobuf defintions in pkg/proto
+    """
+    base = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(base, ".."))
+    proto_root = os.path.join(repo_root, "pkg", "proto")
+
+    print("nuking old definitions at: {}".format(proto_root))
+    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
+    for file_path in file_list:
+        try:
+            os.remove(file_path)
+        except OSError:
+            print("Error while deleting file : ", file_path)
+
+    with ctx.cd(repo_root):
+        # protobuf defs
+        print("generating protobuf code from: {}".format(proto_root))
+
+        files = []
+        for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
+            files.append(path.as_posix())
+
+        ctx.run(
+            "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
+                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+            )
+        )
+        # grpc-gateway logic
+        ctx.run(
+            "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
+                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+            )
+        )
+        # mockgen
+        mockgen_in = os.path.join(proto_root, "pbgo")
+        mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        try:
+            os.mkdir(mockgen_out)
+        except FileExistsError:
+            print("{} folder already exists".format(mockgen_out))
+
+        ctx.run(
+            "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(
+                in_path=mockgen_in, out_path=mockgen_out
+            )
+        )
 
 
 @task

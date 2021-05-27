@@ -22,6 +22,7 @@ func init() {
 	Register("cloudfoundry-bbs", NewCloudFoundryListener)
 }
 
+// exported for testing purposes
 const (
 	CfServiceContainerIP = "container-ip"
 )

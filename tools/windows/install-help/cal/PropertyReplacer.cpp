@@ -233,14 +233,14 @@ std::wstring replace_yaml_properties(
         {
             input.append(L"\nec2_use_windows_prefix_detection: " + *ec2UseWindowsPrefixDetection + L"\n");
         }
+    }
 
-        // Remove duplicated entries
-        if (failedToReplace != nullptr)
-        {
-            std::sort(failedToReplace->begin(), failedToReplace->end());
-            auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
-            failedToReplace->erase(last, failedToReplace->end());
-        }
+    // Remove duplicated entries
+    if (failedToReplace != nullptr)
+    {
+        std::sort(failedToReplace->begin(), failedToReplace->end());
+        auto last = std::unique(failedToReplace->begin(), failedToReplace->end());
+        failedToReplace->erase(last, failedToReplace->end());
     }
 
     return input;

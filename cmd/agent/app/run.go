@@ -19,7 +19,6 @@ import (
 	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -30,7 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -79,7 +80,8 @@ var (
 	// flags variables
 	pidfilePath string
 
-	orchestratorForwarder *forwarder.DefaultForwarder
+	orchestratorForwarder  *forwarder.DefaultForwarder
+	eventPlatformForwarder epforwarder.EventPlatformForwarder
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -246,13 +248,13 @@ func StartAgent() error {
 	}
 
 	// init settings that can be changed at runtime
-	if err := settings.InitRuntimeSettings(); err != nil {
+	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
-	// Setup Profiling
-	if config.Datadog.GetBool("profiling.enabled") {
-		err := settings.SetRuntimeSetting("profiling", true)
+	// Setup Internal Profiling
+	if config.Datadog.GetBool("internal_profiling.enabled") {
+		err := settings.SetRuntimeSetting("internal_profiling", true)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}
@@ -345,9 +347,12 @@ func StartAgent() error {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
 
+	eventPlatformForwarder = epforwarder.NewEventPlatformForwarder()
+	eventPlatformForwarder.Start()
+
 	// setup the aggregator
 	s := serializer.NewSerializer(common.Forwarder, orchestratorForwarder)
-	agg := aggregator.InitAggregator(s, hostname)
+	agg := aggregator.InitAggregator(s, eventPlatformForwarder, hostname)
 	agg.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// start dogstatsd
@@ -457,7 +462,9 @@ func StopAgent() {
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Stop()
 	}
-
+	if eventPlatformForwarder != nil {
+		eventPlatformForwarder.Stop()
+	}
 	logs.Stop()
 	gui.StopGUIServer()
 	profiler.Stop()

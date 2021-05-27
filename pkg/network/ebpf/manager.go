@@ -34,7 +34,7 @@ func NewOffsetManager() *manager.Manager {
 	}
 }
 
-func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -45,9 +45,6 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 			{Name: string(probes.UdpPortBindingsMap)},
 			{Name: "pending_bind"},
 			{Name: string(probes.TelemetryMap)},
-			{Name: string(probes.HttpInFlightMap)},
-			{Name: string(probes.HttpBatchesMap)},
-			{Name: string(probes.HttpBatchStateMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -59,20 +56,9 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 					LostHandler:        closedHandler.LostHandler,
 				},
 			},
-			{
-				Map: manager.Map{Name: string(probes.HttpNotificationsMap)},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					DataHandler:        httpHandler.DataHandler,
-					LostHandler:        httpHandler.LostHandler,
-				},
-			},
 		},
 		Probes: []*manager.Probe{
 			{Section: string(probes.TCPSendMsg)},
-			{Section: string(probes.TCPSendMsgPre410), MatchFuncName: "^tcp_sendmsg$"},
-			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPCleanupRBuf)},
 			{Section: string(probes.TCPClose)},
 			{Section: string(probes.TCPCloseReturn), KProbeMaxActive: maxActive},
@@ -80,7 +66,6 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
 			{Section: string(probes.UDPRecvMsg)},
-			{Section: string(probes.UDPRecvMsgPre410), MatchFuncName: "^udp_recvmsg$"},
 			{Section: string(probes.UDPRecvMsgReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.TCPRetransmit)},
 			{Section: string(probes.InetCskAcceptReturn), KProbeMaxActive: maxActive},
@@ -92,7 +77,6 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 			{Section: string(probes.InetBindRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.Inet6BindRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.SocketDnsFilter)},
-			{Section: string(probes.SocketHTTPFilter)},
 			{Section: string(probes.IPRouteOutputFlow)},
 			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
 		},
@@ -105,6 +89,8 @@ func NewManager(closedHandler, httpHandler *ebpf.PerfHandler, runtimeTracer bool
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{Section: string(probes.TCPRetransmitPre470), MatchFuncName: "^tcp_retransmit_skb$"},
 			&manager.Probe{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
+			&manager.Probe{Section: string(probes.UDPRecvMsgPre410), MatchFuncName: "^udp_recvmsg$"},
+			&manager.Probe{Section: string(probes.TCPSendMsgPre410), MatchFuncName: "^tcp_sendmsg$"},
 		)
 	}
 

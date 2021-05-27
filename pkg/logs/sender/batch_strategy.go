@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"sync"
 	"time"
 
@@ -16,14 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-const (
-	maxBatchSize   = 200
-	maxContentSize = 1000000
+var (
+	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	buffer           *MessageBuffer
+	buffer *MessageBuffer
+	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
+	pipelineName     string
 	serializer       Serializer
 	batchWait        time.Duration
 	climit           chan struct{}  // semaphore for limiting concurrent sends
@@ -32,14 +34,10 @@ type batchStrategy struct {
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
 }
 
-// NewBatchStrategy returns a new batch concurrent strategy
+// NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int) Strategy {
-	return newBatchStrategyWithSize(serializer, batchWait, maxConcurrent, maxBatchSize, maxContentSize)
-}
-
-func newBatchStrategyWithSize(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int) *batchStrategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
@@ -50,6 +48,7 @@ func newBatchStrategyWithSize(serializer Serializer, batchWait time.Duration, ma
 		climit:           make(chan struct{}, maxConcurrent),
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
+		pipelineName:     pipelineName,
 	}
 
 }
@@ -84,10 +83,10 @@ func (s *batchStrategy) syncFlush(inputChan chan *message.Message, outputChan ch
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
 func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
-	flushTimer := time.NewTimer(s.batchWait)
+	flushTicker := time.NewTicker(s.batchWait)
 	defer func() {
 		s.flushBuffer(outputChan, send)
-		flushTimer.Stop()
+		flushTicker.Stop()
 		s.pendingSends.Wait()
 	}()
 	for {
@@ -98,7 +97,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				return
 			}
 			s.processMessage(m, outputChan, send)
-		case <-flushTimer.C:
+		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
 			s.flushBuffer(outputChan, send)
 		case <-s.syncFlushTrigger:
@@ -119,7 +118,10 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		s.buffer.AddMessage(m)
+		if !s.buffer.AddMessage(m) {
+			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.Content), s.buffer.ContentSizeLimit())
+			tlmDroppedTooLarge.Inc(s.pipelineName)
+		}
 	}
 }
 

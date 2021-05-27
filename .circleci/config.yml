@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11510
+      - image: datadog/datadog-agent-runner-circle:go11511
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -63,11 +63,11 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
+            python3 -m pip install codecov~=2.1.11 flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
       - run:
           name: grab go deps
           command: |
-            inv deps --verbose
+            inv -e deps
       - run:
           name: build rtloader
           command: |
@@ -106,7 +106,7 @@ jobs:
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
-          command: bash <(curl -s https://codecov.io/bash) -f profile.cov -F linux || true
+          command: codecov -f profile.cov -F linux || true
 
   integration_tests:
     <<: *job_template
@@ -240,7 +240,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "aa0a9b99830e937e32986359794361aeb95940f5" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "68f7e123fea89b2b9c06a5251b26249ee76e3877" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout

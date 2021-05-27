@@ -1,9 +1,9 @@
 ---
-blacklist:
+denylist:
   - GPL-2.0
   - GPL-3.0
 
-whitelist:
+allowlist:
   - 0BSD
   - Apache-2.0
   - BSD-2-Clause
@@ -22,4 +22,7 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
-  
+
+additional:
+  # list here paths to additional licenses
+  golang/go: "raw.githubusercontent.com/golang/go/master/LICENSE"

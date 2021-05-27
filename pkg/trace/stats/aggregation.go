@@ -18,12 +18,14 @@ const (
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics
-// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen and
-// WriteKey should always be updated accordingly
+// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen,
+// WriteKey and the structs payloadAggregationKey, bucketAggregationKey in the ClientStatsAggregator
+// should always be updated accordingly.
 type Aggregation struct {
 	Env        string
 	Resource   string
 	Service    string
+	Name       string
 	Type       string
 	Hostname   string
 	StatusCode uint32
@@ -55,10 +57,25 @@ func NewAggregationFromSpan(s *pb.Span, env string, agentHostname string) Aggreg
 		Env:        env,
 		Resource:   s.Resource,
 		Service:    s.Service,
+		Name:       s.Name,
 		Type:       s.Type,
 		Hostname:   hostname,
 		StatusCode: getStatusCode(s),
 		Version:    traceutil.GetMetaDefault(s, tagVersion, ""),
 		Synthetics: synthetics,
+	}
+}
+
+// NewAggregationFromGroup gets the Aggregation key of grouped stats.
+func NewAggregationFromGroup(env, hostname, version string, g pb.ClientGroupedStats) Aggregation {
+	return Aggregation{
+		Env:        env,
+		Hostname:   hostname,
+		Version:    version,
+		Resource:   g.Resource,
+		Service:    g.Service,
+		Name:       g.Name,
+		StatusCode: g.HTTPStatusCode,
+		Synthetics: g.Synthetics,
 	}
 }

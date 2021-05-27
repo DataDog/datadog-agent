@@ -9,6 +9,8 @@ import re
 import sys
 from subprocess import check_output
 
+from invoke import task
+
 # constants
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
@@ -314,7 +316,11 @@ def load_release_versions(_, target_version):
     raise Exception("Could not find '{}' version in release.json".format(target_version))
 
 
+@task()
 def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
     args = {
         "go_file": "./pkg/config/render_config.go",
         "build_type": build_type,
@@ -323,3 +329,21 @@ def generate_config(ctx, build_type, output_file, env=None):
     }
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags '{bundle_tag}' {split}"
+        + " -pkg {pkg} -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(
+        assets_cmd.format(
+            dir_prefix=dir_prefix,
+            go_dir=go_dir,
+            bundle_tag=tag,
+            pkg=pkg,
+            split="-split" if split else "",
+            bindata_files="' '".join(bindata_files),
+        )
+    )
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))

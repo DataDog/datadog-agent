@@ -20,13 +20,15 @@ import (
 extern void submitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 extern void submitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void submitEvent(char*, event_t*);
-extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **);
+extern void submitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+extern void submitEventPlatformEvent(char *, char *, char *);
 
 static void initAggregatorTests(rtloader_t *rtloader) {
    set_submit_metric_cb(rtloader, submitMetric);
    set_submit_service_check_cb(rtloader, submitServiceCheck);
    set_submit_event_cb(rtloader, submitEvent);
    set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
+   set_submit_event_platform_event_cb(rtloader, submitEventPlatformEvent);
 }
 */
 import "C"
@@ -43,6 +45,8 @@ var (
 	scLevel         int
 	scName          string
 	scMessage       string
+	rawEvent        string
+	eventType       string
 	_event          *event
 	intValue        int
 	lowerBound      float64
@@ -213,7 +217,7 @@ func submitEvent(id *C.char, ev *C.event_t) {
 }
 
 //export submitHistogramBucket
-func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char) {
+func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLowerBound C.float, cUpperBound C.float, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)
@@ -224,4 +228,12 @@ func submitHistogramBucket(id *C.char, cMetricName *C.char, cVal C.longlong, cLo
 	if t != nil {
 		tags = append(tags, charArrayToSlice(t)...)
 	}
+	flushFirstValue = bool(fFirstValue)
+}
+
+//export submitEventPlatformEvent
+func submitEventPlatformEvent(id *C.char, _rawEvent *C.char, _eventType *C.char) {
+	checkID = C.GoString(id)
+	rawEvent = C.GoString(_rawEvent)
+	eventType = C.GoString(_eventType)
 }

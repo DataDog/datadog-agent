@@ -305,9 +305,12 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 		}
 		result := item.(*checkResult)
 		for _, payload := range result.payloads {
-			forwarderPayload := forwarder.Payloads{&payload.body}
-			var responses chan forwarder.Response
-			var err error
+			var (
+				forwarderPayload = forwarder.Payloads{&payload.body}
+				responses        chan forwarder.Response
+				err              error
+				updateRTStatus   = true
+			)
 
 			switch result.name {
 			case checks.Process.Name():
@@ -321,6 +324,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
+				// Orchestrator intake response does not change RT checks enablement or interval
+				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, checks.Pod.Name())
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
@@ -332,13 +337,15 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			}
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				l.updateStatus(statuses)
+				if updateRTStatus {
+					l.updateRTStatus(statuses)
+				}
 			}
 		}
 	}
 }
 
-func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
+func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 
 	// If any of the endpoints wants real-time we'll do that.

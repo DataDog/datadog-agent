@@ -59,15 +59,12 @@ var (
 )
 
 // EvaluateIterator evaluates an iterable expression for an iterator
-func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*InstanceResult, error) {
+func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) ([]*InstanceResult, error) {
 	if e.IterableComparison == nil {
 		return e.iterate(
 			it,
 			e.Expression,
-			func(instance *Instance, passed bool) bool {
-				// First failure stops the iteration
-				return passed
-			},
+			nil,
 		)
 	}
 
@@ -75,26 +72,19 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*I
 		return nil, lexer.Errorf(e.Pos, "expecting function for iterable comparison")
 	}
 
-	fn := *e.IterableComparison.Fn
-
 	var (
 		totalCount  int64
 		passedCount int64
 	)
 
-	result, err := e.iterate(
+	results, err := e.iterate(
 		it,
 		e.IterableComparison.Expression, func(instance *Instance, passed bool) bool {
 			totalCount++
 			if passed {
 				passedCount++
-				if fn == noneFn {
-					return false
-				}
-			} else if fn == allFn {
-				return false
 			}
-			return true
+			return passed
 		},
 	)
 	if err != nil {
@@ -106,9 +96,20 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) (*I
 		return nil, err
 	}
 
-	return &InstanceResult{
-		Instance: result.Instance,
-		Passed:   passed,
+	// keep the first one which passed the sub expression
+	var instance *Instance
+	for _, result := range results {
+		if result.Passed {
+			instance = result.Instance
+			break
+		}
+	}
+
+	return []*InstanceResult{
+		{
+			Instance: instance,
+			Passed:   passed,
+		},
 	}, nil
 }
 
@@ -150,20 +151,26 @@ func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, tot
 	}
 }
 
-func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) (*InstanceResult, error) {
+func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) ([]*InstanceResult, error) {
 	var (
 		instance *Instance
-		first    *Instance
+		results  []*InstanceResult
 		err      error
 		passed   bool
 	)
+
+	if it.Done() {
+		return []*InstanceResult{
+			{
+				Passed: false,
+			},
+		}, nil
+	}
+
 	for !it.Done() {
 		instance, err = it.Next()
 		if err != nil {
 			return nil, err
-		}
-		if first == nil {
-			first = instance
 		}
 
 		passed, err = e.evaluateSubExpression(instance, expression)
@@ -171,19 +178,19 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 			return nil, err
 		}
 
-		if !checkResult(instance, passed) {
-			break
+		// iterable comparison, then returning only matching instance as the
+		// real check will be done in the evaluatePassed function
+		if checkResult != nil {
+			passed = checkResult(instance, passed)
+
 		}
+		results = append(results, &InstanceResult{
+			Instance: instance,
+			Passed:   passed,
+		})
 	}
 
-	if passed {
-		instance = first
-	}
-
-	return &InstanceResult{
-		Instance: instance,
-		Passed:   passed,
-	}, nil
+	return results, nil
 }
 
 func (e *IterableExpression) evaluateSubExpression(instance *Instance, expression *Expression) (bool, error) {
