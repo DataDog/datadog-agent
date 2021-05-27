@@ -236,11 +236,7 @@ void getOsStrings()
     if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
     {
         // [sts] Apply this new route to the original variable
-        programdata = outstr;
-        // [sts] We want to also apply \ to the end of the path if it does not end with a slash
-        if(programdata.back() != L'\\'){
-            programdata += L"\\";
-        }
+        programdata = outstr + L"\\";
     }
 
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
