@@ -24,11 +24,6 @@ import (
 )
 
 func TestRulesetLoaded(t *testing.T) {
-	var truncatedParents string
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		truncatedParents += "a/"
-	}
-
 	rule := &rules.RuleDefinition{
 		ID:         "path_test",
 		Expression: `open.file.path =~ "*a/test-open" && open.flags & O_CREAT != 0`,
@@ -106,12 +101,16 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {
 				splittedFilepath := strings.Split(filepath.(string), "/")
-				if len(splittedFilepath) > 1 && splittedFilepath[0] == "" {
+				for len(splittedFilepath) > 1 && splittedFilepath[0] != "a" {
+					// Remove the initial "" and all subsequent parents introduced by the mount point, we only want to
+					// count the "a"s.
 					splittedFilepath = splittedFilepath[1:]
 				}
-				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")
+				t.Logf("%s", filepath.(string))
+				t.Logf("%v", splittedFilepath)
 				assert.Equal(t, splittedFilepath[0], "a", "invalid path resolution at the left edge")
 				assert.Equal(t, splittedFilepath[len(splittedFilepath)-1], "a", "invalid path resolution at the right edge")
+				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")
 			}
 		}
 	})
@@ -122,7 +121,7 @@ func TestTruncatedParentsMap(t *testing.T) {
 }
 
 func TestTruncatedParentsERPC(t *testing.T) {
-	truncatedParents(t, testOpts{})
+	truncatedParents(t, testOpts{disableMapDentryResolution: true})
 }
 
 func TestNoisyProcess(t *testing.T) {

@@ -10,9 +10,10 @@ package probe
 import (
 	"C"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"os"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	lib "github.com/DataDog/ebpf"
 	lru "github.com/hashicorp/golang-lru"
@@ -351,7 +352,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		i += 16
 
 		if dr.erpcSegment[i] == 0 {
-			if depth < model.MaxPathDepth {
+			if depth >= model.MaxPathDepth {
 				resolutionErr = errTruncatedParents
 			} else {
 				resolutionErr = errERPCResolution

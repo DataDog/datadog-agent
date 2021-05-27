@@ -108,6 +108,11 @@ SYSCALL_COMPAT_KRETPROBE(utime) {
     return kprobe_sys_utimes_ret(ctx);
 }
 
+SEC("tracepoint/syscalls/sys_exit_utime32")
+int tracepoint_syscalls_sys_exit_utime32(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_utimes_ret(args, args->ret);
+}
+
 SYSCALL_KRETPROBE(utime32) {
     return kprobe_sys_utimes_ret(ctx);
 }

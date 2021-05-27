@@ -34,18 +34,21 @@ struct bpf_map_def SEC("maps/pathnames") pathnames = {
     .namespace = "",
 };
 
-#define DR_NO_CALLBACK                              -1
+#define DR_NO_CALLBACK -1
 
-#define DR_OPEN_CALLBACK_KPROBE_KEY                 1
-#define DR_SETATTR_CALLBACK_KPROBE_KEY              2
-#define DR_MKDIR_CALLBACK_KPROBE_KEY                3
-#define DR_MOUNT_CALLBACK_KPROBE_KEY                4
-#define DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY 5
-#define DR_SETXATTR_CALLBACK_KPROBE_KEY             6
-#define DR_UNLINK_CALLBACK_KPROBE_KEY               7
-#define DR_LINK_SRC_CALLBACK_KPROBE_KEY             8
-#define DR_LINK_DST_CALLBACK_KPROBE_KEY             9
-#define DR_RENAME_CALLBACK_KPROBE_KEY               10
+enum dr_kprobe_progs
+{
+    DR_OPEN_CALLBACK_KPROBE_KEY = 1,
+    DR_SETATTR_CALLBACK_KPROBE_KEY,
+    DR_MKDIR_CALLBACK_KPROBE_KEY,
+    DR_MOUNT_CALLBACK_KPROBE_KEY,
+    DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY,
+    DR_SETXATTR_CALLBACK_KPROBE_KEY,
+    DR_UNLINK_CALLBACK_KPROBE_KEY,
+    DR_LINK_SRC_CALLBACK_KPROBE_KEY,
+    DR_LINK_DST_CALLBACK_KPROBE_KEY,
+    DR_RENAME_CALLBACK_KPROBE_KEY,
+};
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_callbacks") dentry_resolver_kprobe_callbacks = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
@@ -54,11 +57,14 @@ struct bpf_map_def SEC("maps/dentry_resolver_kprobe_callbacks") dentry_resolver_
     .max_entries = EVENT_MAX,
 };
 
-#define DR_OPEN_CALLBACK_TRACEPOINT_KEY       1
-#define DR_MKDIR_CALLBACK_TRACEPOINT_KEY      2
-#define DR_MOUNT_CALLBACK_TRACEPOINT_KEY      3
-#define DR_LINK_DST_CALLBACK_TRACEPOINT_KEY   4
-#define DR_RENAME_CALLBACK_TRACEPOINT_KEY     5
+enum dr_tracepoint_progs
+{
+    DR_OPEN_CALLBACK_TRACEPOINT_KEY = 1,
+    DR_MKDIR_CALLBACK_TRACEPOINT_KEY,
+    DR_MOUNT_CALLBACK_TRACEPOINT_KEY,
+    DR_LINK_DST_CALLBACK_TRACEPOINT_KEY,
+    DR_RENAME_CALLBACK_TRACEPOINT_KEY,
+};
 
 struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_callbacks") dentry_resolver_tracepoint_callbacks = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
@@ -70,8 +76,8 @@ struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_callbacks") dentry_resol
 #define DR_KPROBE     1
 #define DR_TRACEPOINT 2
 
-#define DR_ERPC_KEY            0
-#define DR_KPROBE_RESOLVER_KEY 1
+#define DR_ERPC_KEY                        0
+#define DR_KPROBE_DENTRY_RESOLVER_KERN_KEY 1
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_progs") dentry_resolver_kprobe_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
@@ -80,7 +86,7 @@ struct bpf_map_def SEC("maps/dentry_resolver_kprobe_progs") dentry_resolver_kpro
     .max_entries = 2,
 };
 
-#define DR_TRACEPOINT_RESOLVER_KEY 0
+#define DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY 0
 
 struct bpf_map_def SEC("maps/dentry_resolver_tracepoint_progs") dentry_resolver_tracepoint_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
@@ -161,49 +167,35 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
     return DR_MAX_ITERATION_DEPTH;
 }
 
+#define dentry_resolver_kern(ctx, progs_map, callbacks_map, dentry_resolver_kern_key)                                  \
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);                                                         \
+    if (!syscall)                                                                                                      \
+        return 0;                                                                                                      \
+                                                                                                                       \
+    syscall->resolver.iteration++;                                                                                     \
+    syscall->resolver.ret = resolve_dentry_tail_call(&syscall->resolver);                                              \
+                                                                                                                       \
+    if (syscall->resolver.ret > 0) {                                                                                   \
+        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \
+            bpf_tail_call(ctx, progs_map, dentry_resolver_kern_key);                                                   \
+        }                                                                                                              \
+                                                                                                                       \
+        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);                           \
+    }                                                                                                                  \
+                                                                                                                       \
+    if (syscall->resolver.callback >= 0) {                                                                             \
+        bpf_tail_call(ctx, callbacks_map, syscall->resolver.callback);                                                 \
+    }                                                                                                                  \
+
 SEC("kprobe/dentry_resolver_kern")
 int kprobe__dentry_resolver_kern(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
-    if (!syscall)
-        return 0;
-
-    syscall->resolver.iteration++;
-    syscall->resolver.ret = resolve_dentry_tail_call(&syscall->resolver);
-
-    if (syscall->resolver.ret > 0) {
-        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {
-            bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE);
-        }
-
-        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);
-    }
-
-    if (syscall->resolver.callback >= 0) {
-        bpf_tail_call(ctx, &dentry_resolver_kprobe_callbacks, syscall->resolver.callback);
-    }
+    dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
 int tracepoint__dentry_resolver_kern(void *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
-    if (!syscall)
-        return 0;
-
-    syscall->resolver.iteration++;
-    syscall->resolver.ret = resolve_dentry_tail_call(&syscall->resolver);
-
-    if (syscall->resolver.ret > 0) {
-        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {
-            bpf_tail_call(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT);
-        }
-
-        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);
-    }
-
-    if (syscall->resolver.callback >= 0) {
-        bpf_tail_call(ctx, &dentry_resolver_tracepoint_callbacks, syscall->resolver.callback);
-    }
+    dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
@@ -245,7 +237,7 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
             goto exit;
 
         // make sure we do not write outside of the provided buffer
-        if (state->cursor + 16 >= state->buffer_size)
+        if (state->cursor + sizeof(state->key) >= state->buffer_size)
             goto exit;
 
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &state->key, sizeof(state->key));
@@ -323,9 +315,9 @@ int __attribute__((always_inline)) handle_resolve_segment(void *data) {
 
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
     if (dr_type == DR_KPROBE) {
-        bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_RESOLVER_KEY);
+        bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
     } else if (dr_type == DR_TRACEPOINT) {
-        bpf_tail_call(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_RESOLVER_KEY);
+        bpf_tail_call(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
     }
     return 0;
 }
