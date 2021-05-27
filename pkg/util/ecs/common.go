@@ -150,7 +150,6 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*con
 
 func formatTaskCPULimit(val float64) float64 {
 	// The ECS API exposes the task CPU limit with the format: 0.25, 0.5, 1, 2, 4
-	// Value is reported in Hz
 	return val * 100
 }
 
