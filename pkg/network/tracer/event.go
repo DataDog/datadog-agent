@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -85,6 +87,12 @@ func (t *ConnTuple) copy() *ConnTuple {
 		metadata: t.metadata,
 	}
 }
+
+var (
+	ephemeralLow     = uint16(0)
+	ephemeralHigh    = uint16(0)
+	ephemeralChecked = false
+)
 
 func ipPortFromAddr(addr net.Addr) (net.IP, int) {
 	switch v := addr.(type) {
@@ -310,6 +318,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		Dest:                 dest,
 		SPort:                uint16(t.sport),
 		DPort:                uint16(t.dport),
+		SPortIsEphemeral:     getPortType(uint16(t.sport)),
 		MonotonicSentBytes:   uint64(s.sent_bytes),
 		MonotonicRecvBytes:   uint64(s.recv_bytes),
 		MonotonicSentPackets: uint64(s.sent_packets),
@@ -376,6 +385,29 @@ func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 	return d
 }
 
+func getPortType(p uint16) network.EphemeralPortType {
+	if !ephemeralChecked {
+		procfsPath := "/proc"
+		if config.Datadog.IsSet("procfs_path") {
+			procfsPath = config.Datadog.GetString("procfs_path")
+		}
+
+		intpair := sysctl.NewIntPair(procfsPath, "net/ipv4/ip_local_port_range", 0)
+		low, hi, err := intpair.Get()
+		if nil == err {
+			ephemeralLow = uint16(low)
+			ephemeralHigh = uint16(hi)
+		}
+		ephemeralChecked = true
+	}
+	if ephemeralLow == 0 || ephemeralHigh == 0 {
+		return network.EphemeralUnknown
+	}
+	if p >= ephemeralLow && p <= ephemeralHigh {
+		return network.EphemeralTrue
+	}
+	return EphemeralFalse
+}
 func (g *ipRouteGateway) gateway() util.Address {
 	switch g.family {
 	case C.CONN_V4:

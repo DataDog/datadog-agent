@@ -30,7 +30,11 @@ uint32_t getTcp_retransmitCount(PER_FLOW_DATA *pfd)
 */
 import "C"
 import (
+	"bytes"
 	"net"
+	"os/exec"
+	"regexp"
+	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -45,6 +49,118 @@ const (
 	UDPProtocol = 17
 )
 
+var (
+	ephemeralRanges = map[ConnectionFamily]map[ConnectionType]map[string]uint16{
+		AFINET: map[ConnectionType]map[string]uint16{
+			UDP: map[string]uint16{
+				"lo": 0,
+				"hi": 0,
+			},
+			TCP: map[string]uint16{
+				"lo": 0,
+				"hi": 0,
+			},
+		},
+		AFINET6: map[ConnectionType]map[string]uint16{
+			UDP: map[string]uint16{
+				"lo": 0,
+				"hi": 0,
+			},
+			TCP: map[string]uint16{
+				"lo": 0,
+				"hi": 0,
+			},
+		},
+	}
+)
+
+func init() {
+	var families = [...]ConnectionFamily{AFINET, AFINET6}
+	var protos = [...]ConnectionType{UDP, TCP}
+	for _, f := range families {
+		for _, p := range protos {
+			l, h, err := getEphemeralRange(f, p)
+			if err == nil {
+				ephemeralRanges[f][p]["lo"] = l
+				ephemeralRanges[f][p]["hi"] = h
+			}
+		}
+	}
+}
+func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, err error) {
+	var protoarg string
+	var familyarg string
+	switch f {
+	case AFINET6:
+		familyarg = "ipv6"
+	default:
+		familyarg = "ipv4"
+	}
+	switch t {
+	case UDP:
+		protoarg = "tcp"
+	default:
+		protoarg = "udp"
+	}
+	cmd := exec.Command("netsh", "int", familyarg, "show", "dynamicport", protoarg)
+	cmdOutput := &bytes.Buffer{}
+	// output should be of the format
+	/*
+		Protocol tcp Dynamic Port Range
+		---------------------------------
+		Start Port      : 49000
+		Number of Ports : 16000
+	*/
+	cmd.Stdout = cmdOutput
+	err = cmd.Run()
+	if err != nil {
+		return
+	}
+	output := cmdOutput.Bytes()
+	var startportline = regexp.MustCompile(`Start.*: (\d+)`)
+	var numberline = regexp.MustCompile(`Number.*: (\d+)`)
+
+	startport := startportline.FindStringSubmatch(string(output))
+	rangelen := numberline.FindStringSubmatch(string(output))
+
+	portstart, err := strconv.Atoi(startport[1])
+	if err != nil {
+		return
+	}
+	len, err := strconv.Atoi(rangelen[1])
+	if err != nil {
+		return
+	}
+	// argh.  Windows defaults to
+	/*
+	 Protocol tcp Dynamic Port Range
+	 ---------------------------------
+	 Start Port      : 49152
+	 Number of Ports : 16384
+
+	 A quick bit of arithmetic says that adds up to 65536, which overflows the "hi" field.
+	 A bit of hackery to compensate
+	*/
+	low = uint16(portstart)
+	if portstart+len > 0xFFFF {
+		hi = uint16(0xFFFF)
+	} else {
+		hi = uint16(portstart + len)
+	}
+	return
+}
+
+func getPortType(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
+	rangelow := ephemeralRanges[f][t]["lo"]
+	rangehi := ephemeralRanges[f][t]["hi"]
+	if rangelow == 0 || rangehi == 0 {
+		return EphemeralUnknown
+	}
+	if p >= rangelow && p <= rangehi {
+		return EphemeralTrue
+	}
+	return EphemeralFalse
+}
 func connFamily(addressFamily C.uint16_t) ConnectionFamily {
 	if addressFamily == syscall.AF_INET {
 		return AFINET
@@ -135,6 +251,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	cs.Type = connectionType
 	cs.Family = family
 	cs.Direction = connDirection(flow.flags)
+	cs.SPortIsEphemeral = getPortType(cs.Family, cs.Type, cs.SPort)
 
 	// reset other fields to default values
 	cs.NetNS = 0
