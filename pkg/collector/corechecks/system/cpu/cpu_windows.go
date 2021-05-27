@@ -108,19 +108,19 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 
 	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
 	// you visibility about other applications running on the same processor as you
-	c.interruptsCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Interrupt Time", "_Total")
+	c.interruptsCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Interrupt Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish interrupt time counter %v", err)
 	}
-	c.idleCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Idle Time", "_Total")
+	c.idleCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Idle Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish idle time counter %v", err)
 	}
-	c.userCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% User Time", "_Total")
+	c.userCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% User Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish user time counter %v", err)
 	}
-	c.privilegedCounter, err = pdhutil.GetEnglishCounter("Processor Information", "% Privileged Time", "_Total")
+	c.privilegedCounter, err = pdhutil.GetUnlocalizedCounter("Processor Information", "% Privileged Time", "_Total")
 	if err != nil {
 		return fmt.Errorf("cpu.Check could not establish system time counter %v", err)
 	}

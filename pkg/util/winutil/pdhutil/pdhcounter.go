@@ -87,8 +87,8 @@ func (p *PdhCounterSet) Initialize(className string) error {
 	return nil
 }
 
-// GetEnglishCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
-func GetEnglishCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
+// GetUnlocalizedCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
+func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
 	var p PdhSingleInstanceCounterSet
 	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
 	if ERROR_SUCCESS != winerror {
@@ -110,6 +110,7 @@ func GetEnglishCounter(className, counterName, instance string) (PdhSingleInstan
 }
 
 // GetSingleInstanceCounter returns a single instance counter object for the given counter class
+// TODO: Replace usages of this with GetUnlocalizedCounter using an empty string as instance
 func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstanceCounterSet, error) {
 	var p PdhSingleInstanceCounterSet
 	if err := p.Initialize(className); err != nil {
@@ -136,6 +137,7 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 }
 
 // GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
+// TODO: Replace usages of this with a function similar to GetUnlocalizedCounter for multi-instance counters, that uses PdhAddEnglishCounter
 func GetMultiInstanceCounter(className, counterName string, requestedInstances *[]string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
 	var p PdhMultiInstanceCounterSet
 	if err := p.Initialize(className); err != nil {
