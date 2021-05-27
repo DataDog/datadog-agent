@@ -305,6 +305,88 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 	assert.Nil(t, serializedLatencies)
 }
 
+func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	var httpReqStats http.RequestStats
+	in := &network.Connections{
+		Conns: []network.ConnectionStats{
+			{
+				Source: localhost,
+				Dest:   localhost,
+				SPort:  clientPort,
+				DPort:  serverPort,
+			},
+			{
+				Source: localhost,
+				Dest:   localhost,
+				SPort:  serverPort,
+				DPort:  clientPort,
+			},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				localhost,
+				localhost,
+				clientPort,
+				serverPort,
+				"/testpath",
+				http.MethodGet,
+			): httpReqStats,
+		},
+	}
+
+	httpOut := &model.HTTPAggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
+				StatsByResponseStatus: []*model.HTTPStats_Data{
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+				},
+			},
+		},
+	}
+
+	httpOutBlob, err := proto.Marshal(httpOut)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+		},
+	}
+
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	assert.Equal(t, out, result)
+}
+
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
 	var sketchPb sketchpb.DDSketch
 	err := proto.Unmarshal(bytes, &sketchPb)
