@@ -13,7 +13,7 @@ api_key:
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site. 
-## Set to 'app.ddog-gov.com' to send data to the US1-FED site.
+## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
 
