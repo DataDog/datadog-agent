@@ -33,6 +33,8 @@ std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
 
 std::wstring programdataroot;
+// [sts] Used to target programdata
+std::wstring programdata;
 std::wstring logfilename;
 std::wstring authtokenfilename;
 std::wstring datadogyamlfile;
@@ -224,28 +226,32 @@ void getHostInformation() {
 void getOsStrings()
 {
     PWSTR outstr = NULL;
-    // [sts] Used to target programdata
-    PWSTR programdata = NULL;
     // build up all the path-based strings
     std::wstring programfiles;
 
     ddRegKey ddroot;
     std::wstring confroot;
+
+    // [sts] We need to apply the programdata route to the programdata variable
+    if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+    {
+        // [sts] Apply this new route to the original variable
+        programdata = outstr;
+        // [sts] We want to also apply \ to the end of the path if it does not end with a slash
+        if(programdata.back() != L'\\'){
+            programdata += L"\\";
+        }
+    }
+
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
-        // [sts] We need to apply yhe programdata route to the programdata variable
-        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &programdata) == S_OK)
+        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
         {
-            // [sts] Apply this new route to the original variable
-            programdataroot = programdata;
+            programdataroot = outstr;
             programdataroot += datadogdir;
         }
         if(programdataroot.back() != L'\\'){
             programdataroot += L"\\";
-        }
-        // [sts] We want to also apply \ to the end of the path if it does not end with a slash
-        if(programdata.back() != L'\\'){
-            programdata += L"\\";
         }
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
