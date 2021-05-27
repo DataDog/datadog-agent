@@ -172,7 +172,7 @@ void getHostInformation() {
             WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", computername.c_str(), compare_computer.c_str());
         }
     }
-    std::wstring domain; 
+    std::wstring domain;
     if(wrapGetComputerNameExW(ComputerNameDnsDomain, domain))
     {
         // newer domains will look like DNS domains.  (i.e. domain.local)
@@ -229,17 +229,20 @@ void getOsStrings()
 
     ddRegKey ddroot;
     std::wstring confroot;
-    if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
-    {
-        if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
-        {
-            programdataroot = outstr;
-            programdataroot += datadogdir;
-        }
-        if(programdataroot.back() != L'\\'){
-            programdataroot += L"\\";
-        }
-    }
+    ddroot.getStringValue(L"ConfigRoot", programdataroot)
+
+    // if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
+    // {
+    //     if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
+    //     {
+    //         programdataroot = outstr;
+    //         programdataroot += datadogdir;
+    //     }
+    //     if(programdataroot.back() != L'\\'){
+    //         programdataroot += L"\\";
+    //     }
+    // }
+
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
         if(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, 0, &outstr) == S_OK)
@@ -317,7 +320,7 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
     }
     if (ERROR_SUCCESS != uiStat)
     {
-        if (szValueBuf != NULL) 
+        if (szValueBuf != NULL)
            delete[] szValueBuf;
         WcaLog(LOGMSG_STANDARD, "failed to get  property");
         return false;
