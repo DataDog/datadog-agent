@@ -224,6 +224,7 @@ void getHostInformation() {
 void getOsStrings()
 {
     PWSTR outstr = NULL;
+    // [sts] Used to target programdata
     PWSTR programdata = NULL;
     // build up all the path-based strings
     std::wstring programfiles;
@@ -232,13 +233,19 @@ void getOsStrings()
     std::wstring confroot;
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
+        // [sts] We need to apply yhe programdata route to the programdata variable
         if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &programdata) == S_OK)
         {
+            // [sts] Apply this new route to the original variable
             programdataroot = programdata;
             programdataroot += datadogdir;
         }
         if(programdataroot.back() != L'\\'){
             programdataroot += L"\\";
+        }
+        // [sts] We want to also apply \ to the end of the path if it does not end with a slash
+        if(programdata.back() != L'\\'){
+            programdata += L"\\";
         }
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
@@ -259,6 +266,7 @@ void getOsStrings()
     logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
+    // [sts] Replaced the target path to a valid location
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
     trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdata + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
