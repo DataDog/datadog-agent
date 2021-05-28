@@ -349,7 +349,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(); err != nil {
+	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.GetNameFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
@@ -408,7 +408,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(); err != nil {
+	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
@@ -467,7 +467,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(); err != nil {
+	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.GetNameFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
@@ -526,7 +526,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(); err != nil {
+	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)

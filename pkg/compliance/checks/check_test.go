@@ -109,17 +109,17 @@ func TestCheckRun(t *testing.T) {
 			check := &complianceCheck{
 				Env: env,
 
-				ruleID:       ruleID,
-				resourceType: resourceType,
-				resourceID:   resourceID,
-				checkable:    checkable,
+				ruleID:    ruleID,
+				checkable: checkable,
+				scope:     resourceType,
 
 				suiteMeta: &compliance.SuiteMeta{Framework: frameworkID},
 			}
 
+			env.On("Hostname").Return(resourceID)
 			env.On("IsLeader").Return(true)
 			env.On("Reporter").Return(reporter)
-			reporter.On("Report", test.expectEvent).Once()
+			reporter.On("Report", test.expectEvent).Maybe()
 			checkable.On("check", check).Return(test.checkReports)
 
 			err := check.Run()
@@ -149,10 +149,8 @@ func TestCheckRunNoLeader(t *testing.T) {
 	check := &complianceCheck{
 		Env: env,
 
-		ruleID:       ruleID,
-		resourceType: resourceType,
-		resourceID:   resourceID,
-		checkable:    checkable,
+		ruleID:    ruleID,
+		checkable: checkable,
 	}
 
 	// Not leader

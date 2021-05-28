@@ -139,8 +139,6 @@ func (p *Probe) Init(client *statsd.Client) error {
 		defer bytecodeReader.Close()
 	}
 
-	p.manager = ebpf.NewRuntimeSecurityManager()
-
 	var ok bool
 	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
 		return errors.New("couldn't find events perf map")
@@ -438,6 +436,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
+
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
@@ -457,6 +458,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
@@ -788,6 +791,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p := &Probe{
 		config:         config,
 		approvers:      make(map[eval.EventType]activeApprovers),
+		manager:        ebpf.NewRuntimeSecurityManager(),
 		managerOptions: ebpf.NewDefaultOptions(),
 		ctx:            ctx,
 		cancelFnc:      cancel,
@@ -846,7 +850,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
 
-	resolvers, err := NewResolvers(config, p, client)
+	resolvers, err := NewResolvers(config, p)
 	if err != nil {
 		return nil, err
 	}

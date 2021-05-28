@@ -48,6 +48,12 @@
                 }
             ]
         },
+        "fork_time": {
+            "$ref": "file:///datetime.json"
+        },
+        "exec_time": {
+            "$ref": "file:///datetime.json"
+        },
         "credentials": {
             "type": "object",
             "properties": {
@@ -148,10 +154,10 @@
                     "type": "integer"
                 },
                 "modification_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 },
                 "change_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 }
             },
             "required": [
@@ -176,10 +182,14 @@
             "properties": {
                 "pid": {
                     "type": "integer",
-                    "enum": [1]
+                    "enum": [
+                        1
+                    ]
                 }
             },
-            "required": ["pid"]
+            "required": [
+                "pid"
+            ]
         },
         {
             "properties": {
@@ -191,7 +201,10 @@
                     "type": "integer"
                 }
             },
-            "required": ["pid", "ppid"]
+            "required": [
+                "pid",
+                "ppid"
+            ]
         }
     ],
     "required": [
@@ -206,7 +219,11 @@
         "executable"
     ],
     "dependencies": {
-        "executable_container_path": ["container"],
-        "container": ["executable_container_path"]
+        "executable_container_path": [
+            "container"
+        ],
+        "container": [
+            "executable_container_path"
+        ]
     }
 }

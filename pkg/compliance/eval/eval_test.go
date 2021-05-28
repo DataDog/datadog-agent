@@ -29,10 +29,7 @@ func (test instanceTest) Run(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	instance := &Instance{
-		Functions: test.functions,
-		Vars:      test.vars,
-	}
+	instance := NewInstance(test.vars, test.functions)
 	result, err := expr.Evaluate(instance)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
@@ -70,7 +67,7 @@ func TestEvalFunction(t *testing.T) {
 			name:       "string function",
 			expression: `ping("pong") == "pong"`,
 			functions: FunctionMap{
-				"ping": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"ping": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return args[0].(string), nil
 				},
 			},
@@ -86,7 +83,7 @@ func TestEvalFunction(t *testing.T) {
 			name:       "function error",
 			expression: `hey("you")`,
 			functions: FunctionMap{
-				"hey": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"hey": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return nil, errors.New("hey failed")
 				},
 			},
@@ -96,7 +93,7 @@ func TestEvalFunction(t *testing.T) {
 			name:       "function arg evaluation error",
 			expression: `hey(you)`,
 			functions: FunctionMap{
-				"hey": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"hey": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return nil, nil
 				},
 			},
@@ -598,7 +595,7 @@ func TestEvalSubExpression(t *testing.T) {
 			name:       "call subexpression",
 			expression: "(4 == fn(2))",
 			functions: FunctionMap{
-				"fn": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"fn": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return 4, nil
 				},
 			},
@@ -618,17 +615,14 @@ type iteratorMock struct {
 	index    int
 }
 
-func (i *iteratorMock) Next() (*Instance, error) {
+func (i *iteratorMock) Next() (Instance, error) {
 	if !i.Done() {
 		current := i.fixtures[i.index]
 		if current.err != nil {
 			return nil, current.err
 		}
 
-		result := &Instance{
-			Vars:      current.vars,
-			Functions: current.functions,
-		}
+		result := NewInstance(current.vars, current.functions)
 
 		i.index++
 		return result, nil
@@ -658,7 +652,7 @@ func (test iterableTest) Run(fixtures []iteratorFixture, t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(expr)
 
-	results, err := expr.EvaluateIterator(iterator, &test.global)
+	results, err := expr.EvaluateIterator(iterator, test.global)
 	if test.expectError != nil {
 		assert.Equal(test.expectError, err)
 	} else {
@@ -677,6 +671,9 @@ type iterableTests []iterableTest
 func (tests iterableTests) Run(fixtures []iteratorFixture, t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.global == nil {
+				test.global = NewInstance(nil, nil)
+			}
 			test.Run(fixtures, t)
 		})
 	}
@@ -686,7 +683,7 @@ func TestEvalIterable(t *testing.T) {
 	fixtures := []iteratorFixture{
 		{
 			functions: map[string]Function{
-				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"has": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return true, nil
 				},
 			},
@@ -697,7 +694,7 @@ func TestEvalIterable(t *testing.T) {
 		},
 		{
 			functions: map[string]Function{
-				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"has": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return false, nil
 				},
 			},
@@ -708,7 +705,7 @@ func TestEvalIterable(t *testing.T) {
 		},
 		{
 			functions: map[string]Function{
-				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"has": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return false, nil
 				},
 			},
@@ -798,7 +795,7 @@ func TestEvalIterableError(t *testing.T) {
 	fixtures := []iteratorFixture{
 		{
 			functions: map[string]Function{
-				"has": func(instance *Instance, args ...interface{}) (interface{}, error) {
+				"has": func(instance Instance, args ...interface{}) (interface{}, error) {
 					return true, nil
 				},
 			},
@@ -822,16 +819,16 @@ func TestEvalIterableError(t *testing.T) {
 }
 
 func TestEvalPathExpression(t *testing.T) {
-	instance := &Instance{
-		Functions: map[string]Function{
-			"shell.command.stdout": func(instance *Instance, args ...interface{}) (interface{}, error) {
+	instance := NewInstance(
+		nil, map[string]Function{
+			"shell.command.stdout": func(instance Instance, args ...interface{}) (interface{}, error) {
 				return "/etc/path-from-command", nil
 			},
-			"process.flag": func(instance *Instance, args ...interface{}) (interface{}, error) {
+			"process.flag": func(instance Instance, args ...interface{}) (interface{}, error) {
 				return "/etc/path-from-process", nil
 			},
 		},
-	}
+	)
 
 	tests := []struct {
 		name       string

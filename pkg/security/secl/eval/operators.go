@@ -11,6 +11,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+func isPartialLeaf(a Evaluator, b Evaluator, state *state) bool {
+	partialA, partialB := a.IsPartial(), b.IsPartial()
+
+	if a.IsScalar() || (a.GetField() != "" && a.GetField() != state.field) {
+		partialA = true
+	}
+	if b.IsScalar() || (b.GetField() != "" && b.GetField() != state.field) {
+		partialB = true
+	}
+	isPartialLeaf := partialA && partialB
+
+	if a.GetField() != "" && b.GetField() != "" {
+		isPartialLeaf = true
+	}
+
+	return isPartialLeaf
+}
+
 // IntNot - ^int operator
 func IntNot(a *IntEvaluator, opts *Opts, state *state) *IntEvaluator {
 	isPartialLeaf := a.isPartial
