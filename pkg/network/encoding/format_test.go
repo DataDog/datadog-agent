@@ -142,5 +142,6 @@ func TestFormatHTTPStats(t *testing.T) {
 	aggregationKey := httpKey1
 	aggregationKey.Path = ""
 	aggregationKey.Method = http.MethodUnknown
-	assert.Equal(t, out, result[aggregationKey])
+	aggregations := result[aggregationKey].EndpointAggregations
+	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
 }
