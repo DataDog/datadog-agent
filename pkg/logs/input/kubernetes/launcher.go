@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -55,7 +56,9 @@ type Launcher struct {
 // IsAvailable retrues true if the launcher is available and a retrier otherwise
 func IsAvailable() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
-		log.Errorf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
+		if coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
+			log.Warnf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
+		}
 		return false, nil
 	}
 	util, retrier := kubelet.GetKubeUtilWithRetrier()

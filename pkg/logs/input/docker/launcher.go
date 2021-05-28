@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -66,7 +67,9 @@ func IsAvailable() (bool, *retry.Retrier) {
 		log.Info("Docker launcher is available")
 		return true, nil
 	}
-	log.Infof("Docker launcher is not available: %v", retrier.LastError())
+	if coreConfig.IsFeaturePresent(coreConfig.Docker) {
+		log.Warnf("Docker launcher is not available: %v", retrier.LastError())
+	}
 	return false, retrier
 }
 
