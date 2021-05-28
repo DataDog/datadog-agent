@@ -391,15 +391,15 @@ func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 }
 
 func getPortType(p uint16) network.EphemeralPortType {
-	initfunc := func() {
+
+	initEphemeralIntPair.Do(func() {
 		procfsPath := "/proc"
 		if config.Datadog.IsSet("procfs_path") {
 			procfsPath = config.Datadog.GetString("procfs_path")
 		}
 
 		ephemeralIntPair = sysctl.NewIntPair(procfsPath, "net/ipv4/ip_local_port_range", time.Hour)
-	}
-	initEphemeralIntPair.Do(initfunc)
+	})
 
 	low, hi, err := ephemeralIntPair.Get()
 	if nil == err {
