@@ -48,9 +48,6 @@ func (t *Tagger) Init() error {
 
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
-	// I do not think there's a need for any async work
-	// go t.run()
-
 	return nil
 }
 
