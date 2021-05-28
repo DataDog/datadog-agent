@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -397,6 +398,9 @@ func getPortType(p uint16) network.EphemeralPortType {
 		if nil == err {
 			ephemeralLow = uint16(low)
 			ephemeralHigh = uint16(hi)
+			log.Infof("got ephemeral port %v %v", ephemeralLow, ephemeralHigh)
+		} else {
+			log.Infof("failed to get ephemerail %v", err)
 		}
 		ephemeralChecked = true
 	}
@@ -406,7 +410,7 @@ func getPortType(p uint16) network.EphemeralPortType {
 	if p >= ephemeralLow && p <= ephemeralHigh {
 		return network.EphemeralTrue
 	}
-	return EphemeralFalse
+	return network.EphemeralFalse
 }
 func (g *ipRouteGateway) gateway() util.Address {
 	switch g.family {
