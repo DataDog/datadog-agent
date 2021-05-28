@@ -11,9 +11,11 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -27,12 +29,12 @@ import (
 
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
@@ -62,13 +64,13 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
   flush_discarder_window: 0
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
-    fork_bomb_threshold: {{ .ForkBombThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -144,6 +146,7 @@ type testModule struct {
 	listener     net.Listener
 	events       chan testEvent
 	discarders   chan *testDiscarder
+	cmdWrapper   cmdWrapper
 }
 
 var testMod *testModule
@@ -262,10 +265,20 @@ func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interfac
 	}
 }
 
-func setTestConfig(dir string, opts testOpts) error {
+func assertFieldOneOf(t *testing.T, e *probe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Assert(t, is.Contains(values, fieldValue))
+	}
+}
+
+func setTestConfig(dir string, opts testOpts) (string, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -279,11 +292,17 @@ func setTestConfig(dir string, opts testOpts) error {
 		"DisableDiscarders":    opts.disableDiscarders,
 		"EventsCountThreshold": opts.eventsCountThreshold,
 	}); err != nil {
-		return err
+		return "", err
 	}
 
-	aconfig.Datadog.SetConfigType("yaml")
-	return aconfig.Datadog.ReadConfig(buffer)
+	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	if err != nil {
+		return "", err
+	}
+	defer sysprobeConfig.Close()
+
+	_, err = io.Copy(sysprobeConfig, buffer)
+	return sysprobeConfig.Name(), err
 }
 
 func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
@@ -333,7 +352,8 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, err
 	}
 
-	if err := setTestConfig(st.root, opts); err != nil {
+	sysprobeConfig, err := setTestConfig(st.root, opts)
+	if err != nil {
 		return nil, err
 	}
 
@@ -343,16 +363,33 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 	defer os.Remove(cfgFilename)
 
+	var cmdWrapper cmdWrapper
+	if testEnvironment == DockerEnvironment {
+		cmdWrapper = newStdCmdWrapper()
+	} else {
+		wrapper, err := newDockerCmdWrapper(st.Root())
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
+		} else {
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
+		}
+	}
+
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.cleanup()
 	}
 
-	agentConfig := pconfig.NewDefaultAgentConfig(false)
+	agentConfig, err := sysconfig.New(sysprobeConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create config")
+	}
 	config, err := config.NewConfig(agentConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
@@ -383,6 +420,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
 			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
 		},
+		cmdWrapper: cmdWrapper,
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -395,6 +433,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	testMod.probe.SetEventHandler(testMod.probeHandler)
 
 	return testMod, nil
+}
+
+func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	tm.cmdWrapper.Run(t, name, fnc)
 }
 
 func (tm *testModule) reset() {
@@ -751,21 +793,34 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
-func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string, expected string) {
 	t.Helper()
 
-	if testEnvironment != DockerEnvironment {
-		return
-	}
-
-	path, err := event.GetFieldValue(fieldPath)
+	// check container path
+	value, err := event.GetFieldValue(fieldPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s \n %v", path, event)
+	switch value.(type) {
+	case string:
+		if !strings.Contains(value.(string), expected) {
+			t.Errorf("expected value `%s` for `%s` not found: %+v", expected, fieldPath, event)
+		}
+	case []string:
+		for _, v := range value.([]string) {
+			if strings.Contains(v, expected) {
+				return
+			}
+		}
+		t.Errorf("expected value `%s` for `%s` not found in for `%+v`: %+v", expected, fieldPath, value, event)
 	}
+}
+
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	t.Helper()
+
+	testStringFieldContains(t, event, fieldPath, "docker")
 }
 
 func (tm *testModule) flushChannels(duration time.Duration) {

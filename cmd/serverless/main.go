@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -22,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -85,9 +85,10 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
-	datadogConfigPath        = "datadog.yaml"
-	traceOriginMetadataKey   = "_dd.origin"
-	traceOriginMetadataValue = "lambda"
+	// AWS Lambda is writing the Lambda function files in /var/task, we want the
+	// configuration file to be at the root of this directory.
+	datadogConfigPath     = "/var/task/datadog.yaml"
+	fetchAccountIDTimeout = 500.0 * time.Millisecond
 )
 
 const (
@@ -102,20 +103,16 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	// Main context passed to components
-	ctx, cancel := context.WithCancel(context.Background())
-	defer stopCallback(cancel)
-
 	stopCh := make(chan struct{})
 
-	// handle SIGTERM
-	go handleSignals(stopCh)
-
 	// run the agent
-	err := runAgent(ctx, stopCh)
+	daemon, err := runAgent(stopCh)
 	if err != nil {
 		return err
 	}
+
+	// handle SIGTERM
+	go handleSignals(daemon, stopCh)
 
 	// block here until we receive a stop signal
 	<-stopCh
@@ -124,15 +121,6 @@ func run(cmd *cobra.Command, args []string) error {
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-
-	// go_expvar server // TODO(remy): shouldn't we remove that for the serverless agent?
-	go func() {
-		port := config.Datadog.GetInt("dogstatsd_stats_port")
-		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", port), http.DefaultServeMux)
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
-		}
-	}()
 
 	// if not command has been provided, run the agent
 	if len(os.Args) == 1 {
@@ -145,9 +133,11 @@ func main() {
 	}
 }
 
-func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
+func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	startTime := time.Now()
+
+	traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
 
 	// setup logger
 	// -----------
@@ -172,7 +162,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	}
 
 	// immediately starts the communication server
-	daemon := serverless.StartDaemon(stopCh)
+	daemon = serverless.StartDaemon(stopTraceAgent)
 
 	// serverless parts
 	// ----------------
@@ -228,20 +218,32 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 		}
 	}
 
-	// read configuration from the environment vars
-	// --------------------------------------------
+	// read configuration from both the environment vars and the config file
+	// if one is provided
+	// --------------------------
+	svc := sts.New(session.New())
+	ctx, cancel := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
+	defer cancel()
 
-	// note that this call is counter-intuitive: it must return an error because
-	// no files should exist, and then, the configuration is read from env vars.
-	if _, confErr := config.Load(); confErr == nil {
-		log.Warn("A configuration file has been found, which should not happen in this mode.")
+	accountID, _ := aws.FetchAccountID(ctx, svc)
+	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
+	if err == nil {
+		log.Debugf("Extension found function ARN: %s", functionARN)
+		aws.SetARN(functionARN)
+	} else {
+		log.Debugf("Extension couldn't find function ARN")
+	}
+	aws.SetColdStart(true)
+
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
+		log.Info("A configuration file has been found and read.")
 	}
 
 	// extra tags to append to all logs / metrics
-	extraTags := config.Datadog.GetStringSlice("tags")
-	if dsdTags := config.Datadog.GetStringSlice("dogstatsd_tags"); len(dsdTags) > 0 {
-		extraTags = append(extraTags, dsdTags...)
-	}
+	extraTags := config.GetConfiguredTags(true)
+	extraTags = append(extraTags, aws.GetARNTags()...)
+	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
@@ -291,7 +293,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 			}
 		}
 	} else {
-		logsType = append(logsType, "platform", "function")
+		logsType = append(logsType, "platform", "function", "extension")
 	}
 
 	log.Debug("Enabling logs collection HTTP route")
@@ -329,7 +331,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
 
-	aggregatorInstance := aggregator.InitAggregator(serializer, "serverless")
+	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
 	// initializes the DogStatsD server
@@ -350,26 +352,32 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 	var ta *traceAgent.Agent
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
-		tc.GlobalTags[traceOriginMetadataKey] = traceOriginMetadataValue
+		tc.Hostname = ""
+		globalTags := aws.BuildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
+		for key, value := range globalTags {
+			tc.GlobalTags[key] = value
+		}
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
-			return
+		} else {
+			ta = traceAgent.NewAgent(traceAgentCtx, tc)
+			go func() {
+				ta.Run()
+			}()
 		}
-		ta = traceAgent.NewAgent(ctx, tc)
-		go func() {
-			ta.Run()
-		}()
 	}
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
+		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
+			coldstart = false
 		}
 	}()
 
@@ -385,7 +393,7 @@ func runAgent(ctx context.Context, stopCh chan struct{}) (err error) {
 
 // handleSignals handles OS signals, if a SIGTERM is received,
 // the serverless agent stops.
-func handleSignals(stopCh chan struct{}) {
+func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -396,6 +404,7 @@ func handleSignals(stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+			daemon.Stop()
 			stopCh <- struct{}{}
 			return
 		}
@@ -473,17 +482,4 @@ func readAPIKeyFromSSM() (string, error) {
 	// should not happen but let's handle this gracefully
 	log.Warn("SSM returned something but there seems to be no data available;")
 	return "", nil
-}
-
-func stopCallback(cancel context.CancelFunc) {
-	// gracefully shut down any component
-	cancel()
-
-	if statsdServer != nil {
-		statsdServer.Stop()
-	}
-
-	log.Info("See ya!")
-	log.Flush()
-	return
 }

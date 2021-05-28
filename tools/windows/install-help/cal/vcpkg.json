@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+  "name": "customaction",
+  "version": "1.0.0",
+  "dependencies": [
+    "gtest",
+    "yaml-cpp"
+  ]
+}

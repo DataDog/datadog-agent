@@ -30,7 +30,7 @@ func main() {
 	out := map[string]SecretOutput{}
 	for _, s := range in.Secrets {
 		out[s] = SecretOutput{
-			Value: fmt.Sprintf("secret_%s", s),
+			Value: fmt.Sprintf("secret-%s", s),
 		}
 	}
 

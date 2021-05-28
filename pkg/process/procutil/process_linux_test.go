@@ -25,11 +25,15 @@ var (
 	skipLocalTest = true
 )
 
+func getProbeWithPermission() *Probe {
+	return NewProcessProbe(WithPermission(true))
+}
+
 func TestGetActivePIDs(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	defer os.Unsetenv("HOST_PROC")
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	actual, err := probe.getActivePIDs()
@@ -105,7 +109,7 @@ func TestGetCmdlineLocalFS(t *testing.T) {
 }
 
 func testGetCmdline(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -140,7 +144,7 @@ func testProcessesByPID(t *testing.T) {
 	// gopsutil print verbose debug log regarding this
 	seelog.UseLogger(seelog.Disabled)
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	expectedProcs, err := process.AllProcesses()
@@ -216,7 +220,7 @@ func testStatsForPIDs(t *testing.T) {
 	// gopsutil print verbose debug log regarding this
 	seelog.UseLogger(seelog.Disabled)
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	expectProcs, err := process.AllProcesses()
@@ -247,10 +251,10 @@ func TestMultipleProbes(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
-	probe1 := NewProcessProbe()
+	probe1 := getProbeWithPermission()
 	defer probe1.Close()
 
-	probe2 := NewProcessProbe()
+	probe2 := getProbeWithPermission()
 	defer probe2.Close()
 
 	now := time.Now()
@@ -280,7 +284,7 @@ func TestProcfsChange(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	now := time.Now()
@@ -314,7 +318,7 @@ func TestProcfsChange(t *testing.T) {
 }
 
 func TestParseStatusLine(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	for _, tc := range []struct {
@@ -466,7 +470,7 @@ func TestParseStatusLocalFS(t *testing.T) {
 }
 
 func testParseStatus(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -511,7 +515,7 @@ func TestFillNsPidFromStatus(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	t.Run("Linux versions 4.1+", func(t *testing.T) {
@@ -558,7 +562,7 @@ func TestFillNsPidFromStatus(t *testing.T) {
 }
 
 func TestParseIOLine(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	for _, tc := range []struct {
@@ -601,7 +605,7 @@ func TestParseIOLocalFS(t *testing.T) {
 }
 
 func testParseIO(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -621,7 +625,6 @@ func TestFetchFieldsWithoutPermission(t *testing.T) {
 	t.Skip("This test is not working in CI, but could be tested locally")
 	probe := NewProcessProbe()
 	defer probe.Close()
-
 	// PID 1 should be owned by root so we would always get permission error
 	pid := int32(1)
 	actual := probe.parseIO(filepath.Join(probe.procRootLoc, strconv.Itoa(int(pid))))
@@ -629,13 +632,12 @@ func TestFetchFieldsWithoutPermission(t *testing.T) {
 	assert.Equal(t, int64(-1), actual.ReadBytes)
 	assert.Equal(t, int64(-1), actual.WriteCount)
 	assert.Equal(t, int64(-1), actual.WriteBytes)
-
 	fd := probe.getFDCount(strconv.Itoa(int(pid)))
 	assert.Equal(t, int32(-1), fd)
 }
 
 func TestParseStatContent(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	// hard code the bootTime so we get consistent calculation for createTime
@@ -710,7 +712,7 @@ func TestParseStatLocalFS(t *testing.T) {
 }
 
 func testParseStat(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -745,7 +747,7 @@ func TestBootTime(t *testing.T) {
 func TestBootTimeLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 	expectT, err := host.BootTime()
 	assert.NoError(t, err)
@@ -765,7 +767,7 @@ func TestParseStatmLocalFS(t *testing.T) {
 }
 
 func testParseStatm(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -803,7 +805,7 @@ func TestParseStatmStatusMatchLocalFS(t *testing.T) {
 }
 
 func testParseStatmStatusMatch(t *testing.T) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -819,7 +821,7 @@ func testParseStatmStatusMatch(t *testing.T) {
 
 func TestGetLinkWithAuthCheck(t *testing.T) {
 	maySkipLocalTest(t)
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -843,7 +845,7 @@ func TestGetLinkWithAuthCheck(t *testing.T) {
 
 func TestGetFDCountLocalFS(t *testing.T) {
 	maySkipLocalTest(t)
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -892,19 +894,68 @@ func TestStatsWithPermByPID(t *testing.T) {
 	os.Mkdir("resources/zero_io/3/fd", 0400)
 	defer os.Remove("resources/zero_io/3/fd")
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
-
-	stats, err := probe.StatsWithPermByPID()
-	require.NoError(t, err)
-	assert.Empty(t, stats)
 
 	WithReturnZeroPermStats(true)(probe)
 	pid := int32(3)
-	stats, err = probe.StatsWithPermByPID()
+	stats, err := probe.StatsWithPermByPID()
 	require.NoError(t, err)
 	require.Contains(t, stats, pid)
 	assert.True(t, stats[pid].IOStat.IsZeroValue())
+
+	WithReturnZeroPermStats(false)(probe)
+	stats, err = probe.StatsWithPermByPID()
+	require.NoError(t, err)
+	assert.Empty(t, stats)
+}
+
+func TestStatsForPIDsAndPerm(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := getProbeWithPermission()
+	defer probe.Close()
+	stats, err := probe.StatsForPIDs([]int32{1}, time.Now())
+	require.NoError(t, err)
+	require.Contains(t, stats, int32(1))
+	assert.False(t, stats[1].IOStat.IsZeroValue())
+
+	WithPermission(false)(probe)
+	stats, err = probe.StatsForPIDs([]int32{1}, time.Now())
+	require.NoError(t, err)
+	require.Contains(t, stats, int32(1))
+	assert.EqualValues(t, &IOCountersStat{
+		ReadCount:  -1,
+		WriteCount: -1,
+		ReadBytes:  -1,
+		WriteBytes: -1,
+	}, stats[1].IOStat)
+}
+
+func TestProcessesByPIDsAndPerm(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc")
+	defer os.Unsetenv("HOST_PROC")
+
+	probe := getProbeWithPermission()
+	defer probe.Close()
+	procs, err := probe.ProcessesByPID(time.Now())
+	require.NoError(t, err)
+	for _, p := range procs {
+		assert.False(t, p.Stats.IOStat.IsZeroValue())
+	}
+
+	WithPermission(false)(probe)
+	procs, err = probe.ProcessesByPID(time.Now())
+	require.NoError(t, err)
+	for _, p := range procs {
+		assert.EqualValues(t, &IOCountersStat{
+			ReadCount:  -1,
+			WriteCount: -1,
+			ReadBytes:  -1,
+			WriteBytes: -1,
+		}, p.Stats.IOStat)
+	}
 }
 
 func BenchmarkGetCmdGopsutilTestFS(b *testing.B) {
@@ -944,7 +995,7 @@ func benchmarkGetCmdGopsutil(b *testing.B) {
 }
 
 func benchmarkGetCmdProcutil(b *testing.B) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -980,7 +1031,7 @@ func BenchmarkTestFSStatusProcutil(b *testing.B) {
 	os.Setenv("HOST_PROC", hostProc)
 	defer os.Unsetenv("HOST_PROC")
 
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -1008,7 +1059,7 @@ func BenchmarkLocalFSStatusGopsutil(b *testing.B) {
 }
 
 func BenchmarkLocalFSStatusProcutil(b *testing.B) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -1029,7 +1080,7 @@ func BenchmarkGetPIDsGopsutilLocalFS(b *testing.B) {
 }
 
 func BenchmarkGetPIDsProcutilLocalFS(b *testing.B) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 	for i := 0; i < b.N; i++ {
 		// ignore errors when doing benchmarking
@@ -1074,7 +1125,7 @@ func benchmarkParseIOGopsutil(b *testing.B) {
 }
 
 func benchmarkParseIOProcutil(b *testing.B) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	pids, err := probe.getActivePIDs()
@@ -1119,7 +1170,7 @@ func benchmarkGetProcsGopsutil(b *testing.B) {
 }
 
 func benchmarkGetProcsProcutil(b *testing.B) {
-	probe := NewProcessProbe()
+	probe := getProbeWithPermission()
 	defer probe.Close()
 
 	now := time.Now()

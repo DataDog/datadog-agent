@@ -1,0 +1,1 @@
+[{"time":"2021-05-19T17:37:14.433Z","type":"platform.report","record":{"requestId":"5e7a344b-01da-47a6-af5a-86cb525a1e91","metrics":{"durationMs":69.8,"billedDurationMs":70,"memorySizeMB":1024,"maxMemoryUsedMB":164},"tracing":{"type":"X-Amzn-Trace-Id","value":"Root=1-60a54cca-6fd1171a7cd426040615ef76;Parent=409c4bf85397dd75;Sampled=1"}}}]

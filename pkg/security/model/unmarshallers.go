@@ -12,15 +12,23 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
-
-// ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
-var ErrNotEnoughData = errors.New("not enough data")
 
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
+	id, err := UnmarshalString(data, 64)
+	if err != nil {
+		return 0, err
+	}
+	e.ID = utils.FindContainerID(id)
+
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -54,22 +62,6 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.UID = ByteOrder.Uint32(data[0:4])
 	e.GID = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
-		return 0, ErrNotEnoughData
-	}
-
-	idRaw := [64]byte{}
-	SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
-	e.ID = string(bytes.Trim(idRaw[:], "\x00"))
-	if len(e.ID) > 1 && len(e.ID) < 64 {
-		e.ID = ""
-	}
-
-	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -151,7 +143,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
 	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
-	if IsPrintable(ttyName) {
+	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64
@@ -405,12 +397,11 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 8 {
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = ByteOrder.Uint32(data[0:4])
-	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
 
 	return 8, nil
 }
@@ -467,4 +458,16 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 		}
 	}
 	return read, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.MountID = ByteOrder.Uint32(data[0:4])
+	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
+
+	return 8, nil
 }

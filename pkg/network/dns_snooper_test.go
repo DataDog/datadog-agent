@@ -45,7 +45,7 @@ func getSnooper(
 		return nil, nil
 	}
 
-	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), ddebpf.NewPerfHandler(1), false)
+	mgr := netebpf.NewManager(ddebpf.NewPerfHandler(1), false)
 	mgrOptions := manager.Options{
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			// These maps are unrelated to DNS but are getting set because the eBPF library loads all of them
@@ -53,7 +53,6 @@ func getSnooper(
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
-			string(probes.HttpInFlightMap):    {Type: ebpf.Hash, MaxEntries: 1024, EditorFlag: manager.EditMaxEntries},
 		},
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -138,7 +137,7 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -200,7 +199,7 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) (*manager.Man
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) (*manager.Manager, *SocketFilterSnooper) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -476,7 +475,7 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
-	cfg := config.NewDefaultConfig()
+	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
 	defer buf.Close()
@@ -549,4 +548,8 @@ func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
 	answer.SetReply(r)
 	answer.SetRcode(r, dns.RcodeNameError)
 	w.WriteMsg(answer) //nolint:errcheck
+}
+
+func testConfig() *config.Config {
+	return config.New()
 }

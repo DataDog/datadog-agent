@@ -64,6 +64,14 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithPermission configures if process collection should fetch fields
+// that require elevated permission or not
+func WithPermission(enabled bool) Option {
+	return func(p *Probe) {
+		p.withPermission = enabled
+	}
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -73,6 +81,8 @@ type Probe struct {
 	clockTicks   float64
 	bootTime     uint64
 
+	// configurations
+	withPermission      bool
 	returnZeroPermStats bool
 }
 
@@ -115,22 +125,31 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
-		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
 		memInfoEx := p.parseStatm(pathForPID)
 
-		statsByPID[pid] = &Stats{
-			CreateTime:  statInfo.createTime,              // /proc/[pid]/stat
-			Status:      statusInfo.status,                // /proc/[pid]/status
-			Nice:        statInfo.nice,                    // /proc/[pid]/stat
-			OpenFdCount: p.getFDCountImproved(pathForPID), // /proc/[pid]/fd, requires permission checks
-			CPUTime:     statInfo.cpuStat,                 // /proc/[pid]/stat
-			MemInfo:     statusInfo.memInfo,               // /proc/[pid]/status
-			MemInfoEx:   memInfoEx,                        // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches,           // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,            // /proc/[pid]/status
-			IOStat:      ioInfo,                           // /proc/[pid]/io, requires permission checks
+		stats := &Stats{
+			CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
+			Status:      statusInfo.status,      // /proc/[pid]/status
+			Nice:        statInfo.nice,          // /proc/[pid]/stat
+			CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 		}
+		if p.withPermission {
+			stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+			stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		} else {
+			stats.IOStat = &IOCountersStat{
+				ReadCount:  -1,
+				WriteCount: -1,
+				ReadBytes:  -1,
+				WriteBytes: -1,
+			} // use -1 values to represent "no permission"
+		}
+		statsByPID[pid] = stats
 	}
 	return statsByPID, nil
 }
@@ -158,11 +177,10 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		}
 
 		statusInfo := p.parseStatus(pathForPID)
-		ioInfo := p.parseIO(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
 		memInfoEx := p.parseStatm(pathForPID)
 
-		procsByPID[pid] = &Process{
+		proc := &Process{
 			Pid:     pid,                                       // /proc/[pid]
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
@@ -173,18 +191,28 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,              // /proc/[pid]/stat
-				Status:      statusInfo.status,                // /proc/[pid]/status
-				Nice:        statInfo.nice,                    // /proc/[pid]/stat
-				OpenFdCount: p.getFDCountImproved(pathForPID), // /proc/[pid]/fd, requires permission checks
-				CPUTime:     statInfo.cpuStat,                 // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,               // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,                        // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches,           // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,            // /proc/[pid]/status
-				IOStat:      ioInfo,                           // /proc/[pid]/io, requires permission checks
+				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
+				Status:      statusInfo.status,      // /proc/[pid]/status
+				Nice:        statInfo.nice,          // /proc/[pid]/stat
+				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
+		if p.withPermission {
+			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+		} else {
+			proc.Stats.IOStat = &IOCountersStat{
+				ReadCount:  -1,
+				WriteCount: -1,
+				ReadBytes:  -1,
+				WriteBytes: -1,
+			} // use -1 values to represent "no permission"
+		}
+		procsByPID[pid] = proc
 	}
 
 	return procsByPID, nil

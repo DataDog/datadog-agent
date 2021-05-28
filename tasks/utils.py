@@ -9,6 +9,8 @@ import re
 import sys
 from subprocess import check_output
 
+from invoke import task
+
 # constants
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
@@ -257,6 +259,15 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # and it will match beta.0
     # git_sha: for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     version, pre, git_sha = version_match.group('version', 'pre', 'git_sha')
+
+    # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
+    # We need it, so we fetch it another way.
+    if not git_sha:
+        cmd = "git rev-parse HEAD"
+        # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
+        # therefore we keep the same number of characters.
+        git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
+
     return version, pre, commit_number, git_sha
 
 
@@ -267,8 +278,17 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
     version, pre, commits_since_version, git_sha = query_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
+
+    is_nightly = os.getenv("DEB_RPM_BUCKET_BRANCH") == "nightly"
     if pre:
         version = "{0}-{1}".format(version, pre)
+
+    if not commits_since_version and is_nightly and include_git:
+        if url_safe:
+            version = "{0}.git.{1}.{2}".format(version, 0, git_sha)
+        else:
+            version = "{0}+git.{1}.{2}".format(version, 0, git_sha)
+
     if commits_since_version and include_git:
         if url_safe:
             version = "{0}.git.{1}.{2}".format(version, commits_since_version, git_sha)
@@ -296,7 +316,11 @@ def load_release_versions(_, target_version):
     raise Exception("Could not find '{}' version in release.json".format(target_version))
 
 
+@task()
 def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
     args = {
         "go_file": "./pkg/config/render_config.go",
         "build_type": build_type,
@@ -305,3 +329,21 @@ def generate_config(ctx, build_type, output_file, env=None):
     }
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags '{bundle_tag}' {split}"
+        + " -pkg {pkg} -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(
+        assets_cmd.format(
+            dir_prefix=dir_prefix,
+            go_dir=go_dir,
+            bundle_tag=tag,
+            pkg=pkg,
+            split="-split" if split else "",
+            bindata_files="' '".join(bindata_files),
+        )
+    )
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))

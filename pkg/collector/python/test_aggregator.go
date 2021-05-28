@@ -214,7 +214,20 @@ func testSubmitHistogramBucket(t *testing.T) {
 		C.int(1),
 		C.CString("my_hostname"),
 		&cTags[0],
+		true,
 	)
 
-	sender.AssertHistogramBucket(t, "HistogramBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"})
+	sender.AssertHistogramBucket(t, "HistogramBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+}
+
+func testSubmitEventPlatformEvent(t *testing.T) {
+	sender := mocksender.NewMockSender("testID")
+	sender.SetupAcceptAll()
+	SubmitEventPlatformEvent(
+		C.CString("testID"),
+		C.CString("raw-event"),
+		C.CString("dbm-sample"),
+	)
+
+	sender.AssertEventPlatformEvent(t, "raw-event", "dbm-sample")
 }

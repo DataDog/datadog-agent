@@ -8,8 +8,7 @@ struct umount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int mount_id;
-    u32 discarder_revision;
+    u32 mount_id;
 };
 
 SYSCALL_KPROBE0(umount) {
@@ -19,7 +18,7 @@ SYSCALL_KPROBE0(umount) {
 SEC("kprobe/security_sb_umount")
 int kprobe__security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_UMOUNT,
+        .type = EVENT_UMOUNT,
         .umount = {
             .vfs = (struct vfsmount *)PT_REGS_PARM1(ctx),
         }
@@ -29,17 +28,15 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(umount) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UMOUNT);
-    if (!syscall)
+int __attribute__((always_inline)) do_sys_umount_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+    if (retval)
         return 0;
 
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
 
     struct umount_event_t event = {
-        .syscall .retval = PT_REGS_RC(ctx),
-        .mount_id = mount_id,
-        .discarder_revision = bump_discarder_revision(mount_id),
+        .syscall .retval = retval,
+        .mount_id = mount_id
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -47,7 +44,27 @@ SYSCALL_KRETPROBE(umount) {
 
     send_event(ctx, EVENT_UMOUNT, event);
 
+    umounted(ctx, mount_id);
+
     return 0;
+}
+
+SEC("tracepoint/handle_sys_umount_exit")
+int handle_sys_umount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
+    if (!syscall)
+        return 0;
+
+    return do_sys_umount_ret(args, syscall, args->ret);
+}
+
+SYSCALL_KRETPROBE(umount) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_umount_ret(ctx, syscall, retval);
 }
 
 #endif

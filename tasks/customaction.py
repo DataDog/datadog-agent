@@ -50,27 +50,19 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         if arch == "x86":
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
+        cmd = 'call \"{}\" && msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(
             vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
         )
     else:
-        cmd = 'msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            CUSTOM_ACTION_ROOT_DIR, configuration, arch
-        )
+        cmd = 'msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(CUSTOM_ACTION_ROOT_DIR, configuration, arch)
 
     cmd += verprops
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    artefacts = [
-        "customaction.dll",
-        "customaction.pdb",
-    ]
+    artefacts = ["customaction.dll", "customaction.pdb", "customaction-tests.exe"]
     for artefact in artefacts:
-        if arch is not None and arch == "x86":
-            shutil.copy2("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
-        else:
-            shutil.copy2("{}\\cal\\x64\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration, artefact), BIN_PATH)
+        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
 
 
 @task
@@ -79,8 +71,4 @@ def clean(_, arch="x64", debug=False):
     if debug:
         configuration = "Debug"
 
-    if arch is not None and arch == "x86":
-        srcdll = "{}\\cal\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    else:
-        srcdll = "{}\\cal\\x64\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    shutil.rmtree(srcdll, BIN_PATH)
+    shutil.rmtree("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration), BIN_PATH)

@@ -19,7 +19,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	if c.CollectTCPConns {
-		if pre410Kernel {
+		if !runtimeTracer && pre410Kernel {
 			enabled[probes.TCPSendMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.TCPSendMsg] = struct{}{}
@@ -35,10 +35,6 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.TCPRetransmitPre470] = struct{}{}
 		} else {
 			enabled[probes.TCPRetransmit] = struct{}{}
-		}
-
-		if c.BPFDebug || c.EnableHTTPMonitoring {
-			enabled[probes.TCPSendMsgReturn] = struct{}{}
 		}
 	}
 
@@ -61,7 +57,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}
 
-		if pre410Kernel {
+		if !runtimeTracer && pre410Kernel {
 			enabled[probes.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.UDPRecvMsg] = struct{}{}

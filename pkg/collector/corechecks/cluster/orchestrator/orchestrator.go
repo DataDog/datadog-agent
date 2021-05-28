@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	corecfg "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -35,6 +35,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	appslisters "k8s.io/client-go/listers/apps/v1"
+	batchlisters "k8s.io/client-go/listers/batch/v1"
+	batchlistersBeta1 "k8s.io/client-go/listers/batch/v1beta1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -54,6 +56,8 @@ var (
 		"replicasets",
 		"services",
 		"nodes",
+		"jobs",
+		"cronjobs",
 	}
 )
 
@@ -96,6 +100,12 @@ type OrchestratorCheck struct {
 	serviceListerSync       cache.InformerSynced
 	nodesLister             corelisters.NodeLister
 	nodesListerSync         cache.InformerSynced
+	jobsLister              batchlisters.JobLister
+	jobsListerSync          cache.InformerSynced
+	cronJobsLister          batchlistersBeta1.CronJobLister
+	cronJobsListerSync      cache.InformerSynced
+	daemonSetsLister        appslisters.DaemonSetLister
+	daemonSetsListerSync    cache.InformerSynced
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -141,8 +151,9 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 
 	// check if cluster name is set
 	hostname, _ := coreutil.GetHostname()
-	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-		o.orchestratorConfig.KubeClusterName = clusterName
+	o.orchestratorConfig.KubeClusterName = clustername.GetClusterName(hostname)
+	if o.orchestratorConfig.KubeClusterName == "" {
+		return errors.New("orchestrator check is configured but the cluster name is empty")
 	}
 
 	// load instance level config
@@ -206,6 +217,21 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.nodesLister = nodesInformer.Lister()
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
 			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
+		case "jobs":
+			jobsInformer := apiCl.InformerFactory.Batch().V1().Jobs()
+			o.jobsLister = jobsInformer.Lister()
+			o.jobsListerSync = jobsInformer.Informer().HasSynced
+			informersToSync[apiserver.JobsInformer] = jobsInformer.Informer()
+		case "cronjobs":
+			cronJobsInformer := apiCl.InformerFactory.Batch().V1beta1().CronJobs()
+			o.cronJobsLister = cronJobsInformer.Lister()
+			o.cronJobsListerSync = cronJobsInformer.Informer().HasSynced
+			informersToSync[apiserver.CronJobsInformer] = cronJobsInformer.Informer()
+		case "daemonsets":
+			daemonSetsInformer := apiCl.InformerFactory.Apps().V1().DaemonSets()
+			o.daemonSetsLister = daemonSetsInformer.Lister()
+			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
+			informersToSync[apiserver.DaemonSetsInformer] = daemonSetsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -232,13 +258,19 @@ func (o *OrchestratorCheck) Run() error {
 		if !config.Datadog.GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
 		}
-		errLeader := o.runLeaderElection()
+
+		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
+				log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
 				return nil
 			}
+
+			_ = o.Warn("Leader Election error. Not running the Orchestrator check.")
 			return err
 		}
+
+		log.Tracef("Current leader: %q, running the Orchestrator check", leader)
 	}
 
 	// We launch processing on everything but the ones with no
@@ -248,6 +280,9 @@ func (o *OrchestratorCheck) Run() error {
 	o.processPods(sender)
 	o.processServices(sender)
 	o.processNodes(sender)
+	o.processJobs(sender)
+	o.processCronJobs(sender)
+	o.processDaemonSets(sender)
 
 	return nil
 }
@@ -362,6 +397,87 @@ func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
 	}
 }
 
+func (o *OrchestratorCheck) processJobs(sender aggregator.Sender) {
+	if o.jobsLister == nil {
+		return
+	}
+	jobList, err := o.jobsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list jobs: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processJobList(jobList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process job list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(jobList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sJob,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sJob), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeJob)
+}
+
+func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
+	if o.cronJobsLister == nil {
+		return
+	}
+	cronJobList, err := o.cronJobsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list cron jobs: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processCronJobList(cronJobList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process cron job list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(cronJobList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sCronJob,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCronJob), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeCronJob)
+}
+
+func (o *OrchestratorCheck) processDaemonSets(sender aggregator.Sender) {
+	if o.daemonSetsLister == nil {
+		return
+	}
+	daemonSetLists, err := o.daemonSetsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list daemonSets: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processDaemonSetList(daemonSetLists, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process daemonSets list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(daemonSetLists) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sDaemonSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDaemonSet), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDaemonset)
+}
+
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
 	stats := orchestrator.CheckStats{
 		CacheHits: len(nodesList) - len(nodesMessages),
@@ -417,25 +533,4 @@ func (o *OrchestratorCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
 	o.CommonCancel()
-}
-
-func (o *OrchestratorCheck) runLeaderElection() error {
-	leaderEngine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		_ = o.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
-		return err
-	}
-
-	err = leaderEngine.EnsureLeaderElectionRuns()
-	if err != nil {
-		_ = o.Warn("Leader Election process failed to start")
-		return err
-	}
-
-	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
-		return apiserver.ErrNotLeader
-	}
-	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
-	return nil
 }

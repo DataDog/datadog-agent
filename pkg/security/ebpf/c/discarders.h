@@ -192,22 +192,43 @@ int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mou
         .is_leaf = is_leaf,
     };
 
-    int ret = is_discarded(&inode_discarders, &key, event_type);
-
-    return ret;
+    return is_discarded(&inode_discarders, &key, event_type);
 }
 
-void __attribute__((always_inline)) remove_inode_discarder(u32 mount_id, u64 inode, u32 is_leaf) {
+void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
+    u64 retention;
+    LOAD_CONSTANT("discarder_retention", retention);
+
+    u64 expire_at = bpf_ktime_get_ns() + retention;
+
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
         .revision = get_discarder_revision(mount_id),
-        .is_leaf = is_leaf,
     };
 
-    remove_discarder(&inode_discarders, &key);
+    struct discarder_parameters_t new_params = {
+        .state = {
+            .is_retained = 1,
+            .expire_at = expire_at,
+        }
+    };
+
+    #pragma unroll
+    for (int i = 0; i != 2; i++) {
+        key.is_leaf = i;
+
+        struct discarder_parameters_t *params = bpf_map_lookup_elem(&inode_discarders, &key);
+        if (params) {
+            params->state.is_retained = 1;
+            params->state.expire_at = expire_at;
+        } else {
+            // add a retention anyway
+            bpf_map_update_elem(&inode_discarders, &key, &new_params, BPF_NOEXIST);
+        }
+    }
 }
 
 static __always_inline u32 get_system_probe_pid() {

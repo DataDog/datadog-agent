@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -54,6 +56,123 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 	return &deploy
 }
 
+func extractJob(j *batchv1.Job) *model.Job {
+	job := model.Job{
+		Metadata: orchestrator.ExtractMetadata(&j.ObjectMeta),
+		Spec:     &model.JobSpec{},
+		Status: &model.JobStatus{
+			Active:           j.Status.Active,
+			ConditionMessage: extractJobConditionMessage(j.Status.Conditions),
+			Failed:           j.Status.Failed,
+			Succeeded:        j.Status.Succeeded,
+		},
+	}
+
+	if j.Spec.ActiveDeadlineSeconds != nil {
+		job.Spec.ActiveDeadlineSeconds = *j.Spec.ActiveDeadlineSeconds
+	}
+	if j.Spec.BackoffLimit != nil {
+		job.Spec.BackoffLimit = *j.Spec.BackoffLimit
+	}
+	if j.Spec.Completions != nil {
+		job.Spec.Completions = *j.Spec.Completions
+	}
+	if j.Spec.ManualSelector != nil {
+		job.Spec.ManualSelector = *j.Spec.ManualSelector
+	}
+	if j.Spec.Parallelism != nil {
+		job.Spec.Parallelism = *j.Spec.Parallelism
+	}
+	if j.Spec.Selector != nil {
+		job.Spec.Selectors = extractLabelSelector(j.Spec.Selector)
+	}
+
+	if j.Status.StartTime != nil {
+		job.Status.StartTime = j.Status.StartTime.Unix()
+	}
+	if j.Status.CompletionTime != nil {
+		job.Status.CompletionTime = j.Status.CompletionTime.Unix()
+	}
+
+	return &job
+}
+
+func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
+	cronJob := model.CronJob{
+		Metadata: orchestrator.ExtractMetadata(&cj.ObjectMeta),
+		Spec: &model.CronJobSpec{
+			ConcurrencyPolicy: string(cj.Spec.ConcurrencyPolicy),
+			Schedule:          cj.Spec.Schedule,
+		},
+		Status: &model.CronJobStatus{},
+	}
+
+	if cj.Spec.FailedJobsHistoryLimit != nil {
+		cronJob.Spec.FailedJobsHistoryLimit = *cj.Spec.FailedJobsHistoryLimit
+	}
+	if cj.Spec.StartingDeadlineSeconds != nil {
+		cronJob.Spec.StartingDeadlineSeconds = *cj.Spec.StartingDeadlineSeconds
+	}
+	if cj.Spec.SuccessfulJobsHistoryLimit != nil {
+		cronJob.Spec.SuccessfulJobsHistoryLimit = *cj.Spec.SuccessfulJobsHistoryLimit
+	}
+	if cj.Spec.Suspend != nil {
+		cronJob.Spec.Suspend = *cj.Spec.Suspend
+	}
+
+	if cj.Status.LastScheduleTime != nil {
+		cronJob.Status.LastScheduleTime = cj.Status.LastScheduleTime.Unix()
+	}
+	for _, job := range cj.Status.Active {
+		cronJob.Status.Active = append(cronJob.Status.Active, &model.ObjectReference{
+			ApiVersion:      job.APIVersion,
+			FieldPath:       job.FieldPath,
+			Kind:            job.Kind,
+			Name:            job.Name,
+			Namespace:       job.Namespace,
+			ResourceVersion: job.ResourceVersion,
+			Uid:             string(job.UID),
+		})
+	}
+
+	return &cronJob
+}
+
+func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
+	daemonSet := model.DaemonSet{
+		Metadata: orchestrator.ExtractMetadata(&ds.ObjectMeta),
+		Spec: &model.DaemonSetSpec{
+			MinReadySeconds: ds.Spec.MinReadySeconds,
+		},
+		Status: &model.DaemonSetStatus{
+			CurrentNumberScheduled: ds.Status.CurrentNumberScheduled,
+			NumberMisscheduled:     ds.Status.NumberMisscheduled,
+			DesiredNumberScheduled: ds.Status.DesiredNumberScheduled,
+			NumberReady:            ds.Status.NumberReady,
+			UpdatedNumberScheduled: ds.Status.UpdatedNumberScheduled,
+			NumberAvailable:        ds.Status.NumberAvailable,
+			NumberUnavailable:      ds.Status.NumberUnavailable,
+		},
+	}
+
+	if ds.Spec.RevisionHistoryLimit != nil {
+		daemonSet.Spec.RevisionHistoryLimit = *ds.Spec.RevisionHistoryLimit
+	}
+
+	daemonSet.Spec.DeploymentStrategy = string(ds.Spec.UpdateStrategy.Type)
+	if ds.Spec.UpdateStrategy.Type == "RollingUpdate" && ds.Spec.UpdateStrategy.RollingUpdate != nil {
+		if ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable != nil {
+			daemonSet.Spec.MaxUnavailable = ds.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable.StrVal
+		}
+	}
+
+	if ds.Spec.Selector != nil {
+		daemonSet.Spec.Selectors = extractLabelSelector(ds.Spec.Selector)
+	}
+
+	return &daemonSet
+}
+
 func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
 		Metadata: orchestrator.ExtractMetadata(&rs.ObjectMeta),
@@ -91,8 +210,12 @@ func extractService(s *corev1.Service) *model.Service {
 		Status: &model.ServiceStatus{},
 	}
 
-	if s.Spec.IPFamily != nil {
-		message.Spec.IpFamily = string(*s.Spec.IPFamily)
+	if s.Spec.IPFamilies != nil {
+		strFamilies := make([]string, len(s.Spec.IPFamilies))
+		for i, fam := range s.Spec.IPFamilies {
+			strFamilies[i] = string(fam)
+		}
+		message.Spec.IpFamily = strings.Join(strFamilies, ", ")
 	}
 	if s.Spec.SessionAffinityConfig != nil && s.Spec.SessionAffinityConfig.ClientIP != nil {
 		message.Spec.SessionAffinityConfig = &model.ServiceSessionAffinityConfig{
@@ -194,6 +317,15 @@ func extractDeploymentConditionMessage(conditions []v1.DeploymentCondition) stri
 	for _, c := range chronologicalConditions {
 		if m := messageMap[c]; m != "" {
 			return m
+		}
+	}
+	return ""
+}
+
+func extractJobConditionMessage(conditions []batchv1.JobCondition) string {
+	for _, c := range conditions {
+		if c.Type == batchv1.JobFailed && c.Message != "" {
+			return c.Message
 		}
 	}
 	return ""

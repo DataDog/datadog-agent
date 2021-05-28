@@ -116,7 +116,7 @@ func (t *Tagger) run() error {
 		case <-t.pullTicker.C:
 			go t.pull()
 		case <-t.pruneTicker.C:
-			t.store.prune() //nolint:errcheck
+			t.store.prune()
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
 		}
@@ -206,10 +206,10 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 
 func (t *Tagger) pull() {
 	t.RLock()
-	for _, puller := range t.pullers {
+	for name, puller := range t.pullers {
 		err := puller.Pull()
 		if err != nil {
-			log.Warnf("%s", err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
@@ -246,17 +246,23 @@ IterCollectors:
 				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
+
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
-		low, orch, high, err := collector.Fetch(entity)
+
 		cacheMiss := false
+		skipCache := false
+		low, orch, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 			cacheMiss = true
+		case errors.IsPartial(err):
+			skipCache = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
 		}
+
 		tagArrays = append(tagArrays, low)
 		if cardinality == collectors.OrchestratorCardinality {
 			tagArrays = append(tagArrays, orch)
@@ -264,6 +270,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, orch)
 			tagArrays = append(tagArrays, high)
 		}
+
 		// Submit to cache for next lookup
 		t.store.processTagInfo([]*collectors.TagInfo{
 			{
@@ -273,6 +280,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
+				SkipCache:            skipCache,
 			},
 		})
 	}

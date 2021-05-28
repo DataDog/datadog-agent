@@ -52,10 +52,7 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 
 func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
 	}
 
 	// if approvers disabled
@@ -69,37 +66,27 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 	}
 
 	if len(approvers) == 0 {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	if err := rsa.applyApprovers(eventType, approvers); err != nil {
 		log.Errorf("Failed to apply approvers, setting policy mode to 'accept' (error: %s)", err)
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags()); err != nil {
-		return err
-	}
-
-	return nil
+	return rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags())
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
 	if rsa.probe != nil {
-		if err := rsa.probe.FlushDiscarders(); err != nil {
-			return nil, errors.Wrap(err, "failed to flush discarders")
-		}
-
 		// based on the ruleset and the requested rules, select the probes that need to be activated
 		if err := rsa.probe.SelectProbes(rs); err != nil {
 			return nil, errors.Wrap(err, "failed to select probes")
+		}
+
+		if err := rsa.probe.FlushDiscarders(); err != nil {
+			return nil, errors.Wrap(err, "failed to flush discarders")
 		}
 	}
 

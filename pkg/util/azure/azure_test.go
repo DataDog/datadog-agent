@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestGetHostname(t *testing.T) {
+func TestGetAlias(t *testing.T) {
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,4 +94,69 @@ func TestGetNTPHosts(t *testing.T) {
 	actualHosts := GetNTPHosts()
 
 	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestGetHostname(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{
+			"name": "vm-name",
+			"resourceGroupName": "my-resource-group",
+			"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
+			"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d"
+		}`)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	cases := []struct {
+		style, value string
+		err          bool
+	}{
+		{"os", "", true},
+		{"vmid", "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d", false},
+		{"name", "vm-name", false},
+		{"name_and_resource_group", "vm-name.my-resource-group", false},
+		{"full", "vm-name.my-resource-group.2370ac56-5683-45f8-a2d4-d1054292facb", false},
+		{"invalid", "", true},
+	}
+
+	mockConfig := config.Mock()
+
+	for _, tt := range cases {
+		mockConfig.Set(hostnameStyleSetting, tt.style)
+		hostname, err := getHostnameWithConfig(mockConfig)
+		assert.Equal(t, tt.value, hostname)
+		assert.Equal(t, tt.err, (err != nil))
+	}
+}
+
+func TestGetHostnameWithInvalidMetadata(t *testing.T) {
+	mockConfig := config.Mock()
+
+	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
+
+	for _, response := range []string{"", "!"} {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, fmt.Sprintf(`{
+				"name": "%s",
+				"resourceGroupName": "%s",
+				"subscriptionId": "%s",
+				"vmId": "%s"
+			}`, response, response, response, response))
+		}))
+		metadataURL = ts.URL
+
+		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
+			for _, style := range styles {
+				mockConfig.Set(hostnameStyleSetting, style)
+				hostname, err := getHostnameWithConfig(mockConfig)
+				assert.Empty(t, hostname)
+				assert.NotNil(t, err)
+			}
+		})
+
+		ts.Close()
+	}
 }

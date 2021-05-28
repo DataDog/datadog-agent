@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SyncForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
-// It doesn't ship any retry mechanism for now.
 type SyncForwarder struct {
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
@@ -37,10 +37,15 @@ func (f *SyncForwarder) Start() error {
 func (f *SyncForwarder) Stop() {
 }
 
-func (f *SyncForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
+func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
+			// Retry once after error
+			log.Debug("Retrying transaction")
+			if err := t.Process(context.Background(), f.client); err != nil {
+				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+			}
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))

@@ -191,6 +191,7 @@ type RuleLoaded struct {
 // PolicyLoaded is used to report policy was loaded
 // easyjson:json
 type PolicyLoaded struct {
+	Version      string
 	RulesLoaded  []*RuleLoaded  `json:"rules_loaded"`
 	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
 }
@@ -216,7 +217,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policyName := rule.Definition.Policy.Name
 
 		if policy, exists = mp[policyName]; !exists {
-			policy = &PolicyLoaded{}
+			policy = &PolicyLoaded{Version: rule.Definition.Policy.Version}
 			mp[policyName] = policy
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
@@ -265,7 +266,6 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 // easyjson:json
 type NoisyProcessEvent struct {
 	Timestamp      time.Time                 `json:"date"`
-	Event          string                    `json:"event_type"`
 	Count          uint64                    `json:"pid_count"`
 	Threshold      int64                     `json:"threshold"`
 	ControlPeriod  time.Duration             `json:"control_period"`
@@ -274,8 +274,7 @@ type NoisyProcessEvent struct {
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(eventType model.EventType,
-	count uint64,
+func NewNoisyProcessEvent(count uint64,
 	threshold int64,
 	controlPeriod time.Duration,
 	discardedUntil time.Time,
@@ -286,7 +285,6 @@ func NewNoisyProcessEvent(eventType model.EventType,
 			ID: NoisyProcessRuleID,
 		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
 			Timestamp:      timestamp,
-			Event:          eventType.String(),
 			Count:          count,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,

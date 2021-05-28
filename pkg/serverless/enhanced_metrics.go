@@ -19,6 +19,7 @@ import (
 const (
 	baseLambdaInvocationPrice = 0.0000002
 	lambdaPricePerGbSecond    = 0.0000166667
+	msToSec                   = 0.001
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -55,7 +56,7 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 	memorySizeMb := float64(message.ObjectRecord.Metrics.MemorySizeMB)
 	billedDurationMs := float64(message.ObjectRecord.Metrics.BilledDurationMs)
 
-	metricsChan <- []metrics.MetricSample{{
+	enhancedMetrics := []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.max_memory_used",
 		Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
 		Mtype:      metrics.DistributionType,
@@ -71,21 +72,14 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
-		Value:      billedDurationMs,
+		Value:      billedDurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
-		Value:      message.ObjectRecord.Metrics.DurationMs,
-		Mtype:      metrics.DistributionType,
-		Tags:       tags,
-		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
-	}, {
-		Name:       "aws.lambda.enhanced.init_duration",
-		Value:      message.ObjectRecord.Metrics.InitDurationMs,
+		Value:      message.ObjectRecord.Metrics.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
@@ -98,6 +92,18 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 		SampleRate: 1,
 		Timestamp:  float64(message.Time.UnixNano()),
 	}}
+	if message.ObjectRecord.Metrics.InitDurationMs > 0 {
+		initDurationMetric := metrics.MetricSample{
+			Name:       "aws.lambda.enhanced.init_duration",
+			Value:      message.ObjectRecord.Metrics.InitDurationMs * msToSec,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(message.Time.UnixNano()),
+		}
+		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
+	}
+	metricsChan <- enhancedMetrics
 }
 
 // sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
@@ -114,12 +120,10 @@ func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricS
 
 // getTagsForEnhancedMetrics returns the tags that should be included with enhanced metrics
 func getTagsForEnhancedMetrics() []string {
-	functionARN := aws.GetARN()
-	functionName := aws.FunctionNameFromARN()
-	return []string{
-		fmt.Sprintf("functionname:%s", functionName),
-		fmt.Sprintf("function_arn:%s", functionARN),
-	}
+	tags := aws.GetARNTags()
+	coldStart := aws.GetColdStart()
+	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	return tags
 }
 
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation
@@ -130,4 +134,14 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) floa
 	// round the final float result because float math could have float point imprecision
 	// on some arch. (i.e. 1.00000000000002 values)
 	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
+}
+
+// generateEnhancedMetrics generates enhanced metrics from logs and dispatch them to the chan
+func generateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
+	switch message.Type {
+	case aws.LogTypeFunction:
+		generateEnhancedMetricsFromFunctionLog(message, tags, metricsChan)
+	case aws.LogTypePlatformReport:
+		generateEnhancedMetricsFromReportLog(message, tags, metricsChan)
+	}
 }

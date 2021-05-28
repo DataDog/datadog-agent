@@ -7,6 +7,7 @@ package sender
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"sync"
 	"time"
 
@@ -16,111 +17,137 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-const (
-	maxBatchSize   = 200
-	maxContentSize = 1000000
+var (
+	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	buffer     *MessageBuffer
-	serializer Serializer
-	batchWait  time.Duration
+	buffer *MessageBuffer
+	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
+	pipelineName     string
+	serializer       Serializer
+	batchWait        time.Duration
+	climit           chan struct{}  // semaphore for limiting concurrent sends
+	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
+	syncFlushTrigger chan struct{}  // trigger a synchronous flush
+	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
 }
 
-// NewBatchStrategy returns a new batchStrategy.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration) Strategy {
+// NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
+// If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
+// and the pipeline will block while sending each payload.
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string) Strategy {
+	if maxConcurrent < 0 {
+		maxConcurrent = 0
+	}
 	return &batchStrategy{
-		buffer:     NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer: serializer,
-		batchWait:  batchWait,
+		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer:       serializer,
+		batchWait:        batchWait,
+		climit:           make(chan struct{}, maxConcurrent),
+		syncFlushTrigger: make(chan struct{}),
+		syncFlushDone:    make(chan struct{}),
+		pipelineName:     pipelineName,
+	}
+
+}
+
+func (s *batchStrategy) Flush(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		s.syncFlushTrigger <- struct{}{}
+		<-s.syncFlushDone
 	}
 }
 
-func (s *batchStrategy) Flush(ctx context.Context, inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
-	mu.Lock()
-	defer mu.Unlock()
+func (s *batchStrategy) syncFlush(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+	defer func() {
+		s.flushBuffer(outputChan, send)
+		s.pendingSends.Wait()
+	}()
 	for {
 		select {
-		case <-ctx.Done():
-			return
-		default:
-			if len(inputChan) == 0 {
-				s.sendBuffer(outputChan, send)
+		case m, isOpen := <-inputChan:
+			if !isOpen {
 				return
 			}
-			message := <-inputChan
-			added := s.buffer.AddMessage(message)
-			if !added || s.buffer.IsFull() {
-				s.sendBuffer(outputChan, send)
-			}
-			if !added {
-				// it's possible that the message could not be added because the buffer was full
-				// so we need to retry once again
-				s.buffer.AddMessage(message)
-			}
+			s.processMessage(m, outputChan, send)
+		default:
+			return
 		}
 	}
 }
 
 // Send accumulates messages to a buffer and sends them when the buffer is full or outdated.
-func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error, mu *sync.Mutex) {
-	flushTimer := time.NewTimer(s.batchWait)
+func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+	flushTicker := time.NewTicker(s.batchWait)
 	defer func() {
-		flushTimer.Stop()
+		s.flushBuffer(outputChan, send)
+		flushTicker.Stop()
+		s.pendingSends.Wait()
 	}()
-
 	for {
 		select {
-		case message, isOpen := <-inputChan:
+		case m, isOpen := <-inputChan:
 			if !isOpen {
-				// inputChan has been closed, no more payload are expected
-				s.sendBuffer(outputChan, send)
+				// inputChan has been closed, no more payloads are expected
 				return
 			}
-			if message.Origin != nil {
-				message.Origin.LogSource.LatencyStats.Add(message.GetLatency())
-			}
-			added := s.buffer.AddMessage(message)
-			if !added || s.buffer.IsFull() {
-				// message buffer is full, either reaching max batch size or max content size,
-				// send the payload now
-				if !flushTimer.Stop() {
-					// make sure the timer won't tick concurrently
-					select {
-					case <-flushTimer.C:
-					default:
-					}
-				}
-				s.sendBuffer(outputChan, send)
-				flushTimer.Reset(s.batchWait)
-			}
-			if !added {
-				// it's possible that the message could not be added because the buffer was full
-				// so we need to retry once again
-				s.buffer.AddMessage(message)
-			}
-		case <-flushTimer.C:
-			// the first message that was added to the buffer has been here for too long,
-			// send the payload now
-			s.sendBuffer(outputChan, send)
-			flushTimer.Reset(s.batchWait)
+			s.processMessage(m, outputChan, send)
+		case <-flushTicker.C:
+			// the first message that was added to the buffer has been here for too long, send the payload now
+			s.flushBuffer(outputChan, send)
+		case <-s.syncFlushTrigger:
+			s.syncFlush(inputChan, outputChan, send)
+			s.syncFlushDone <- struct{}{}
 		}
-		mu.Lock() // block here if we're synchronously sending
-		mu.Unlock()
 	}
 }
 
-// sendBuffer sends all the messages that are stored in the buffer and forwards them
+func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *message.Message, send func([]byte) error) {
+	if m.Origin != nil {
+		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
+	}
+	added := s.buffer.AddMessage(m)
+	if !added || s.buffer.IsFull() {
+		s.flushBuffer(outputChan, send)
+	}
+	if !added {
+		// it's possible that the m could not be added because the buffer was full
+		// so we need to retry once again
+		if !s.buffer.AddMessage(m) {
+			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.Content), s.buffer.ContentSizeLimit())
+			tlmDroppedTooLarge.Inc(s.pipelineName)
+		}
+	}
+}
+
+// flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
-func (s *batchStrategy) sendBuffer(outputChan chan *message.Message, send func([]byte) error) {
+func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func([]byte) error) {
 	if s.buffer.IsEmpty() {
 		return
 	}
-
 	messages := s.buffer.GetMessages()
-	defer s.buffer.Clear()
+	s.buffer.Clear()
+	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
+	if cap(s.climit) == 0 {
+		s.sendMessages(messages, outputChan, send)
+		return
+	}
+	s.climit <- struct{}{}
+	s.pendingSends.Add(1)
+	go func() {
+		s.sendMessages(messages, outputChan, send)
+		s.pendingSends.Done()
+		<-s.climit
+	}()
+}
 
+func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Message, send func([]byte) error) {
 	err := send(s.serializer.Serialize(messages))
 	if err != nil {
 		if shouldStopSending(err) {

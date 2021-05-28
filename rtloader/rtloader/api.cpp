@@ -472,6 +472,11 @@ void set_submit_histogram_bucket_cb(rtloader_t *rtloader, cb_submit_histogram_bu
     AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketCb(cb);
 }
 
+void set_submit_event_platform_event_cb(rtloader_t *rtloader, cb_submit_event_platform_event_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitEventPlatformEventCb(cb);
+}
+
 /*
  * datadog_agent API
  */

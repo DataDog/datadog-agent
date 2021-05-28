@@ -57,6 +57,14 @@ func WithInterval(interval time.Duration) BuilderOption {
 	}
 }
 
+// WithMaxEvents configures default max events per run
+func WithMaxEvents(max int) BuilderOption {
+	return func(b *builder) error {
+		b.maxEventsPerRun = max
+		return nil
+	}
+}
+
 // WithHostname configures hostname used by checks
 func WithHostname(hostname string) BuilderOption {
 	return func(b *builder) error {
@@ -191,10 +199,11 @@ func IsRuleID(ruleID string) RuleMatcher {
 // NewBuilder constructs a check builder
 func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, error) {
 	b := &builder{
-		reporter:      reporter,
-		checkInterval: 20 * time.Minute,
-		etcGroupPath:  "/etc/group",
-		status:        newStatus(),
+		reporter:        reporter,
+		checkInterval:   20 * time.Minute,
+		maxEventsPerRun: 30,
+		etcGroupPath:    "/etc/group",
+		status:          newStatus(),
 	}
 
 	for _, o := range options {
@@ -212,7 +221,8 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 }
 
 type builder struct {
-	checkInterval time.Duration
+	checkInterval   time.Duration
+	maxEventsPerRun int
 
 	reporter   event.Reporter
 	valueCache *cache.Cache
@@ -499,6 +509,10 @@ func (b *builder) Hostname() string {
 
 func (b *builder) EtcGroupPath() string {
 	return b.etcGroupPath
+}
+
+func (b *builder) MaxEventsPerRun() int {
+	return b.maxEventsPerRun
 }
 
 func (b *builder) NormalizeToHostRoot(path string) string {

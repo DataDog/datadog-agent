@@ -6,6 +6,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -39,7 +40,7 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, 0)
 	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,
@@ -59,7 +60,7 @@ func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: true,
 	})
-	assert.Equal(t, "https://foo/v1/input/bar", url)
+	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
@@ -68,7 +69,7 @@ func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo/v1/input/bar", url)
+	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
@@ -78,7 +79,7 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 		Port:   1234,
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo:1234/v1/input/bar", url)
+	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestDestinationSend200(t *testing.T) {
@@ -120,4 +121,10 @@ func TestConnectivityCheck(t *testing.T) {
 	connectivity = CheckConnectivity(server.endpoint)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.stop()
+}
+
+func TestErrorToTag(t *testing.T) {
+	assert.Equal(t, errorToTag(nil), "none")
+	assert.Equal(t, errorToTag(errors.New("fail")), "non-retryable")
+	assert.Equal(t, errorToTag(client.NewRetryableError(errors.New("fail"))), "retryable")
 }

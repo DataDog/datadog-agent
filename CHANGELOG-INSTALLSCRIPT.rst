@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.4.0:
+
+installscript-1.4.0
+===================
+
+.. _Release Notes_installscript-1.4.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+-  Add a ``gpgkey=`` entry ensuring that ``dnf``/``yum``/``zypper``
+   always have access to the key used to sign current repodata.
+
+-  Change RPM key location from yum.datadoghq.com to keys.datadoghq.com.
+
+-  Activate ``repo_gpgcheck`` on RPM repositories by default.
+   ``repo_gpgcheck`` is still set to ``0`` when using a custom
+   ``REPO_URL`` or when running on RHEL/CentOS 8.1 because of a `bug in
+   dnf`_. The default value can be overriden by specifying
+   ``DD_RPM_REPO_GPGCHECK`` variable. The allowed values are ``0`` (to
+   disable) and ``1`` (to enable).
+
+.. _bug in dnf: https://bugzilla.redhat.com/show_bug.cgi?id=1792506
+
 .. _Release Notes_installscript-1.3.1:
 
 1.3.1

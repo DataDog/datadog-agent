@@ -10,6 +10,8 @@ package listeners
 import (
 	"errors"
 	"net"
+
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 // ErrLinuxOnly is emitted on non-linux platforms
@@ -27,5 +29,5 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
 func processUDSOrigin(oob []byte) (string, error) {
-	return NoOrigin, ErrLinuxOnly
+	return packets.NoOrigin, ErrLinuxOnly
 }

@@ -5,12 +5,11 @@ package http
 import (
 	"fmt"
 
-	"C"
-
 	"sync"
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/ebpf/manager"
@@ -24,8 +23,8 @@ import (
 type Monitor struct {
 	handler func([]httpTX)
 
+	ebpfProgram  *ebpfProgram
 	batchManager *batchManager
-	perfMap      *manager.PerfMap
 	perfHandler  *ddebpf.PerfHandler
 	telemetry    *telemetry
 	pollRequests chan chan map[Key]RequestStats
@@ -39,13 +38,22 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(procRoot string, maxEntries int, mgr *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
+func NewMonitor(c *config.Config) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+	}
+
+	if err := mgr.Init(); err != nil {
+		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+	}
+
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := filterpkg.HeadlessSocketFilter(procRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
@@ -63,13 +71,8 @@ func NewMonitor(procRoot string, maxEntries int, mgr *manager.Manager, h *ddebpf
 	notificationMap, _, _ := mgr.GetMap(string(probes.HttpNotificationsMap))
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
-	pm, found := mgr.GetPerfMap(string(probes.HttpNotificationsMap))
-	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
-	}
-
 	telemetry := newTelemetry()
-	statkeeper := newHTTPStatkeeper(maxEntries, telemetry)
+	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
 
 	handler := func(transactions []httpTX) {
 		if statkeeper != nil {
@@ -79,9 +82,9 @@ func NewMonitor(procRoot string, maxEntries int, mgr *manager.Manager, h *ddebpf
 
 	return &Monitor{
 		handler:       handler,
+		ebpfProgram:   mgr,
 		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
-		perfMap:       pm,
-		perfHandler:   h,
+		perfHandler:   mgr.perfHandler,
 		telemetry:     telemetry,
 		pollRequests:  make(chan chan map[Key]RequestStats),
 		closeFilterFn: closeFilterFn,
@@ -95,8 +98,8 @@ func (m *Monitor) Start() error {
 		return nil
 	}
 
-	if err := m.perfMap.Start(); err != nil {
-		return fmt.Errorf("error starting perf map: %s", err)
+	if err := m.ebpfProgram.Start(); err != nil {
+		return err
 	}
 
 	m.eventLoopWG.Add(1)
@@ -174,8 +177,8 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	m.ebpfProgram.Stop(manager.CleanAll)
 	m.closeFilterFn()
-	_ = m.perfMap.Stop(manager.CleanAll)
 	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()

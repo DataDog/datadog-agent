@@ -24,7 +24,7 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_CHOWN,
+        .type = EVENT_CHOWN,
         .policy = policy,
         .setattr = {
             .user = user,
@@ -65,12 +65,7 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
     return trace__sys_chown(user, group);
 }
 
-int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_CHOWN);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) do_sys_chown_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
@@ -89,6 +84,24 @@ int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
     send_event(ctx, EVENT_CHOWN, event);
 
     return 0;
+}
+
+SEC("tracepoint/handle_sys_chown_exit")
+int handle_sys_chown_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
+    if (!syscall)
+        return 0;
+
+    return do_sys_chown_ret(args, syscall, args->ret);
+}
+
+int __attribute__((always_inline)) trace__sys_chown_ret(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
+    if (!syscall)
+        return 0;
+
+    int retval = PT_REGS_RC(ctx);
+    return do_sys_chown_ret(ctx, syscall, retval);
 }
 
 SYSCALL_KRETPROBE(lchown) {

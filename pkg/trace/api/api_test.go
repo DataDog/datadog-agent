@@ -605,7 +605,7 @@ func TestHandleStats(t *testing.T) {
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
 		req.Header.Set(headerTracerVersion, "0.1.0")
@@ -649,10 +649,12 @@ func TestClientComputedStatsHeader(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -759,10 +761,12 @@ func TestClientComputedTopLevel(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -1039,8 +1043,7 @@ func TestWatchdog(t *testing.T) {
 		if testing.Short() {
 			return
 		}
-		os.Setenv("DD_APM_FEATURES", "429")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("429")()
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"

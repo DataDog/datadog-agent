@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,11 +36,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
 )
 
 var (
@@ -55,6 +57,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
+	log.SetupLogger(seelog.Default, "trace")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -62,14 +65,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestTracerExpvar(t *testing.T) {
+func TestGetStats(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 
 	cfg := testConfig()
-	// BPFDebug must be true for kretprobe/tcp_sendmsg to be included
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -78,117 +79,64 @@ func TestTracerExpvar(t *testing.T) {
 
 	expected := map[string][]string{
 		"conntrack": {
-			"StateSize",
-			"Enobufs",
-			"Throttles",
-			"SamplingPct",
-			"ReadErrors",
-			"MsgErrors",
+			"state_size",
+			"enobufs",
+			"throttles",
+			"sampling_pct",
+			"read_errors",
+			"msg_errors",
 		},
 		"state": {
-			"StatsResets",
-			"ClosedConnDropped",
-			"ConnDropped",
-			"TimeSyncCollisions",
-			"DnsStatsDropped",
-			"DnsPidCollisions",
+			"stats_resets",
+			"closed_conn_dropped",
+			"conn_dropped",
+			"time_sync_collisions",
+			"dns_stats_dropped",
+			"dns_pid_collisions",
 		},
 		"tracer": {
-			"ClosedConnPollingLost",
-			"ClosedConnPollingReceived",
-			"ConnValidSkipped",
-			"ExpiredTcpConns",
-			"PidCollisions",
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"conn_valid_skipped",
+			"expired_tcp_conns",
+			"pid_collisions",
 		},
 		"ebpf": {
-			"TcpSentMiscounts",
-			"MissedTcpClose",
+			"tcp_sent_miscounts",
+			"missed_tcp_close",
 		},
 		"dns": {
-			"Added",
-			"DecodingErrors",
-			"Errors",
-			"Expired",
-			"Ips",
-			"Lookups",
-			"Oversized",
-			"PacketsCaptured",
-			"PacketsDropped",
-			"PacketsProcessed",
-			"Queries",
-			"Resolved",
-			"SocketPolls",
-			"Successes",
-			"TimestampMicroSecs",
-			"TruncatedPackets",
+			"added",
+			"decoding_errors",
+			"errors",
+			"expired",
+			"ips",
+			"lookups",
+			"oversized",
+			"packets_captured",
+			"packets_dropped",
+			"packets_processed",
+			"queries",
+			"resolved",
+			"socket_polls",
+			"successes",
+			"timestamp_micro_secs",
+			"truncated_packets",
 		},
-		"kprobes": {
-			"PTcpCleanupRbufHits",
-			"PTcpCleanupRbufMisses",
-			"PTcpCloseHits",
-			"PTcpCloseMisses",
-			"PTcpRetransmitSkbHits",
-			"PTcpRetransmitSkbMisses",
-			"PTcpSendmsgHits",
-			"PTcpSendmsgMisses",
-			"PTcpSetStateHits",
-			"PTcpSetStateMisses",
-			"PUdpDestroySockHits",
-			"PUdpDestroySockMisses",
-			"PUdpRecvmsgHits",
-			"PUdpRecvmsgMisses",
-			"PIpMakeSkbHits",
-			"PIpMakeSkbMisses",
-			"PInetBindHits",
-			"PInetBindMisses",
-			"PInet6BindHits",
-			"PInet6BindMisses",
-			"PIp6MakeSkbHits",
-			"PIp6MakeSkbMisses",
-			"RInetCskAcceptHits",
-			"RInetCskAcceptMisses",
-			"PInetCskListenStopHits",
-			"PInetCskListenStopMisses",
-			"RTcpCloseHits",
-			"RTcpCloseMisses",
-			"RUdpRecvmsgHits",
-			"RUdpRecvmsgMisses",
-			"RTcpSendmsgHits",
-			"RTcpSendmsgMisses",
-			"RInetBindHits",
-			"RInetBindMisses",
-			"RInet6BindHits",
-			"RInet6BindMisses",
-		},
+		"kprobes": nil,
 	}
 
-	archSpecificKprobes := [][]string{}
+	actual, _ := tr.GetStats()
 
-	for _, et := range expvarTypes {
-		if et == "dns" && pre410Kernel {
+	for section, entries := range expected {
+		if section == "dns" && pre410Kernel {
 			// DNS stats not supported on <4.1.0
 			continue
 		}
 
-		expvar := map[string]float64{}
-		require.NoError(t, json.Unmarshal([]byte(expvarEndpoints[et].String()), &expvar))
-		for _, name := range expected[et] {
-			assert.Contains(t, expvar, name, "%s actual is missing %s", et, name)
-		}
-		// check variants of arch-specific syscall kprobes
-		if et == "kprobes" {
-			for _, options := range archSpecificKprobes {
-				inMap := false
-				for _, opt := range options {
-					_, inMap = expvar[opt]
-					if inMap {
-						break
-					}
-				}
-				if !inMap {
-					assert.Failf(t, "missing kprobe in expvar", "one of %v", options)
-				}
-			}
+		require.Contains(t, actual, section, "missing section from telemetry map: %s", section)
+		for _, name := range entries {
+			assert.Contains(t, actual[section], name, "%s actual is missing %s", section, name)
 		}
 	}
 }
@@ -835,6 +783,56 @@ func TestUDPSendAndReceive(t *testing.T) {
 	require.True(t, incoming.IntraHost)
 }
 
+func TestUDPPeekCount(t *testing.T) {
+	config := testConfig()
+	config.BPFDebug = true
+	tr, err := NewTracer(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "testdata/peek.py")
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:34568")
+	require.NoError(t, err)
+
+	c, err := net.DialUDP("udp", laddr, raddr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	msg := []byte("asdf")
+	_, err = c.Write(msg)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	connections := getConnections(t, tr)
+
+	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	require.True(t, ok)
+
+	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+
+	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
+	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
+	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
+	require.True(t, incoming.IntraHost)
+}
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
@@ -2156,7 +2154,7 @@ func teardownDNAT(t *testing.T) {
 }
 
 func testConfig() *config.Config {
-	cfg := config.NewDefaultConfig()
+	cfg := config.New()
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false
@@ -2191,12 +2189,39 @@ func TestGatewayLookupNotEnabled(t *testing.T) {
 	})
 
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.Set("cloud_provider_metadata", []string{"gcp"})
-		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
-
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(false)
+		cloud = m
+		tr, err := NewTracer(cfg)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		defer tr.Stop()
+		require.Nil(t, tr.gwLookup)
+	})
+
+	t.Run("gateway lookup enabled, aws metadata endpoint not enabled", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		oldCloud := cloud
+		defer func() {
+			cloud = oldCloud
+		}()
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		m.EXPECT().IsAWS().Return(true)
+		cloud = m
+
+		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
+		ddconfig.Datadog.Set("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
@@ -2205,35 +2230,51 @@ func TestGatewayLookupNotEnabled(t *testing.T) {
 	})
 }
 
+func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
+	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)`)
+
+	args := []string{"route", "get"}
+	if len(from) > 0 {
+		args = append(args, "from", from)
+	}
+	args = append(args, dest)
+	if iif != nil {
+		args = append(args, "iif", iif.Name)
+	}
+	cmd := exec.Command("ip", args...)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "ip command returned error, output: %s", out)
+
+	matches := ipRouteGetOut.FindSubmatch(out)
+	require.Len(t, matches, 2, string(out))
+	dev := string(matches[1])
+	ifi, err := net.InterfaceByName(dev)
+	require.NoError(t, err)
+	return ifi
+}
+
 func TestGatewayLookupEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
-	require.NotNil(t, tr)
 	require.NoError(t, err)
+	require.NotNil(t, tr)
 	defer tr.Stop()
 
 	require.NotNil(t, tr.gwLookup)
 
-	ipRouteGetOut := regexp.MustCompile(`dev\s+([^\s/]+)\s+src`)
-
-	cmd := exec.Command("ip", "route", "get", "8.8.8.8")
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err)
-
-	matches := ipRouteGetOut.FindSubmatch(out)
-	require.Len(t, matches, 2)
-	dev := string(matches[1])
-
-	ipRouteLinkOut := regexp.MustCompile(`(\d+):.+`)
-
-	out, err = exec.Command("ip", "link", "show", dev).CombinedOutput()
-	require.NoError(t, err, "ip link command output: %s", out)
-	matches = ipRouteLinkOut.FindSubmatch(out)
-	require.Len(t, matches, 2)
-	ifindex := string(matches[1])
-
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -2258,7 +2299,218 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	}, 2*time.Second, time.Second)
 
 	require.NotNil(t, conn.Via)
-	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%s", ifindex))
+	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
+}
+
+func TestGatewayLookupSubnetLookupError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	calls := 0
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		if hwAddr.String() == ifi.HardwareAddr.String() {
+			calls++
+		}
+		return network.Subnet{}, assert.AnError
+	}
+
+	tr.gwLookup.purge()
+
+	getConnections(t, tr)
+
+	// do two dns queries to prompt more than one subnet lookup attempt
+	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var c *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.Eventually(t, func() bool {
+		var ok bool
+		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	require.Nil(t, c.Via)
+
+	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
+}
+
+func TestGatewayLookupCrossNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	m := NewMockcloudProvider(ctrl)
+	oldCloud := cloud
+	defer func() {
+		cloud = oldCloud
+	}()
+
+	m.EXPECT().IsAWS().Return(true)
+	cloud = m
+
+	cfg := testConfig()
+	cfg.BPFDebug = true
+	cfg.EnableGatewayLookup = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, tr)
+	defer tr.Stop()
+
+	require.NotNil(t, tr.gwLookup)
+	// setup two network namespaces
+	cmds := []string{
+		"ip link add br0 type bridge",
+		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
+		"ip netns add test1",
+		"ip netns add test2",
+		"ip link add veth1 type veth peer name veth2",
+		"ip link set veth1 master br0",
+		"ip link set veth2 netns test1",
+		"ip -n test1 addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
+		"ip link add veth3 type veth peer name veth4",
+		"ip link set veth3 master br0",
+		"ip link set veth4 netns test2",
+		"ip -n test2 addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
+		"ip link set br0 up",
+		"ip link set veth1 up",
+		"ip -n test1 link set veth2 up",
+		"ip link set veth3 up",
+		"ip -n test2 link set veth4 up",
+		"ip -n test1 r add default via 2.2.2.1",
+		"ip -n test2 r add default via 2.2.2.1",
+		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+		"iptables -I FORWARD -i br0 -j ACCEPT",
+		"iptables -I FORWARD -o br0 -j ACCEPT",
+		"sysctl -w net.ipv4.ip_forward=1",
+	}
+	defer func() {
+		testutil.RunCommands(t, []string{
+			"iptables -D FORWARD -o br0 -j ACCEPT",
+			"iptables -D FORWARD -i br0 -j ACCEPT",
+			"iptables -D POSTROUTING -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
+			"ip link del veth1",
+			"ip link del veth3",
+			"ip link del br0",
+			"ip netns del test1",
+			"ip netns del test2",
+		}, true)
+	}()
+	testutil.RunCommands(t, cmds, false)
+
+	ifs, err := net.Interfaces()
+	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		for _, i := range ifs {
+			if hwAddr.String() == i.HardwareAddr.String() {
+				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil
+			}
+		}
+
+		return network.Subnet{Alias: "subnet"}, nil
+	}
+	tr.gwLookup.purge()
+
+	test1Ns, err := netns.GetFromName("test1")
+	require.NoError(t, err)
+	defer test1Ns.Close()
+
+	// run tcp server in test1 net namespace
+	done := make(chan struct{})
+	var server *TCPServer
+	err = util.WithNS("/proc", test1Ns, func() error {
+		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		return server.Run(done)
+	})
+	require.NoError(t, err)
+	defer close(done)
+
+	var conn *network.ConnectionStats
+	t.Run("client in root namespace", func(t *testing.T) {
+		c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
+		require.NoError(t, err)
+
+		// write some data
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 2*time.Second, 500*time.Millisecond)
+
+		// conn.Via should be nil, since traffic is local
+		require.Nil(t, conn.Via)
+	})
+
+	t.Run("client in other namespace", func(t *testing.T) {
+		// try connecting to server in test1 namespace
+		test2Ns, err := netns.GetFromName("test2")
+		require.NoError(t, err)
+		defer test2Ns.Close()
+
+		var c net.Conn
+		err = util.WithNS("/proc", test2Ns, func() error {
+			var err error
+			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
+			return err
+		})
+		require.NoError(t, err)
+		defer c.Close()
+
+		// write some data
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err)
+
+		var conn *network.ConnectionStats
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 2*time.Second, 500*time.Millisecond)
+
+		// traffic is local, so Via field should not be set
+		require.Nil(t, conn.Via)
+
+		// try connecting to something outside
+		var dnsClientAddr, dnsServerAddr *net.UDPAddr
+		util.WithNS("/proc", test2Ns, func() error {
+			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+			return nil
+		})
+
+		iif := ipRouteGet(t, "", dnsClientAddr.IP.String(), nil)
+		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), "8.8.8.8", iif)
+
+		require.Eventually(t, func() bool {
+			var ok bool
+			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+			return ok && conn.Direction == network.OUTGOING
+		}, 3*time.Second, 500*time.Millisecond)
+
+		require.NotNil(t, conn.Via)
+		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
+
+	})
 }
 
 func TestConnectionAssured(t *testing.T) {

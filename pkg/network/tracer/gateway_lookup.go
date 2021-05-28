@@ -3,50 +3,48 @@
 package tracer
 
 import (
-	"fmt"
 	"net"
-	"time"
-	"unsafe"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/hashicorp/golang-lru/simplelru"
 )
 
 const maxRouteCacheSize = int(^uint(0) >> 1) // max int
+const maxSubnetCacheSize = 1024
 
 type gatewayLookup struct {
 	routeCache          network.RouteCache
-	subnetCache         map[int]network.Subnet // interface index to subnet map
+	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
+}
 
-	logLimiter *util.LogLimit
+type cloudProvider interface {
+	IsAWS() bool
+}
+
+var cloud cloudProvider
+
+func init() {
+	cloud = &cloudProviderImpl{}
 }
 
 func gwLookupEnabled(config *config.Config) bool {
 	// only enabled on AWS currently
-	return config.EnableGatewayLookup && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return config.EnableGatewayLookup && cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
-func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *manager.Manager) *gatewayLookup {
+func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup {
 	if !gwLookupEnabled(config) {
 		return nil
 	}
 
-	var router network.Router
-	var err error
-	if runtimeCompilerEnabled {
-		router, err = newEbpfRouter(m)
-	} else {
-		router, err = network.NewNetlinkRouter(config.ProcRoot)
-	}
-
+	router, err := network.NewNetlinkRouter(config.ProcRoot)
 	if err != nil {
 		log.Errorf("could not create gateway lookup: %s", err)
 		return nil
@@ -59,16 +57,21 @@ func newGatewayLookup(config *config.Config, runtimeCompilerEnabled bool, m *man
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
+	lru, _ := simplelru.NewLRU(maxSubnetCacheSize, nil)
 	return &gatewayLookup{
-		subnetCache:         make(map[int]network.Subnet),
+		subnetCache:         lru,
 		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
-		logLimiter:          util.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
 func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
-	r, ok := g.routeCache.Get(cs.Source, cs.Dest, cs.NetNS)
+	dest := cs.Dest
+	if cs.IPTranslation != nil {
+		dest = cs.IPTranslation.ReplSrcIP
+	}
+
+	r, ok := g.routeCache.Get(cs.Source, dest, cs.NetNS)
 	if !ok {
 		return nil
 	}
@@ -79,30 +82,38 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
-	s, ok := g.subnetCache[r.IfIndex]
+	v, ok := g.subnetCache.Get(r.IfIndex)
 	if !ok {
 		ifi, err := net.InterfaceByIndex(r.IfIndex)
 		if err != nil {
-			log.Errorf("error getting index for interface index %d: %s", r.IfIndex, err)
+			log.Errorf("error getting interface for interface index %d: %s", r.IfIndex, err)
 			return nil
 		}
 
-		if len(ifi.HardwareAddr) == 0 {
-			// can happen for loopback
+		if ifi.Flags&net.FlagLoopback != 0 {
 			return nil
 		}
 
+		var s network.Subnet
 		if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-			if g.logLimiter.ShouldLog() {
-				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
-			}
+			log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+			// cache an empty result so that we don't keep hitting the
+			// ec2 metadata endpoint for this interface
+			g.subnetCache.Add(r.IfIndex, nil)
 			return nil
 		}
 
-		g.subnetCache[r.IfIndex] = s
+		g.subnetCache.Add(r.IfIndex, s)
+		v = s
+	} else if v == nil {
+		return nil
 	}
 
-	return &network.Via{Subnet: s}
+	return &network.Via{Subnet: v.(network.Subnet)}
+}
+
+func (g *gatewayLookup) purge() {
+	g.subnetCache.Purge()
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -114,29 +125,8 @@ func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 	return network.Subnet{Alias: snet.ID}, nil
 }
 
-type ebpfRouter struct {
-	gwMp *ebpf.Map
-}
+type cloudProviderImpl struct{}
 
-func newEbpfRouter(m *manager.Manager) (network.Router, error) {
-	mp, ok, err := m.GetMap(string(probes.GatewayMap))
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("ebpf router: could not find ebpf gateway map")
-	}
-	return &ebpfRouter{
-		gwMp: mp,
-	}, nil
-}
-
-func (b *ebpfRouter) Route(source, dest util.Address, netns uint32) (network.Route, bool) {
-	d := newIPRouteDest(source, dest, netns)
-	gw := &ipRouteGateway{}
-	if err := b.gwMp.Lookup(unsafe.Pointer(d), unsafe.Pointer(gw)); err != nil || gw.ifIndex() == 0 {
-		return network.Route{}, false
-	}
-
-	return network.Route{Gateway: gw.gateway(), IfIndex: gw.ifIndex()}, true
+func (cp *cloudProviderImpl) IsAWS() bool {
+	return ec2.IsRunningOn()
 }

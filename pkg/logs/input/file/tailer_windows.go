@@ -56,7 +56,6 @@ func (t *Tailer) readAvailable() (int, error) {
 
 	sz := st.Size()
 	offset := t.GetReadOffset()
-	log.Debugf("Size is %d, offset is %d", sz, offset)
 	if sz == 0 {
 		log.Debug("File size now zero, resetting offset")
 		t.SetReadOffset(0)
@@ -74,10 +73,8 @@ func (t *Tailer) readAvailable() (int, error) {
 		n, err := f.Read(inBuf)
 		bytes += n
 		if n == 0 || err != nil {
-			log.Debugf("Done reading")
 			return bytes, err
 		}
-		log.Debugf("Sending %d bytes to input channel", n)
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
