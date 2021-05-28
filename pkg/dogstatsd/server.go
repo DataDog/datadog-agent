@@ -599,21 +599,25 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 }
 
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
+	okTags := tlmProcessedOkTags
+	errorTags := tlmProcessedErrorTags
+	if origin != "" && telemetry {
+		var maps cachedTagsOriginMap // errorMap and okMap for this origin
+		var exists bool
+		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
+			maps = s.createOriginTagMaps(origin)
+		}
+		okTags = maps.ok
+		errorTags = maps.err
+	}
+
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		if origin != "" && telemetry {
-			var maps cachedTagsOriginMap // errorMap and okMap for this origin
-			var exists bool
-			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
-				maps = s.createOriginTagMaps(origin)
-			}
-			tlmProcessed.IncWithTags(maps.err)
-		} else {
-			tlmProcessed.IncWithTags(tlmProcessedErrorTags)
-		}
+		tlmProcessed.IncWithTags(errorTags)
 		return metricSamples, err
 	}
+
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
@@ -637,16 +641,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		if origin != "" && telemetry {
-			var maps cachedTagsOriginMap // errorMap and okMap for this origin
-			var exists bool
-			if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
-				maps = s.createOriginTagMaps(origin)
-			}
-			tlmProcessed.IncWithTags(maps.ok)
-		} else {
-			tlmProcessed.IncWithTags(tlmProcessedOkTags)
-		}
+		tlmProcessed.IncWithTags(okTags)
 	}
 	return metricSamples, nil
 }
