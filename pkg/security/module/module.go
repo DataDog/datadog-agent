@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -172,15 +173,20 @@ func (m *Module) Reload() error {
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
+	displayedErrors := make([]error, 0)
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
+		displayedErrors = loadErr.Errors
 	}
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
 	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
-	if loadErr.ErrorOrNil() != nil {
-		log.Errorf("error while loading policies: %+v", loadErr.Error())
+
+	// filter errors, to not display duplicate errors
+	filteredErr := filterMultiError(loadErr, displayedErrors)
+	if filteredErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies: %+v", filteredErr.Error())
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -214,6 +220,37 @@ func (m *Module) Reload() error {
 	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
 
 	return nil
+}
+
+/// filterMultiError creates a new *multierror.Error filtering an existing one with a list of error
+func filterMultiError(multi *multierror.Error, filter []error) *multierror.Error {
+	var res *multierror.Error
+
+	filterMsgs := make([]string, 0, len(filter))
+	for _, ferr := range filter {
+		if ferr != nil {
+			filterMsgs = append(filterMsgs, ferr.Error())
+		}
+	}
+
+	for _, current := range multi.Errors {
+		if current == nil {
+			continue
+		}
+
+		isFiltered := false
+		for _, errMsg := range filterMsgs {
+			if current.Error() == errMsg {
+				isFiltered = true
+			}
+		}
+
+		if !isFiltered {
+			res = multierror.Append(res, current)
+		}
+	}
+
+	return res
 }
 
 // Close the module
