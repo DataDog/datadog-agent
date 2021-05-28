@@ -206,14 +206,6 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ID = ByteOrder.Uint32(data[0:4])
 	e.Size = ByteOrder.Uint32(data[4:8])
 	SliceToArray(data[8:136], unsafe.Pointer(&e.ValuesRaw))
-	values, err := UnmarshalStringArray(e.ValuesRaw[:e.Size])
-	if err != nil || e.Size == 128 {
-		if len(values) > 0 {
-			values[len(values)-1] = values[len(values)-1] + "..."
-		}
-		e.IsTruncated = true
-	}
-	e.Values = values
 
 	return 136, nil
 }

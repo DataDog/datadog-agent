@@ -8,6 +8,7 @@
 package model
 
 import (
+	"strings"
 	"time"
 )
 
@@ -29,17 +30,9 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-func (pc *ProcessCacheEntry) compactArgsEnvs() {
-	// TODO: do not copy for the moment, need to handle memory usage properly
-	pc.ArgsArray = []string{}
-	pc.EnvsArray = []string{}
-}
-
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.Ancestor = pc
-
-	pc.compactArgsEnvs()
 
 	// empty and mark as exit previous entry
 	pc.ExitTime = entry.ExecTime
@@ -58,12 +51,14 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PathnameStr = pc.PathnameStr
 	childEntry.BasenameStr = pc.BasenameStr
 	childEntry.Filesystem = pc.Filesystem
+	childEntry.ContainerID = pc.ContainerID
 	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTimestamp = pc.ExecTimestamp
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie
 
-	copyProcessContext(pc, childEntry)
+	childEntry.ArgsEntry = pc.ArgsEntry
+	childEntry.EnvsEntry = pc.EnvsEntry
 }
 
 /*func (pc *ProcessCacheEntry) String() string {
@@ -78,3 +73,92 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	}
 	return s
 }*/
+
+// ArgsEnvsCacheEntry defines a args/envs base entry
+type ArgsEnvsCacheEntry struct {
+	ID        uint32
+	Size      uint32
+	ValuesRaw [128]byte
+	Next      *ArgsEnvsCacheEntry
+	Last      *ArgsEnvsCacheEntry
+}
+
+func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
+	entry := p
+
+	var values []string
+	var truncated bool
+
+	for entry != nil {
+		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
+		if err != nil || entry.Size == 128 {
+			if len(v) > 0 {
+				v[len(v)-1] = v[len(v)-1] + "..."
+			}
+			truncated = true
+		}
+		if len(v) > 0 {
+			values = append(values, v...)
+		}
+
+		entry = entry.Next
+	}
+
+	return values, truncated
+}
+
+// ArgsEntry defines a args cache entry
+type ArgsEntry struct {
+	*ArgsEnvsCacheEntry
+
+	Values    []string
+	Truncated bool
+}
+
+// ToArray returns args as array
+func (p *ArgsEntry) ToArray() ([]string, bool) {
+	if len(p.Values) > 0 {
+		return p.Values, p.Truncated
+	}
+	p.Values, p.Truncated = p.toArray()
+
+	return p.Values, p.Truncated
+}
+
+// EnvsEntry defines a args cache entry
+type EnvsEntry struct {
+	*ArgsEnvsCacheEntry
+
+	Values    map[string]string
+	Truncated bool
+}
+
+// ToMap returns envs as map
+func (p *EnvsEntry) ToMap() (map[string]string, bool) {
+	if p.Values != nil {
+		return p.Values, p.Truncated
+	}
+
+	values, truncated := p.toArray()
+
+	envs := make(map[string]string, len(values))
+
+	for _, env := range values {
+		if els := strings.SplitN(env, "=", 2); len(els) == 2 {
+			key := els[0]
+			value := els[1]
+			envs[key] = value
+		}
+	}
+	p.Values, p.Truncated = envs, truncated
+
+	return p.Values, p.Truncated
+}
+
+// Get returns the value for the given key
+func (p *EnvsEntry) Get(key string) string {
+	if p.Values == nil {
+		p.ToMap()
+	}
+	return p.Values[key]
+}

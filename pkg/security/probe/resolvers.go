@@ -63,7 +63,7 @@ func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*
 		TagsResolver:      NewTagsResolver(config),
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
+const (
+	// ServiceEnvVar environment variable used to report service
+	ServiceEnvVar = "DD_SERVICE"
+)
+
 var eventZero Event
 
 // Model describes the data model for the runtime security agent probe events
@@ -212,23 +217,29 @@ func (ev *Event) ResolveChownGID(e *model.ChownEvent) string {
 
 // ResolveExecArgs resolves the args of the event
 func (ev *Event) ResolveExecArgs(e *model.ExecEvent) string {
-	if ev.Exec.Args == "" && len(e.ArgsArray) > 0 {
-		ev.Exec.Args = strings.Join(e.ArgsArray, " ")
+	if ev.Exec.Args == "" {
+		ev.Exec.Args = strings.Join(ev.ResolveExecArgv(e), " ")
 	}
 	return ev.Exec.Args
 }
 
 // ResolveExecArgv resolves the args of the event as an array
 func (ev *Event) ResolveExecArgv(e *model.ExecEvent) []string {
-	if len(ev.Exec.Argv) == 0 && len(e.ArgsArray) > 0 {
-		ev.Exec.Argv = e.ArgsArray
+	if len(ev.Exec.Argv) == 0 {
+		ev.Exec.Argv, ev.Exec.ArgsTruncated = ev.resolvers.ProcessResolver.GetProcessArgv(&e.Process)
 	}
 	return ev.Exec.Argv
 }
 
+// ResolveExecArgsTruncated returns whether the args are truncated
+func (ev *Event) ResolveExecArgsTruncated(e *model.ExecEvent) bool {
+	_ = ev.ResolveExecArgs(e)
+	return ev.Exec.ArgsTruncated
+}
+
 // ResolveExecArgsFlags resolves the arguments flags of the event
 func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
-	for _, arg := range e.ArgsArray {
+	for _, arg := range ev.ResolveExecArgv(e) {
 		if len(arg) > 1 && arg[0] == '-' {
 			isFlag := true
 			name := arg[1:]
@@ -260,7 +271,7 @@ func (ev *Event) ResolveExecArgsFlags(e *model.ExecEvent) (flags []string) {
 
 // ResolveExecArgsOptions resolves the arguments options of the event
 func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
-	args := e.ArgsArray
+	args := ev.ResolveExecArgv(e)
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if len(arg) > 1 && arg[0] == '-' {
@@ -283,10 +294,23 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 	return
 }
 
+// ResolveExecEnvsTruncated returns whether the envs are truncated
+func (ev *Event) ResolveExecEnvsTruncated(e *model.ExecEvent) bool {
+	_ = ev.ResolveExecEnvs(e)
+	return ev.Exec.EnvsTruncated
+}
+
 // ResolveExecEnvs resolves the envs of the event
 func (ev *Event) ResolveExecEnvs(e *model.ExecEvent) []string {
-	if len(ev.Exec.Envs) == 0 && len(e.EnvsArray) > 0 {
-		ev.Exec.Envs = e.EnvsArray
+	if len(e.Envs) == 0 {
+		envs, truncated := ev.resolvers.ProcessResolver.GetProcessEnvs(&e.Process)
+		if envs != nil {
+			ev.Exec.Envs = make([]string, 0, len(envs))
+			for key := range envs {
+				ev.Exec.Envs = append(ev.Exec.Envs, key)
+			}
+			ev.Exec.EnvsTruncated = truncated
+		}
 	}
 	return ev.Exec.Envs
 }
@@ -393,6 +417,38 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 	}
 
 	return ev.processCacheEntry
+}
+
+// GetProcessServiceTag returns the service tag based on the process context
+func (ev *Event) GetProcessServiceTag() string {
+	entry := ev.ResolveProcessCacheEntry()
+	if entry == nil {
+		return ""
+	}
+
+	// first search in the process context itself
+	if entry.EnvsEntry != nil {
+		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
+			return service
+		}
+	}
+
+	inContainer := entry.ContainerID != ""
+
+	// while in container check for each ancestor
+	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
+		if inContainer && ancestor.ContainerID == "" {
+			break
+		}
+
+		if ancestor.EnvsEntry != nil {
+			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
+				return service
+			}
+		}
+	}
+
+	return ""
 }
 
 // Clone returns a copy on the event

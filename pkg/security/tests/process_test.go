@@ -317,7 +317,11 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("incorrect number of args %d: %s", n, args.(string))
 			}
 
-			if argv[n-1] != "..." {
+			truncated, err := event.GetFieldValue("exec.args_truncated")
+			if err != nil {
+				t.Errorf("not able to get args truncated")
+			}
+			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", args.(string))
 			}
 
@@ -467,6 +471,44 @@ func TestProcessContext(t *testing.T) {
 				testContainerPath(t, event, "process.file.container_path")
 				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 			}
+		}
+	})
+
+	test.Run(t, "service-tag", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-process-context")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		shell, executable := "sh", "touch"
+
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
+		envs := []string{"DD_SERVICE=myservice"}
+
+		cmd := cmdFunc(shell, args, envs)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("%s: %s", out, err)
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assert.Equal(t, rule.ID, "test_rule_inode", "wrong rule triggered")
+
+			if !validateExecSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
+				testContainerPath(t, event, "process.file.container_path")
+				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
+			}
+
+			service := event.GetProcessServiceTag()
+			assert.Equal(t, "myservice", service)
 		}
 	})
 }

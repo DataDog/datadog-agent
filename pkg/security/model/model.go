@@ -256,24 +256,25 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
-	ArgsArray     []string `field:"-"`
-	ArgsTruncated bool     `field:"-"`
-	EnvsArray     []string `field:"-"`
-	EnvsTruncated bool     `field:"-"`
-
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
+
+	ArgsEntry     *ArgsEntry `field:"-"`
+	ArgsTruncated bool       `field:"-"`
+	EnvsEntry     *EnvsEntry `field:"-"`
+	EnvsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
 
+	// defined to generate accessors
 	Args          string   `field:"args,ResolveExecArgs"`
 	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"`
-	ArgsTruncated bool     `field:"args_truncated"`
+	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`
 	Envs          []string `field:"envs,ResolveExecEnvs"`
-	EnvsTruncated bool     `field:"envs_truncated"`
+	EnvsTruncated bool     `field:"envs_truncated,ResolveExecEnvsTruncated"`
 }
 
 // FileFields holds the information required to identify a file
@@ -351,11 +352,7 @@ type MkdirEvent struct {
 
 // ArgsEnvsEvent defines a args/envs event
 type ArgsEnvsEvent struct {
-	ID          uint32
-	Size        uint32
-	Values      []string
-	ValuesRaw   [128]byte
-	IsTruncated bool
+	ArgsEnvsCacheEntry
 }
 
 // MountEvent represents a mount event

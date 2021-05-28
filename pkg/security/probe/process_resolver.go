@@ -15,7 +15,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -46,12 +45,6 @@ const (
 )
 
 const procResolveMaxDepth = 16
-
-// argsEnvsCacheEntry holds temporary args/envs info
-type argsEnvsCacheEntry struct {
-	Values      []string
-	IsTruncated bool
-}
 
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
@@ -108,9 +101,7 @@ func TTYConstants(probe *Probe) []manager.ConstantEditor {
 }
 
 // ProcessResolverOpts options of resolver
-type ProcessResolverOpts struct {
-	DebugCacheSize bool
-}
+type ProcessResolverOpts struct{}
 
 // ProcessResolver resolved process context
 type ProcessResolver struct {
@@ -127,6 +118,47 @@ type ProcessResolver struct {
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
+
+	argsEnvsPool *ArgsEnvsPool
+}
+
+// ArgsEnvsPool defines a pool for args/envs allocations
+type ArgsEnvsPool struct {
+	pool sync.Pool
+}
+
+// Get returns a cache entry
+func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
+	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
+}
+
+// GetFrom returns a new entry with value from the given entry
+func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
+	entry := a.Get()
+	*entry = event.ArgsEnvsCacheEntry
+	return entry
+}
+
+// Put returns a cache entry to the pool
+func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
+	for entry != nil {
+		// be sure to reset the entry here
+		next := entry.Next
+		entry.Next = nil
+		entry.Last = nil
+
+		a.pool.Put(entry)
+		entry = next
+	}
+}
+
+// NewArgsEnvsPool returns a new ArgsEnvEntry pool
+func NewArgsEnvsPool() *ArgsEnvsPool {
+	return &ArgsEnvsPool{
+		pool: sync.Pool{
+			New: func() interface{} { return &model.ArgsEnvsCacheEntry{} },
+		},
+	}
 }
 
 // SendStats sends process resolver metrics
@@ -144,16 +176,17 @@ func (p *ProcessResolver) SendStats() error {
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
+	entry := p.argsEnvsPool.GetFrom(event)
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		entry.Values = append(entry.Values, event.Values...)
-		entry.IsTruncated = entry.IsTruncated || event.IsTruncated
-	} else {
-		entry := &argsEnvsCacheEntry{
-			Values:      event.Values,
-			IsTruncated: event.IsTruncated,
+		list := e.(*model.ArgsEnvsCacheEntry)
+		if list.Last == nil {
+			list.Last = entry
+		} else {
+			list.Last.Next = entry
+			list.Last = entry
 		}
+	} else {
+		entry.Last = entry
 		p.argsEnvsCache.Add(event.ID, entry)
 	}
 }
@@ -240,6 +273,19 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	}
 	p.SetProcessUsersGroups(entry)
 
+	// args
+	if len(filledProc.Cmdline) > 0 {
+		entry.ArgsEntry = &model.ArgsEntry{
+			Values: filledProc.Cmdline[1:],
+		}
+	}
+
+	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+		entry.EnvsEntry = &model.EnvsEntry{
+			Values: envs,
+		}
+	}
+
 	return nil
 }
 
@@ -279,14 +325,28 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry
 	p.entryCache[pid] = entry
 
 	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
+	atomic.AddInt64(&p.cacheSize, 1)
 
-	if p.opts.DebugCacheSize {
-		atomic.AddInt64(&p.cacheSize, 1)
-
-		runtime.SetFinalizer(entry, func(obj interface{}) {
-			atomic.AddInt64(&p.cacheSize, -1)
-		})
+	var args *model.ArgsEnvsCacheEntry
+	if entry.ArgsEntry != nil {
+		args = entry.ArgsEntry.ArgsEnvsCacheEntry
 	}
+
+	var envs *model.ArgsEnvsCacheEntry
+	if entry.EnvsEntry != nil {
+		envs = entry.EnvsEntry.ArgsEnvsCacheEntry
+	}
+
+	runtime.SetFinalizer(entry, func(obj interface{}) {
+		if args != nil {
+			p.argsEnvsPool.Put(args)
+		}
+		if envs != nil {
+			p.argsEnvsPool.Put(envs)
+		}
+
+		atomic.AddInt64(&p.cacheSize, -1)
+	})
 
 	return entry
 }
@@ -482,34 +542,45 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		pce.ArgsArray = entry.Values
-		if pce.ArgsTruncated {
-			pce.ArgsArray = append(pce.ArgsArray, "...")
+		pce.ArgsEntry = &model.ArgsEntry{
+			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
-		pce.ArgsTruncated = pce.ArgsTruncated || entry.IsTruncated
+
+		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
 }
 
-// SetProcessEnvs set environment variables to cache entry
+// GetProcessArgv returns the args of the event as an array
+func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
+	if pr.ArgsEntry == nil {
+		return nil, false
+	}
+
+	argv, truncated := pr.ArgsEntry.ToArray()
+
+	return argv, pr.ArgsTruncated || truncated
+}
+
+// SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
-		entry := e.(*argsEnvsCacheEntry)
-
-		// keep only keys
-		pce.EnvsArray = make([]string, len(entry.Values))
-		for i, env := range entry.Values {
-			if els := strings.SplitN(env, "=", 2); len(els) > 0 {
-				pce.EnvsArray[i] = els[0]
-			}
+		pce.EnvsEntry = &model.EnvsEntry{
+			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
 
-		if pce.EnvsTruncated {
-			pce.EnvsArray = append(pce.EnvsArray, "...")
-		}
-		pce.EnvsTruncated = pce.EnvsTruncated || entry.IsTruncated
+		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *ProcessResolver) GetProcessEnvs(pr *model.Process) (map[string]string, bool) {
+	if pr.EnvsEntry == nil {
+		return nil, false
+	}
+
+	envs, truncated := pr.EnvsEntry.ToMap()
+
+	return envs, pr.EnvsTruncated || truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
@@ -784,12 +855,11 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		opts:          opts,
 		argsEnvsCache: argsEnvsCache,
 		state:         snapshotting,
+		argsEnvsPool:  NewArgsEnvsPool(),
 	}, nil
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
-func NewProcessResolverOpts(debug bool, cookieCacheSize int) ProcessResolverOpts {
-	return ProcessResolverOpts{
-		DebugCacheSize: debug,
-	}
+func NewProcessResolverOpts(cookieCacheSize int) ProcessResolverOpts {
+	return ProcessResolverOpts{}
 }
