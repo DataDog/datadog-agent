@@ -84,9 +84,9 @@ func (tx *httpTX) Method() string {
 	}
 }
 
-// RequestLatency returns the latency of the request in ms
+// RequestLatency returns the latency of the request in microseconds
 func (tx *httpTX) RequestLatency() float64 {
-	return float64((tx.response_last_seen - tx.request_started) / (1000000))
+	return float64((tx.response_last_seen - tx.request_started) / (1000))
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
