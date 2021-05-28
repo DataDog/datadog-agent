@@ -369,10 +369,15 @@ def apply_branding(ctx):
                   "./tools/windows/install-help/cal/stopservices.cpp")
     do_sed_rename(ctx, 's/"Send metrics to DataDog"/"Send metrics to StackState"/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/datadogagent/stackstateagent/g',
-                  "./tools/windows/install-help/cal/stopservices.cpp")
     do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/g',
                   "./cmd/trace-agent/windows_resources/trace-agent.rc")
+
+
+    # datadogagent references
+    do_sed_rename(ctx, 's/datadogagent/stackstateagent/g',
+                  "./tools/windows/install-help/cal/stopservices.cpp")
+    do_sed_rename(ctx, 's/datadogagent/stackstateagent/g',
+                  "./Dockerfiles/agent/install.ps1")
 
     # Test
     do_sed_rename(ctx, 's/"\\\\\\\\StackState\\\\\\\\StackVista"/"\\\\\\\\StackState\\\\\\\\StackState Agent"/g',
@@ -414,8 +419,6 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/C:\/ProgramData\/Datadog/C:\/ProgramData\/StackState/g',
                   "./Dockerfiles/agent/install.ps1")
     do_sed_rename(ctx, 's/"Datadog Agent"/"StackState Agent"/g',
-                  "./Dockerfiles/agent/install.ps1")
-    do_sed_rename(ctx, 's/"datadogagent"/"stackstateagent"/g',
                   "./Dockerfiles/agent/install.ps1")
     do_sed_rename(ctx, 's/"datadog-process-agent"/"stackstate-process-agent"/g',
                   "./Dockerfiles/agent/install.ps1")
