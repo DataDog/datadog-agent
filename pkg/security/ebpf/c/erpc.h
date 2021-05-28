@@ -60,7 +60,7 @@ int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
     u64 fd, pid;
 
     LOAD_CONSTANT("erpc_fd", fd);
-    LOAD_CONSTANT("erpc_pid", pid);
+    LOAD_CONSTANT("runtime_pid", pid);
 
     u32 vfs_fd = PT_REGS_PARM2(ctx);
     if (!vfs_fd || (u64)vfs_fd != fd) {

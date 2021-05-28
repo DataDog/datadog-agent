@@ -9,7 +9,6 @@ package probe
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"os"
 	"path"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
