@@ -51,22 +51,22 @@ const (
 
 var (
 	ephemeralRanges = map[ConnectionFamily]map[ConnectionType]map[string]uint16{
-		AFINET: map[ConnectionType]map[string]uint16{
-			UDP: map[string]uint16{
+		AFINET: {
+			UDP: {
 				"lo": 0,
 				"hi": 0,
 			},
-			TCP: map[string]uint16{
+			TCP: {
 				"lo": 0,
 				"hi": 0,
 			},
 		},
-		AFINET6: map[ConnectionType]map[string]uint16{
-			UDP: map[string]uint16{
+		AFINET6: {
+			UDP: {
 				"lo": 0,
 				"hi": 0,
 			},
-			TCP: map[string]uint16{
+			TCP: {
 				"lo": 0,
 				"hi": 0,
 			},
