@@ -86,11 +86,11 @@ else
   dependency "vc_redist"
 
   if windows_arch_i386?
-    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-x86.zip",
+    source :url => "s3://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-x86.zip",
            :sha256 => "1e988fa689646d68d4f9c19eebbba270d2edb1ab9e1c13749054d9ef2491305a",
            :extract => :seven_zip
   else
-    source :url => "https://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-amd64.zip",
+    source :url => "s3://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-amd64.zip",
          :sha256 => "f29a96aa51d79cb1f5c439c7da0f8c42006d2820a5ffe19b64552138e0862bbd",
          :extract => :seven_zip
   end
