@@ -3,6 +3,7 @@ package batcher
 import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
@@ -108,6 +109,14 @@ func (batcher *AsynchronousBatcher) sendTopology(topologyMap map[check.ID]topolo
 			"topologies":       topologies,
 		}
 
+		// For debug purposes print out all topologies payload
+		if config.Datadog.GetBool("log_payloads") {
+			log.Debug("Flushing the following topologies:")
+			for _, topo := range topologies {
+				log.Debugf("%v", topo)
+			}
+		}
+
 		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
 			_ = log.Errorf("error in SendJSONToV1Intake: %s", err)
 		}
@@ -172,6 +181,7 @@ func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance
 
 // SubmitComplete signals completion of a check. May trigger a flush only if the check produced data
 func (batcher AsynchronousBatcher) SubmitComplete(checkID check.ID) {
+	log.Debugf("Submitting complete for check [%s]", checkID)
 	batcher.input <- submitComplete{
 		checkID: checkID,
 	}

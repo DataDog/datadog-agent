@@ -401,6 +401,10 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/docker.go")
     do_sed_rename(ctx, 's/com.datadoghq.ad/com.stackstate.ad/g', "./pkg/autodiscovery/providers/ecs.go")
 
+    # rtloader branding
+    do_sed_rename(ctx, datadog_checks_replace, "./rtloader/two/two.cpp")
+    do_sed_rename(ctx, datadog_checks_replace, "./rtloader/three/three.cpp")
+
     # omnibus
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/agent.rb")
     do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',

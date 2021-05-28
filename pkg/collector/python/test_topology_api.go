@@ -26,24 +26,7 @@ func testComponentTopology(t *testing.T) {
 		&instanceKey,
 		C.CString("external-id"),
 		C.CString("component-type"),
-		C.CString(`
-key: value ®
-stringlist: 
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue 
-`))
+		C.CString("some: data"))
 	SubmitStopSnapshot(checkId, &instanceKey)
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
@@ -58,15 +41,7 @@ nestedobject:
 				{
 					ExternalID: "external-id",
 					Type:       topology.Type{Name: "component-type"},
-					Data: topology.Data{
-						"key":          "value ®",
-						"stringlist":   []interface{}{"a", "b", "c"},
-						"boollist":     []interface{}{true, false},
-						"intlist":      []interface{}{1},
-						"doublelist":   []interface{}{0.7, 1.42},
-						"emptykey":     nil,
-						"nestedobject": map[interface{}]interface{}{"nestedkey": "nestedValue"},
-					},
+					Data:       topology.Data{"some": "data"},
 				},
 			},
 			Relations: []topology.Relation{},
@@ -87,24 +62,7 @@ func testRelationTopology(t *testing.T) {
 		C.CString("source-id"),
 		C.CString("target-id"),
 		C.CString("relation-type"),
-		C.CString(`
-key: value ®
-stringlist: 
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue
-`))
+		C.CString("some: data"))
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
@@ -121,15 +79,7 @@ nestedobject:
 					SourceID:   "source-id",
 					TargetID:   "target-id",
 					Type:       topology.Type{Name: "relation-type"},
-					Data: map[string]interface{}{
-						"key":          "value ®",
-						"stringlist":   []interface{}{"a", "b", "c"},
-						"boollist":     []interface{}{true, false},
-						"intlist":      []interface{}{1},
-						"doublelist":   []interface{}{0.7, 1.42},
-						"emptykey":     nil,
-						"nestedobject": map[interface{}]interface{}{"nestedkey": "nestedValue"},
-					},
+					Data:       topology.Data{"some": "data"},
 				},
 			},
 		},
