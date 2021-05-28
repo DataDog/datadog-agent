@@ -402,11 +402,11 @@ func getPortType(p uint16) network.EphemeralPortType {
 	})
 
 	low, hi, err := ephemeralIntPair.Get()
-	if nil == err {
+	if err == nil {
 		ephemeralLow = uint16(low)
 		ephemeralHigh = uint16(hi)
 	}
-	if ephemeralLow == 0 || ephemeralHigh == 0 {
+	if err != nil || ephemeralLow == 0 || ephemeralHigh == 0 {
 		return network.EphemeralUnknown
 	}
 	if p >= ephemeralLow && p <= ephemeralHigh {
