@@ -31,6 +31,9 @@ message ClientStatsPayload {
 	// agentAggregation is set by the agent on tracer payloads modified by the agent aggregation layer
 	// characterizes counts only and distributions only payloads
 	string agentAggregation = 9;
+	// service is the main service of the tracer.
+	// It is part of unified tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging
+	string service = 10;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.
@@ -43,7 +46,7 @@ message ClientStatsBucket {
         int64 agentTimeShift = 4;
 }
 
-// ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type 
+// ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type
 message ClientGroupedStats {
 	string service = 1;
 	string name = 2;

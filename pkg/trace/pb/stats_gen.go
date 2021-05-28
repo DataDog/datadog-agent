@@ -717,6 +717,12 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "AgentAggregation")
 				return
 			}
+		case "Service":
+			z.Service, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -730,9 +736,9 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 9
+	// map header, size 10
 	// write "Hostname"
-	err = en.Append(0x89, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	err = en.Append(0x8a, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	if err != nil {
 		return
 	}
@@ -828,15 +834,25 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "AgentAggregation")
 		return
 	}
+	// write "Service"
+	err = en.Append(0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.Service)
+	if err != nil {
+		err = msgp.WrapError(err, "Service")
+		return
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 9
+	// map header, size 10
 	// string "Hostname"
-	o = append(o, 0x89, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	o = append(o, 0x8a, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Hostname)
 	// string "Env"
 	o = append(o, 0xa3, 0x45, 0x6e, 0x76)
@@ -869,6 +885,9 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "AgentAggregation"
 	o = append(o, 0xb0, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x41, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.AgentAggregation)
+	// string "Service"
+	o = append(o, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = msgp.AppendString(o, z.Service)
 	return
 }
 
@@ -957,6 +976,12 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AgentAggregation")
 				return
 			}
+		case "Service":
+			z.Service, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -975,7 +1000,7 @@ func (z *ClientStatsPayload) Msgsize() (s int) {
 	for za0001 := range z.Stats {
 		s += z.Stats[za0001].Msgsize()
 	}
-	s += 5 + msgp.StringPrefixSize + len(z.Lang) + 14 + msgp.StringPrefixSize + len(z.TracerVersion) + 10 + msgp.StringPrefixSize + len(z.RuntimeID) + 9 + msgp.Uint64Size + 17 + msgp.StringPrefixSize + len(z.AgentAggregation)
+	s += 5 + msgp.StringPrefixSize + len(z.Lang) + 14 + msgp.StringPrefixSize + len(z.TracerVersion) + 10 + msgp.StringPrefixSize + len(z.RuntimeID) + 9 + msgp.Uint64Size + 17 + msgp.StringPrefixSize + len(z.AgentAggregation) + 8 + msgp.StringPrefixSize + len(z.Service)
 	return
 }
 
