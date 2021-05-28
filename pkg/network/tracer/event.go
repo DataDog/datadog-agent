@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -93,6 +94,9 @@ var (
 	ephemeralLow     = uint16(0)
 	ephemeralHigh    = uint16(0)
 	ephemeralChecked = false
+
+	initEphemeralIntPair sync.Once
+	ephemeralIntPair     *sysctl.IntPair
 )
 
 func ipPortFromAddr(addr net.Addr) (net.IP, int) {
@@ -387,22 +391,20 @@ func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 }
 
 func getPortType(p uint16) network.EphemeralPortType {
-	if !ephemeralChecked {
+	initfunc := func() {
 		procfsPath := "/proc"
 		if config.Datadog.IsSet("procfs_path") {
 			procfsPath = config.Datadog.GetString("procfs_path")
 		}
 
-		intpair := sysctl.NewIntPair(procfsPath, "net/ipv4/ip_local_port_range", 0)
-		low, hi, err := intpair.Get()
-		if nil == err {
-			ephemeralLow = uint16(low)
-			ephemeralHigh = uint16(hi)
-			log.Infof("got ephemeral port %v %v", ephemeralLow, ephemeralHigh)
-		} else {
-			log.Infof("failed to get ephemerail %v", err)
-		}
-		ephemeralChecked = true
+		ephemeralIntPair = sysctl.NewIntPair(procfsPath, "net/ipv4/ip_local_port_range", time.Hour)
+	}
+	initEphemeralIntPair.Do(initfunc)
+
+	low, hi, err := ephemeralIntPair.Get()
+	if nil == err {
+		ephemeralLow = uint16(low)
+		ephemeralHigh = uint16(hi)
 	}
 	if ephemeralLow == 0 || ephemeralHigh == 0 {
 		return network.EphemeralUnknown
