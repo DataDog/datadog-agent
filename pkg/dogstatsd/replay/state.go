@@ -10,9 +10,11 @@ import (
 	"sync"
 )
 
+type pidContainerMap map[int32]string
+
 var (
 	mux    sync.RWMutex
-	pidMap map[int32]string
+	pidMap pidContainerMap
 
 	errPidMapUnavailable    = errors.New("no pid map has been set for this replay")
 	errContainerUnavailable = errors.New("specified pid is not associated to any container")
@@ -23,7 +25,7 @@ func SetPidMap(m map[int32]string) {
 	mux.Lock()
 	defer mux.Unlock()
 
-	pidMap = map[int32]string{}
+	pidMap = pidContainerMap{}
 	for pid, containerID := range m {
 		pidMap[pid] = containerID
 	}

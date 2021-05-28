@@ -110,8 +110,6 @@ func dogstatsdReplay() error {
 
 	cli := pb.NewAgentSecureClient(apiconn)
 
-	// depth should be configurable....
-	// reader, e := replay.NewTrafficCaptureReader(dsdReplayFilePath, dsdTaggerFilePath)
 	depth := 10
 	reader, err := replay.NewTrafficCaptureReader(dsdReplayFilePath, depth)
 	if reader != nil {
@@ -174,8 +172,8 @@ replay:
 	for {
 		select {
 		case msg := <-reader.Traffic:
-			// TODO: for when the tagger works
-			fmt.Printf("Going to send Payload: %d bytes, and OOB: %d bytes\n", len(msg.Payload), len(msg.Ancillary))
+			// The cadence is enforced by the reader. The reader will only write to
+			// the traffic channel when it estimates the payload should be submitted.
 			n, oobn, err := conn.(*net.UnixConn).WriteMsgUnix(
 				msg.Payload[:msg.PayloadSize], replay.GetUcredsForPid(msg.Pid), addr)
 			if err != nil {

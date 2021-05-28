@@ -82,7 +82,7 @@ func GetEntity(entityID string) (*types.Entity, error) {
 	return defaultTagger.GetEntity(entityID)
 }
 
-// Tag queries the defaultTagger to get entity tags from cache or sources.
+// Tag queries the captureTagger (for replay scenarios) or the defaultTagger.
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {

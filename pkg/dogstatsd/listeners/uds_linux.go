@@ -50,7 +50,8 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 }
 
 // processUDSOrigin reads ancillary data to determine a packet's origin,
-// it returns a string identifying the source.
+// it returns an integer with the ancillary PID,  a string identifying the
+// source, and an error if any.
 // PID is added to ancillary data by the Linux kernel if we added the
 // SO_PASSCRED to the socket, see enableUDSPassCred.
 func processUDSOrigin(ancillary []byte) (int, string, error) {

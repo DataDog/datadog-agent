@@ -71,17 +71,12 @@ func (tc *TrafficCapture) Start(d time.Duration) error {
 
 }
 
-// Stop stops an ongoing TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Stop() error {
+// Stop stops an ongoing TrafficCapture.
+func (tc *TrafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
-	err := tc.Writer.StopCapture()
-	if err != nil {
-		return nil
-	}
-
-	return nil
+	tc.Writer.StopCapture()
 }
 
 // Path returns the path to the underlying TrafficCapture file, and an error if any.

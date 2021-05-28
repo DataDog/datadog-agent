@@ -190,10 +190,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		log.Debugf("Capture will be stopped after %v", d)
 
 		<-time.After(d)
-		err := tc.StopCapture()
-		if err != nil {
-			log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
-		}
+		tc.StopCapture()
 	}()
 
 process:
@@ -204,10 +201,7 @@ process:
 
 			if err != nil {
 				log.Errorf("There was an issue writing the captured message to disk, stopping capture: %v", err)
-				err = tc.StopCapture()
-				if err != nil {
-					log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
-				}
+				tc.StopCapture()
 			}
 		case <-tc.shutdown:
 			log.Debug("Capture shutting down")
@@ -245,13 +239,13 @@ cleanup:
 	tc.File.Close()
 }
 
-// StopCapture stops the ongoing capture if in process and returns an error, if any.
-func (tc *TrafficCaptureWriter) StopCapture() error {
+// StopCapture stops the ongoing capture if in process.
+func (tc *TrafficCaptureWriter) StopCapture() {
 	tc.Lock()
 	defer tc.Unlock()
 
 	if !tc.ongoing {
-		return nil
+		return
 	}
 
 	if tc.sharedPacketPoolManager != nil {
@@ -265,7 +259,6 @@ func (tc *TrafficCaptureWriter) StopCapture() error {
 	tc.ongoing = false
 
 	log.Debug("Capture was stopped")
-	return nil
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
