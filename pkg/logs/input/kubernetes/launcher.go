@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/cenkalti/backoff"
 )
 
@@ -51,14 +53,29 @@ type Launcher struct {
 	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
-// NewLauncher returns a new launcher.
-func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
+// IsAvailable retrues true if the launcher is available and a retrier otherwise
+func IsAvailable() (bool, *retry.Retrier) {
 	if !isIntegrationAvailable() {
-		return nil, fmt.Errorf("%s not found", basePath)
+		if coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
+			log.Warnf("Kubernetes launcher is not available. Integration not available - %s not found", basePath)
+		}
+		return false, nil
 	}
+	util, retrier := kubelet.GetKubeUtilWithRetrier()
+	if util != nil {
+		log.Info("Kubernetes launcher is available")
+		return true, nil
+	}
+	log.Infof("Kubernetes launcher is not available: %v", retrier.LastError())
+	return false, retrier
+}
+
+// NewLauncher returns a new launcher.
+func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) *Launcher {
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
-		return nil, err
+		log.Errorf("KubeUtil not available, failed to create launcher", err)
+		return nil
 	}
 	launcher := &Launcher{
 		sources:            sources,
@@ -72,7 +89,7 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 	}
 	launcher.addedServices = services.GetAllAddedServices()
 	launcher.removedServices = services.GetAllRemovedServices()
-	return launcher, nil
+	return launcher
 }
 
 func isIntegrationAvailable() bool {
