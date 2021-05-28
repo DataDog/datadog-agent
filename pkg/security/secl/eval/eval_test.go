@@ -8,9 +8,11 @@ package eval
 import (
 	"container/list"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
@@ -911,6 +913,59 @@ func TestOptimizer(t *testing.T) {
 
 		if test.Evaluated() {
 			t.Fatalf("not optimized: %s", test.Expr)
+		}
+	}
+}
+
+func TestDuration(t *testing.T) {
+	// time reliability issue
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	event := &testEvent{
+		process: testProcess{
+			createdAt: time.Now().UnixNano(),
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.created_at < 2s`, Expected: true},
+		{Expr: `process.created_at > 2s`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+		}
+	}
+
+	time.Sleep(4 * time.Second)
+
+	tests = []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.created_at < 2s`, Expected: false},
+		{Expr: `process.created_at > 2s`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
 		}
 	}
 }

@@ -44,6 +44,26 @@
                     }
                 }
             }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ]
+                }
+            }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "flags"
+                    ]
+                }
+            }
         }
     ]
 }

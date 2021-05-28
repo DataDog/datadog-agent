@@ -452,6 +452,13 @@ func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry
 	return entry.ContainerPath
 }
 
+// ApplyBootTime realign timestamp from the boot time
+func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
+	entry.ExecTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExecTime)
+	entry.ForkTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ForkTime)
+	entry.ExitTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExitTime)
+}
+
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
 	id, err := model.UnmarshalString(data, 64)
@@ -465,9 +472,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 		return read + 64, err
 	}
 
-	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
-	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
-	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
+	p.ApplyBootTime(entry)
 
 	return read + 64, err
 }

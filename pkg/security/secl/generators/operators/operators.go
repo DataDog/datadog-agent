@@ -7,6 +7,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"text/template"
@@ -23,7 +24,7 @@ type Operator struct {
 	Arg2Type       string
 	FuncReturnType string
 	EvalReturnType string
-	Op             string
+	Op             func(a string, b string) string
 	ArrayType      string
 	ValueType      string
 	Commutative    bool
@@ -39,19 +40,7 @@ package	eval
 {{ range .Operators }}
 
 func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
+	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
@@ -81,7 +70,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ end }}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb(ctx)
+			return {{ call .Op "ea(ctx)" "eb(ctx)" }}
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -105,8 +94,11 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		}
 		{{ end }}
 
+		ctx := NewContext(nil)
+		_ = ctx
+
 		return &{{ .FuncReturnType }}{
-			Value: ea {{ .Op }} eb,
+			Value: {{ call .Op "ea" "eb" }},
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -134,7 +126,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 		{{ end }}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return ea(ctx) {{ .Op }} eb
+			return {{ call .Op "ea(ctx)" "eb" }}
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -166,7 +158,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 	{{ end }}
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		return ea {{ .Op }} eb(ctx)
+		return {{ call .Op "ea" "eb(ctx)" }}
 	}
 
 	return &{{ .FuncReturnType }}{
@@ -179,24 +171,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *
 
 {{ range .ArrayOperators }}
 
-func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state)(*{{ .FuncReturnType }}, error) {
-	partialA, partialB := a.isPartial, b.isPartial
-
-	if a.EvalFnc == nil || (a.Field != "" && a.Field != state.field) {
-		partialA = true
-	}
-	if b.EvalFnc == nil || (b.Field != "" && b.Field != state.field) {
-		partialB = true
-	}
-	isPartialLeaf := partialA && partialB
-
-	if a.Field != "" && b.Field != "" {
-		isPartialLeaf = true
-	}
+func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, state *state) (*{{ .FuncReturnType }}, error) {
+	isPartialLeaf := isPartialLeaf(a, b, state)
 
 	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {
-			if a {{ .Op }} v {
+			if {{ call .Op "a" "v" }} {
 				return true
 			}
 		}
@@ -275,6 +255,18 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 		panic(err)
 	}
 
+	stdCompare := func(op string) func(a string, b string) string {
+		return func(a string, b string) string {
+			return fmt.Sprintf("%s %s %s", a, op, b)
+		}
+	}
+
+	durationCompare := func(op string) func(a string, b string) string {
+		return func(a string, b string) string {
+			return fmt.Sprintf("int64(%s + %s) %s ctx.Now().UnixNano()", a, b, op)
+		}
+	}
+
 	data := struct {
 		Operators      []Operator
 		ArrayOperators []Operator
@@ -286,7 +278,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "BoolEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "||",
+				Op:             stdCompare("||"),
 				ValueType:      "ScalarValueType",
 				Commutative:    true,
 			},
@@ -296,7 +288,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "BoolEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "&&",
+				Op:             stdCompare("&&"),
 				ValueType:      "ScalarValueType",
 				Commutative:    true,
 			},
@@ -306,7 +298,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "==",
+				Op:             stdCompare("=="),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -315,7 +307,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "IntEvaluator",
 				EvalReturnType: "int",
-				Op:             "&",
+				Op:             stdCompare("&"),
 				ValueType:      "BitmaskValueType",
 			},
 			{
@@ -324,7 +316,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "IntEvaluator",
 				EvalReturnType: "int",
-				Op:             "|",
+				Op:             stdCompare("|"),
 				ValueType:      "BitmaskValueType",
 			},
 			{
@@ -333,7 +325,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "IntEvaluator",
 				EvalReturnType: "int",
-				Op:             "^",
+				Op:             stdCompare("^"),
 				ValueType:      "BitmaskValueType",
 			},
 			{
@@ -342,7 +334,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "BoolEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "==",
+				Op:             stdCompare("=="),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -351,7 +343,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             ">",
+				Op:             stdCompare(">"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -360,7 +352,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             ">=",
+				Op:             stdCompare(">="),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -369,7 +361,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "<",
+				Op:             stdCompare("<"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -378,7 +370,43 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "<=",
+				Op:             stdCompare("<="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationLesserThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare(">"),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationLesserOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare(">="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationGreaterThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare("<"),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationGreaterOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare("<="),
 				ValueType:      "ScalarValueType",
 			},
 		},
@@ -389,7 +417,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "==",
+				Op:             stdCompare("=="),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},
@@ -399,7 +427,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "BoolArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "==",
+				Op:             stdCompare("=="),
 				ArrayType:      "bool",
 				ValueType:      "ScalarValueType",
 			},
@@ -409,7 +437,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             ">",
+				Op:             stdCompare(">"),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},
@@ -419,7 +447,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             ">=",
+				Op:             stdCompare(">="),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},
@@ -429,7 +457,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "<",
+				Op:             stdCompare("<"),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},
@@ -439,7 +467,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntArrayEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             "<=",
+				Op:             stdCompare("<="),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},
