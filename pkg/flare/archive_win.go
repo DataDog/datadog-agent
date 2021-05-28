@@ -61,6 +61,10 @@ func zipCounterStrings(tempDir, hostname string) error {
 			bufferSize += bufferIncrement
 			continue
 		}
+		// must set the length of the slice to the actual amount of data
+		// sz is in bytes, but it's a slice of uint16s, so divide the returned
+		// buffer size by two.
+		counterlist = counterlist[:(sz / 2)]
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
