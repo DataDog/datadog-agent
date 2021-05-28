@@ -783,7 +783,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 		case "map":
 			out.Name = string(in.String())
 		case "lost":
-			out.Lost = int64(in.Int64())
+			out.Lost = float64(in.Float64())
 		default:
 			in.SkipRecursive()
 		}
@@ -811,7 +811,7 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 	{
 		const prefix string = ",\"lost\":"
 		out.RawString(prefix)
-		out.Int64(int64(in.Lost))
+		out.Float64(float64(in.Lost))
 	}
 	out.RawByte('}')
 }

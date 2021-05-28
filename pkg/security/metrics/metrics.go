@@ -5,6 +5,12 @@
 
 package metrics
 
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+)
+
 var (
 	// MetricRuntimePrefix is the prefix of the metrics sent by the runtime security module
 	MetricRuntimePrefix = "datadog.runtime_security"
@@ -50,32 +56,34 @@ var (
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
 	// dedicated count in kernel space
-	// Tags: map, cpu, event_type
+	// Tags: map, event_type
 	MetricPerfBufferLostWrite = newRuntimeMetric(".perf_buffer.lost_events.write")
 	// MetricPerfBufferLostRead is the name of the metric used to count the number of lost events, as reported in user
 	// space by a perf buffer
-	// Tags: map, cpu
+	// Tags: map
 	MetricPerfBufferLostRead = newRuntimeMetric(".perf_buffer.lost_events.read")
 
 	// MetricPerfBufferEventsWrite is the name of the metric used to count the number of events written to a perf buffer
-	// Tags: map, cpu, event_type
+	// Tags: map, event_type
 	MetricPerfBufferEventsWrite = newRuntimeMetric(".perf_buffer.events.write")
 	// MetricPerfBufferEventsRead is the name of the metric used to count the number of events read from a perf buffer
-	// Tags: map, cpu
+	// Tags: map
 	MetricPerfBufferEventsRead = newRuntimeMetric(".perf_buffer.events.read")
 
 	// MetricPerfBufferBytesWrite is the name of the metric used to count the number of bytes written to a perf buffer
-	// Tags: map, cpu, event_type
+	// Tags: map, event_type
 	MetricPerfBufferBytesWrite = newRuntimeMetric(".perf_buffer.bytes.write")
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
-	// Tags: map, cpu
+	// Tags: map
 	MetricPerfBufferBytesRead = newRuntimeMetric(".perf_buffer.bytes.read")
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
-	// Tags: map, cpu, event_type
+	// Tags: map, event_type
 	MetricPerfBufferSortingError = newRuntimeMetric(".perf_buffer.sorting_error")
 	// MetricPerfBufferSortingQueueSize is the name of the metric used to report reordering queue size.
+	// Tags: -
 	MetricPerfBufferSortingQueueSize = newRuntimeMetric(".perf_buffer.sorting_queue_size")
 	// MetricPerfBufferSortingAvgOp is the name of the metric used to report average sorting operations.
+	// Tags: -
 	MetricPerfBufferSortingAvgOp = newRuntimeMetric(".perf_buffer.sorting_avg_op")
 
 	// Process Resolver metrics
@@ -121,6 +129,11 @@ var (
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
 )
+
+// SetTagsWithCardinality returns the array of tags and set the requested cardinality
+func SetTagsWithCardinality(cardinality string, tags ...string) []string {
+	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
+}
 
 func newRuntimeMetric(name string) string {
 	return MetricRuntimePrefix + name

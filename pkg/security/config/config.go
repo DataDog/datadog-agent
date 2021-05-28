@@ -62,6 +62,8 @@ type Config struct {
 	LoadControllerControlPeriod time.Duration
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
+	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
+	StatsTagsCardinality string
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
@@ -107,6 +109,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
+		StatsTagsCardinality:               aconfig.Datadog.GetString("runtime_security_config.events_stats.tags_cardinality"),
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
