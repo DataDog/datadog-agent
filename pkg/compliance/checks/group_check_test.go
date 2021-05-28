@@ -41,6 +41,10 @@ func TestGroupCheck(t *testing.T) {
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
+				},
 			},
 		},
 		{
@@ -59,6 +63,10 @@ func TestGroupCheck(t *testing.T) {
 					"group.name":  "docker",
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
+				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
 				},
 			},
 		},

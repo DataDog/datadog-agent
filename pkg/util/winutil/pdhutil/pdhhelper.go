@@ -24,6 +24,7 @@ var (
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
 	procPdhAddCounterW              = modPdhDll.NewProc("PdhAddCounterW")
+	procPdhAddEnglishCounterW       = modPdhDll.NewProc("PdhAddEnglishCounterW")
 	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")

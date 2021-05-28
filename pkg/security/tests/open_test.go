@@ -61,6 +61,10 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0755)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
 
+			if !validateOpenSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "open.file.container_path")
 			}

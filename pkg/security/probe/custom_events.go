@@ -104,11 +104,11 @@ func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 type EventLostRead struct {
 	Timestamp time.Time `json:"date"`
 	Name      string    `json:"map"`
-	Lost      int64     `json:"lost"`
+	Lost      float64   `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, lost int64) (*rules.Rule, *CustomEvent) {
+func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
 		}), newCustomEvent(model.CustomLostReadEventType, EventLostRead{
@@ -297,8 +297,6 @@ func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case ErrTruncatedParents:
 		return model.CustomTruncatedParentsEventType
-	case ErrTruncatedSegment:
-		return model.CustomTruncatedSegmentEventType
 	default:
 		return model.UnknownEventType
 	}

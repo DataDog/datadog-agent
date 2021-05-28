@@ -1,7 +1,7 @@
-#ifndef _GETATTR_H_
-#define _GETATTR_H_
+#ifndef _PROCFS_H_
+#define _PROCFS_H_
 
-struct bpf_map_def SEC("maps/inode_info_cache") inode_info_cache = {
+struct bpf_map_def SEC("maps/exec_file_cache") exec_file_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u64),
     .value_size = sizeof(struct file_t),
@@ -10,14 +10,23 @@ struct bpf_map_def SEC("maps/inode_info_cache") inode_info_cache = {
     .namespace = "",
 };
 
-SEC("kretprobe/get_task_exe_file")
-int kretprobe__get_task_exe_file(struct pt_regs *ctx) {
-    struct file *file = (struct file *)PT_REGS_RC(ctx);
+SEC("kprobe/security_inode_getattr")
+int kprobe__security_inode_getattr(struct pt_regs *ctx) {
+    u64 pid;
+    LOAD_CONSTANT("runtime_pid", pid);
 
-    struct dentry *dentry = get_file_dentry(file);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    if ((u64)tgid != pid) {
+        return 0;
+    }
+
+    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+    u32 mount_id = get_path_mount_id(path);
+    struct dentry *dentry = get_path_dentry(path);
 
     u32 flags = 0;
-    u32 mount_id = get_file_mount_id(file);
     u64 inode = get_dentry_ino(dentry);
     if (is_overlayfs(dentry)) {
         set_overlayfs_ino(dentry, &inode, &flags);
@@ -30,9 +39,10 @@ int kretprobe__get_task_exe_file(struct pt_regs *ctx) {
         },
         .flags = flags,
     };
+
     fill_file_metadata(dentry, &entry.metadata);
 
-    bpf_map_update_elem(&inode_info_cache, &inode, &entry, BPF_ANY);
+    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
 
     return 0;
 }

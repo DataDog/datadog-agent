@@ -7,15 +7,15 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,6 +30,8 @@ type RuntimeSecurityAgent struct {
 	wg            sync.WaitGroup
 	connected     atomic.Value
 	eventReceived uint64
+	telemetry     *telemetry
+	cancel        context.CancelFunc
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -45,21 +47,33 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		return nil, err
 	}
 
+	tel, err := newTelemetry()
+	if err != nil {
+		return nil, errors.Errorf("failed to initialize the telemetry reporter")
+	}
+
 	return &RuntimeSecurityAgent{
-		conn:     conn,
-		reporter: reporter,
-		hostname: hostname,
+		conn:      conn,
+		reporter:  reporter,
+		hostname:  hostname,
+		telemetry: tel,
 	}, nil
 }
 
 // Start the runtime security agent
 func (rsa *RuntimeSecurityAgent) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
+	rsa.cancel = cancel
+
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
+	// Send Runtime Security Agent telemetry
+	go rsa.telemetry.run(ctx)
 }
 
 // Stop the runtime recurity agent
 func (rsa *RuntimeSecurityAgent) Stop() {
+	rsa.cancel()
 	rsa.running.Store(false)
 	rsa.wg.Wait()
 	rsa.conn.Close()

@@ -296,14 +296,12 @@ func (pbm *PerfBufferMonitor) CountLostEvent(count uint64, m *manager.PerfMap, c
 func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp uint64, count uint64, size uint64, m *manager.PerfMap, cpu int) {
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
-		// Comment this out for now, until we fix the cardinality of the perf_buffer.* metrics.
-		//
-		// tags := []string{
-		// 	fmt.Sprintf("map:%s", m.Name),
-		// 	fmt.Sprintf("cpu:%d", cpu),
-		// 	fmt.Sprintf("event_type:%s", eventType),
-		// }
-		// _ = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, 1, tags, 1.0)
+		tags := metrics.SetTagsWithCardinality(
+			pbm.probe.config.StatsTagsCardinality,
+			fmt.Sprintf("map:%s", m.Name),
+			fmt.Sprintf("event_type:%s", eventType),
+		)
+		_ = pbm.statsdClient.Count(metrics.MetricPerfBufferSortingError, 1, tags, 1.0)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
@@ -322,18 +320,24 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 		for cpu := range pbm.stats[m] {
 			for eventType := range pbm.stats[m][cpu] {
 				evtType := model.EventType(eventType)
-				tags := []string{
+				tags := metrics.SetTagsWithCardinality(
+					pbm.probe.config.StatsTagsCardinality,
 					fmt.Sprintf("map:%s", m),
-					fmt.Sprintf("cpu:%d", cpu),
 					fmt.Sprintf("event_type:%s", evtType),
+				)
+
+				count := float64(pbm.getAndResetEventCount(evtType, m, cpu))
+				if count > 0 {
+					if err := client.Count(metrics.MetricPerfBufferEventsRead, int64(count), tags, 1.0); err != nil {
+						return err
+					}
 				}
 
-				if err := client.Count(metrics.MetricPerfBufferEventsRead, int64(pbm.getAndResetEventCount(evtType, m, cpu)), tags, 1.0); err != nil {
-					return err
-				}
-
-				if err := client.Count(metrics.MetricPerfBufferBytesRead, int64(pbm.getAndResetEventBytes(evtType, m, cpu)), tags, 1.0); err != nil {
-					return err
+				count = float64(pbm.getAndResetEventBytes(evtType, m, cpu))
+				if count > 0 {
+					if err := client.Count(metrics.MetricPerfBufferBytesRead, int64(count), tags, 1.0); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -343,19 +347,19 @@ func (pbm *PerfBufferMonitor) sendEventsAndBytesReadStats(client *statsd.Client)
 
 func (pbm *PerfBufferMonitor) sendLostEventsReadStats(client *statsd.Client) error {
 	for m := range pbm.readLostEvents {
-		var total int64
+		var total float64
 
 		for cpu := range pbm.readLostEvents[m] {
-			tags := []string{
+			tags := metrics.SetTagsWithCardinality(
+				pbm.probe.config.StatsTagsCardinality,
 				fmt.Sprintf("map:%s", m),
-				fmt.Sprintf("cpu:%d", cpu),
+			)
+			if count := float64(pbm.getAndResetReadLostCount(m, cpu)); count > 0 {
+				if err := client.Count(metrics.MetricPerfBufferLostRead, int64(count), tags, 1.0); err != nil {
+					return err
+				}
+				total += count
 			}
-			count := int64(pbm.getAndResetReadLostCount(m, cpu))
-			if err := client.Count(metrics.MetricPerfBufferLostRead, count, tags, 1.0); err != nil {
-				return err
-			}
-
-			total += count
 		}
 
 		if total > 0 {
@@ -404,11 +408,11 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 				}
 
 				// prepare metrics tags
-				tags = []string{
+				tags = metrics.SetTagsWithCardinality(
+					pbm.probe.config.StatsTagsCardinality,
 					fmt.Sprintf("map:%s", perfMapName),
-					fmt.Sprintf("cpu:%d", cpu),
 					fmt.Sprintf("event_type:%s", evtType),
-				}
+				)
 
 				// Update stats to avoid sending twice the same data points
 				if tmpCount = pbm.swapKernelEventBytes(evtType, perfMapName, cpu, stats.Bytes); tmpCount <= stats.Bytes {
@@ -445,15 +449,25 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 }
 
 func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfMapStats, tags []string) error {
-	if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count), tags, 1.0); err != nil {
-		return err
+	if stats.Count > 0 {
+		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count), tags, 1.0); err != nil {
+			return err
+		}
 	}
 
-	if err := client.Count(metrics.MetricPerfBufferBytesWrite, int64(stats.Bytes), tags, 1.0); err != nil {
-		return err
+	if stats.Bytes > 0 {
+		if err := client.Count(metrics.MetricPerfBufferBytesWrite, int64(stats.Bytes), tags, 1.0); err != nil {
+			return err
+		}
 	}
 
-	return client.Count(metrics.MetricPerfBufferLostWrite, int64(stats.Lost), tags, 1.0)
+	if stats.Lost > 0 {
+		if err := client.Count(metrics.MetricPerfBufferLostWrite, int64(stats.Lost), tags, 1.0); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // SendStats send event stats using the provided statsd client

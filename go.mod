@@ -83,7 +83,7 @@ require (
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
 	github.com/containerd/containerd v1.5.0-beta.4
-	github.com/containerd/typeurl v1.0.1
+	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
@@ -92,7 +92,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/fatih/color v1.9.0
+	github.com/fatih/color v1.10.0
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
@@ -133,7 +133,7 @@ require (
 	github.com/lib/pq v1.10.0 // indirect
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
-	github.com/mailru/easyjson v0.7.6
+	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.4.0
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
@@ -141,7 +141,7 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
-	github.com/olekukonko/tablewriter v0.0.2
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20200929063507-e6143ca7d51d
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
@@ -178,11 +178,11 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210415231046-e915ea6b2b7d
 	golang.org/x/oauth2 v0.0.0-20210427180440-81ed05c6b58c // indirect
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	golang.org/x/tools v0.1.0
+	golang.org/x/tools v0.1.1
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20201210142538-e3217bee35cc
 	google.golang.org/grpc v1.34.0

@@ -14,11 +14,11 @@ import (
 type mockIterator struct {
 	mock.Mock
 
-	els   []*eval.Instance
+	els   []eval.Instance
 	index int
 }
 
-func (m *mockIterator) Next() (*eval.Instance, error) {
+func (m *mockIterator) Next() (eval.Instance, error) {
 	_ = m.Called()
 
 	el := m.els[m.index]

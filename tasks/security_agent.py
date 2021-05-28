@@ -143,11 +143,6 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
-    gopath = get_gopath(ctx)
-    if not os.path.exists(os.path.join(gopath, "bin/mockery")):
-        with ctx.cd(gopath):
-            ctx.run("go get -u github.com/vektra/mockery/cmd/mockery", env={'GO111MODULE': 'on'})
-
     with ctx.cd("./pkg/compliance"):
         ctx.run("./gen_mocks.sh")
 
