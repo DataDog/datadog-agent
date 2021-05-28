@@ -62,28 +62,6 @@ func (tx *httpTX) StatusClass() int {
 	return (int(tx.response_status_code) / 100) * 100
 }
 
-// Method returns a string representing the HTTP method of the request
-func (tx *httpTX) Method() string {
-	switch tx.request_method {
-	case C.HTTP_GET:
-		return "GET"
-	case C.HTTP_POST:
-		return "POST"
-	case C.HTTP_PUT:
-		return "PUT"
-	case C.HTTP_HEAD:
-		return "HEAD"
-	case C.HTTP_DELETE:
-		return "DELETE"
-	case C.HTTP_OPTIONS:
-		return "OPTIONS"
-	case C.HTTP_PATCH:
-		return "PATCH"
-	default:
-		return ""
-	}
-}
-
 // RequestLatency returns the latency of the request in ms
 func (tx *httpTX) RequestLatency() float64 {
 	return float64((tx.response_last_seen - tx.request_started) / (1000000))
