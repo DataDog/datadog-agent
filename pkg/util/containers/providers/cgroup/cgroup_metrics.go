@@ -190,7 +190,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
-		return nil, fmt.Errorf("cgroup file does not exist")
+		return nil, fmt.Errorf("cgroup file does not exist: %s", statfile)
 	} else if err != nil {
 		return nil, err
 	}
