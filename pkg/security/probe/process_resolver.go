@@ -398,7 +398,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.CacheTag}, 1.0)
 		return entry
 	}
 
@@ -408,13 +408,13 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.KernelMapsTag}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.ProcFSTag}, 1.0)
 		return entry
 	}
 
