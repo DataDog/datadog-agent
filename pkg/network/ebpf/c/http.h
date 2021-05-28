@@ -100,15 +100,12 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
         batch_state->idx++;
         batch_state->pos = 0;
     }
-
-    bpf_map_delete_elem(&http_in_flight, tup);
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
     // This can happen in the context of HTTP keep-alives;
     if (http_responding(http)) {
         http_enqueue(http, tup);
-        bpf_map_update_elem(&http_in_flight, tup, http, BPF_NOEXIST);
     }
 
     http->request_method = method;
@@ -224,6 +221,7 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
 
     if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port) {
         http_enqueue(http, &skb_info->tup);
+        bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
     }
 
     return 0;
