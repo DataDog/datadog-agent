@@ -357,19 +357,21 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/\[.*DD_URL\]/\[STS_URL\]/', "./omnibus/resources/agent/msi/source.wxs.erb")
     do_sed_rename(ctx, sts_camel_replace, "./omnibus/resources/agent/msi/bundle.wxs.erb")
     do_sed_rename(ctx, 's/dd_logo_side\\.png/sts_logo_side\\.png/', "./omnibus/resources/agent/msi/bundle.wxs.erb")
-    do_sed_rename(ctx, 's/DataDog Agent/Stackstate Agent/',
+    do_sed_rename(ctx, 's/DataDog Agent/Stackstate Agent/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/',
+    do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/"DataDog Process Agent"/"StackState Process Agent"/',
+    do_sed_rename(ctx, 's/"DataDog Process Agent"/"StackState Process Agent"/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/"Send process metrics to DataDog"/"Send process metrics to StackState"/',
+    do_sed_rename(ctx, 's/"Send process metrics to DataDog"/"Send process metrics to StackState"/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/"Send tracing metrics to DataDog"/"Send tracing metrics to StackState"/',
+    do_sed_rename(ctx, 's/"Send tracing metrics to DataDog"/"Send tracing metrics to StackState"/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/"Send metrics to DataDog"/"Send metrics to StackState"/',
+    do_sed_rename(ctx, 's/"Send metrics to DataDog"/"Send metrics to StackState"/g',
                   "./tools/windows/install-help/cal/stopservices.cpp")
-    do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/',
+    do_sed_rename(ctx, 's/datadogagent/stackstateagent/g',
+                  "./tools/windows/install-help/cal/stopservices.cpp")
+    do_sed_rename(ctx, 's/DataDog Trace Agent/Stackstate Trace Agent/g',
                   "./cmd/trace-agent/windows_resources/trace-agent.rc")
 
     # Test
