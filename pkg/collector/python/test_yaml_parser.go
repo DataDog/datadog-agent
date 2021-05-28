@@ -4,13 +4,14 @@ package python
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 import "C"
 
-func testConvertingMapWithDifferentTypes(t *testing.T) {
+func testParsingMapWithDifferentTypes(t *testing.T) {
 	yaml := C.CString(`
 key: value ®
 stringlist: 
@@ -33,7 +34,8 @@ nestedobject:
     wings: eagle
     tail: crocodile`)
 
-	convertedMap := yamlDataToJSON(yaml)
+	convertedMap, err := unsafeParseYamlToMap(yaml)
+	assert.Equal(t, nil, err)
 
 	expectedJsonMap := map[string]interface{}{
 		"key":        "value ®",
@@ -54,14 +56,14 @@ nestedobject:
 
 	assert.Equal(t, expectedJsonMap, convertedMap)
 
-	_, err := json.Marshal(convertedMap)
+	_, err = json.Marshal(convertedMap)
 	assert.Equal(t, nil, err)
 }
 
-func testConvertingInnerMapsWithStringKey(t *testing.T) {
+func testParsingInnerMapsWithStringKey(t *testing.T) {
 	// we expect all inner maps to be map[string] so they can be serialized to json
 	yaml := C.CString(`
-data:
+yaml:
   checks:
   - is_service_check_health_check: true
     name: Integration Health
@@ -76,10 +78,11 @@ data:
     name: Service Checks
     stream_id: -1`)
 
-	convertedMap := yamlDataToJSON(yaml)
+	convertedMap, err := unsafeParseYamlToMap(yaml)
+	assert.Equal(t, nil, err)
 
 	expectedJsonMap := map[string]interface{}{
-		"data": map[string]interface{}{
+		"yaml": map[string]interface{}{
 			"checks": []interface{}{
 				map[string]interface{}{
 					"is_service_check_health_check": true,
@@ -109,43 +112,82 @@ data:
 
 	assert.Equal(t, expectedJsonMap, convertedMap)
 
-	_, err := json.Marshal(convertedMap)
+	_, err = json.Marshal(convertedMap)
 	assert.Equal(t, nil, err)
 }
 
-func testConvertingNonMapYaml(t *testing.T) {
-	// we expect the conversion of anything not being map[string] to return nothing
-	yamlString := C.CString(`I'm such A sentence!`)
-	res := yamlDataToJSON(yamlString)
-	assert.Equal(t, 0, len(res)) //empty map
+func testErrorParsingNonMapYaml(t *testing.T) {
+	// we expect the conversion of anything not being map[string] to return an error
 
-	yamlList := C.CString(`
+	tests := []struct {
+		name string
+		yaml string
+	} {
+		{
+			name: "string instead of map",
+			yaml: `I'm such A sentence!`,
+		},
+		{
+			name: "list instead of map",
+			yaml: `
   - this
   - is
   - a
-  - list
-`)
-	res = yamlDataToJSON(yamlList)
-	assert.Equal(t, 0, len(res)) //empty map
+  - list`,
+		},
+		{
+			name: "map with array key",
+			yaml: `yaml:
+                     [a, b, c]: true`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := unsafeParseYamlToMap(C.CString(tt.yaml))
+			assert.NotEqual(t, nil, err)
+			assert.Equal(t, 0, len(res)) //empty map
+		})
+	}
 }
 
-func testConvertingNonStringKeysYaml(t *testing.T) {
-	// we expect the conversion of map with keys not being strings to not panic and return nothing
-	yamlIntKey := C.CString(`
-      data:
-        0: true`)
-	res := yamlDataToJSON(yamlIntKey)
-	assert.Equal(t, 0, len(res)) //empty map
+func recoverParsingError() {
+	if r := recover(); r != nil {
+		println(fmt.Sprintf("Type conversion errors while turning map[interface] to map[string]: %v", recover()))
+	}
+}
 
-	yamlNullKey := C.CString(`
-      data:
-        null: true`)
-	res = yamlDataToJSON(yamlNullKey)
-	assert.Equal(t, 0, len(res)) //empty map
+func testErrorParsingNonStringKeys(t *testing.T) {
+	// we expect the conversion of map keys not being strings to panic and return nothing
 
-	yamlArrayKey := C.CString(`
-      data:
-        [a, b, c]: true`)
-	res = yamlDataToJSON(yamlArrayKey)
-	assert.Equal(t, 0, len(res)) //empty map
+	tests := []struct {
+		name string
+		yaml string
+	} {
+		{
+			name: "int key",
+			yaml: `yaml:
+                     0: true`,
+		},
+		{
+			name: "null key",
+			yaml: `yaml:
+                     null: true`,
+		},
+
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer recoverParsingError()
+
+			yaml := C.CString(tt.yaml)
+			res, err := unsafeParseYamlToMap(yaml)
+			assert.Equal(t, 0, len(res)) //empty map
+			assert.Equal(t, nil, err)
+
+			// Never reaches here if `OtherFunctionThatPanics` panics.
+			t.Errorf("did not panic")
+		})
+	}
 }

@@ -147,7 +147,6 @@ func (batcher *AsynchronousBatcher) run() {
 
 // SubmitComponent submits a component to the batch
 func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance topology.Instance, component topology.Component) {
-	log.Tracef("Submitting component for check [%s] instance [%s]: %s", checkID, instance.GoString(), component.JSONString())
 	batcher.input <- submitComponent{
 		checkID:   checkID,
 		instance:  instance,
@@ -157,7 +156,6 @@ func (batcher AsynchronousBatcher) SubmitComponent(checkID check.ID, instance to
 
 // SubmitRelation submits a relation to the batch
 func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance topology.Instance, relation topology.Relation) {
-	log.Tracef("Submitting relation for check [%s] instance [%s]: %s", checkID, instance.GoString(), relation.JSONString())
 	batcher.input <- submitRelation{
 		checkID:  checkID,
 		instance: instance,
@@ -167,7 +165,6 @@ func (batcher AsynchronousBatcher) SubmitRelation(checkID check.ID, instance top
 
 // SubmitStartSnapshot submits start of a snapshot
 func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instance topology.Instance) {
-	log.Tracef("Submitting start snapshot for check [%s] instance [%s]", checkID, instance.GoString())
 	batcher.input <- submitStartSnapshot{
 		checkID:  checkID,
 		instance: instance,
@@ -176,7 +173,6 @@ func (batcher AsynchronousBatcher) SubmitStartSnapshot(checkID check.ID, instanc
 
 // SubmitStopSnapshot submits a stop of a snapshot. This always causes a flush of the data downstream
 func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance topology.Instance) {
-	log.Tracef("Submitting stop snapshot for check [%s] instance [%s]", checkID, instance.GoString())
 	batcher.input <- submitStopSnapshot{
 		checkID:  checkID,
 		instance: instance,

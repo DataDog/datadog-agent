@@ -12,6 +12,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 /*
@@ -39,15 +40,19 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.ch
 
 	_externalID := C.GoString(externalID)
 	_componentType := C.GoString(componentType)
-	_json := yamlDataToJSON(data)
+	_json, err := unsafeParseYamlToMap(data)
 
-	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
-		_instance,
-		topology.Component{
-			ExternalID: _externalID,
-			Type:       topology.Type{Name: _componentType},
-			Data:       _json,
-		})
+	if err == nil {
+		batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
+			_instance,
+			topology.Component{
+				ExternalID: _externalID,
+				Type:       topology.Type{Name: _componentType},
+				Data:       _json,
+			})
+	} else {
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
+	}
 }
 
 // SubmitRelation is the method exposed to Python scripts to submit topology relation
@@ -64,17 +69,21 @@ func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceID *C.char,
 	_targetID := C.GoString(targetID)
 	_relationType := C.GoString(relationType)
 	_externalID := fmt.Sprintf("%s-%s-%s", _sourceID, _relationType, _targetID)
-	_json := yamlDataToJSON(data)
+	_json, err := unsafeParseYamlToMap(data)
 
-	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
-		_instance,
-		topology.Relation{
-			ExternalID: _externalID,
-			SourceID:   _sourceID,
-			TargetID:   _targetID,
-			Type:       topology.Type{Name: _relationType},
-			Data:       _json,
-		})
+	if err == nil {
+		batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
+			_instance,
+			topology.Relation{
+				ExternalID: _externalID,
+				SourceID:   _sourceID,
+				TargetID:   _targetID,
+				Type:       topology.Type{Name: _relationType},
+				Data:       _json,
+			})
+	} else {
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
+	}
 }
 
 // SubmitStartSnapshot starts a snapshot
