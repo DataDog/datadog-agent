@@ -40,9 +40,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 
 	// No default serviceaccounts
 	if len(serviceAccounts.Items) == 0 {
-		return &compliance.Report{
-			Passed: true,
-		}, nil
+		return &compliance.Report{Passed: true, Aggregated: true}, nil
 	}
 
 	// Checking that all `default` service accounts have `automountServiceAccountToken` set to false
@@ -56,7 +54,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 
 		if activated {
 			resource := compliance.NewKubeUnstructuredResource(sa)
-			return compliance.BuildReportForUnstructured(false, resource), nil
+			return compliance.BuildReportForUnstructured(false, true, resource), nil
 		}
 
 		saLookup[sa.GetNamespace()+"/"+sa.GetName()] = sa
@@ -78,7 +76,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	}
 
 	if hasRef {
-		return compliance.BuildReportForUnstructured(false, compliance.NewKubeUnstructuredResource(*sa)), nil
+		return compliance.BuildReportForUnstructured(false, true, compliance.NewKubeUnstructuredResource(*sa)), nil
 	}
 
 	roles, err := e.KubeClient().Resource(schema.GroupVersionResource{
@@ -96,11 +94,12 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	}
 
 	if hasRef {
-		return compliance.BuildReportForUnstructured(false, compliance.NewKubeUnstructuredResource(*sa)), nil
+		return compliance.BuildReportForUnstructured(false, true, compliance.NewKubeUnstructuredResource(*sa)), nil
 	}
 
 	serviceAccount := compliance.NewKubeUnstructuredResource(serviceAccounts.Items[0])
-	return compliance.BuildReportForUnstructured(true, serviceAccount), nil
+	report := compliance.BuildReportForUnstructured(true, true, serviceAccount)
+	return report, nil
 }
 
 func hasReferences(roles *unstructured.UnstructuredList, saLookup map[string]unstructured.Unstructured) (bool, *unstructured.Unstructured, error) {

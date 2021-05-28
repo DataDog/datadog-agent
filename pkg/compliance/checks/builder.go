@@ -407,11 +407,15 @@ func (b *builder) kubeResourceReporter(rule *compliance.Rule, resourceType strin
 			clusterID = b.Hostname()
 		}
 
-		if strings.HasPrefix(report.Resource.Type, "kube_") {
+		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
 			return compliance.ReportResource{
 				ID:   clusterID + "_" + report.Resource.ID,
 				Type: report.Resource.Type,
 			}
+		}
+
+		if rule.ResourceType != "" {
+			resourceType = rule.ResourceType
 		}
 
 		return compliance.ReportResource{
@@ -425,16 +429,21 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule *comp
 	switch scope {
 	case compliance.DockerScope:
 		return func(report *compliance.Report) compliance.ReportResource {
-			if strings.HasPrefix(report.Resource.Type, "docker_") {
+			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
 				return compliance.ReportResource{
 					ID:   b.Hostname() + "_" + report.Resource.ID,
 					Type: report.Resource.Type,
 				}
 			}
 
+			resourceType := rule.ResourceType
+			if resourceType == "" {
+				resourceType = "docker_daemon"
+			}
+
 			return compliance.ReportResource{
 				ID:   b.Hostname() + "_daemon",
-				Type: "docker_daemon",
+				Type: resourceType,
 			}
 		}
 

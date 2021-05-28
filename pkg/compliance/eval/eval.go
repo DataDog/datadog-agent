@@ -123,7 +123,7 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global Instance) ([]*
 		passedCount int64
 	)
 
-	results, err := e.iterate(
+	_, err := e.iterate(
 		it,
 		e.IterableComparison.Expression, func(instance Instance, passed bool) bool {
 			totalCount++
@@ -142,19 +142,9 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global Instance) ([]*
 		return nil, err
 	}
 
-	// keep the first one which passed the sub expression
-	var instance Instance
-	for _, result := range results {
-		if result.Passed {
-			instance = result.Instance
-			break
-		}
-	}
-
 	return []*InstanceResult{
 		{
-			Instance: instance,
-			Passed:   passed,
+			Passed: passed,
 		},
 	}, nil
 }

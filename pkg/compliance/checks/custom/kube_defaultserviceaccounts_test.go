@@ -84,6 +84,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					ID:   "default",
 					Type: "kube_serviceaccount",
 				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -106,6 +107,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					ID:   "default",
 					Type: "kube_serviceaccount",
 				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -134,6 +136,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					ID:   "default",
 					Type: "kube_serviceaccount",
 				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -162,6 +165,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					ID:   "default",
 					Type: "kube_serviceaccount",
 				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -197,6 +201,7 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					ID:   "default",
 					Type: "kube_serviceaccount",
 				},
+				Aggregated: true,
 			},
 		},
 	}

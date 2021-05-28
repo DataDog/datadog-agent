@@ -17,6 +17,8 @@ type Report struct {
 	Resource ReportResource
 	// Passed defines whether check was successful or not
 	Passed bool
+	// Aggregated defines whether check was aggregated or not
+	Aggregated bool
 	// Error of th check evaluation
 	Error error
 }

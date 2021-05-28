@@ -36,10 +36,11 @@ func (kr *KubeUnstructuredResource) Type() string {
 }
 
 // BuildReportForUnstructured returns default Report for Kubernetes objects
-func BuildReportForUnstructured(passed bool, obj *KubeUnstructuredResource) *Report {
+func BuildReportForUnstructured(passed, aggregated bool, obj *KubeUnstructuredResource) *Report {
 	gvk := obj.GroupVersionKind()
 	return &Report{
-		Passed: passed,
+		Passed:     passed,
+		Aggregated: aggregated,
 		Data: event.Data{
 			KubeResourceFieldKind:      gvk.Kind,
 			KubeResourceFieldGroup:     gvk.Group,

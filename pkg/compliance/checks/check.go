@@ -139,6 +139,14 @@ func reportToEventData(report *compliance.Report) (event.Data, string) {
 			"error": report.Error.Error(),
 		}
 	}
+
+	if report.Aggregated {
+		if data == nil {
+			data = event.Data{}
+		}
+		data["aggregated"] = true
+	}
+
 	return data, eventResult(passed, report.Error)
 }
 

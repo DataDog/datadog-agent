@@ -232,13 +232,6 @@ func TestResourceCheck(t *testing.T) {
 			expectReports: []*compliance.Report{
 				{
 					Passed: false,
-					Data: event.Data{
-						"a": 14,
-					},
-					Resource: compliance.ReportResource{
-						ID:   "test-id",
-						Type: "test-resource-type",
-					},
 				},
 			},
 		},
