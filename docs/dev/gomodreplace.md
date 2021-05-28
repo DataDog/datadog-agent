@@ -1,4 +1,4 @@
-# How to add a `replace` directive to `go.mod` file
+# How to add a `replace` directive to `go.mod`
 
 `go.mod` files allow different types of directives including `require` or `replace`.
 This document describes how and when to add a `replace` directive to our go.mod files.
