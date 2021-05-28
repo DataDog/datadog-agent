@@ -133,7 +133,7 @@ require (
 	github.com/lib/pq v1.10.0 // indirect
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
 	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
-	github.com/mailru/easyjson v0.7.6
+	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.4.0
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.31
