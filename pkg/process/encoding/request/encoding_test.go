@@ -6,19 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func TestSerialization(t *testing.T) {
 	tcs := []struct {
-		req *model.ProcessRequest
-		exp *model.ProcessRequest
+		req *pbgo.ProcessStatRequest
+		exp *pbgo.ProcessStatRequest
 	}{
 		{
-			req: &model.ProcessRequest{
+			req: &pbgo.ProcessStatRequest{
 				Pids: []int32{1, 2, 3},
 			},
-			exp: &model.ProcessRequest{
+			exp: &pbgo.ProcessStatRequest{
 				Pids: []int32{1, 2, 3},
 			},
 		},
@@ -76,24 +76,24 @@ func TestSerialization(t *testing.T) {
 		assert.Equal(t, "application/protobuf", marshaler.ContentType())
 		unmarshaler := GetUnmarshaler("application/protobuf")
 
-		blob, err := marshaler.Marshal(&model.ProcessRequest{})
+		blob, err := marshaler.Marshal(&pbgo.ProcessStatRequest{})
 		require.NoError(t, err)
 
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.EqualValues(t, &model.ProcessRequest{}, result)
+		assert.EqualValues(t, &pbgo.ProcessStatRequest{}, result)
 	})
 
 	t.Run("json serializing empty input", func(t *testing.T) {
 		marshaler := GetMarshaler("application/json")
 		assert.Equal(t, "application/json", marshaler.ContentType())
 
-		blob, err := marshaler.Marshal(&model.ProcessRequest{})
+		blob, err := marshaler.Marshal(&pbgo.ProcessStatRequest{})
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
-		assert.EqualValues(t, &model.ProcessRequest{Pids: []int32{}}, result)
+		assert.EqualValues(t, &pbgo.ProcessStatRequest{Pids: []int32{}}, result)
 	})
 }

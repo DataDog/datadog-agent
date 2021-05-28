@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 
-	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 var (
@@ -19,16 +19,16 @@ var (
 
 // Marshaler is an interface implemented by all process request serializers
 type Marshaler interface {
-	Marshal(r *model.ProcessRequest) ([]byte, error)
+	Marshal(r *pbgo.ProcessStatRequest) ([]byte, error)
 	ContentType() string
 }
 
 // Unmarshaler is an interface implemented by all process request deserializers
 type Unmarshaler interface {
-	Unmarshal([]byte) (*model.ProcessRequest, error)
+	Unmarshal([]byte) (*pbgo.ProcessStatRequest, error)
 }
 
-// GetMarshaler returns the appropriate StatsMarshaler based on the given accept header
+// GetMarshaler returns the appropriate Marshaler based on the given accept header
 func GetMarshaler(accept string) Marshaler {
 	if strings.Contains(accept, ContentTypeProtobuf) {
 		return pSerializer
@@ -37,7 +37,7 @@ func GetMarshaler(accept string) Marshaler {
 	return jSerializer
 }
 
-// GetUnmarshaler returns the appropriate StatsUnmarshaler based on the given content type
+// GetUnmarshaler returns the appropriate Unmarshaler based on the given content type
 func GetUnmarshaler(ctype string) Unmarshaler {
 	if strings.Contains(ctype, ContentTypeProtobuf) {
 		return pSerializer

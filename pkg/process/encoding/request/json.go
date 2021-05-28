@@ -5,7 +5,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 
-	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 // ContentTypeJSON holds the HTML content-type of a JSON payload
@@ -15,17 +15,17 @@ type jsonSerializer struct {
 	marshaler jsonpb.Marshaler
 }
 
-// Marshal returns the json encoding of the ProcessRequest
-func (j jsonSerializer) Marshal(r *model.ProcessRequest) ([]byte, error) {
+// Marshal returns the json encoding of the ProcessStatRequest
+func (j jsonSerializer) Marshal(r *pbgo.ProcessStatRequest) ([]byte, error) {
 	writer := new(bytes.Buffer)
 
 	err := j.marshaler.Marshal(writer, r)
 	return writer.Bytes(), err
 }
 
-// Unmarshal parses the JSON-encoded ProcessRequest
-func (jsonSerializer) Unmarshal(blob []byte) (*model.ProcessRequest, error) {
-	req := new(model.ProcessRequest)
+// Unmarshal parses the JSON-encoded ProcessStatRequest
+func (jsonSerializer) Unmarshal(blob []byte) (*pbgo.ProcessStatRequest, error) {
+	req := new(pbgo.ProcessStatRequest)
 	reader := bytes.NewReader(blob)
 	if err := jsonpb.Unmarshal(reader, req); err != nil {
 		return nil, err

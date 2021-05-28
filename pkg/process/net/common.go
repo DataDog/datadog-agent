@@ -17,6 +17,7 @@ import (
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -84,7 +85,7 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 
 // GetProcStats returns a set of process stats by querying system-probe
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
-	procReq := &model.ProcessRequest{
+	procReq := &pbgo.ProcessStatRequest{
 		Pids: pids,
 	}
 

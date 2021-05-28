@@ -3,7 +3,7 @@ package request
 import (
 	"github.com/gogo/protobuf/proto"
 
-	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 // ContentTypeProtobuf holds the HTML content-type of a Protobuf payload
@@ -11,15 +11,15 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-// Marshal returns the proto encoding of the ProcessRequest
-func (protoSerializer) Marshal(r *model.ProcessRequest) ([]byte, error) {
+// Marshal returns the proto encoding of the ProcessStatRequest
+func (protoSerializer) Marshal(r *pbgo.ProcessStatRequest) ([]byte, error) {
 	buf, err := proto.Marshal(r)
 	return buf, err
 }
 
-// Unmarshal parses the proto-encoded ProcessRequest
-func (protoSerializer) Unmarshal(blob []byte) (*model.ProcessRequest, error) {
-	req := new(model.ProcessRequest)
+// Unmarshal parses the proto-encoded ProcessStatRequest
+func (protoSerializer) Unmarshal(blob []byte) (*pbgo.ProcessStatRequest, error) {
+	req := new(pbgo.ProcessStatRequest)
 	if err := proto.Unmarshal(blob, req); err != nil {
 		return nil, err
 	}
