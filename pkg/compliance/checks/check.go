@@ -19,6 +19,8 @@ import (
 // eventNotify is a callback invoked when a compliance check reported an event
 type eventNotify func(ruleID string, event *event.Event)
 
+type resourceReporter func(*compliance.Report) compliance.ReportResource
+
 // complianceCheck implements a compliance check
 type complianceCheck struct {
 	env.Env
@@ -29,8 +31,8 @@ type complianceCheck struct {
 
 	suiteMeta *compliance.SuiteMeta
 
-	resourceType string
-	resourceID   string
+	scope           compliance.RuleScope
+	resourceHandler resourceReporter
 
 	checkable checkable
 
@@ -79,6 +81,17 @@ func (c *complianceCheck) IsTelemetryEnabled() bool {
 	return false
 }
 
+func (c *complianceCheck) reportToResource(report *compliance.Report) compliance.ReportResource {
+	if c.resourceHandler != nil {
+		return c.resourceHandler(report)
+	}
+
+	return compliance.ReportResource{
+		Type: string(c.scope),
+		ID:   c.Hostname(),
+	}
+}
+
 func (c *complianceCheck) Run() error {
 	if !c.IsLeader() {
 		return nil
@@ -95,11 +108,13 @@ func (c *complianceCheck) Run() error {
 
 		data, result := reportToEventData(report)
 
+		resource := c.reportToResource(report)
+
 		e := &event.Event{
 			AgentRuleID:      c.ruleID,
 			AgentFrameworkID: c.suiteMeta.Framework,
-			ResourceID:       c.resourceID,
-			ResourceType:     c.resourceType,
+			ResourceID:       resource.ID,
+			ResourceType:     resource.Type,
 			Result:           result,
 			Data:             data,
 		}
@@ -124,6 +139,14 @@ func reportToEventData(report *compliance.Report) (event.Data, string) {
 			"error": report.Error.Error(),
 		}
 	}
+
+	if report.Aggregated {
+		if data == nil {
+			data = event.Data{}
+		}
+		data["aggregated"] = true
+	}
+
 	return data, eventResult(passed, report.Error)
 }
 

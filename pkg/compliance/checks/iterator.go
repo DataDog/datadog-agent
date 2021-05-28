@@ -15,11 +15,11 @@ import (
 var ErrInvalidIteration = errors.New("out of bounds iteration")
 
 type instanceIterator struct {
-	instances []*eval.Instance
+	instances []eval.Instance
 	index     int
 }
 
-func (it *instanceIterator) Next() (*eval.Instance, error) {
+func (it *instanceIterator) Next() (eval.Instance, error) {
 	if it.Done() {
 		return nil, ErrInvalidIteration
 	}
@@ -30,4 +30,8 @@ func (it *instanceIterator) Next() (*eval.Instance, error) {
 
 func (it *instanceIterator) Done() bool {
 	return it.index >= len(it.instances)
+}
+
+func newInstanceIterator(instances []eval.Instance) *instanceIterator {
+	return &instanceIterator{instances: instances}
 }

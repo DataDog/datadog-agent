@@ -20,6 +20,7 @@ import (
 	_ "github.com/goware/modvendor"
 	_ "github.com/mgechev/revive"
 	_ "github.com/stormcat24/protodep"
+	_ "github.com/vektra/mockery/v2"
 	_ "golang.org/x/mobile/bind"
 	_ "golang.org/x/mobile/bind/java"
 	_ "golang.org/x/mobile/cmd/gobind"
