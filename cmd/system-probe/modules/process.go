@@ -51,15 +51,10 @@ func (t *process) GetStats() map[string]interface{} {
 func (t *process) Register(httpMux *mux.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
 		start := time.Now()
 		pids, err := getPids(req)
 		if err != nil {
-			log.Errorf("%s", err)
+			log.Errorf("Unable to get PIDs from request: %s", err)
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
@@ -76,7 +71,8 @@ func (t *process) Register(httpMux *mux.Router) error {
 
 		count := atomic.AddUint64(&runCounter, 1)
 		logProcTracerRequests(count, len(stats), start)
-	})
+	}).Methods("POST")
+
 	return nil
 }
 
