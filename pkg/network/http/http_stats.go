@@ -97,7 +97,7 @@ type RequestStats [NumStatusClasses]struct {
 	Count     int
 	Latencies *ddsketch.DDSketch
 
-	// This field holds the value (in milliseconds) of the first HTTP request
+	// This field holds the value (in microseconds) of the first HTTP request
 	// in this bucket. We do this as optimization to avoid creating sketches with
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
