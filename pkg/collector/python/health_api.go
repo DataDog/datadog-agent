@@ -34,7 +34,7 @@ func SubmitHealthCheckData(id *C.char, healthStream *C.health_stream_t, data *C.
 	_stream := convertStream(healthStream)
 	_json, err := unsafeParseYamlToMap(data)
 
-	if err != nil {
+	if err == nil {
 		if len(_json) != 0 {
 			batcher.GetBatcher().SubmitHealthCheckData(check.ID(goCheckID), _stream, _json)
 		} else {
