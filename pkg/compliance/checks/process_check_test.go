@@ -33,6 +33,9 @@ func (f *processFixture) run(t *testing.T) {
 		cache.Cache.Delete(processCacheKey)
 	}
 	processFetcher = func() (processes, error) {
+		for pid, p := range f.processes {
+			p.Pid = pid
+		}
 		return f.processes, nil
 	}
 
@@ -72,6 +75,10 @@ func TestProcessCheck(t *testing.T) {
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--path=foo"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "42",
+					Type: "process",
+				},
 			},
 		},
 		{
@@ -107,6 +114,10 @@ func TestProcessCheck(t *testing.T) {
 					"process.name":    "proc2",
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--tlsverify"},
+				},
+				Resource: compliance.ReportResource{
+					ID:   "38",
+					Type: "process",
 				},
 			},
 		},
@@ -153,6 +164,10 @@ func TestProcessCheck(t *testing.T) {
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--paths=foo"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "42",
+					Type: "process",
+				},
 			},
 		},
 	}
@@ -186,6 +201,10 @@ func TestProcessCheckCache(t *testing.T) {
 				"process.exe":     "",
 				"process.cmdLine": []string{"arg1", "--path=foo"},
 			},
+			Resource: compliance.ReportResource{
+				ID:   "42",
+				Type: "process",
+			},
 		},
 	}
 	firstContent.run(t)
@@ -206,6 +225,10 @@ func TestProcessCheckCache(t *testing.T) {
 				"process.name":    "proc1",
 				"process.exe":     "",
 				"process.cmdLine": []string{"arg1", "--path=foo"},
+			},
+			Resource: compliance.ReportResource{
+				ID:   "42",
+				Type: "process",
 			},
 		},
 	}

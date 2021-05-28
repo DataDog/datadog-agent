@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package datadog.process;
+
+option go_package = "pkg/proto/pbgo"; // golang
+
+// ProcessStatRequest is the request to get process stats.
+message ProcessStatRequest {
+  repeated int32 pids = 1;
+}

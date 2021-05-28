@@ -20,15 +20,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/gopsutil/process"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 	"github.com/syndtr/gocapability/capability"
 	"gotest.tools/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -63,10 +64,26 @@ func TestProcess(t *testing.T) {
 }
 
 func TestProcessContext(t *testing.T) {
+	proc, err := process.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		t.Fatalf("unable to find proc entry: %s", err)
+	}
+
+	filledProc := utils.GetFilledProcess(proc)
+	if filledProc == nil {
+		t.Fatal("unable to find proc entry")
+	}
+	execSince := time.Now().Sub(time.Unix(0, filledProc.CreateTime*int64(time.Millisecond)))
+	waitUntil := execSince + getEventTimeout + time.Second
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_inode",
 			Expression: `open.file.path == "{{.Root}}/test-process-context" && open.flags & O_CREAT != 0`,
+		},
+		{
+			ID:         "test_exec_time",
+			Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-exec-time" && process.created_at > %ds`, int(waitUntil.Seconds())),
 		},
 		{
 			ID:         "test_rule_ancestors",
@@ -98,13 +115,6 @@ func TestProcessContext(t *testing.T) {
 		},
 	}
 
-	var rhel7 bool
-
-	kv, err := kernel.NewKernelVersion()
-	if err == nil {
-		rhel7 = kv.IsRH7Kernel()
-	}
-
 	test, err := newTestModule(nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +132,49 @@ func TestProcessContext(t *testing.T) {
 		}
 		return executable
 	}
+
+	t.Run("exec-time", func(t *testing.T) {
+		testFile, _, err := test.Path("test-exec-time")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		f, err := os.Create(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		event, rule, err := test.GetEvent()
+		if err == nil {
+			t.Error("shouldn't get an event")
+		}
+
+		f, err = os.OpenFile(testFile, os.O_RDONLY, 0)
+		if err != nil {
+			t.Error(err)
+		}
+		f.Close()
+
+		event, rule, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_exec_time")
+
+			if !validateExecSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "process.file.container_path")
+			}
+		}
+	})
 
 	t.Run("inode", func(t *testing.T) {
 		testFile, _, err := test.Path("test-process-context")
@@ -216,7 +269,7 @@ func TestProcessContext(t *testing.T) {
 				t.Error("secret or env values exposed")
 			}
 
-			if !rhel7 && !validateExecSchema(t, event) {
+			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
 
@@ -325,7 +378,7 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("arg not truncated: %s", args.(string))
 			}
 
-			if !rhel7 && !validateExecSchema(t, event) {
+			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
 
@@ -429,7 +482,7 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
 			assert.Equal(t, event.ProcessContext.Ancestor.Comm, "sh")
 
-			if !rhel7 && !validateExecSchema(t, event) {
+			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
 

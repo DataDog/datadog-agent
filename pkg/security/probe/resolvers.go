@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
@@ -37,7 +36,7 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*Resolvers, error) {
+func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	dentryResolver, err := NewDentryResolver(probe)
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*
 		TagsResolver:      NewTagsResolver(config),
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +187,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start()
+	return r.DentryResolver.Start(r.probe)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
