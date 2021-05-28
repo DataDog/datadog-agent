@@ -227,7 +227,7 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	mr.mounts[e.MountID] = &e
 }
 
-func (mr *MountResolver) getParentPath(mountID uint32) string {
+func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) string {
 	mount, exists := mr.mounts[mountID]
 	if !exists {
 		return ""
@@ -235,8 +235,13 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 
 	mountPointStr := mount.MountPointStr
 
+	if _, exists := cache[mountID]; exists {
+		return ""
+	}
+	cache[mountID] = true
+
 	if mount.ParentMountID != 0 {
-		p := mr.getParentPath(mount.ParentMountID)
+		p := mr._getParentPath(mount.ParentMountID, cache)
 		if p == "" {
 			return mountPointStr
 		}
@@ -249,21 +254,30 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 	return mountPointStr
 }
 
-func (mr *MountResolver) getAncestor(mount *model.MountEvent, maxDepth int) *model.MountEvent {
-	if maxDepth <= 0 {
+func (mr *MountResolver) getParentPath(mountID uint32) string {
+	return mr._getParentPath(mountID, map[uint32]bool{})
+}
+
+func (mr *MountResolver) _getAncestor(mount *model.MountEvent, cache map[uint32]bool) *model.MountEvent {
+	if _, exists := cache[mount.MountID]; exists {
 		return nil
 	}
+	cache[mount.MountID] = true
 
 	parent, ok := mr.mounts[mount.ParentMountID]
 	if !ok {
 		return nil
 	}
 
-	if grandParent := mr.getAncestor(parent, maxDepth-1); grandParent != nil {
+	if grandParent := mr._getAncestor(parent, cache); grandParent != nil {
 		return grandParent
 	}
 
 	return parent
+}
+
+func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent {
+	return mr._getAncestor(mount, map[uint32]bool{})
 }
 
 // getOverlayPath uses deviceID to find overlay path
@@ -340,7 +354,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	}
 
 	ref := mount
-	if ancestor := mr.getAncestor(mount, 5); ancestor != nil {
+	if ancestor := mr.getAncestor(mount); ancestor != nil {
 		ref = ancestor
 	}
 
