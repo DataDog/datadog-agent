@@ -478,18 +478,15 @@
       <Custom Action='FinalizeInstall' After='InstallServices'>      <![CDATA[Installed="" ]]> </Custom>
 
       <!-- Same deal here -->
-      <!--
-      TEMP DISABLE StartDDServices
       <Custom Action='StartDDServices' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS="" ]]></Custom>
       <Custom Action='StartDDServicesAllowStartFail' After='FinalizeInstall'>  <![CDATA[REMOVE<>"ALL" AND IGNORESVCSTATUS<>"" ]]></Custom>
-      -->
 
       <!-- only do the uninstall (which removes the user state and file perms)
            on a full uninstall -->
       <Custom Action='SetUninstallProperty' Before='DoUninstall'> <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
       <Custom Action='DoUninstall' Before='RemoveRegistryValues'>      <![CDATA[REMOVE="ALL" AND UPGRADINGPRODUCTCODE=""]]> </Custom>
 
-      <!-- TEMP DISABLE ROLLBACK <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>  -->
+      <Custom Action='DoRollback' Before='FinalizeInstall'>       <![CDATA[REMOVE<>"ALL" OR UPGRADINGPRODUCTCODE<>""]]> </Custom>
     </InstallExecuteSequence>
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
@@ -630,18 +627,14 @@
         Value='PROJECTLOCATION=[PROJECTLOCATION];APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>
-    <!--
-    TEMP DISABLE StartDDServices
     <CustomAction Id='StartDDServices' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StartDDServicesAllowStartFail' BinaryKey='wixcadll' DllEntry='PostStartServices' Execute='deferred' Return='ignore' Impersonate='no'/>
-
-    -->
     <CustomAction Id='SetUninstallProperty' Return='check' Property='DoUninstall'
         Value='PROJECTLOCATION=[PROJECTLOCATION];DDAGENTUSER_NAME=[DDAGENTUSER_NAME];DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD];' />
 
     <CustomAction Id='DoUninstall' BinaryKey='wixcadll' DllEntry='DoUninstall' Execute='deferred' Return='check' Impersonate='no'/>
 
-    <!-- TEMP DISABLE ROLLBACK <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' /> -->
+    <CustomAction Id='DoRollback' BinaryKey='wixcadll' DllEntry='DoRollback' Execute='rollback' Impersonate='no' />
 
 
     <!--
