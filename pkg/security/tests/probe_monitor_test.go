@@ -106,8 +106,6 @@ func truncatedParents(t *testing.T, opts testOpts) {
 					// count the "a"s.
 					splittedFilepath = splittedFilepath[1:]
 				}
-				t.Logf("%s", filepath.(string))
-				t.Logf("%v", splittedFilepath)
 				assert.Equal(t, splittedFilepath[0], "a", "invalid path resolution at the left edge")
 				assert.Equal(t, splittedFilepath[len(splittedFilepath)-1], "a", "invalid path resolution at the right edge")
 				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")

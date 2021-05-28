@@ -220,6 +220,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         .exec_timestamp = bpf_ktime_get_ns(),
     };
     fill_file_metadata(exec_dentry, &entry.executable.metadata);
+    set_file_inode(exec_dentry, &entry.executable, 0);
     bpf_get_current_comm(&entry.comm, sizeof(entry.comm));
 
     // select the previous cookie entry in cache of the current process

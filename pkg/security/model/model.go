@@ -286,10 +286,11 @@ type FileFields struct {
 	CTime time.Time `field:"-"`
 	MTime time.Time `field:"-"`
 
-	MountID uint32 `field:"mount_id"`
-	Inode   uint64 `field:"inode"`
-	PathID  uint32 `field:"-"`
-	Flags   int32  `field:"-"`
+	MountID      uint32 `field:"mount_id"`
+	Inode        uint64 `field:"inode"`
+	PathID       uint32 `field:"-"`
+	Flags        int32  `field:"-"`
+	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"`
 }
 
 // GetInLowerLayer returns whether a file is in a lower layer
@@ -309,7 +310,6 @@ type FileEvent struct {
 	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
 	BasenameStr   string `field:"name,ResolveFileBasename"`
 	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
-	InUpperLayer  bool   `field:"in_upper_layer,ResolveFileInUpperLayer"`
 
 	PathResolutionError error `field:"-"`
 }
