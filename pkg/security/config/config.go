@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Policy represents a policy file in the configuration file
@@ -75,6 +76,8 @@ type Config struct {
 	MapDentryResolutionEnabled bool
 	// RemoteTaggerEnabled defines whether the remote tagger is enabled
 	RemoteTaggerEnabled bool
+	// HostServiceName string
+	HostServiceName string
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -135,6 +138,11 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 
 	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {
 		c.MapDentryResolutionEnabled = true
+	}
+
+	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
+	if len(serviceName) > 0 {
+		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
 	return c, nil

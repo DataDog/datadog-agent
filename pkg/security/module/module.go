@@ -275,6 +275,10 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 			service = m.probe.GetResolvers().TagsResolver.GetValue(id, "service")
 		}
 
+		if service == "" {
+			service = m.config.HostServiceName
+		}
+
 		if service != "" {
 			tags = append(tags, "service:"+service)
 		}
