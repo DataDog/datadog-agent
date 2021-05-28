@@ -42,8 +42,8 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 		return
 	}
 
-	_json := yamlDataToJSON(data)
-	if len(_json) != 0 {
+	_json, err := unsafeParseYamlToMap(data)
+	if len(_json) != 0 || err == nil {
 		var topologyEvent metrics.Event
 		err = mapstructure.Decode(_json, &topologyEvent)
 		if err != nil {
@@ -53,6 +53,6 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 
 		sender.Event(topologyEvent)
 	} else {
-		_ = log.Error("Empty topology event not sent")
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
 	}
 }
