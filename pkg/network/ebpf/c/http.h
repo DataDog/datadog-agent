@@ -108,6 +108,7 @@ static __always_inline int http_begin_request(http_transaction_t *http, http_met
     // This can happen in the context of HTTP keep-alives;
     if (http_responding(http)) {
         http_enqueue(http, tup);
+        bpf_map_update_elem(&http_in_flight, tup, http, BPF_NOEXIST);
     }
 
     http->request_method = method;
