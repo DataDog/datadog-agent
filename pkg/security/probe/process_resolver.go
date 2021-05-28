@@ -142,8 +142,13 @@ func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheE
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
 	for entry != nil {
+		// be sure to reset the entry here
+		next := entry.Next
+		entry.Next = nil
+		entry.Last = nil
+
 		a.pool.Put(entry)
-		entry = entry.Next
+		entry = next
 	}
 }
 
@@ -173,9 +178,13 @@ func (p *ProcessResolver) SendStats() error {
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		prevEntry := e.(*model.ArgsEnvsCacheEntry)
-		prevEntry.Last.Next = entry
-		prevEntry.Last = entry
+		list := e.(*model.ArgsEnvsCacheEntry)
+		if list.Last == nil {
+			list.Last = entry
+		} else {
+			list.Last.Next = entry
+			list.Last = entry
+		}
 	} else {
 		entry.Last = entry
 		p.argsEnvsCache.Add(event.ID, entry)
@@ -536,6 +545,8 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 		pce.ArgsEntry = &model.ArgsEntry{
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
+
+		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
 }
 
@@ -556,6 +567,8 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 		pce.EnvsEntry = &model.EnvsEntry{
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
+
+		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
 }
 
