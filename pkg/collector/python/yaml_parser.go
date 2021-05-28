@@ -1,6 +1,7 @@
 package python
 
 import (
+	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
@@ -11,9 +12,7 @@ import "C"
 // Here we first unmarshal the string into a map[interface]interface and then covert all
 // map keys to string (making a de facto json structure), which will be serialized without problems to json when sent.
 //
-// Note: This function can panic if the yaml has no string keys; reason being it cannot be marshalled to json.
-//       We assume the yaml is already validated on the caller (python) side.
-func unsafeParseYamlToMap(data *C.char) (map[string]interface{}, error) {
+func tryParseYamlToMap(data *C.char) (map[string]interface{}, error) {
 	_data := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
 	if err != nil {
@@ -21,22 +20,47 @@ func unsafeParseYamlToMap(data *C.char) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	return convertKeysToString(_data).(map[string]interface{}), nil
+	result, err := convertKeysToString(_data)
+
+	if err == nil {
+		log.Errorf("No error")
+		return result.(map[string]interface{}), nil
+	}
+	log.Errorf("Got error")
+	return nil, err
 }
 
 // Recursively cast all the keys of all maps to string
-func convertKeysToString(i interface{}) interface{} {
+func convertKeysToString(i interface{}) (interface{}, error) {
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
 		m2 := map[string]interface{}{}
 		for k, v := range x {
-			m2[k.(string)] = convertKeysToString(v)
+			switch keyString := k.(type) {
+			case string:
+				value, err := convertKeysToString(v)
+				if err == nil {
+					m2[keyString] = value
+				} else {
+					return nil, err
+				}
+			default:
+				return nil, fmt.Errorf("got key other than type string: %T", k)
+			}
 		}
-		return m2
+		return m2, nil
 	case []interface{}:
+		a2 := make([]interface{}, len(x))
 		for i, v := range x {
-			x[i] = convertKeysToString(v)
+			value, err := convertKeysToString(v)
+			if err == nil {
+				a2[i] = value
+			} else {
+				return nil, err
+			}
 		}
+		return a2, nil
+	default:
+		return i, nil
 	}
-	return i
 }

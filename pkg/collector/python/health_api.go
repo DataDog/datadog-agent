@@ -32,7 +32,7 @@ import "C"
 func SubmitHealthCheckData(id *C.char, healthStream *C.health_stream_t, data *C.char) {
 	goCheckID := C.GoString(id)
 	_stream := convertStream(healthStream)
-	_json, err := unsafeParseYamlToMap(data)
+	_json, err := tryParseYamlToMap(data)
 
 	if err == nil {
 		if len(_json) != 0 {
