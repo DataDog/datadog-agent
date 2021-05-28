@@ -107,7 +107,7 @@ build_clang_arm64:
   stage: deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - aws sts get-caller-identity
+
     - Invoke-Expression "$S3_CP_CMD README.md ${env:S3_PERMANENT_ARTIFACTS_URI}/README.md"
   timeout: 0h 30m
 
