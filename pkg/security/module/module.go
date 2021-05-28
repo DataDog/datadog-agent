@@ -171,15 +171,15 @@ func (m *Module) Reload() error {
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
-	if loadErr.ErrorOrNil() != nil {
-		log.Errorf("error while loading policies: %+v", loadErr.Error())
-	}
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
-	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	loadApproversErr := rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+
 	if loadErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", loadErr.Error())
+	} else if loadApproversErr.ErrorOrNil() != nil {
+		log.Errorf("error while loading policies for Approvers: %+v", loadErr.Error())
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
