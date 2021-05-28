@@ -11,6 +11,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/health"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 /*
@@ -31,9 +32,17 @@ import "C"
 func SubmitHealthCheckData(id *C.char, healthStream *C.health_stream_t, data *C.char) {
 	goCheckID := C.GoString(id)
 	_stream := convertStream(healthStream)
-	_json := yamlDataToJSON(data)
+	_json, err := unsafeParseYamlToMap(data)
 
-	batcher.GetBatcher().SubmitHealthCheckData(check.ID(goCheckID), _stream, _json)
+	if err != nil {
+		if len(_json) != 0 {
+			batcher.GetBatcher().SubmitHealthCheckData(check.ID(goCheckID), _stream, _json)
+		} else {
+			_ = log.Errorf("Empty json submitted to as check data, this is not allowed, data will not be forwarded.")
+		}
+	} else {
+		_ = log.Errorf("Error converting health data yaml to go: Error: %v", err)
+	}
 }
 
 // SubmitHealthStartSnapshot starts a health snapshot

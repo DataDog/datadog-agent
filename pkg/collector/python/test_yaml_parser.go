@@ -122,7 +122,7 @@ func testErrorParsingNonMapYaml(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
-	} {
+	}{
 		{
 			name: "string instead of map",
 			yaml: `I'm such A sentence!`,
@@ -163,7 +163,7 @@ func testErrorParsingNonStringKeys(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
-	} {
+	}{
 		{
 			name: "int key",
 			yaml: `yaml:
@@ -174,7 +174,6 @@ func testErrorParsingNonStringKeys(t *testing.T) {
 			yaml: `yaml:
                      null: true`,
 		},
-
 	}
 
 	for _, tt := range tests {

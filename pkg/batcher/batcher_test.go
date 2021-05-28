@@ -366,3 +366,28 @@ func TestBatcherHealthStartSnapshot(t *testing.T) {
 
 	batcher.Shutdown()
 }
+
+func TestBatchMultipleHealthStreams(t *testing.T) {
+	serializer := serializer2.NewAgentV1MockSerializer()
+	batcher := newAsynchronousBatcher(serializer, testHost, testAgent, 100)
+
+	batcher.SubmitHealthStartSnapshot(testID, testStream, 1, 0)
+	batcher.SubmitHealthStartSnapshot(testID, testStream2, 1, 0)
+	batcher.SubmitComplete(testID)
+
+	message := serializer.GetJSONToV1IntakeMessage().(map[string]interface{})
+
+	assert.Contains(t, message["health"], health.Health{
+		StartSnapshot: &testStartSnapshot,
+		Stream:        testStream,
+		CheckStates:   []health.CheckData{},
+	})
+
+	assert.Contains(t, message["health"], health.Health{
+		StartSnapshot: &testStartSnapshot,
+		Stream:        testStream2,
+		CheckStates:   []health.CheckData{},
+	})
+
+	batcher.Shutdown()
+}

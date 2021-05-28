@@ -29,12 +29,12 @@ func (batcher MockBatcher) SubmitRelation(checkID check.ID, instance topology.In
 
 // SubmitStartSnapshot mock
 func (batcher MockBatcher) SubmitStartSnapshot(checkID check.ID, instance topology.Instance) {
-	batcher.CollectedTopology.StartSnapshot(checkID, instance)
+	batcher.CollectedTopology.TopologyStartSnapshot(checkID, instance)
 }
 
 // SubmitStopSnapshot mock
 func (batcher MockBatcher) SubmitStopSnapshot(checkID check.ID, instance topology.Instance) {
-	batcher.CollectedTopology.StopSnapshot(checkID, instance)
+	batcher.CollectedTopology.TopologyStopSnapshot(checkID, instance)
 }
 
 // SubmitHealthCheckData mock

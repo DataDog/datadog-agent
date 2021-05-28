@@ -152,6 +152,11 @@ func (batcher *AsynchronousBatcher) sendState(states CheckInstanceBatchStates) {
 			for _, topo := range topologies {
 				log.Debugf("%v", topo)
 			}
+
+			log.Debug("Flushing the following health data:")
+			for _, health := range healthData {
+				log.Debugf("%v", health)
+			}
 		}
 
 		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
@@ -169,9 +174,9 @@ func (batcher *AsynchronousBatcher) run() {
 		case submitRelation:
 			batcher.sendState(batcher.builder.AddRelation(submission.checkID, submission.instance, submission.relation))
 		case submitStartSnapshot:
-			batcher.sendState(batcher.builder.StartSnapshot(submission.checkID, submission.instance))
+			batcher.sendState(batcher.builder.TopologyStartSnapshot(submission.checkID, submission.instance))
 		case submitStopSnapshot:
-			batcher.sendState(batcher.builder.StopSnapshot(submission.checkID, submission.instance))
+			batcher.sendState(batcher.builder.TopologyStopSnapshot(submission.checkID, submission.instance))
 
 		case submitHealthCheckData:
 			batcher.sendState(batcher.builder.AddHealthCheckData(submission.checkID, submission.stream, submission.data))
@@ -236,7 +241,6 @@ func (batcher AsynchronousBatcher) SubmitHealthCheckData(checkID check.ID, strea
 
 // SubmitHealthStartSnapshot submits start of a Health snapshot
 func (batcher AsynchronousBatcher) SubmitHealthStartSnapshot(checkID check.ID, stream health.Stream, intervalSeconds int, expirySeconds int) {
-	log.Debugf("Submitting start of Health snapshot for check [%s] stream [%s]", checkID, stream.GoString())
 	batcher.input <- submitHealthStartSnapshot{
 		checkID:         checkID,
 		stream:          stream,
@@ -247,7 +251,6 @@ func (batcher AsynchronousBatcher) SubmitHealthStartSnapshot(checkID check.ID, s
 
 // SubmitHealthStopSnapshot submits a stop of a Health snapshot. This always causes a flush of the data downstream
 func (batcher AsynchronousBatcher) SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream) {
-	log.Debugf("Submitting stop Health snapshot for check [%s] stream [%s]", checkID, stream.GoString())
 	batcher.input <- submitHealthStopSnapshot{
 		checkID: checkID,
 		stream:  stream,
@@ -256,7 +259,6 @@ func (batcher AsynchronousBatcher) SubmitHealthStopSnapshot(checkID check.ID, st
 
 // SubmitComplete signals completion of a check. May trigger a flush only if the check produced data
 func (batcher AsynchronousBatcher) SubmitComplete(checkID check.ID) {
-	log.Debugf("Submitting complete for check [%s]", checkID)
 	batcher.input <- submitComplete{
 		checkID: checkID,
 	}
