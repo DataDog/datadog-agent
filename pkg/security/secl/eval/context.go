@@ -6,6 +6,7 @@
 package eval
 
 import (
+	"sync"
 	"unsafe"
 )
 
@@ -24,10 +25,48 @@ func (c *Context) SetObject(obj unsafe.Pointer) {
 	c.Object = obj
 }
 
+// Reset the context
+func (c *Context) Reset() {
+	c.Object = nil
+	c.Registers = nil
+
+	// as the cache should be low in entry, prefer to delete than re-alloc
+	for key := range c.Cache {
+		delete(c.Cache, key)
+	}
+}
+
 // NewContext return a new Context
 func NewContext(obj unsafe.Pointer) *Context {
 	return &Context{
 		Object: obj,
 		Cache:  make(map[string]unsafe.Pointer),
+	}
+}
+
+// ContextPool defines a pool of context
+type ContextPool struct {
+	pool sync.Pool
+}
+
+// Get returns a context with the given object
+func (c *ContextPool) Get(obj unsafe.Pointer) *Context {
+	ctx := c.pool.Get().(*Context)
+	ctx.SetObject(obj)
+	return ctx
+}
+
+// Put returns the context to the pool
+func (c *ContextPool) Put(ctx *Context) {
+	ctx.Reset()
+	c.pool.Put(ctx)
+}
+
+// NewContextPool returns a new context pool
+func NewContextPool() *ContextPool {
+	return &ContextPool{
+		pool: sync.Pool{
+			New: func() interface{} { return NewContext(nil) },
+		},
 	}
 }

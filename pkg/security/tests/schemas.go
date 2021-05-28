@@ -13,9 +13,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/xeipuuv/gojsonschema"
+
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/schemas"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 // AssetLoader schema loader from asset

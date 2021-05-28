@@ -923,8 +923,6 @@ func BenchmarkComplex(b *testing.B) {
 		},
 	}
 
-	ctx := NewContext(unsafe.Pointer(event))
-
 	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
 	var exprs []string
 
@@ -942,6 +940,7 @@ func BenchmarkComplex(b *testing.B) {
 	evaluator := rule.GetEvaluator()
 
 	for i := 0; i < b.N; i++ {
+		ctx := NewContext(unsafe.Pointer(event))
 		if evaluator.Eval(ctx) != true {
 			b.Fatal("unexpected result")
 		}
@@ -988,5 +987,40 @@ func BenchmarkPartial(b *testing.B) {
 		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {
 			b.Fatal("unexpected result")
 		}
+	}
+}
+
+func BenchmarkPool(b *testing.B) {
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/ls",
+			uid:  1,
+		},
+	}
+
+	pool := NewContextPool()
+
+	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
+	var exprs []string
+
+	for i := 0; i != 100; i++ {
+		exprs = append(exprs, base)
+	}
+
+	expr := strings.Join(exprs, " && ")
+
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	evaluator := rule.GetEvaluator()
+
+	for i := 0; i < b.N; i++ {
+		ctx := pool.Get(unsafe.Pointer(event))
+		if evaluator.Eval(ctx) != true {
+			b.Fatal("unexpected result")
+		}
+		pool.pool.Put(ctx)
 	}
 }

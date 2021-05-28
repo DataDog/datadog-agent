@@ -158,11 +158,17 @@ func TestResourceCheck(t *testing.T) {
 			expectErr: ErrResourceFallbackMissing,
 		},
 		{
-			name:              "iterator not passing",
+			name:              "iterator partially passed",
 			resourceCondition: "a > 10",
 			resourceResolved:  iterator,
 			reportedFields:    []string{"a"},
 			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"a": 14,
+					},
+				},
 				{
 					Passed: false,
 					Data: event.Data{
@@ -173,20 +179,6 @@ func TestResourceCheck(t *testing.T) {
 					Passed: false,
 					Data: event.Data{
 						"a": 4,
-					},
-				},
-			},
-		},
-		{
-			name:              "iterator passed",
-			resourceCondition: "a > 2",
-			resourceResolved:  iterator,
-			reportedFields:    []string{"a"},
-			expectReports: []*compliance.Report{
-				{
-					Passed: true,
-					Data: event.Data{
-						"a": 14,
 					},
 				},
 			},
@@ -201,18 +193,6 @@ func TestResourceCheck(t *testing.T) {
 					Passed: false,
 					Data: event.Data{
 						"a": 14,
-					},
-				},
-				{
-					Passed: false,
-					Data: event.Data{
-						"a": 6,
-					},
-				},
-				{
-					Passed: false,
-					Data: event.Data{
-						"a": 4,
 					},
 				},
 			},

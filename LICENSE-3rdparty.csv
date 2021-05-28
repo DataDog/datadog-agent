@@ -39,7 +39,6 @@ core,"github.com/DataDog/gopsutil/mem",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/net",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/process",BSD-3-Clause
 core,"github.com/DataDog/gostackparse",Apache-2.0
-core,"github.com/google/pprof/profile",Apache-2.0
 core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/sketches-go/ddsketch",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/mapping",Apache-2.0
@@ -327,6 +326,7 @@ core,"github.com/google/gofuzz/bytesource",Apache-2.0
 core,"github.com/google/gopacket",BSD-3-Clause
 core,"github.com/google/gopacket/afpacket",BSD-3-Clause
 core,"github.com/google/gopacket/layers",BSD-3-Clause
+core,"github.com/google/pprof/profile",Apache-2.0
 core,"github.com/google/uuid",BSD-3-Clause
 core,"github.com/googleapis/gnostic/compiler",Apache-2.0
 core,"github.com/googleapis/gnostic/extensions",Apache-2.0
@@ -383,8 +383,8 @@ core,"github.com/iovisor/gobpf/bcc",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpupossible",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpurange",Apache-2.0
-core,"github.com/itchyny/astgen-go",MIT
 core,"github.com/itchyny/gojq",MIT
+core,"github.com/itchyny/timefmt-go",MIT
 core,"github.com/jmespath/go-jmespath",Apache-2.0
 core,"github.com/josharian/intern",MIT
 core,"github.com/josharian/native",MIT
@@ -408,7 +408,6 @@ core,"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/dynamicmapper",Apa
 core,"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider",Apache-2.0
 core,"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/custom_metrics",Apache-2.0
 core,"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/external_metrics",Apache-2.0
-core,"github.com/lestrrat-go/strftime",MIT
 core,"github.com/lxn/walk",BSD-3-Clause
 core,"github.com/lxn/win",BSD-3-Clause
 core,"github.com/magiconair/properties",BSD-2-Clause
@@ -453,7 +452,6 @@ core,"github.com/opencontainers/selinux/go-selinux/label",Apache-2.0
 core,"github.com/opencontainers/selinux/pkg/pwalk",Apache-2.0
 core,"github.com/openshift/api/quota/v1",Apache-2.0
 core,"github.com/patrickmn/go-cache",MIT
-core,"github.com/pbnjay/strptime",UNKNOWN
 core,"github.com/pelletier/go-toml",MIT
 core,"github.com/philhofer/fwd",MIT
 core,"github.com/pierrec/lz4/v4",BSD-3-Clause

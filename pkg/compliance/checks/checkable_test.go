@@ -28,7 +28,7 @@ func TestCheckableList(t *testing.T) {
 		expected outcome
 	}{
 		{
-			name: "first=passed, second=passed => result=[all passed]",
+			name: "first=passed, second=passed, third=pass => result=[all passed]",
 			list: []outcome{
 				{
 					reports: []*compliance.Report{
@@ -50,70 +50,10 @@ func TestCheckableList(t *testing.T) {
 						},
 					},
 				},
-			},
-			expected: outcome{
-				reports: []*compliance.Report{
-					{
-						Passed: true,
-						Data: event.Data{
-							"something else": "passed",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "first=passed, second=failed => result=[failed from second]",
-			list: []outcome{
 				{
 					reports: []*compliance.Report{
 						{
 							Passed: true,
-							Data: event.Data{
-								"something": "passed",
-							},
-						},
-					},
-				},
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Data: event.Data{
-								"something": "failed",
-							},
-						},
-					},
-				},
-			},
-			expected: outcome{
-				reports: []*compliance.Report{
-					{
-						Passed: false,
-						Data: event.Data{
-							"something": "failed",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "first=failed, second=failed => result=[all failed]",
-			list: []outcome{
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Data: event.Data{
-								"something": "failed",
-							},
-						},
-					},
-				},
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
 							Data: event.Data{
 								"something else": "failed",
 							},
@@ -124,109 +64,23 @@ func TestCheckableList(t *testing.T) {
 			expected: outcome{
 				reports: []*compliance.Report{
 					{
-						Passed: false,
+						Passed: true,
 						Data: event.Data{
-							"something": "failed",
+							"something": "passed",
 						},
 					},
-				},
-			},
-		},
-		{
-			name: "first=error, second=passed => result[error from first]",
-			list: []outcome{
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Error:  errors.New("some error"),
-						},
-					},
-				},
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: true,
-							Data: event.Data{
-								"something else": "passed",
-							},
-						},
-					},
-				},
-			},
-			expected: outcome{
-				reports: []*compliance.Report{
 					{
-						Passed: false,
-						Error:  errors.New("some error"),
-					},
-				},
-			},
-		},
-		{
-			name: "first=failed, second=passed => result[failed from first]",
-			list: []outcome{
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Data: event.Data{
-								"something": "failed",
-							},
+						Passed: true,
+						Data: event.Data{
+							"something else": "passed",
 						},
 					},
-				},
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: true,
-							Data: event.Data{
-								"something else": "passed",
-							},
-						},
-					},
-				},
-			},
-			expected: outcome{
-				reports: []*compliance.Report{
 					{
 						Passed: false,
 						Data: event.Data{
-							"something": "failed",
+							"truncated": 1,
 						},
-					},
-				},
-			},
-		},
-		{
-			name: "first=failed, second=error => result[failed from first]",
-			list: []outcome{
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Data: event.Data{
-								"something": "failed",
-							},
-						},
-					},
-				},
-				{
-					reports: []*compliance.Report{
-						{
-							Passed: false,
-							Error:  errors.New("some other error"),
-						},
-					},
-				},
-			},
-			expected: outcome{
-				reports: []*compliance.Report{
-					{
-						Passed: false,
-						Data: event.Data{
-							"something": "failed",
-						},
+						Error: errors.New("truncated result"),
 					},
 				},
 			},
@@ -236,7 +90,7 @@ func TestCheckableList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			env := &mocks.Env{}
-			env.On("MaxEventsPerRun").Return(1)
+			env.On("MaxEventsPerRun").Return(2)
 
 			var list checkableList
 

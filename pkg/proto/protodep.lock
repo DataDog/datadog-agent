@@ -1,0 +1,31 @@
+proto_outdir = "./protodep"
+
+[[dependencies]]
+  target = "github.com/mwitkow/go-proto-validators"
+  revision = "32a686adf8b5194d3ea07d632d49b6fb344af678"
+  branch = "master"
+  path = "github.com/mwitkow/go-proto-validators"
+  ignores = ["./test", "./examples"]
+  protocol = ""
+
+[[dependencies]]
+  target = "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api"
+  revision = "83c7c1948180f4a79579be0a13eb46e820a3ddb5"
+  branch = ""
+  path = "google/api"
+  protocol = ""
+
+[[dependencies]]
+  target = "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
+  revision = "83c7c1948180f4a79579be0a13eb46e820a3ddb5"
+  branch = ""
+  path = "protoc-gen-swagger/options"
+  protocol = ""
+
+[[dependencies]]
+  target = "github.com/protocolbuffers/protobuf/src/google/protobuf"
+  revision = "d0bfd5221182da1a7cc280f3337b5e41a89539cf"
+  branch = ""
+  path = "google/protobuf"
+  ignores = ["./compiler", "unittest", "test_messages_", "any_test", "map_lite_unittest", "map_proto2_unittest", "util", "map_unittest"]
+  protocol = ""

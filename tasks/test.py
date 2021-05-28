@@ -8,6 +8,7 @@ import operator
 import os
 import re
 import sys
+from contextlib import contextmanager
 
 import yaml
 from invoke import task
@@ -33,6 +34,18 @@ def ensure_bytes(s):
     return s
 
 
+@contextmanager
+def environ(env):
+    original_environ = os.environ.copy()
+    os.environ.update(env)
+    yield
+    for var in env.keys():
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)
+
+
 TOOL_LIST = [
     'github.com/client9/misspell/cmd/misspell',
     'github.com/frapposelli/wwhrd',
@@ -42,17 +55,31 @@ TOOL_LIST = [
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
     'github.com/mgechev/revive',
+    'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'honnef.co/go/tools/cmd/staticcheck',
 ]
+
+TOOL_LIST_PROTO = [
+    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
+    'github.com/golang/protobuf/protoc-gen-go',
+    'github.com/golang/mock/mockgen',
+]
+
+TOOLS = {
+    'internal/tools': TOOL_LIST,
+    'internal/tools/proto': TOOL_LIST_PROTO,
+}
 
 
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    with ctx.cd("internal/tools"):
-        for tool in TOOL_LIST:
-            ctx.run("go install {}".format(tool))
+    with environ({'GO111MODULE': 'on'}):
+        for path, tools in TOOLS.items():
+            with ctx.cd(path):
+                for tool in tools:
+                    ctx.run("go install {}".format(tool))
 
 
 @task()

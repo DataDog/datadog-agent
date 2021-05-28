@@ -39,6 +39,7 @@ from .go import (
     fmt,
     generate,
     generate_licenses,
+    generate_protobuf,
     golangci_lint,
     lint,
     lint_licenses,
@@ -77,6 +78,7 @@ ns.add_task(deps)
 ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)

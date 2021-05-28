@@ -42,8 +42,8 @@ type Iterator interface {
 
 // InstanceResult captures an Instance along with the passed or failed status for the result
 type InstanceResult struct {
-	Instances []*Instance
-	Passed    bool
+	Instance *Instance
+	Passed   bool
 }
 
 const (
@@ -59,16 +59,12 @@ var (
 )
 
 // EvaluateIterator evaluates an iterable expression for an iterator
-func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance, maxInstances int) (*InstanceResult, error) {
+func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) ([]*InstanceResult, error) {
 	if e.IterableComparison == nil {
 		return e.iterate(
 			it,
 			e.Expression,
-			func(instance *Instance, passed bool) bool {
-				// First failure stops the iteration
-				return passed
-			},
-			maxInstances,
+			nil,
 		)
 	}
 
@@ -76,28 +72,20 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance, max
 		return nil, lexer.Errorf(e.Pos, "expecting function for iterable comparison")
 	}
 
-	fn := *e.IterableComparison.Fn
-
 	var (
 		totalCount  int64
 		passedCount int64
 	)
 
-	result, err := e.iterate(
+	results, err := e.iterate(
 		it,
 		e.IterableComparison.Expression, func(instance *Instance, passed bool) bool {
 			totalCount++
 			if passed {
 				passedCount++
-				if fn == noneFn {
-					return false
-				}
-			} else if fn == allFn {
-				return false
 			}
-			return true
+			return passed
 		},
-		maxInstances,
 	)
 	if err != nil {
 		return nil, err
@@ -108,9 +96,20 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance, max
 		return nil, err
 	}
 
-	return &InstanceResult{
-		Instances: result.Instances,
-		Passed:    passed,
+	// keep the first one which passed the sub expression
+	var instance *Instance
+	for _, result := range results {
+		if result.Passed {
+			instance = result.Instance
+			break
+		}
+	}
+
+	return []*InstanceResult{
+		{
+			Instance: instance,
+			Passed:   passed,
+		},
 	}, nil
 }
 
@@ -152,14 +151,21 @@ func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, tot
 	}
 }
 
-func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool, maxInstances int) (*InstanceResult, error) {
+func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) ([]*InstanceResult, error) {
 	var (
-		instance  *Instance
-		instances []*Instance
-		err       error
-		passed    bool
-		succeed   = !it.Done()
+		instance *Instance
+		results  []*InstanceResult
+		err      error
+		passed   bool
 	)
+
+	if it.Done() {
+		return []*InstanceResult{
+			{
+				Passed: false,
+			},
+		}, nil
+	}
 
 	for !it.Done() {
 		instance, err = it.Next()
@@ -172,29 +178,19 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 			return nil, err
 		}
 
-		result := checkResult(instance, passed)
-		if !result {
-			// previously success instances, reset to collect failed instances
-			if succeed {
-				instances = instances[0:0]
-			}
-			succeed = result
+		// iterable comparison, then returning only matching instance as the
+		// real check will be done in the evaluatePassed function
+		if checkResult != nil {
+			passed = checkResult(instance, passed)
 
-			instances = append(instances, instance)
-			if len(instances) >= maxInstances {
-				break
-			}
-		} else if succeed {
-			if len(instances) < maxInstances {
-				instances = append(instances, instance)
-			}
 		}
+		results = append(results, &InstanceResult{
+			Instance: instance,
+			Passed:   passed,
+		})
 	}
 
-	return &InstanceResult{
-		Instances: instances,
-		Passed:    succeed,
-	}, nil
+	return results, nil
 }
 
 func (e *IterableExpression) evaluateSubExpression(instance *Instance, expression *Expression) (bool, error) {
