@@ -13,7 +13,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/mitchellh/mapstructure"
-	"gopkg.in/yaml.v2"
 )
 
 /*
@@ -39,24 +38,21 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 
 	sender, err = aggregator.GetSender(check.ID(goCheckID))
 	if err != nil || sender == nil {
-		log.Errorf("Error submitting topology event to the Sender: %v", err)
+		_ = log.Errorf("Error submitting topology event to the Sender: %v", err)
 		return
 	}
 
-	_data := make(map[string]interface{})
-	err = yaml.Unmarshal([]byte(C.GoString(data)), _data)
-	if err != nil {
-		log.Error(err)
-		return
-	}
+	_json, err := unsafeParseYamlToMap(data)
+	if len(_json) != 0 || err == nil {
+		var topologyEvent metrics.Event
+		err = mapstructure.Decode(_json, &topologyEvent)
+		if err != nil {
+			_ = log.Error(err)
+			return
+		}
 
-	var topologyEvent metrics.Event
-	err = mapstructure.Decode(_data, &topologyEvent)
-	if err != nil {
-		log.Error(err)
-		return
+		sender.Event(topologyEvent)
+	} else {
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
 	}
-
-	sender.Event(topologyEvent)
-	return
 }

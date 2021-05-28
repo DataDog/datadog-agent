@@ -404,7 +404,7 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 		return err
 	}
 
-	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payload))
-	log.Debugf("Sent processes metadata payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
+	log.Infof("Sent intake payload, size: %d bytes.", len(payload))
+	log.Debugf("Sent intake payload, content: %v", apiKeyRegExp.ReplaceAllString(string(payload), apiKeyReplacement))
 	return nil
 }

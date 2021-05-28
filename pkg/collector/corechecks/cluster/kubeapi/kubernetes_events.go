@@ -162,7 +162,6 @@ func (k *EventsCheck) Run() error {
 		return err
 	}
 
-
 	// Running the event collection.
 	if !k.instance.CollectEvent {
 		return nil

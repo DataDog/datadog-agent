@@ -105,10 +105,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		ev4,
 	}
 	modifiedNewDatadogEvents := metrics.Event{
-		Title:          "Events from the machine-blue Node",
-		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
-		Priority:       "normal",
-		Tags:           []string{"kube_namespace:default", "source_component:kubelet"},
+		Title:    "Events from the machine-blue Node",
+		Text:     "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
+		Priority: "normal",
+		Tags:     []string{"kube_namespace:default", "source_component:kubelet"},
 		// AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
@@ -120,6 +120,7 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
@@ -140,10 +141,10 @@ func TestProcessBundledEvents(t *testing.T) {
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{
-		Title:          "Events from the machine-blue Node",
-		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
-		Priority:       "normal",
-		Tags:           []string{"kube_namespace:default", "source_component:kubelet"},
+		Title:    "Events from the machine-blue Node",
+		Text:     "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
+		Priority: "normal",
+		Tags:     []string{"kube_namespace:default", "source_component:kubelet"},
 		// AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
@@ -155,6 +156,7 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 
@@ -210,6 +212,7 @@ func TestProcessEvent(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:default:replicaset/dca-789976f5d7-2ljx6", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
@@ -265,9 +268,9 @@ func TestConvertFilter(t *testing.T) {
 }
 
 func TestProcessEventsType(t *testing.T) {
-	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54",  709662600, "Normal")
-	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container",  709662600, "Normal")
-	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container",  709662600, "Warning")
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "Normal")
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600, "Normal")
+	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container", 709662600, "Warning")
 
 	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
 	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
