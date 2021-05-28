@@ -20,9 +20,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	hostutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -57,6 +59,9 @@ func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (c
 	return ctx, nil
 }
 
+// DogstatsdCaptureTrigger triggers a dogstatsd traffic capture for the
+// duration specified in the request. If a capture is already in progress,
+// an error response is sent back.
 func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
 	d, err := time.ParseDuration(req.GetDuration())
 	if err != nil {
@@ -79,6 +84,36 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 	}
 
 	return &pb.CaptureTriggerResponse{Path: p}, nil
+}
+
+// DogstatsdSetTaggerState allows setting a captured tagger state in the
+// Tagger facilities. This endpoint is used when traffic replays are in
+// progress. An empty state or nil request will result in the Tagger
+// capture state being reset to nil.
+func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
+
+	// Reset and return if no state pushed
+	if req == nil || req.State == nil {
+		log.Debugf("API: empty request or state")
+		tagger.ResetCaptureTagger()
+		dsdReplay.SetPidMap(nil)
+		return &pb.TaggerStateResponse{Loaded: false}, nil
+	}
+
+	// FiXME: we should perhaps lock the capture processing while doing this...
+	t := replay.NewTagger()
+	if t == nil {
+		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
+	}
+	t.LoadState(req.State)
+
+	log.Debugf("API: setting capture state tagger")
+	tagger.SetCaptureTagger(t)
+	dsdReplay.SetPidMap(req.PidMap)
+
+	log.Debugf("API: loaded state successfully")
+
+	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
 // StreamTags subscribes to added, removed, or changed entities in the Tagger

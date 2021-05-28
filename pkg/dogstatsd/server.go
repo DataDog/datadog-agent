@@ -684,10 +684,7 @@ func (s *Server) Stop() {
 		s.Statistics.Stop()
 	}
 	if s.TCapture != nil {
-		err := s.TCapture.Stop()
-		if err != nil {
-			log.Errorf("Capture did not flush correctly to disk, some packets may me missing: %v", err)
-		}
+		s.TCapture.Stop()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false

@@ -117,7 +117,8 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 		pool := &sync.Pool{
 			New: func() interface{} {
-				return make([]byte, getUDSAncillarySize())
+				s := make([]byte, getUDSAncillarySize())
+				return &s
 			},
 		}
 
@@ -152,29 +153,35 @@ func (l *UDSListener) Listen() {
 			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
 			capBuff.Pb.Ancillary = nil
 			capBuff.Pb.Payload = nil
+			capBuff.ContainerID = ""
 		}
 
 		if l.OriginDetection {
-			// Read datagram + credentials in ancilary data
-			oob := l.oobPoolManager.Get().([]byte)
+			// Read datagram + credentials in ancillary data
+			oob := l.oobPoolManager.Get().(*[]byte)
+			oobS := *oob
 			var oobn int
 
 			t2 = time.Now()
 			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
 
-			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.Buffer, oob)
+			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.Buffer, oobS)
 
 			t1 = time.Now()
 
 			// Extract container id from credentials
-			container, taggingErr := processUDSOrigin(oob[:oobn])
+			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
 
 			if capBuff != nil {
-				capBuff.Oob = &oob
+				capBuff.Pb.Timestamp = time.Now().Unix()
+				capBuff.Pid = int32(pid)
+				capBuff.Oob = oob
+				capBuff.Buff = packet
 				capBuff.Pb.AncillarySize = int32(oobn)
-				capBuff.Pb.Ancillary = oob[:oobn] // or oob[:oobn] ?
+				capBuff.Pb.Ancillary = oobS[:oobn] // or oob[:oobn] ?
 				capBuff.Pb.PayloadSize = int32(n)
-				capBuff.Pb.Payload = packet.Buffer[:n] // or packet.Buffer[:n] ?
+				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
+				capBuff.Pb.Pid = int32(pid)
 			}
 
 			if taggingErr != nil {
@@ -183,6 +190,9 @@ func (l *UDSListener) Listen() {
 				tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
+				if capBuff != nil {
+					capBuff.ContainerID = container
+				}
 			}
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
@@ -198,6 +208,7 @@ func (l *UDSListener) Listen() {
 			if capBuff != nil {
 				capBuff.Pb.Timestamp = time.Now().Unix()
 				capBuff.Buff = packet
+				capBuff.Pb.Pid = 0
 				capBuff.Pb.AncillarySize = int32(0)
 				capBuff.Pb.PayloadSize = int32(n)
 				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
