@@ -153,6 +153,8 @@ var (
 	ProcFSTag = "type:procfs"
 	// ERPCTag is assigned to metrics related to eRPC
 	ERPCTag = "type:erpc"
+	// AllTypesTags is the list of types
+	AllTypesTags = []string{CacheTag, KernelMapsTag, ProcFSTag, ERPCTag}
 
 	// SegmentResolutionTag is assigned to metrics related to the resolution of a segment
 	SegmentResolutionTag = "resolution:segment"
@@ -160,6 +162,8 @@ var (
 	ParentResolutionTag = "resolution:parent"
 	// PathResolutionTag is assigned to metrics related to the resolution of a path
 	PathResolutionTag = "resolution:path"
+	// AllResolutionsTags is the list of resolution tags
+	AllResolutionsTags = []string{SegmentResolutionTag, ParentResolutionTag, PathResolutionTag}
 )
 
 func newRuntimeMetric(name string) string {

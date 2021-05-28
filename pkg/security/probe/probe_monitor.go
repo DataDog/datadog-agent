@@ -90,6 +90,9 @@ func (m *Monitor) SendStats() error {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver stats")
 		}
+		if err := resolvers.DentryResolver.SendStats(); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver stats")
+		}
 	}
 
 	// Comment this out for now, until we fix the cardinality of the perf_buffer.* metrics.

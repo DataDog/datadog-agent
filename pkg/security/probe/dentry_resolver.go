@@ -11,6 +11,7 @@ import (
 	"C"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -28,25 +29,6 @@ const (
 	fakeInodeMSW          = 0xdeadc001
 )
 
-var (
-	// getNameFromCacheTags is the list of tags used to monitor the name resolution from cache
-	getNameFromCacheTags = []string{metrics.CacheTag, metrics.SegmentResolutionTag}
-	// getNameFromMapTags is the list of tags used to monitor the name resolution from kernel maps
-	getNameFromMapTags = []string{metrics.KernelMapsTag, metrics.SegmentResolutionTag}
-	// resolveFromCacheTags is the list of tags used to monitor the dentry resolution from cache
-	resolveFromCacheTags = []string{metrics.CacheTag, metrics.PathResolutionTag}
-	// resolveFromMapTags is the list of tags used to monitor the kernel map dentry resolution
-	resolveFromMapTags = []string{metrics.KernelMapsTag, metrics.PathResolutionTag}
-	// getNameFromERPCTags is the list of tags used to monitor the eRPC name resolution
-	getNameFromERPCTags = []string{metrics.ERPCTag, metrics.SegmentResolutionTag}
-	// resolveFromERPCTags is the list of tags used to monitor the eRPC dentry resolution
-	resolveFromERPCTags = []string{metrics.ERPCTag, metrics.PathResolutionTag}
-	// resolveParentFromCacheTags is the list of tags used to monitor the cached parent resolution
-	resolveParentFromCacheTags = []string{metrics.CacheTag, metrics.ParentResolutionTag}
-	// resolveParentFromMapTags is the list of tags used to monitor the kernel maps parent resolution
-	resolveParentFromMapTags = []string{metrics.KernelMapsTag, metrics.ParentResolutionTag}
-)
-
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
 	client          *statsd.Client
@@ -58,6 +40,9 @@ type DentryResolver struct {
 	erpcRequest     ERPCRequest
 	erpcEnabled     bool
 	mapEnabled      bool
+
+	hitsCounters map[string]map[string]*int64
+	missCounters map[string]map[string]*int64
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -117,6 +102,28 @@ type PathValue struct {
 // GetName returns the path value as a string
 func (pv *PathValue) GetName() string {
 	return C.GoString((*C.char)(unsafe.Pointer(&pv.Name)))
+}
+
+// SendStats sends the dentry resolver metrics
+func (dr *DentryResolver) SendStats() error {
+	for resolution, hitsCounters := range dr.hitsCounters {
+		for resolutionType, value := range hitsCounters {
+			val := atomic.SwapInt64(value, 0)
+			if val > 0 {
+				_ = dr.client.Count(metrics.MetricDentryResolverHits, val, []string{resolutionType, resolution}, 1.0)
+			}
+		}
+	}
+
+	for resolution, hitsCounters := range dr.missCounters {
+		for resolutionType, value := range hitsCounters {
+			val := atomic.SwapInt64(value, 0)
+			if val > 0 {
+				_ = dr.client.Count(metrics.MetricDentryResolverMiss, val, []string{resolutionType, resolution}, 1.0)
+			}
+		}
+	}
+	return nil
 }
 
 // DelCacheEntry removes an entry from the cache
@@ -182,11 +189,11 @@ func (dr *DentryResolver) cacheInode(mountID uint32, inode uint64, pathValue Pat
 func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (string, error) {
 	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, getNameFromCacheTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.CacheTag], 1)
 		return "", err
 	}
 
-	_ = dr.client.Count(metrics.MetricDentryResolverHits, 1, getNameFromCacheTags, 1.0)
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.CacheTag], 1)
 	return path.GetName(), nil
 }
 
@@ -202,11 +209,11 @@ func (dr *DentryResolver) lookupInodeFromMap(mountID uint32, inode uint64, pathI
 func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	pathValue, err := dr.lookupInodeFromMap(mountID, inode, pathID)
 	if err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, getNameFromMapTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
 		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
 	}
 
-	_ = dr.client.Count(metrics.MetricDentryResolverHits, 1, getNameFromMapTags, 1.0)
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
 	return pathValue.GetName(), nil
 }
 
@@ -236,7 +243,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		path, err = dr.lookupInodeFromCache(key.MountID, key.Inode)
 		if err != nil {
-			_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveFromCacheTags, 1.0)
+			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.CacheTag], 1)
 			break
 		}
 		depth++
@@ -258,7 +265,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 	}
 
 	if depth > 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverHits, depth, resolveFromCacheTags, 1.0)
+		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.CacheTag], depth)
 	}
 
 	return
@@ -284,7 +291,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		key.Write(keyBuffer)
 		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filename = dentryPathKeyNotFound
-			_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveFromMapTags, 1.0)
+			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 			break
 		}
 		depth++
@@ -312,7 +319,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	}
 
 	if depth > 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverHits, depth, resolveFromMapTags, 1.0)
+		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
 	}
 
 	// resolution errors are more important than regular map lookup errors
@@ -361,22 +368,22 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	dr.preventSegmentMajorPageFault()
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, getNameFromERPCTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
 	if dr.erpcSegment[0] == 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, getNameFromERPCTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
 
 	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
 	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, getNameFromERPCTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("couldn't resolve segment (len: %d)", len(seg))
 	}
 
-	_ = dr.client.Count(metrics.MetricDentryResolverHits, 1, getNameFromERPCTags, 1.0)
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 	return seg, nil
 }
 
@@ -400,7 +407,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	dr.preventSegmentMajorPageFault()
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveFromERPCTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
@@ -408,7 +415,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var segments []string
 
 	if dr.erpcSegment[0] == 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveFromERPCTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
 
@@ -469,7 +476,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	}
 
 	if depth > 0 {
-		_ = dr.client.Count(metrics.MetricDentryResolverHits, depth, resolveFromERPCTags, 1.0)
+		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
 	}
 
 	return filename, resolutionErr
@@ -490,22 +497,22 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (
 func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
 	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveParentFromCacheTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.CacheTag], 1)
 		return 0, 0, ErrEntryNotFound
 	}
 
-	_ = dr.client.Count(metrics.MetricDentryResolverHits, 1, resolveParentFromCacheTags, 1.0)
+	atomic.AddInt64(dr.hitsCounters[metrics.ParentResolutionTag][metrics.CacheTag], 1)
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
 func (dr *DentryResolver) resolveParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	path, err := dr.lookupInodeFromMap(mountID, inode, pathID)
 	if err != nil {
-		_ = dr.client.Count(metrics.MetricDentryResolverMiss, 1, resolveParentFromMapTags, 1.0)
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.KernelMapsTag], 1)
 		return 0, 0, err
 	}
 
-	_ = dr.client.Count(metrics.MetricDentryResolverHits, 1, resolveParentFromMapTags, 1.0)
+	atomic.AddInt64(dr.hitsCounters[metrics.ParentResolutionTag][metrics.KernelMapsTag], 1)
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
@@ -566,6 +573,23 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		return nil, errors.Wrap(err, "failed to mmap memory segment")
 	}
 
+	hitsCounters := make(map[string]map[string]*int64)
+	missCounters := make(map[string]map[string]*int64)
+	for _, resolution := range metrics.AllResolutionsTags {
+		hitsCounters[resolution] = make(map[string]*int64)
+		missCounters[resolution] = make(map[string]*int64)
+		for _, resolutionType := range metrics.AllTypesTags {
+			// procfs resolution doesn't exist in the dentry resolver
+			if resolutionType == metrics.ProcFSTag {
+				continue
+			}
+			hits := int64(0)
+			miss := int64(0)
+			hitsCounters[resolution][resolutionType] = &hits
+			missCounters[resolution][resolutionType] = &miss
+		}
+	}
+
 	return &DentryResolver{
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
@@ -575,5 +599,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
 		mapEnabled:      probe.config.MapDentryResolutionEnabled,
+		hitsCounters:    hitsCounters,
+		missCounters:    missCounters,
 	}, nil
 }
