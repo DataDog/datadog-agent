@@ -437,8 +437,8 @@ def apply_branding(ctx):
                   "./omnibus/config/projects/agent.rb")
     do_sed_rename(ctx, 's/"SOFTWARE\\\\\\\\Datadog\\\\\\\\"/"SOFTWARE\\\\\\\\StackState\\\\\\\\"/g',
                   "./pkg/util/winutil/shutil.go")
-    do_sed_rename(ctx, 's/datadog.yaml/StackState\\\\\\\\stackstate.yaml/g',
-                  "./tools/windows/install-help/cal/strings.cpp")
+    # do_sed_rename(ctx, 's/datadog.yaml/stackstate.yaml/g',
+    #               "./tools/windows/install-help/cal/strings.cpp")
 
     # Windows SysTray and GUI
     tray_replace = 's/ddtray/ststray/'
