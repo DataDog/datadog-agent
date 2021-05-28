@@ -28,6 +28,28 @@ const (
 	MethodPatch
 )
 
+// Method returns a string representing the HTTP method of the request
+func (m Method) String() string {
+	switch m {
+	case MethodGet:
+		return "GET"
+	case MethodPost:
+		return "POST"
+	case MethodPut:
+		return "PUT"
+	case MethodHead:
+		return "HEAD"
+	case MethodDelete:
+		return "DELETE"
+	case MethodOptions:
+		return "OPTIONS"
+	case MethodPatch:
+		return "PATCH"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // Key is an identifier for a group of HTTP transactions
 type Key struct {
 	SrcIPHigh uint64
