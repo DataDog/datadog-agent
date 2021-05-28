@@ -124,21 +124,21 @@ build_windows_python3_zip_x64:
   extends: .build_windows_python_common
   variables:
     ARCH: "x64"
-    WINDOWS_PYTHON_VERSION: ${env:WINDOWS_PYTHON_VERSION}
+    WINDOWS_PYTHON_VERSION: "3.8.10"
   artifacts:
     expire_in: 2 weeks
     paths:
-      - build-out/python-windows-${env:WINDOWS_PYTHON_VERSION}-amd64.zip
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-amd64.zip
 
 build_windows_python3_zip_x86:
   extends: .build_windows_python_common
   variables:
     ARCH: "x86"
-    WINDOWS_PYTHON_VERSION: ${env:WINDOWS_PYTHON_VERSION}
+    WINDOWS_PYTHON_VERSION: "3.8.10"
   artifacts:
     expire_in: 2 weeks
     paths:
-      - build-out/python-windows-${env:WINDOWS_PYTHON_VERSION}-x86.zip
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-x86.zip
 
 build_windows_python2_zip_x64:
   extends: .build_windows_python_common
@@ -148,7 +148,7 @@ build_windows_python2_zip_x64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - build-out/python-windows-2.7.18-amd64.zip
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-amd64.zip
 
 build_windows_python2_zip_x86:
   extends: .build_windows_python_common
@@ -158,4 +158,4 @@ build_windows_python2_zip_x86:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - build-out/python-windows-2.7.18-x86.zip
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-x86.zip
