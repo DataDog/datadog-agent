@@ -347,7 +347,7 @@ func NewModule(cfg *config.Config) (module.Module, error) {
 			return nil, err
 		}
 	} else {
-		log.Warn("Logs won't be send to DataDog")
+		log.Warn("metrics won't be sent to DataDog")
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)
