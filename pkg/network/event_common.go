@@ -81,9 +81,14 @@ func (d ConnectionDirection) String() string {
 type EphemeralPortType uint8
 
 const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
 	EphemeralUnknown EphemeralPortType = 0
-	EphemeralTrue    EphemeralPortType = 1
-	EphemeralFalse   EphemeralPortType = 2
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
 )
 
 func (e EphemeralPortType) String() string {
