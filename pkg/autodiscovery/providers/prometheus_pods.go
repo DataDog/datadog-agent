@@ -79,3 +79,8 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 func init() {
 	RegisterProvider("prometheus_pods", NewPrometheusPodsConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the PrometheusPodsConfigProvider
+func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}
