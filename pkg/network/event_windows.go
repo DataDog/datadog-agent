@@ -35,7 +35,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -117,7 +116,6 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	} else {
 		// V6 Address
 		srcAddr, dstAddr = convertV6Addr(flow.localAddress), convertV6Addr(flow.remoteAddress)
-		log.Infof("Converted v6 address %v %v", srcAddr, dstAddr)
 	}
 
 	cs.Source = srcAddr
