@@ -55,10 +55,10 @@ var (
 	// Dentry Resolver metrics
 
 	// MetricDentryResolverHits is the counter of successful dentry resolution
-	// Tags: cache, kernel_maps
+	// Tags: type, resolution
 	MetricDentryResolverHits = newRuntimeMetric(".dentry_resolver.hits")
 	// MetricDentryResolverMiss is the counter of unsuccessful dentry resolution
-	// Tags: cache, kernel_maps
+	// Tags: type, resolution
 	MetricDentryResolverMiss = newRuntimeMetric(".dentry_resolver.miss")
 
 	// Perf buffer metrics
