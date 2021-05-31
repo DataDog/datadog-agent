@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -34,6 +33,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
@@ -184,7 +184,7 @@ func (m *Module) Reload() error {
 	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
 
 	// filter errors, to not display duplicate errors
-	filteredErr := filterMultiError(loadErr, displayedErrors)
+	filteredErr := utils.FilterMultiError(loadErr, displayedErrors)
 	if filteredErr.ErrorOrNil() != nil {
 		log.Errorf("error while loading policies: %+v", filteredErr.Error())
 	}
@@ -220,37 +220,6 @@ func (m *Module) Reload() error {
 	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
 
 	return nil
-}
-
-/// filterMultiError creates a new *multierror.Error filtering an existing one with a list of error
-func filterMultiError(multi *multierror.Error, filter []error) *multierror.Error {
-	var res *multierror.Error
-
-	filterMsgs := make([]string, 0, len(filter))
-	for _, ferr := range filter {
-		if ferr != nil {
-			filterMsgs = append(filterMsgs, ferr.Error())
-		}
-	}
-
-	for _, current := range multi.Errors {
-		if current == nil {
-			continue
-		}
-
-		isFiltered := false
-		for _, errMsg := range filterMsgs {
-			if current.Error() == errMsg {
-				isFiltered = true
-			}
-		}
-
-		if !isFiltered {
-			res = multierror.Append(res, current)
-		}
-	}
-
-	return res
 }
 
 // Close the module
