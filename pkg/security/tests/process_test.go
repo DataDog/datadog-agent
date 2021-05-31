@@ -172,7 +172,7 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	})
 
 	t.Run("inode", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestProcessContext(t *testing.T) {
 		} else {
 			assertFieldEqual(t, event, "process.file.path", executable)
 			assert.Equal(t, event.ResolveProcessCacheEntry().FileFields.Inode, getInode(t, executable), "wrong inode")
-		}
+		})
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -267,7 +267,7 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	})
 
 	t.Run("argv", func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	})
 
 	t.Run("tty", func(t *testing.T) {
@@ -468,7 +468,7 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -497,7 +497,7 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	})
 
 	test.Run(t, "service-tag", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -566,7 +566,7 @@ func TestProcessExec(t *testing.T) {
 	} else {
 		assertFieldEqual(t, event, "exec.file.path", executable)
 		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
-	}
+	})
 }
 
 func TestProcessMetadata(t *testing.T) {

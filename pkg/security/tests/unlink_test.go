@@ -55,7 +55,7 @@ func TestUnlink(t *testing.T) {
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-		}
+		})
 	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -81,7 +81,7 @@ func TestUnlink(t *testing.T) {
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-		}
+		})
 	})
 }
 

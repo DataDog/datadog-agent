@@ -64,7 +64,7 @@ func TestOpen(t *testing.T) {
 			if !validateOpenSchema(t, event) {
 				t.Fatal(event.String())
 			}
-		}
+		})
 	}))
 
 	t.Run("openat", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	})
 
 	openHow := unix.OpenHow{
@@ -110,7 +110,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
@@ -129,7 +129,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	}))
 
 	t.Run("truncate", func(t *testing.T) {
@@ -161,7 +161,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, event.GetType(), "open", "wrong event type")
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
@@ -209,7 +209,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, event.GetType(), "open", "wrong event type")
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
@@ -273,7 +273,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0747)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 
 		// same with openat2
 
@@ -307,7 +307,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-		}
+		})
 	})
 
 	_ = os.Remove(testFile)

@@ -62,7 +62,7 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
@@ -102,7 +102,7 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("utimensat", func(t *testing.T) {
@@ -145,6 +145,6 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	})
 }

@@ -198,6 +198,7 @@ def build_functional_tests(
     arch="x64",
     major_version='7',
     build_tags='functionaltests',
+    build_flags='',
     bundle_ebpf=True,
     static=False,
 ):
@@ -230,11 +231,12 @@ def build_functional_tests(
     )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
-    cmd += '{repo_path}/pkg/security/tests'
+    cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
         "ldflags": ldflags,
+        "build_flags": build_flags,
         "build_tags": build_tags,
         "repo_path": REPO_PATH,
     }
