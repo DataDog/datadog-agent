@@ -7,7 +7,7 @@ package utils
 
 import "github.com/hashicorp/go-multierror"
 
-/// FilterMultiError creates a new *multierror.Error filtering an existing one with a list of error
+// FilterMultiError creates a new *multierror.Error filtering an existing one with a list of error
 func FilterMultiError(multi *multierror.Error, filter []error) *multierror.Error {
 	if multi == nil {
 		return nil
