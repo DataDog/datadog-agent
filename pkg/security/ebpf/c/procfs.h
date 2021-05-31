@@ -22,9 +22,23 @@ int kprobe__security_inode_getattr(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-    u32 mount_id = get_path_mount_id(path);
-    struct dentry *dentry = get_path_dentry(path);
+    u32 mount_id = 0;
+    struct dentry *dentry;
+
+    u64 getattr2;
+    LOAD_CONSTANT("getattr2", getattr2);
+
+    if (getattr2) {
+        struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
+        mount_id = get_vfsmount_mount_id(mnt);
+
+        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+    } else {
+        struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+        mount_id = get_path_mount_id(path);
+
+        dentry = get_path_dentry(path);
+    }
 
     u32 flags = 0;
     u64 inode = get_dentry_ino(dentry);
