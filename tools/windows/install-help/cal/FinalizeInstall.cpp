@@ -180,8 +180,6 @@ UINT doFinalizeInstall(CustomActionData &data)
             goto LExit;
         }
     }
-    er = addDdUserPermsToFile(data, programdata);
-    WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
     er = addDdUserPermsToFile(data, programdataroot);
     WcaLog(LOGMSG_STANDARD, "%d setting programdataroot dir perms", er);
     er = addDdUserPermsToFile(data, embedded2Dir);

@@ -33,8 +33,6 @@ std::wstring strRollbackKeyName;                // IDS_REGKEY_ROLLBACK_KEY_NAME
 std::wstring strUninstallKeyName;               // IDS_REGKEY_UNINSTALL_KEY_NAME
 
 std::wstring programdataroot;
-// [sts] Used to target programdata
-std::wstring programdata;
 std::wstring logfilename;
 std::wstring authtokenfilename;
 std::wstring datadogyamlfile;
@@ -232,14 +230,6 @@ void getOsStrings()
     ddRegKey ddroot;
     std::wstring confroot;
 
-    // [sts] We need to apply the programdata route to the programdata variable
-    if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
-    {
-        // [sts] Apply this new route to the original variable
-        programdata = outstr;
-        programdata += L"\\";
-    }
-
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
         if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
@@ -270,8 +260,8 @@ void getOsStrings()
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     // [sts] Replaced the target path to a valid location
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdata + L"StackState\\stackstate.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdata + L"StackState\\stackstate.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"\\stackstate.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"\\stackstate.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;
