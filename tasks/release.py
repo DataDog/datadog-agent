@@ -982,7 +982,6 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     for module in DEFAULT_MODULES.values():
         if module.should_tag:
             for tag in module.tag(agent_version):
-                print("Creating tag {tag}".format(tag=tag))
                 ctx.run(
                     "git tag -m {tag} {tag} {commit}{force_option}".format(
                         tag=tag, commit=commit, force_option=force_option
