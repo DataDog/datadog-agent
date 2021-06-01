@@ -4,7 +4,6 @@ package python
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -14,7 +13,7 @@ import "C"
 func testParsingMapWithDifferentTypes(t *testing.T) {
 	yaml := C.CString(`
 key: value ®
-stringlist: 
+stringlist:
   - a
   - b
   - c
@@ -34,7 +33,7 @@ nestedobject:
     wings: eagle
     tail: crocodile`)
 
-	convertedMap, err := unsafeParseYamlToMap(yaml)
+	convertedMap, err := tryParseYamlToMap(yaml)
 	assert.Equal(t, nil, err)
 
 	expectedJsonMap := map[string]interface{}{
@@ -78,7 +77,7 @@ yaml:
     name: Service Checks
     stream_id: -1`)
 
-	convertedMap, err := unsafeParseYamlToMap(yaml)
+	convertedMap, err := tryParseYamlToMap(yaml)
 	assert.Equal(t, nil, err)
 
 	expectedJsonMap := map[string]interface{}{
@@ -122,7 +121,7 @@ func testErrorParsingNonMapYaml(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
-	} {
+	}{
 		{
 			name: "string instead of map",
 			yaml: `I'm such A sentence!`,
@@ -144,16 +143,10 @@ func testErrorParsingNonMapYaml(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := unsafeParseYamlToMap(C.CString(tt.yaml))
+			res, err := tryParseYamlToMap(C.CString(tt.yaml))
 			assert.NotEqual(t, nil, err)
 			assert.Equal(t, 0, len(res)) //empty map
 		})
-	}
-}
-
-func recoverParsingError() {
-	if r := recover(); r != nil {
-		println(fmt.Sprintf("Type conversion errors while turning map[interface] to map[string]: %v", recover()))
 	}
 }
 
@@ -163,7 +156,7 @@ func testErrorParsingNonStringKeys(t *testing.T) {
 	tests := []struct {
 		name string
 		yaml string
-	} {
+	}{
 		{
 			name: "int key",
 			yaml: `yaml:
@@ -174,20 +167,17 @@ func testErrorParsingNonStringKeys(t *testing.T) {
 			yaml: `yaml:
                      null: true`,
 		},
-
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer recoverParsingError()
-
 			yaml := C.CString(tt.yaml)
-			res, err := unsafeParseYamlToMap(yaml)
-			assert.Equal(t, 0, len(res)) //empty map
-			assert.Equal(t, nil, err)
-
-			// Never reaches here if `OtherFunctionThatPanics` panics.
-			t.Errorf("did not panic")
+			res, err := tryParseYamlToMap(yaml)
+			// Bram & Tiziano: Apparently the uninitialized map is different than the empty map or nil pointer.
+			// We figured this out the hard way, so keep the below code as testament
+			var uninitMap map[string]interface{} = nil
+			assert.Equal(t, uninitMap, res)
+			assert.NotEqual(t, nil, err)
 		})
 	}
 }

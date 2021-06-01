@@ -42,8 +42,8 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 		return
 	}
 
-	_json, err := unsafeParseYamlToMap(data)
-	if len(_json) != 0 || err == nil {
+	_json, err := tryParseYamlToMap(data)
+	if err == nil || len(_json) != 0 {
 		var topologyEvent metrics.Event
 		err = mapstructure.Decode(_json, &topologyEvent)
 		if err != nil {
