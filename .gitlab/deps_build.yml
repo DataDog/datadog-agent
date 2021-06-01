@@ -116,9 +116,9 @@ build_clang_arm64:
     - if ($ARCH -eq "x86") { $cmd += " -x86" }
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C $cmd
     - get-childitem build-out
-    - Write-Host Saving artifact to s3://dd-agent-omnibus.s3.amazonaws.com
+    - Write-Host Saving artifact to s3://dd-agent-omnibus
     - $pyzip_test_name = 'test-{0}' -f $pyzip_name
-    - Invoke-Expression "$S3_CP_CMD build-out/$pyzip_name s3://dd-agent-omnibus.s3.amazonaws.com/$pyzip_test_name"
+    - Invoke-Expression "$S3_CP_CMD build-out/$pyzip_name s3://dd-agent-omnibus/$pyzip_test_name"
   timeout: 0h 30m
 
 build_windows_python3_zip_x64:
