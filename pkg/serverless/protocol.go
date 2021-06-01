@@ -282,10 +282,10 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merge them use any user-predefined tags and set them to traces, logs and metrics
-func (d *Daemon) ComputeGlobalTags(arn string, tags []string) {
+func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMapFromArn(arn)
-		tagArray := buildTagsFromMap(tagMap, blackListTagForMetricsAndLogs())
+		tagArray := buildTagsFromMap(configTags, tagMap, blackListTagForMetricsAndLogs())
 		d.statsdServer.SetExtraTags(tagArray)
 		d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
 		d.extraTags = tagArray

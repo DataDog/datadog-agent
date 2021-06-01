@@ -47,10 +47,13 @@ func TestBuildTagsFromMap(t *testing.T) {
 		"key2": "value2",
 		"key3": "value3",
 	}
+	configTags := []string{"configTagKey0:configTagValue0", "configTagKey1:configTagValue1"}
 	blackList := []string{"key1", "key2"}
-	resultTagsArray := buildTagsFromMap(tagsMap, blackList)
+	resultTagsArray := buildTagsFromMap(configTags, tagsMap, blackList)
 	sort.Strings(resultTagsArray)
 	assert.Equal(t, []string{
+		"configTagKey0:configTagValue0",
+		"configTagKey1:configTagValue1",
 		"key0:value0",
 		"key3:value3",
 	}, resultTagsArray)

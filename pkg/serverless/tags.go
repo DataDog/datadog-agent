@@ -54,7 +54,7 @@ func buildTagMapFromArn(arn string) map[string]string {
 	return tags
 }
 
-func buildTagsFromMap(tags map[string]string, tagBlackList []string) []string {
+func buildTagsFromMap(configTags []string, tags map[string]string, tagBlackList []string) []string {
 	tagsMap := make(map[string]string)
 	for k, v := range tags {
 		tagsMap[k] = v
@@ -62,7 +62,8 @@ func buildTagsFromMap(tags map[string]string, tagBlackList []string) []string {
 	for _, blackListKey := range tagBlackList {
 		delete(tagsMap, blackListKey)
 	}
-	tagsArray := make([]string, 0, len(tagsMap))
+	tagsArray := make([]string, 0, len(configTags)+len(tagsMap))
+	tagsArray = append(tagsArray, configTags...)
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
 	}
