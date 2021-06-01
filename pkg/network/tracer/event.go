@@ -323,7 +323,7 @@ func connStats(t *ConnTuple, s *ConnStatsWithTimestamp, tcpStats *TCPStats) netw
 		Dest:                 dest,
 		SPort:                uint16(t.sport),
 		DPort:                uint16(t.dport),
-		SPortIsEphemeral:     getPortType(uint16(t.sport)),
+		SPortIsEphemeral:     isPortInEphemeralRange(uint16(t.sport)),
 		MonotonicSentBytes:   uint64(s.sent_bytes),
 		MonotonicRecvBytes:   uint64(s.recv_bytes),
 		MonotonicSentPackets: uint64(s.sent_packets),
@@ -390,7 +390,7 @@ func newIPRouteDest(source, dest util.Address, netns uint32) *ipRouteDest {
 	return d
 }
 
-func getPortType(p uint16) network.EphemeralPortType {
+func isPortInEphemeralRange(p uint16) network.EphemeralPortType {
 
 	initEphemeralIntPair.Do(func() {
 		procfsPath := "/proc"

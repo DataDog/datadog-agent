@@ -120,14 +120,14 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 	var startportline = regexp.MustCompile(`Start.*: (\d+)`)
 	var numberline = regexp.MustCompile(`Number.*: (\d+)`)
 
-	startport := startportline.FindStringSubmatch(string(output))
-	rangelen := numberline.FindStringSubmatch(string(output))
+	startPort := startportline.FindStringSubmatch(string(output))
+	rangeLen := numberline.FindStringSubmatch(string(output))
 
-	portstart, err := strconv.Atoi(startport[1])
+	portstart, err := strconv.Atoi(startPort[1])
 	if err != nil {
 		return
 	}
-	len, err := strconv.Atoi(rangelen[1])
+	len, err := strconv.Atoi(rangeLen[1])
 	if err != nil {
 		return
 	}
@@ -150,13 +150,13 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 	return
 }
 
-func getPortType(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
-	rangelow := ephemeralRanges[f][t]["lo"]
-	rangehi := ephemeralRanges[f][t]["hi"]
-	if rangelow == 0 || rangehi == 0 {
+func isPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
+	rangeLow := ephemeralRanges[f][t]["lo"]
+	rangeHi := ephemeralRanges[f][t]["hi"]
+	if rangeLow == 0 || rangeHi == 0 {
 		return EphemeralUnknown
 	}
-	if p >= rangelow && p <= rangehi {
+	if p >= rangeLow && p <= rangeHi {
 		return EphemeralTrue
 	}
 	return EphemeralFalse
@@ -251,7 +251,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	cs.Type = connectionType
 	cs.Family = family
 	cs.Direction = connDirection(flow.flags)
-	cs.SPortIsEphemeral = getPortType(cs.Family, cs.Type, cs.SPort)
+	cs.SPortIsEphemeral = isPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 
 	// reset other fields to default values
 	cs.NetNS = 0

@@ -4,7 +4,6 @@ package sysctl
 
 import (
 	"encoding/binary"
-
 	"strings"
 	"syscall"
 	"time"
@@ -23,6 +22,10 @@ func newSCtl(sysctl string, cacheFor time.Duration) *sctl {
 	}
 }
 
+// returns the value in string format; is valid
+// when the second return is `true`; false with error nil
+// indicates the duration hasn't exceeded, false withn
+// error indicates actual error.
 func (s *sctl) get(now time.Time) (string, bool, error) {
 	if !s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now) {
 		return "", false, nil
@@ -60,8 +63,8 @@ func (i *Int16) Get() (uint16, error) {
 func (i *Int16) get(now time.Time) (uint16, error) {
 	v, updated, err := i.sctl.get(now)
 	if err == nil && updated {
-		asbytes := []byte(v)
-		i.v = binary.LittleEndian.Uint16(asbytes)
+		asBytes := []byte(v)
+		i.v = binary.LittleEndian.Uint16(asBytes)
 
 	}
 
