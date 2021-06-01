@@ -64,8 +64,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
+			fmt.Printf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
+				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
 		},
 	}
 
@@ -86,8 +86,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath     = "/var/task/datadog.yaml"
-	fetchAccountIDTimeout = 500.0 * time.Millisecond
+	datadogConfigPath = "/var/task/datadog.yaml"
 )
 
 const (
