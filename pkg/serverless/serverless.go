@@ -249,7 +249,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
-
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 

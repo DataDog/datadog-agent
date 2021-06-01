@@ -272,7 +272,7 @@ func GetScheduler() *Scheduler {
 	return adScheduler
 }
 
-//
+// GetSourceFromName returns the LogSource from the source name if it exists.
 func (s *Scheduler) GetSourceFromName(name string) *logsConfig.LogSource {
 	for _, source := range s.sources.GetSources() {
 		if name == source.Config.Source {

@@ -123,6 +123,7 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	// Increment the invocation wait group which tracks whether work is in progress for the daemon
 	d.InvcWg.Add(1)
+	d.extraTagsSetWg.Wait()
 	defer d.InvcWg.Done()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -262,6 +263,7 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
+	d.extraTagsSetWg.Wait()
 	d.InvcWg.Done()
 }
 
@@ -286,12 +288,13 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	return d.clientLibReady
 }
 
+// ComputeGlobalTags extracts tags from the ARN, merge them use any user-predefined tags and set them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(arn string, tags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMapFromArn(arn)
 		tagArray := buildTagsFromMap(tagMap, blackListTagForMetricsAndLogs())
 		d.statsdServer.SetExtraTags(tagArray)
-		d.traceAgent.SetExtraTags(buildTracerTags(tagMap, blackListTagForTraces()))
+		d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
 		source := scheduler.GetScheduler().GetSourceFromName("lambda")
 		if source != nil {
 			source.Config.Tags = tagArray

@@ -440,6 +440,7 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 	return event.NewProcessor(extractors, conf.MaxEPS)
 }
 
-func (a *Agent) SetExtraTags(tags map[string]string) {
+// SetGlobalTags sets global tags to the current configuration
+func (a *Agent) SetGlobalTags(tags map[string]string) {
 	a.conf.GlobalTags = tags
 }
