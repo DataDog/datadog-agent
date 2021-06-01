@@ -754,6 +754,29 @@ func TestBootTimeLocalFS(t *testing.T) {
 	assert.Equal(t, expectT, probe.bootTime)
 }
 
+func TestBootTimeRefresh(t *testing.T) {
+	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+	bootTimeRefreshInterval = 500 * time.Millisecond
+	probe := getProbeWithPermission()
+	defer probe.Close()
+
+	assert.Equal(t, uint64(1606127264), probe.bootTime)
+	err := os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat_temp")
+	require.NoError(t, err)
+	err = os.Rename("resources/test_procfs/proc/stat2", "resources/test_procfs/proc/stat")
+	require.NoError(t, err)
+
+	// wait for 1s so the bootTime is refreshed.
+	// This is not deterministic, but I think it's good enough to test the behavior
+	time.Sleep(time.Second)
+	assert.Equal(t, uint64(1606127364), probe.bootTime)
+
+	err = os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat2")
+	require.NoError(t, err)
+	err = os.Rename("resources/test_procfs/proc/stat_temp", "resources/test_procfs/proc/stat")
+	require.NoError(t, err)
+}
+
 func TestParseStatmTestFS(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	defer os.Unsetenv("HOST_PROC")
