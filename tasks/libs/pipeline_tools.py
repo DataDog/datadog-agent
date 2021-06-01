@@ -2,6 +2,8 @@ import functools
 import platform
 from time import sleep, time
 
+from tasks.utils import DEFAULT_BRANCH
+
 from .common.color import color_message
 from .common.gitlab import Gitlab
 from .common.user_interactions import yes_no_question
@@ -50,7 +52,7 @@ def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
 def trigger_agent_pipeline(
     gitlab,
     project,
-    ref="master",
+    ref=DEFAULT_BRANCH,
     release_version_6="nightly",
     release_version_7="nightly-a7",
     branch="nightly",
@@ -74,14 +76,14 @@ def trigger_agent_pipeline(
         args["DEPLOY_AGENT"] = "true"
 
     # The RUN_ALL_BUILDS option can be selectively enabled. However, it cannot be explicitly
-    # disabled on pipelines where they're activated by default (master & deploy pipelines)
-    # as that would make the pipeline fail (some jobs on master and deploy pipelines depend
+    # disabled on pipelines where they're activated by default (default branch & deploy pipelines)
+    # as that would make the pipeline fail (some jobs on the default branch and deploy pipelines depend
     # on jobs that are only run if RUN_ALL_BUILDS is true).
     if all_builds:
         args["RUN_ALL_BUILDS"] = "true"
 
     # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
-    # enabled by default (master and deploy pipelines).
+    # enabled by default (default branch and deploy pipelines).
     if kitchen_tests:
         args["RUN_KITCHEN_TESTS"] = "true"
     else:
