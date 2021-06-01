@@ -238,6 +238,8 @@ func TestDetectorTestSuite(t *testing.T) {
 }
 
 func TestStandardCollectorsHaveCorrectPriorities(t *testing.T) {
+	assert.Contains(t, collectorPriorities, "kubelet")
+	assert.Contains(t, collectorPriorities, "docker")
 	assert.Equal(t, NodeOrchestrator, collectorPriorities["kubelet"])
 	assert.Equal(t, NodeRuntime, collectorPriorities["docker"])
 }
