@@ -28,6 +28,8 @@ services:
       interval: 3s
       timeout: 30s
       retries: 10
+    volumes:
+      - "./create-topics.sh:/usr/bin/create-topics.sh"
     mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:{{ stackstate_branch }}"
