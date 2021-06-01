@@ -9,6 +9,8 @@ import re
 import sys
 from subprocess import check_output
 
+from invoke import task
+
 # constants
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
@@ -314,7 +316,11 @@ def load_release_versions(_, target_version):
     raise Exception("Could not find '{}' version in release.json".format(target_version))
 
 
+@task()
 def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
     args = {
         "go_file": "./pkg/config/render_config.go",
         "build_type": build_type,

@@ -18,7 +18,15 @@ message SecurityDumpProcessCacheMessage {
     string Filename = 1;
 }
 
+message GetConfigParams{}
+
+message SecurityConfigMessage {
+    bool RuntimeEnabled = 1;
+    bool FIMEnabled = 2;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
+    rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
 }

@@ -224,7 +224,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		ProxyAddress:     "proxy.test:3128"}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints()
+	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -321,7 +321,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		ProxyAddress:     "proxy.test:3128"}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints()
+	endpoints, err := buildTCPEndpoints(defaultLogsConfigKeys())
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -331,7 +331,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
 
-	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.")
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.")
 
 	suite.Nil(err)
@@ -369,7 +369,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	os.Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
 	defer os.Unsetenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT")
 
-	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.")
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.")
 
 	suite.Nil(err)

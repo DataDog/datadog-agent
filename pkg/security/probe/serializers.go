@@ -288,24 +288,39 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func scrubArgs(process *model.Process, e *Event) []string {
-	args := process.ArgsArray
+func scrubArgs(pr *model.Process, e *Event) ([]string, bool) {
+	argv, truncated := e.resolvers.ProcessResolver.GetProcessArgv(pr)
 
 	// scrub args, do not send args if no scrubber instance is passed
 	// can be the case for some custom event
 	if e.scrubber == nil {
-		args = []string{}
+		argv = []string{}
 	} else {
-		if newArgs, changed := e.scrubber.ScrubCommand(args); changed {
-			args = newArgs
+		if newArgv, changed := e.scrubber.ScrubCommand(argv); changed {
+			argv = newArgv
 		}
 	}
 
-	return args
+	return argv, truncated
+}
+
+func scrubEnvs(pr *model.Process, e *Event) ([]string, bool) {
+	envs, truncated := e.resolvers.ProcessResolver.GetProcessEnvs(pr)
+	if envs == nil {
+		return nil, false
+	}
+
+	result := make([]string, 0, len(envs))
+	for key := range envs {
+		result = append(result, key)
+	}
+
+	return result, truncated
 }
 
 func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *ProcessCacheEntrySerializer {
-	args := scrubArgs(&pce.Process, e)
+	argv, argvTruncated := scrubArgs(&pce.Process, e)
+	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
 		Inode:               pce.FileFields.Inode,
@@ -315,55 +330,18 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		ExecTime:            getTimeIfNotZero(pce.ExecTime),
 		ExitTime:            getTimeIfNotZero(pce.ExitTime),
 
-		Pid:           e.ProcessContext.Pid,
-		Tid:           e.ProcessContext.Tid,
+		Pid:           pce.Process.Pid,
+		Tid:           pce.Process.Tid,
 		PPid:          pce.Process.PPid,
 		Path:          pce.Process.PathnameStr,
 		ContainerPath: pce.Process.ContainerPath,
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
-		Args:          args,
-		ArgsTruncated: pce.Process.ArgsTruncated,
-		Envs:          pce.EnvsArray,
-		EnvsTruncated: pce.Process.EnvsTruncated,
-	}
-
-	credsSerializer := newCredentialsSerializer(&pce.Credentials)
-	// Populate legacy user / group fields
-	pceSerializer.UID = credsSerializer.UID
-	pceSerializer.User = credsSerializer.User
-	pceSerializer.GID = credsSerializer.GID
-	pceSerializer.Group = credsSerializer.Group
-	pceSerializer.Credentials = &ProcessCredentialsSerializer{
-		CredentialsSerializer: credsSerializer,
-	}
-
-	if len(e.ResolveContainerID(&e.ContainerContext)) > 0 {
-		pceSerializer.Container = &ContainerContextSerializer{
-			ID: e.ResolveContainerID(&e.ContainerContext),
-		}
-	}
-	return pceSerializer
-}
-
-func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r *Resolvers) *ProcessCacheEntrySerializer {
-	pceSerializer := &ProcessCacheEntrySerializer{
-		Inode:               pce.FileFields.Inode,
-		MountID:             pce.FileFields.MountID,
-		PathResolutionError: pce.GetPathResolutionError(),
-		ForkTime:            getTimeIfNotZero(pce.ForkTime),
-		ExecTime:            getTimeIfNotZero(pce.ExecTime),
-		ExitTime:            getTimeIfNotZero(pce.ExitTime),
-
-		Pid:           pce.Pid,
-		PPid:          pce.PPid,
-		Tid:           pce.Tid,
-		Path:          pce.Process.PathnameStr,
-		ContainerPath: pce.Process.ContainerPath,
-		Comm:          pce.Comm,
-		TTY:           pce.TTYName,
-		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, r),
+		Args:          argv,
+		ArgsTruncated: argvTruncated,
+		Envs:          envs,
+		EnvsTruncated: EnvsTruncated,
 	}
 
 	credsSerializer := newCredentialsSerializer(&pce.Credentials)
@@ -387,16 +365,6 @@ func newProcessCacheEntrySerializerWithResolvers(pce *model.ProcessCacheEntry, r
 func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
 	var ps *ProcessContextSerializer
 
-	if e != nil {
-		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
-		}
-	} else {
-		ps = &ProcessContextSerializer{
-			ProcessCacheEntrySerializer: newProcessCacheEntrySerializerWithResolvers(entry, r),
-		}
-	}
-
 	if e == nil {
 		// custom events call newProcessContextSerializer with an empty Event
 		e = NewEvent(r, nil)
@@ -405,16 +373,22 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 	}
 
+	ps = &ProcessContextSerializer{
+		ProcessCacheEntrySerializer: newProcessCacheEntrySerializer(entry, e),
+	}
+
 	ctx := eval.NewContext(e.GetPointer())
 
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
+	var prev *ProcessCacheEntrySerializer
 	first := true
+
 	for ptr != nil {
 		ancestor := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessCacheEntrySerializerWithResolvers(ancestor, r)
+		s := newProcessCacheEntrySerializer(ancestor, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -422,9 +396,19 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		}
 		first = false
 
+		// dedup args/envs
+		if prev != nil {
+			// parent/child with the same comm then a fork thus we
+			// can remove the child args/envs
+			if prev.PPid == s.Pid && prev.Comm == s.Comm {
+				prev.Args, prev.ArgsTruncated = prev.Args[0:0], false
+				prev.Envs, prev.EnvsTruncated = prev.Envs[0:0], false
+			}
+		}
+		prev = s
+
 		ptr = it.Next()
 	}
-
 	return ps
 }
 

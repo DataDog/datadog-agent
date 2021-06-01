@@ -6,6 +6,8 @@
 package checks
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 )
@@ -18,6 +20,11 @@ type checkable interface {
 // checkableList abstracts a list of resource checks
 type checkableList []checkable
 
+var (
+	// ErrTruncatedResults is reported when the reports list is truncated
+	ErrTruncatedResults = errors.New("truncated result")
+)
+
 // check implements checkable interface for checkableList
 // note that this implements AND for all checkables in a check:
 // failure or error from a single checkable fails the check, all checkables must
@@ -25,26 +32,25 @@ type checkableList []checkable
 func (list checkableList) check(env env.Env) []*compliance.Report {
 	var (
 		reports []*compliance.Report
-		last    *compliance.Report
-		succeed = true
 	)
 
+LOOP:
 	for _, c := range list {
-		for _, last = range c.check(env) {
-			if !last.Passed {
-				succeed = false
-
-				if len(reports) < env.MaxEventsPerRun() {
-					reports = append(reports, last)
-				} else {
-					break
-				}
+		for i, report := range c.check(env) {
+			if len(reports) >= env.MaxEventsPerRun() {
+				// generate an error report to notify that the results were
+				// truncated
+				reports = append(reports, &compliance.Report{
+					Passed: false,
+					Error:  ErrTruncatedResults,
+					Data: map[string]interface{}{
+						"truncated": len(reports) - (i + 1),
+					},
+				})
+				break LOOP
 			}
+			reports = append(reports, report)
 		}
-	}
-
-	if succeed {
-		return []*compliance.Report{last}
 	}
 
 	return reports

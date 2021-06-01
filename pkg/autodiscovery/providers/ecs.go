@@ -85,3 +85,8 @@ func parseECSContainers(containers []v2.Container) ([]integration.Config, error)
 func init() {
 	RegisterProvider("ecs", NewECSConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the ECSConfigProvider
+func (p *ECSConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

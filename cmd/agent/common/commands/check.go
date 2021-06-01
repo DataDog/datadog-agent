@@ -7,10 +7,10 @@ package commands
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -42,28 +43,30 @@ import (
 )
 
 var (
-	checkRate            bool
-	checkTimes           int
-	checkPause           int
-	checkName            string
-	checkDelay           int
-	logLevel             string
-	formatJSON           bool
-	formatTable          bool
-	breakPoint           string
-	fullSketches         bool
-	saveFlare            bool
-	profileMemory        bool
-	profileMemoryDir     string
-	profileMemoryFrames  string
-	profileMemoryGC      string
-	profileMemoryCombine string
-	profileMemorySort    string
-	profileMemoryLimit   string
-	profileMemoryDiff    string
-	profileMemoryFilters string
-	profileMemoryUnit    string
-	profileMemoryVerbose string
+	checkRate              bool
+	checkTimes             int
+	checkPause             int
+	checkName              string
+	checkDelay             int
+	logLevel               string
+	formatJSON             bool
+	formatTable            bool
+	breakPoint             string
+	fullSketches           bool
+	saveFlare              bool
+	profileMemory          bool
+	profileMemoryDir       string
+	profileMemoryFrames    string
+	profileMemoryGC        string
+	profileMemoryCombine   string
+	profileMemorySort      string
+	profileMemoryLimit     string
+	profileMemoryDiff      string
+	profileMemoryFilters   string
+	profileMemoryUnit      string
+	profileMemoryVerbose   string
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -78,6 +81,8 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
+	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -143,7 +148,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
 			}
 
-			allConfigs := common.AC.GetAllConfigs()
+			if discoveryRetryInterval > discoveryTimeout {
+				fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
+				fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
+				discoveryRetryInterval = discoveryTimeout
+			}
+
+			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second)
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -710,4 +721,45 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+// containsCheck returns true if at least one config corresponds to the check name.
+func containsCheck(checkName string, configs []integration.Config) bool {
+	for _, cfg := range configs {
+		if cfg.Name == checkName {
+			return true
+		}
+	}
+
+	return false
+}
+
+// waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
+// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
+// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
+// This function improves the resiliency of the check command.
+// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
+func waitForConfigs(checkName string, retryInterval, timeout time.Duration) []integration.Config {
+	allConfigs := common.AC.GetAllConfigs()
+	if containsCheck(checkName, allConfigs) {
+		return allConfigs
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	retryTicker := time.NewTicker(retryInterval)
+	defer retryTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return allConfigs
+		case <-retryTicker.C:
+			allConfigs = common.AC.GetAllConfigs()
+			if containsCheck(checkName, allConfigs) {
+				return allConfigs
+			}
+		}
+	}
 }

@@ -292,3 +292,8 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 func init() {
 	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the kubeEndpointsConfigProvider
+func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

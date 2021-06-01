@@ -646,3 +646,15 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 		},
 	})
 }
+
+// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	errors := map[string]map[string]providers.ErrorMsgSet{}
+	for _, pd := range ac.providers {
+		configErrors := pd.provider.GetConfigErrors()
+		if len(configErrors) > 0 {
+			errors[pd.provider.String()] = configErrors
+		}
+	}
+	return errors
+}

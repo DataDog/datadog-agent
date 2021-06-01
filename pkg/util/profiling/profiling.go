@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -30,19 +30,12 @@ const (
 	DefaultProfilingPeriod = 5 * time.Minute
 )
 
-// Active returns a boolean indicating whether profiling is active or not;
-// this function is thread-safe.
-func Active() bool {
-	mu.RLock()
-	defer mu.RUnlock()
-
-	return running
-}
-
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
 func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, tags ...string) error {
-	if Active() {
+	mu.Lock()
+	defer mu.Unlock()
+	if running {
 		return nil
 	}
 
@@ -57,11 +50,8 @@ func Start(apiKey, site, env, service string, period time.Duration, cpuDuration 
 		profiler.WithTags(tags...),
 	)
 	if err == nil {
-		mu.Lock()
-		defer mu.Unlock()
-
-		log.Debugf("Profiling started! Submitting to: %s", site)
 		running = true
+		log.Debugf("Profiling started! Submitting to: %s", site)
 	}
 
 	return err
@@ -69,10 +59,9 @@ func Start(apiKey, site, env, service string, period time.Duration, cpuDuration 
 
 // Stop stops the profiler if running - idempotent; this function is thread-safe.
 func Stop() {
-	if Active() {
-		mu.Lock()
-		defer mu.Unlock()
-
+	mu.Lock()
+	defer mu.Unlock()
+	if running {
 		profiler.Stop()
 		running = false
 	}

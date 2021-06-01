@@ -58,6 +58,7 @@ func TestKubeNetworkPolicies(t *testing.T) {
 					compliance.KubeResourceFieldVersion: "v1",
 					compliance.KubeResourceFieldGroup:   "",
 				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -75,6 +76,7 @@ func TestKubeNetworkPolicies(t *testing.T) {
 					compliance.KubeResourceFieldVersion: "v1",
 					compliance.KubeResourceFieldGroup:   "",
 				},
+				Aggregated: true,
 			},
 		},
 	}
