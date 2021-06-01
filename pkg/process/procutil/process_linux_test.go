@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -641,7 +642,7 @@ func TestParseStatContent(t *testing.T) {
 	defer probe.Close()
 
 	// hard code the bootTime so we get consistent calculation for createTime
-	probe.bootTime = 1606181252
+	atomic.StoreUint64(&probe.bootTime, 1606181252)
 	now := time.Now()
 
 	for _, tc := range []struct {
@@ -751,7 +752,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 	defer probe.Close()
 	expectT, err := host.BootTime()
 	assert.NoError(t, err)
-	assert.Equal(t, expectT, probe.bootTime)
+	assert.Equal(t, expectT, atomic.LoadUint64(&probe.bootTime))
 }
 
 func TestBootTimeRefresh(t *testing.T) {
@@ -760,7 +761,7 @@ func TestBootTimeRefresh(t *testing.T) {
 	probe := getProbeWithPermission()
 	defer probe.Close()
 
-	assert.Equal(t, uint64(1606127264), probe.bootTime)
+	assert.Equal(t, uint64(1606127264), atomic.LoadUint64(&probe.bootTime))
 	err := os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat_temp")
 	require.NoError(t, err)
 	err = os.Rename("resources/test_procfs/proc/stat2", "resources/test_procfs/proc/stat")
@@ -769,7 +770,7 @@ func TestBootTimeRefresh(t *testing.T) {
 	// wait for 1s so the bootTime is refreshed.
 	// This is not deterministic, but I think it's good enough to test the behavior
 	time.Sleep(time.Second)
-	assert.Equal(t, uint64(1606127364), probe.bootTime)
+	assert.Equal(t, uint64(1606127364), atomic.LoadUint64(&probe.bootTime))
 
 	err = os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat2")
 	require.NoError(t, err)
