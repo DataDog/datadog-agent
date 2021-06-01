@@ -15,7 +15,6 @@ import (
 const (
 	exampleArn               = "arn:aws:lambda:us-east-1:123456789012:function:my-function:7"
 	exampleArnWithoutVersion = "arn:aws:lambda:us-east-1:123456789012:function:my-function"
-	exampleFunctionName      = "my-function"
 	exampleRequestID         = "123"
 )
 
