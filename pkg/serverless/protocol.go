@@ -81,9 +81,6 @@ type Daemon struct {
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
 
-	// Wait on this WaitGroup to be sure that the extra tags are set before starting to process logs
-	extraTagsSetWg *sync.WaitGroup
-
 	extraTags []string
 }
 
@@ -123,7 +120,6 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	// Increment the invocation wait group which tracks whether work is in progress for the daemon
 	d.InvcWg.Add(1)
-	d.extraTagsSetWg.Wait()
 	defer d.InvcWg.Done()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -218,7 +214,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
-		extraTagsSetWg:   &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
@@ -231,8 +226,8 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until the DogStatsD server has been instantiated
-	daemon.ReadyWg.Add(1)
+	// this wait group will be blocking until the DogStatsD server has been instantiated + extra tags have been set
+	daemon.ReadyWg.Add(2)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -248,7 +243,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 // logs from AWS.
 // Returns the HTTP URL on which AWS should send the logs.
 func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage, error) {
-	d.extraTagsSetWg.Add(1)
 	httpAddr := fmt.Sprintf("http://sandbox:%d%s", httpServerPort, httpLogsCollectionRoute)
 	logsChan := make(chan *logConfig.ChannelMessage)
 	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
@@ -263,7 +257,6 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.extraTagsSetWg.Wait()
 	d.InvcWg.Done()
 }
 
@@ -302,7 +295,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, tags []string) {
 		} else {
 			log.Debug("Impossible to retrieve the lambda LogSource")
 		}
-		d.extraTagsSetWg.Done()
+		d.ReadyWg.Done()
 	}
 }
 
@@ -318,8 +311,6 @@ type LogsCollection struct {
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the DogStatsD daemon isn't ready, wait for it.
 	l.daemon.ReadyWg.Wait()
-	// If ExtraTagd are not computed, wait for them
-	l.daemon.extraTagsSetWg.Wait()
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
