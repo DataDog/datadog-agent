@@ -8,7 +8,7 @@ services:
       - 2181:2181
     mem_limit: 1G
   kafka:
-    image: wurstmeister/kafka:2.12-2.1.1
+    image: wurstmeister/kafka:2.12-2.3.1
     ports:
       - 9092:9092
     depends_on:
@@ -25,8 +25,8 @@ services:
       # we intermittently get that not all topics are created. This causes flaky behavior on the tests
       # We patched it by having the health check also try to create when it fails
       test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" != \"10\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
-      interval: 1s
-      timeout: 10s
+      interval: 3s
+      timeout: 30s
       retries: 10
     mem_limit: 1G
   receiver:
