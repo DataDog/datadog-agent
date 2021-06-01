@@ -64,23 +64,6 @@ func TestPersistAndRestoreCurrentState(t *testing.T) {
 	assert.Equal(t, exampleRequestID, output)
 }
 
-/*func TestGetTagsForEnhancedMetrics(t *testing.T) {
-	SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-Function:7")
-	defer SetARN("")
-
-	generatedTags := GetARNTags()
-
-	assert.Equal(t, generatedTags, []string{
-		"region:us-east-1",
-		"aws_account:123456789012",
-		"account_id:123456789012",
-		"functionname:my-function",
-		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
-		"executedversion:7",
-		"resource:my-function:7",
-	})
-}*/
-
 func resetState() {
 	SetARN("")
 	SetRequestID("")

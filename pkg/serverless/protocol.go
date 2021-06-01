@@ -295,10 +295,10 @@ func (d *Daemon) ComputeGlobalTags(arn string, tags []string) {
 		tagArray := buildTagsFromMap(tagMap, blackListTagForMetricsAndLogs())
 		d.statsdServer.SetExtraTags(tagArray)
 		d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
+		d.extraTags = tagArray
 		source := scheduler.GetScheduler().GetSourceFromName("lambda")
 		if source != nil {
 			source.Config.Tags = tagArray
-			d.extraTags = tagArray
 		} else {
 			log.Debug("Impossible to retrieve the lambda LogSource")
 		}
