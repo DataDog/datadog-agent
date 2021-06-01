@@ -18,5 +18,5 @@ require (
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
 	golang.org/x/tools v0.1.2-0.20210512205948-8287d5da45e4
 	gotest.tools/gotestsum v1.6.4
-	honnef.co/go/tools v0.1.4
+	honnef.co/go/tools v0.2.0
 )
