@@ -22,6 +22,30 @@
         "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
+    "6.29.0-rc.2": {
+        "INTEGRATIONS_CORE_VERSION": "7.29.0-rc.2",
+        "OMNIBUS_SOFTWARE_VERSION": "7.29.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.29.0-rc.1",
+        "JMXFETCH_VERSION": "0.44.1",
+        "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.10",
+        "MACOS_BUILD_VERSION": "6.29.0-rc.1",
+        "WINDOWS_DDNPM_DRIVER": "release-signed",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+        "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e"
+    },
+    "7.29.0-rc.2": {
+        "INTEGRATIONS_CORE_VERSION": "7.29.0-rc.2",
+        "OMNIBUS_SOFTWARE_VERSION": "7.29.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.29.0-rc.1",
+        "JMXFETCH_VERSION": "0.44.1",
+        "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.10",
+        "MACOS_BUILD_VERSION": "7.29.0-rc.1",
+        "WINDOWS_DDNPM_DRIVER": "release-signed",
+        "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+        "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e"
+    },
     "6.29.0-rc.1": {
         "INTEGRATIONS_CORE_VERSION": "7.29.0-rc.1",
         "OMNIBUS_SOFTWARE_VERSION": "7.29.0-rc.1",
