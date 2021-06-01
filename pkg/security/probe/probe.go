@@ -833,6 +833,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "sb_magic_offset",
 			Value: getSuperBlockMagicOffset(p),
 		},
+		manager.ConstantEditor{
+			Name:  "getattr2",
+			Value: getAttr2(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
