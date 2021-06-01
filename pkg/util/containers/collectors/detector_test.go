@@ -236,3 +236,8 @@ func (suite *DetectorTestSuite) TestConfigureTwoByPrio() {
 func TestDetectorTestSuite(t *testing.T) {
 	suite.Run(t, new(DetectorTestSuite))
 }
+
+func TestStandardCollectorsHaveCorrectPriorities(t *testing.T) {
+	assert.Equal(t, NodeOrchestrator, collectorPriorities["kubelet"])
+	assert.Equal(t, NodeRuntime, collectorPriorities["docker"])
+}
