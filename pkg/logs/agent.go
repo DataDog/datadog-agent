@@ -99,7 +99,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		traps.NewLauncher(sources, pipelineProvider),
 	}
 
-	// Only try to start the container launchers if we are in a container environment or docker is available
+	// Only try to start the container launchers if Docker or Kubernetes is available
 	if coreConfig.IsFeaturePresent(coreConfig.Docker) || coreConfig.IsFeaturePresent(coreConfig.Kubernetes) {
 		inputs = append(inputs, container.NewLauncher(containerLaunchables))
 	}
