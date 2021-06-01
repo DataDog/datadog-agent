@@ -104,12 +104,12 @@ fi
 
 if [ -z "$DEBIAN_REPO" ]; then
     # for offline script remember default production repo address
-    DEBIAN_REPO="https://stackstate-agent-2.s3.amazonaws.com"
+    DEBIAN_REPO="https://stackstate-agent-3.s3.amazonaws.com"
 fi
 
 if [ -z "$YUM_REPO" ]; then
     # for offline script remember default production repo address
-    YUM_REPO="https://stackstate-agent-2-rpm.s3.amazonaws.com"
+    YUM_REPO="https://stackstate-agent-3-rpm.s3.amazonaws.com"
 fi
 
 if [ -n "$SKIP_SSL_VALIDATION" ]; then

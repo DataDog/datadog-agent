@@ -117,7 +117,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:{{agent_current_branch}}
+    image: docker.io/stackstate/{{ agent_docker_repo }}:{{agent_current_branch}}
     network_mode: "host"
     pid: "host"
     privileged: true
