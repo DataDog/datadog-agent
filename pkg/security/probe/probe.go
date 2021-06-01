@@ -269,6 +269,11 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 }
 
 func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+	// sanity check
+	if mountID == 0 || inode == 0 {
+		log.Errorf("invalid mount_id/inode tuple %d:%d", mountID, inode)
+	}
+
 	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
 		log.Tracef("remove all dentry entries for mount id %d", mountID)
 		p.resolvers.DentryResolver.DelCacheEntries(mountID)

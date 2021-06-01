@@ -143,9 +143,9 @@ func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
 }
 
 type inodeDiscarder struct {
-	PathKey  PathKey
-	Revision uint32
-	Padding  uint32
+	PathKey PathKey
+	IsLeaf  uint32
+	Padding uint32
 }
 
 type inodeDiscarders struct {

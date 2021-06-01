@@ -179,7 +179,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
         .syscall.retval = retval,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,
-        .discarder_revision = bump_discarder_revision(syscall->rename.target_file.path_key.mount_id),
+        .discarder_revision = get_discarder_revision(syscall->rename.target_file.path_key.mount_id),
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
