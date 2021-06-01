@@ -11,7 +11,7 @@ import (
 )
 
 // ContainerImpl without implementation
-// Implementations should could Register() in their init()
+// Implementations should call Register() in their init()
 var containerImpl containers.ContainerImplementation
 
 // ContainerImpl returns the ContainerImplementation

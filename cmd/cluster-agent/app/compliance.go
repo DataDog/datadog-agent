@@ -38,7 +38,7 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 	return nil
 }
 
-func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints()
@@ -59,7 +59,7 @@ func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*co
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.")
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
 	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
 }
 
@@ -100,7 +100,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		checks.WithMatchRule(func(rule *compliance.Rule) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
-		checks.WithKubernetesClient(apiCl.DynamicCl),
+		checks.WithKubernetesClient(apiCl.DynamicCl, ""),
 		checks.WithIsLeader(isLeader),
 	)
 	if err != nil {

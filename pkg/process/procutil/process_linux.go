@@ -202,8 +202,8 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			},
 		}
 		if p.withPermission {
-			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -219,12 +219,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 // StatsWithPermByPID returns the stats that require elevated permission to collect for each process
-func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
-	pids, err := p.getActivePIDs()
-	if err != nil {
-		return nil, err
-	}
-
+func (p *Probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -233,7 +228,7 @@ func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
 			continue
 		}
 
-		fds := p.getFDCount(pathForPID)
+		fds := p.getFDCountImproved(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled

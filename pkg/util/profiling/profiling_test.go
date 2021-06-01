@@ -24,8 +24,5 @@ func TestProfiling(t *testing.T) {
 	)
 	assert.Nil(t, err)
 
-	assert.True(t, Active())
-
 	Stop()
-	assert.False(t, Active())
 }

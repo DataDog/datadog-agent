@@ -332,6 +332,18 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 	return tags, nil
 }
 
+// GetEntity returns the entity corresponding to the specified id and an error
+func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
+
+	tags, err := t.store.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	entity := tags.toEntity()
+	return &entity, nil
+}
+
 // List the content of the tagger
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	r := response.TaggerListResponse{

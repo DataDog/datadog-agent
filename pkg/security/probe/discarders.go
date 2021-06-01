@@ -34,6 +34,10 @@ const (
 	DiscardInodeOp = iota + 1
 	// DiscardPidOp discards a pid
 	DiscardPidOp
+	// ResolveSegmentOp resolves the requested segment
+	ResolveSegmentOp
+	// ResolvePathOp resolves the requested path
+	ResolvePathOp
 )
 
 const (
@@ -139,9 +143,9 @@ func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
 }
 
 type inodeDiscarder struct {
-	PathKey  PathKey
-	Revision uint32
-	Padding  uint32
+	PathKey PathKey
+	IsLeaf  uint32
+	Padding uint32
 }
 
 type inodeDiscarders struct {

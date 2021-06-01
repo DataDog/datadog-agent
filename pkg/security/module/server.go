@@ -39,13 +39,15 @@ type pendingMsg struct {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	sync.RWMutex
-	msgs          chan *api.SecurityEventMessage
-	expiredEvents map[rules.RuleID]*int64
-	rate          *Limiter
-	statsdClient  *statsd.Client
-	probe         *sprobe.Probe
-	queue         []*pendingMsg
-	retention     time.Duration
+	msgs              chan *api.SecurityEventMessage
+	expiredEventsLock sync.RWMutex
+	expiredEvents     map[rules.RuleID]*int64
+	rate              *Limiter
+	statsdClient      *statsd.Client
+	probe             *sprobe.Probe
+	queue             []*pendingMsg
+	retention         time.Duration
+	cfg               *config.Config
 }
 
 // GetEvents waits for security events
@@ -147,6 +149,7 @@ func (a *APIServer) start(ctx context.Context) {
 					msg.tags[tag] = true
 				}
 
+				// recopy tags
 				var tags []string
 				for tag := range msg.tags {
 					tags = append(tags, tag)
@@ -186,6 +189,17 @@ func (a *APIServer) start(ctx context.Context) {
 // Start the api server, starts to consume the msg queue
 func (a *APIServer) Start(ctx context.Context) {
 	go a.start(ctx)
+}
+
+// GetConfig returns config of the runtime security module required by the security agent
+func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
+	if a.cfg != nil {
+		return &api.SecurityConfigMessage{
+			FIMEnabled:     a.cfg.FIMEnabled,
+			RuntimeEnabled: a.cfg.RuntimeEnabled,
+		}, nil
+	}
+	return &api.SecurityConfigMessage{}, nil
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
@@ -244,8 +258,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 // expireEvent updates the count of expired messages for the appropriate rule
 func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
-	a.RLock()
-	defer a.RUnlock()
+	a.expiredEventsLock.RLock()
+	defer a.expiredEventsLock.RUnlock()
 
 	// Update metric
 	count, ok := a.expiredEvents[msg.RuleID]
@@ -283,8 +297,8 @@ func (a *APIServer) SendStats() error {
 
 // Apply a rule set
 func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
-	a.Lock()
-	defer a.Unlock()
+	a.expiredEventsLock.Lock()
+	defer a.expiredEventsLock.Unlock()
 
 	a.expiredEvents = make(map[rules.RuleID]*int64)
 	for _, id := range ruleIDs {
@@ -301,6 +315,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client *statsd.Client
 		statsdClient:  client,
 		probe:         probe,
 		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
+		cfg:           cfg,
 	}
 	return es
 }

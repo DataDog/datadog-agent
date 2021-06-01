@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Show autodiscovery errors from pod annotations in agent status.

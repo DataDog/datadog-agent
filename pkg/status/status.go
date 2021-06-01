@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -79,6 +80,10 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
 		stats["NoProxyChanged"] = httputils.NoProxyChanged
 		httputils.NoProxyMapMutex.Unlock()
+	}
+
+	if config.IsContainerized() {
+		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors()
 	}
 
 	return stats, nil

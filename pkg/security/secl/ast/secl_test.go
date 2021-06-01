@@ -204,3 +204,12 @@ func TestArrayRegexp(t *testing.T) {
 
 	print(t, rule)
 }
+
+func TestDuration(t *testing.T) {
+	rule, err := ParseRule(`process.start > 10s`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}

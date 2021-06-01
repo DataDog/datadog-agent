@@ -25,7 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
@@ -42,7 +42,7 @@ import (
 type Module struct {
 	sync.RWMutex
 	probe          *sprobe.Probe
-	config         *config.Config
+	config         *sconfig.Config
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
 	reloading      uint64
@@ -261,9 +261,28 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// prepare the event
 	m.probe.OnRuleMatch(rule, event.(*probe.Event))
 
+	// needs to be resolved here, outside of the callback as using process tree
+	// which can be modified during queuing
+	service := event.(*probe.Event).GetProcessServiceTag()
+
 	id := event.(*probe.Event).ContainerContext.ID
+
 	extTagsCb := func() []string {
-		return m.probe.GetResolvers().TagsResolver.Resolve(id)
+		var tags []string
+
+		// check from tagger
+		if service == "" {
+			service = m.probe.GetResolvers().TagsResolver.GetValue(id, "service")
+		}
+
+		if service == "" {
+			service = m.config.HostServiceName
+		}
+
+		if service != "" {
+			tags = append(tags, "service:"+service)
+		}
+		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
 	m.SendEvent(rule, event, extTagsCb)
@@ -334,7 +353,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *config.Config) (module.Module, error) {
+func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
@@ -347,7 +366,7 @@ func NewModule(cfg *config.Config) (module.Module, error) {
 			return nil, err
 		}
 	} else {
-		log.Warn("Logs won't be send to DataDog")
+		log.Warn("metrics won't be sent to DataDog")
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)
@@ -359,7 +378,6 @@ func NewModule(cfg *config.Config) (module.Module, error) {
 
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
-	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 0, Burst: 0}
 
 	m := &Module{
 		config:         cfg,
