@@ -74,7 +74,7 @@ func TestProcessContext(t *testing.T) {
 		t.Fatal("unable to find proc entry")
 	}
 	execSince := time.Now().Sub(time.Unix(0, filledProc.CreateTime*int64(time.Millisecond)))
-	waitUntil := execSince + getEventTimeout + 2*time.Second
+	waitUntil := execSince + getEventTimeout + time.Second
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -155,7 +155,7 @@ func TestProcessContext(t *testing.T) {
 		}
 
 		// ensure to exceed the delay
-		time.Sleep(4 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		f, err = os.OpenFile(testFile, os.O_RDONLY, 0)
 		if err != nil {

@@ -111,7 +111,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             .syscall.retval = retval,
             .file = syscall->unlink.file,
             .flags = syscall->unlink.flags,
-            .discarder_revision = bump_discarder_revision(syscall->unlink.file.path_key.mount_id),
+            .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
