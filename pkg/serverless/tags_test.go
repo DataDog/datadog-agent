@@ -81,6 +81,19 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "my-function", tagMap["resource"])
 }
 
+func TestBuildTagMapFromArnCompleteWithUperCase(t *testing.T) {
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:My-Function"
+	tagMap := buildTagMapFromArn(arn)
+	assert.Equal(t, 7, len(tagMap))
+	assert.Equal(t, "lambda", tagMap["_dd.origin"])
+	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "us-east-1", tagMap["region"])
+	assert.Equal(t, "123456789012", tagMap["aws_account"])
+	assert.Equal(t, "my-function", tagMap["functionname"])
+	assert.Equal(t, "my-function", tagMap["resource"])
+}
+
 func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
