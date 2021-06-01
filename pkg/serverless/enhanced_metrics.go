@@ -119,8 +119,7 @@ func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricS
 }
 
 // getTagsForEnhancedMetrics returns the tags that should be included with enhanced metrics
-func getTagsForEnhancedMetrics() []string {
-	tags := aws.GetARNTags()
+func getTagsForEnhancedMetrics(tags []string) []string {
 	coldStart := aws.GetColdStart()
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
 	return tags

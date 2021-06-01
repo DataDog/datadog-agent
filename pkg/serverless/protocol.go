@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,12 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
@@ -75,6 +80,11 @@ type Daemon struct {
 	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
+
+	// Wait on this WaitGroup to be sure that the extra tags are set before starting to process logs
+	extraTagsSetWg *sync.WaitGroup
+
+	extraTags []string
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -207,10 +217,12 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
+		extraTagsSetWg:   &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
 		flushStrategy:    &flush.AtTheEnd{},
+		extraTags:        nil,
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -235,6 +247,7 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 // logs from AWS.
 // Returns the HTTP URL on which AWS should send the logs.
 func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage, error) {
+	d.extraTagsSetWg.Add(1)
 	httpAddr := fmt.Sprintf("http://sandbox:%d%s", httpServerPort, httpLogsCollectionRoute)
 	logsChan := make(chan *logConfig.ChannelMessage)
 	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
@@ -273,6 +286,23 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	return d.clientLibReady
 }
 
+func (d *Daemon) ComputeGlobalTags(arn string, tags []string) {
+	if len(d.extraTags) == 0 {
+		tagMap := buildTagMapFromArn(arn)
+		tagArray := buildTagsFromMap(tagMap, blackListTagForMetricsAndLogs())
+		d.statsdServer.SetExtraTags(tagArray)
+		d.traceAgent.SetExtraTags(buildTracerTags(tagMap, blackListTagForTraces()))
+		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+		if source != nil {
+			source.Config.Tags = tagArray
+			d.extraTags = tagArray
+		} else {
+			log.Debug("Impossible to retrieve the lambda LogSource")
+		}
+		d.extraTagsSetWg.Done()
+	}
+}
+
 // LogsCollection is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
@@ -285,6 +315,8 @@ type LogsCollection struct {
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the DogStatsD daemon isn't ready, wait for it.
 	l.daemon.ReadyWg.Wait()
+	// If ExtraTagd are not computed, wait for them
+	l.daemon.extraTagsSetWg.Wait()
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -293,19 +325,19 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogMessages(l, messages)
+		processLogMessages(l, messages, os.Getenv(functionNameEnvVar))
 		w.WriteHeader(200)
 	}
 }
 
-func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
+func processLogMessages(l *LogsCollection, messages []aws.LogMessage, functionName string) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-	metricTags := getTagsForEnhancedMetrics()
+	metricTags := getTagsForEnhancedMetrics(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
+	functionName = strings.ToLower(functionName)
 	arn := aws.GetARN()
 	lastRequestID := aws.GetRequestID()
-	functionName := aws.FunctionNameFromARN()
 	for _, message := range messages {
 		processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.

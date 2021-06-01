@@ -833,3 +833,7 @@ func FormatDebugStats(stats []byte) (string, error) {
 
 	return buf.String(), nil
 }
+
+func (s *Server) SetExtraTags(tags []string) {
+	s.extraTags = tags
+}
