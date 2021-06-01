@@ -69,12 +69,12 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "s3://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-x86.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86-test.zip",
             :sha256 => "606b1157151547dcae0d2eef906cea6267d3b4f6aa786a4af08c7c29720a731e"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "s3://dd-ci-persistent-artefacts-build-stable.s3.amazonaws.com/datadog-agent/python-windows-#{version}-amd64.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64-test.zip",
          :sha256 => "cd8a4cb02af78a761967c229c65bd71f33689b75335e1311559acb00de06e1ce"
 
   end

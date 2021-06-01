@@ -107,8 +107,8 @@ build_clang_arm64:
   stage: deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
-    - $pyzip_name = 'python-windows-{0}-x86.zip' -f $WINDOWS_PYTHON_VERSION
-    - if ($ARCH -eq "x64") { $pyzip_name = 'python-windows-{0}-amd64.zip' -f $WINDOWS_PYTHON_VERSION }
+    - $pyzip_name = 'python-windows-{0}-x86-test.zip' -f $WINDOWS_PYTHON_VERSION
+    - if ($ARCH -eq "x64") { $pyzip_name = 'python-windows-{0}-amd64-test.zip' -f $WINDOWS_PYTHON_VERSION }
     - Write-Host Building $pyzip_name
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - mkdir build-out
@@ -116,8 +116,8 @@ build_clang_arm64:
     - if ($ARCH -eq "x86") { $cmd += " -x86" }
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C $cmd
     - get-childitem build-out
-    - Write-Host Saving artifact to ${env:S3_PERMANENT_ARTIFACTS_URI}
-    - Invoke-Expression "$S3_CP_CMD build-out/$pyzip_name ${env:S3_PERMANENT_ARTIFACTS_URI}/$pyzip_name"
+    - Write-Host Saving artifact to https://dd-agent-omnibus.s3.amazonaws.com
+    - Invoke-Expression "$S3_CP_CMD build-out/$pyzip_name https://dd-agent-omnibus.s3.amazonaws.com/$pyzip_name"
   timeout: 0h 30m
 
 build_windows_python3_zip_x64:
