@@ -62,6 +62,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 			compliance.KubeResourceFieldGroup:   namespaces.Items[0].GroupVersionKind().Group,
 			compliance.KubeResourceFieldVersion: namespaces.Items[0].GroupVersionKind().Version,
 		},
+		Aggregated: true,
 	}
 
 	if len(nsLookup) > 0 {

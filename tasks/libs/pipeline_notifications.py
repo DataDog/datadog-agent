@@ -10,7 +10,9 @@ from .types import Test
 def get_failed_jobs(project_name, pipeline_id):
     gitlab = Gitlab()
 
-    jobs = gitlab.all_jobs(project_name, pipeline_id)
+    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
+    # go through it twice
+    jobs = list(gitlab.all_jobs(project_name, pipeline_id))
 
     # Get instances of failed jobs
     failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}

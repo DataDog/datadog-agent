@@ -5,36 +5,40 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
+
 # Kitchen: OSes
 # -------------
 
 # Used for Agent 5 upgrade tests, as Agent 5 RPMs aren't built to be
 # installable in FIPS mode.
 .kitchen_os_centos_all_non_fips:
+  variables:
+    KITCHEN_PLATFORM: "centos"
+    KITCHEN_OSVERS: "centos-69,centos-77,rhel-81"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
-    - export KITCHEN_OSVERS="centos-69,centos-77,rhel-81"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
 .kitchen_os_centos_6_7_non_fips:
+  variables:
+    KITCHEN_PLATFORM: "centos"
+    KITCHEN_OSVERS: "centos-69,centos-77"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
-    - export KITCHEN_OSVERS="centos-69,centos-77"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
 .kitchen_os_centos_8_fips:
   variables:
     KITCHEN_FIPS: "true"
+    KITCHEN_PLATFORM: "centos"
+    # For now, we only test FIPS on 8.1
+    KITCHEN_OSVERS: "rhel-81"
+    DEFAULT_KITCHEN_OSVERS: "rhel-81"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
     - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
-    # for now, we only test FIPS on 8.1
-    - export KITCHEN_OSVERS="rhel-81"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -99,6 +103,9 @@ kitchen_centos_fips_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_centos_fips_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_centos_8_fips_a7
     - .kitchen_test_install_script_agent

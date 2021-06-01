@@ -9,10 +9,12 @@
 # -------------
 
 .kitchen_os_ubuntu:
+  variables:
+    KITCHEN_PLATFORM: "ubuntu"
+    KITCHEN_OSVERS: "ubuntu-14-04,ubuntu-16-04,ubuntu-18-04,ubuntu-20-04"
+    DEFAULT_KITCHEN_OSVERS: "ubuntu-20-04"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="ubuntu"
-    - export KITCHEN_OSVERS="ubuntu-14-04,ubuntu-16-04,ubuntu-18-04,ubuntu-20-04"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -40,6 +42,9 @@ kitchen_ubuntu_install_script_agent-a6:
     - .kitchen_test_install_script_agent
 
 kitchen_ubuntu_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_ubuntu_a7
     - .kitchen_test_install_script_agent

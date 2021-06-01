@@ -20,7 +20,7 @@ kitchen_cleanup_s3-a6:
 kitchen_cleanup_s3-a7:
   extends: .kitchen_cleanup_s3_common
   rules:
-    !reference [.on_kitchen_tests_a7]
+    !reference [.on_default_kitchen_tests_a7]
   dependencies: ["agent_deb-x64-a7"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -36,6 +36,6 @@ kitchen_cleanup_azure-a6:
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
   rules:
-    !reference [.on_kitchen_tests_a7_always]
+    !reference [.on_default_kitchen_tests_a7_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

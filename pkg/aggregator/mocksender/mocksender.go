@@ -70,6 +70,7 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("bool"),     // monotonic
 		mock.AnythingOfType("string"),   // hostname
 		mock.AnythingOfType("[]string"), // tags
+		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
 	m.On("GetSenderStats", mock.AnythingOfType("check.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()

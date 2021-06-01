@@ -679,21 +679,34 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 
 	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
-		lAddrs[newConnKey(&conn, false)] = struct{}{}
+		k := newConnKey(&conn, false)
+		lAddrs[k] = struct{}{}
 	}
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
 	for i := range connections {
 		conn := &connections[i]
-		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
+		if conn.Source == conn.Dest ||
+			(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
+			(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
 			conn.IntraHost = true
-			continue
+		} else {
+			keyWithRAddr := newConnKey(conn, true)
+			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		keyWithRAddr := newConnKey(conn, true)
-		_, ok := lAddrs[keyWithRAddr]
-		if ok {
-			conn.IntraHost = true
+		if conn.IntraHost && conn.Direction == INCOMING {
+			// Remove ip translation from incoming local connections
+			// this is necessary for local connections because of
+			// the way we store conntrack entries in the conntrack
+			// cache in the system-probe. For local connections
+			// that are DNAT'ed, system-probe will tack on the
+			// translation on the incoming source side as well,
+			// even though there is no SNAT on the incoming side.
+			// This is because we store both the origin and reply
+			// (and map them to each other) in the conntrack cache
+			// in system-probe.
+			conn.IPTranslation = nil
 		}
 	}
 }

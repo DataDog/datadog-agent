@@ -196,6 +196,20 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("tags"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	svc.config.CollectDeviceMetadata = true
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", string(info))
+
+	svc.config.CollectDeviceMetadata = false
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {

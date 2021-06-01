@@ -31,10 +31,10 @@ const (
 )
 
 var (
-	datadogMetricFormat regexp.Regexp = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
+	datadogMetricFormat = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
 	// These values are set by the provider when starting, here are default values for unit tests
-	queryConfigAggregator string = "avg"
-	queryConfigRollup     int    = 30
+	queryConfigAggregator = "avg"
+	queryConfigRollup     = 30
 )
 
 // datadogMetric.ID is namespace/name

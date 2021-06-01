@@ -69,16 +69,22 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
 		}
+		if config.HasFeature("keep_sql_alias") {
+			return token, buffer, nil
+		}
 		return Filtered, nil, nil
 	}
 
 	// filters based on the current token; if the next token should be ignored,
 	// return the same token value (not FilteredGroupable) and nil
 	switch token {
-	case As:
-		return As, nil, nil
 	case Comment, ';':
 		return markFilteredGroupable(token), nil, nil
+	case As:
+		if !config.HasFeature("keep_sql_alias") {
+			return As, nil, nil
+		}
+		fallthrough
 	default:
 		return token, buffer, nil
 	}

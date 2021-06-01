@@ -965,9 +965,10 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True):
         check_version(agent_version)
 
     for module in DEFAULT_MODULES.values():
-        for tag in module.tag(agent_version):
-            ctx.run("git tag -m {tag} {tag} {commit}".format(tag=tag, commit=commit))
-            if push:
-                ctx.run("git push origin {}".format(tag))
+        if module.should_tag:
+            for tag in module.tag(agent_version):
+                ctx.run("git tag -m {tag} {tag} {commit}".format(tag=tag, commit=commit))
+                if push:
+                    ctx.run("git push origin {}".format(tag))
 
     print("Created all tags for version {}".format(agent_version))

@@ -49,6 +49,7 @@ type ebpfConntracker struct {
 	telemetryMap *ebpf.Map
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
+	decoder  *netlink.Decoder
 
 	stats struct {
 		gets                 int64
@@ -110,6 +111,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 
 func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
 	e.consumer = netlink.NewConsumer(cfg.ProcRoot, cfg.ConntrackRateLimit, true)
+	e.decoder = netlink.NewDecoder()
 	defer e.consumer.Stop()
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -139,7 +141,7 @@ func (e *ebpfConntracker) loadInitialState(ctx context.Context, events <-chan ne
 }
 
 func (e *ebpfConntracker) processEvent(ev netlink.Event) {
-	conns := netlink.DecodeAndReleaseEvent(ev)
+	conns := e.decoder.DecodeAndReleaseEvent(ev)
 	for _, c := range conns {
 		if netlink.IsNAT(c) {
 			log.Tracef("initial conntrack %s", c)

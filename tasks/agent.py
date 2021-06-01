@@ -535,6 +535,33 @@ def omnibus_build(
 
 
 @task
+def build_dep_tree(
+    ctx, git_ref="",
+):
+    """
+    Generates a file representing the Golang dependency tree in the current
+    directory. Use the "--git-ref=X" argument to specify which tag you would like
+    to target otherwise current repo state will be used.
+    """
+    saved_branch = None
+    if git_ref:
+        print("Tag {} specified. Checking out the branch...".format(git_ref))
+
+        result = ctx.run("git rev-parse --abbrev-ref HEAD", hide='stdout')
+        saved_branch = result.stdout
+
+        ctx.run("git checkout {}".format(git_ref))
+    else:
+        print("No tag specified. Using the current state of repository.")
+
+    try:
+        ctx.run("go run tools/dep_tree_resolver/go_deps.go")
+    finally:
+        if saved_branch:
+            ctx.run("git checkout {}".format(saved_branch), hide='stdout')
+
+
+@task
 def omnibus_manifest(
     ctx,
     platform=None,

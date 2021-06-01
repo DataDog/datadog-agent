@@ -899,13 +899,13 @@ func TestStatsWithPermByPID(t *testing.T) {
 
 	WithReturnZeroPermStats(true)(probe)
 	pid := int32(3)
-	stats, err := probe.StatsWithPermByPID()
+	stats, err := probe.StatsWithPermByPID([]int32{pid})
 	require.NoError(t, err)
 	require.Contains(t, stats, pid)
 	assert.True(t, stats[pid].IOStat.IsZeroValue())
 
 	WithReturnZeroPermStats(false)(probe)
-	stats, err = probe.StatsWithPermByPID()
+	stats, err = probe.StatsWithPermByPID([]int32{pid})
 	require.NoError(t, err)
 	assert.Empty(t, stats)
 }

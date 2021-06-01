@@ -26,12 +26,13 @@ type testItem struct {
 }
 
 type testProcess struct {
-	name   string
-	uid    int
-	gid    int
-	isRoot bool
-	list   *list.List
-	array  []*testItem
+	name      string
+	uid       int
+	gid       int
+	isRoot    bool
+	list      *list.List
+	array     []*testItem
+	createdAt int64
 }
 
 type testItemListIterator struct {
@@ -307,6 +308,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			Weight: IteratorWeight,
 		}, nil
 
+	case "process.created_at":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				return int((*testEvent)(ctx.Object).process.createdAt)
+			},
+			Field: field,
+		}, nil
+
 	case "open.filename":
 
 		return &StringEvaluator{
@@ -364,6 +374,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	case "process.is_root":
 
 		return e.process.isRoot, nil
+
+	case "process.created_at":
+
+		return e.process.createdAt, nil
 
 	case "open.filename":
 
@@ -433,6 +447,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.created_at":
+
+		return "*", nil
+
 	case "open.filename":
 
 		return "open", nil
@@ -479,6 +497,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "process.is_root":
 
 		e.process.isRoot = value.(bool)
+		return nil
+
+	case "process.created_at":
+
+		e.process.createdAt = value.(int64)
 		return nil
 
 	case "open.filename":

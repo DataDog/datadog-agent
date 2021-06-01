@@ -682,7 +682,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(newFloat64ListPool())
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "")
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -796,7 +796,7 @@ dogstatsd_mapper_profiles:
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
 				parser := newParser(newFloat64ListPool())
-				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "")
+				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
 					actualSamples = append(actualSamples, MetricSample{Name: sample.Name, Tags: sample.Tags, Mtype: sample.Mtype, Value: sample.Value})
@@ -850,4 +850,80 @@ func TestNewServerExtraTags(t *testing.T) {
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
 	require.Equal(s.extraTags[1], "new:constructor", "the tag new:constructor should be set")
 	s.Stop()
+}
+
+func TestProcessedMetricsOrigin(t *testing.T) {
+	assert := assert.New(t)
+
+	s, err := NewServer(mockAggregator(), nil)
+	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s.Stop()
+
+	assert.Len(s.cachedTlmOriginIds, 0, "this cache must be empty")
+	assert.Len(s.cachedOrder, 0, "this cache list must be empty")
+
+	parser := newParser(newFloat64ListPool())
+	samples := []metrics.MetricSample{}
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
+	assert.NoError(err)
+	assert.Len(samples, 1)
+
+	// one thing should have been stored when we parse a metric
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
+	assert.NoError(err)
+	assert.Len(samples, 2)
+	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
+	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+
+	// when we parse another metric (different value) with same origin, cache should contain only one entry
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
+	assert.NoError(err)
+	assert.Len(samples, 3)
+	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
+	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
+	assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
+
+	// when we parse another metric (different value) but with a different origin, we should store a new entry
+	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
+	assert.NoError(err)
+	assert.Len(samples, 4)
+	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached")
+	assert.Len(s.cachedOrder, 2, "two entries should have been cached")
+	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
+	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
+	assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://test_container"})
+	assert.Equal(s.cachedOrder[1].origin, "container_id://another_container")
+	assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
+	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+
+	// oldest one should be removed once we reach the limit of the cache
+	maxOriginTagsCached = 2
+	samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
+	assert.NoError(err)
+	assert.Len(samples, 5)
+	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, one has been evicted already")
+	assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
+	assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
+	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
+	assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
+	assert.Equal(s.cachedOrder[1].origin, "third_origin")
+	assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
+	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
+
+	// oldest one should be removed once we reach the limit of the cache
+	maxOriginTagsCached = 2
+	samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
+	assert.NoError(err)
+	assert.Len(samples, 6)
+	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, two have been evicted already")
+	assert.Len(s.cachedOrder, 2, "two entries should have been cached, two have been evicted already")
+	assert.Equal(s.cachedOrder[0].origin, "third_origin")
+	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})
+	assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
+	assert.Equal(s.cachedOrder[1].origin, "fourth_origin")
+	assert.Equal(s.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "fourth_origin"})
+	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
 }

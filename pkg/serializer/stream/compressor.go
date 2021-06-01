@@ -59,7 +59,7 @@ func init() {
 	compressorExpvars.Set("BytesOut", &expvarsBytesOut)
 }
 
-// compressor is in charge of compressing items for a single payload
+// Compressor is in charge of compressing items for a single payload
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
@@ -132,7 +132,7 @@ func (c *Compressor) pack() error {
 	return nil
 }
 
-// addItem will try to add the given item
+// AddItem will try to add the given item
 func (c *Compressor) AddItem(data []byte) error {
 	// check item size sanity
 	if !c.checkItemSize(data) {

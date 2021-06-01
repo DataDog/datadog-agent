@@ -33,6 +33,12 @@ var (
 		[]string{"cardinality"}, "Queries made against the tagger.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
+	// CacheSkipped tracks the number of times the tagger cache was skipped
+	// due to partial errors.
+	CacheSkipped = telemetry.NewCounterWithOpts("tagger", "cache_skipped",
+		[]string{}, "Times the tagger cache was skipped due to partial errors",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
 	// ClientStreamErrors tracks how many errors were received when streaming
 	// tagger events.
 	ClientStreamErrors = telemetry.NewCounterWithOpts("tagger", "client_stream_errors",
