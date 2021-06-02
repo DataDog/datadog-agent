@@ -286,8 +286,12 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMapFromArn(arn)
 		tagArray := buildTagsFromMap(configTags, tagMap, blackListTagForMetricsAndLogs())
-		d.statsdServer.SetExtraTags(tagArray)
-		d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
+		if d.statsdServer != nil {
+			d.statsdServer.SetExtraTags(tagArray)
+		}
+		if d.traceAgent != nil {
+			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
+		}
 		d.extraTags = tagArray
 		source := scheduler.GetScheduler().GetSourceFromName("lambda")
 		if source != nil {
