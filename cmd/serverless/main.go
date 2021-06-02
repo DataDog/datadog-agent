@@ -69,18 +69,12 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	statsdServer *dogstatsd.Server
 
-	// Apikey reading priority:
-	// KSM > SSM > Apikey in environment var
-	// If one is set but failing, the next will be tried
-	kmsAPIKeyEnvVar = "DD_KMS_API_KEY"
-	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyEnvVar    = "DD_API_KEY"
-
-	logLevelEnvVar = "DD_LOG_LEVEL"
-
-	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
-
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
+	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	apiKeyEnvVar               = "DD_API_KEY"
+	logLevelEnvVar             = "DD_LOG_LEVEL"
+	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -177,13 +171,17 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// api key reading
 	// ---------------
 
+	// API key reading priority:
+	// KSM > Secrets Manager > Plaintext API key
+	// If one is set but failing, the next will be tried
+
 	// some useful warnings first
 
 	var apikeySetIn = []string{}
 	if os.Getenv(kmsAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")
 	}
-	if os.Getenv(ssmAPIKeyEnvVar) != "" {
+	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "SSM")
 	}
 	if os.Getenv(apiKeyEnvVar) != "" {
@@ -194,24 +192,24 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// try to read apikey from KMS
+	// try to read API key from KMS
 
 	var apiKey string
 	if apiKey, err = readAPIKeyFromKMS(); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+		os.Setenv(apiKeyEnvVar, apiKey)
 	}
 
-	// try to read the apikey from SSM, only if not set from KMS
+	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSSM(); err != nil {
-			log.Errorf("Error while trying to read an API Key from SSM: %s", err)
+		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
-			log.Info("Using API key set in SSM.")
-			os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+			log.Info("Using API key set in Secrets Manager.")
+			os.Setenv(apiKeyEnvVar, apiKey)
 		}
 	}
 
@@ -254,7 +252,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
 
-	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
+	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
 
 	if !config.Datadog.IsSet("api_key") {
@@ -268,7 +266,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// restore the current function ARN and request ID from the cache in case the extension was restarted
 	// ---------------------------
 
-	err = aws.RestoreCurrentStateFromFile()
+	err = aws.StateFromFile()
 	if err != nil {
 		log.Debug("Did not restore current state from file")
 	}

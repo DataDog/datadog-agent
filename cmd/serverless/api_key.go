@@ -54,11 +54,11 @@ func readAPIKeyFromKMS() (string, error) {
 	return plaintext, nil
 }
 
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
+// readAPIKeyFromSecretsManager reads an API Key from Secrets Manager if the env var DD_API_KEY_SECRET_ARN
 // has been set.
 // If none has been set, it is returns an empty string and a nil error.
-func readAPIKeyFromSSM() (string, error) {
-	arn := os.Getenv(ssmAPIKeyEnvVar)
+func readAPIKeyFromSecretsManager() (string, error) {
+	arn := os.Getenv(secretsManagerAPIKeyEnvVar)
 	if arn == "" {
 		return "", nil
 	}
