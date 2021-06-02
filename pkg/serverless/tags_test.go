@@ -81,7 +81,7 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "my-function", tagMap["resource"])
 }
 
-func TestBuildTagMapFromArnCompleteWithUperCase(t *testing.T) {
+func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:My-Function"
 	tagMap := buildTagMapFromArn(arn)
 	assert.Equal(t, 7, len(tagMap))
