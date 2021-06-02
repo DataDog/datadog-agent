@@ -802,6 +802,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
 	config.SetKnown("process_config.max_per_message")
+	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
