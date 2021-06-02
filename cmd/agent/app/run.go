@@ -308,18 +308,15 @@ func StartAgent() error {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
-	//setup the metadata collector
-	// [sts] avoid running the first metadata check when setting enable_metadata_collection to false
-	if config.Datadog.GetBool("enable_metadata_collection") {
-		common.MetadataScheduler = metadata.NewScheduler(s)
-		if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
-			return err
-		}
+	// setup the metadata collector
+	common.MetadataScheduler = metadata.NewScheduler(s)
+	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
+		return err
+	}
 
-		if config.Datadog.GetBool("inventories_enabled") {
-			if err := metadata.SetupInventories(common.MetadataScheduler, common.AC, common.Coll); err != nil {
-				return err
-			}
+	if config.Datadog.GetBool("inventories_enabled") {
+		if err := metadata.SetupInventories(common.MetadataScheduler, common.AC, common.Coll); err != nil {
+			return err
 		}
 	}
 

@@ -533,3 +533,19 @@ void set_submit_topology_event_cb(rtloader_t *rtloader, cb_submit_topology_event
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitTopologyEventCb(cb);
 }
+
+/*
+ * [sts] health API
+ */
+void set_submit_health_check_data_cb(rtloader_t *rtloader, cb_submit_health_check_data_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHealthCheckDataCb(cb);
+}
+void set_submit_health_start_snapshot_cb(rtloader_t *rtloader, cb_submit_health_start_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHealthStartSnapshotCb(cb);
+}
+void set_submit_health_stop_snapshot_cb(rtloader_t *rtloader, cb_submit_health_stop_snapshot_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHealthStopSnapshotCb(cb);
+}

@@ -18,10 +18,6 @@ build do
     block do
         # Conf files
         if windows?
-            # Temp copying files over to create artifacts from it
-            copy "#{install_dir}/bin/agent", "#{install_dir}/bin/agent-backup"
-
-
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir

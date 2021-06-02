@@ -10,6 +10,7 @@ package python
 import (
 	"errors"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"runtime"
 	"time"
 	"unsafe"
@@ -79,6 +80,8 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 		return fmt.Errorf("An error occurred while running python check %s", c.ModuleName)
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
+
+	batcher.GetBatcher().SubmitComplete(c.ID()) // [sts]
 
 	if commitMetrics {
 		s, err := aggregator.GetSender(c.ID())

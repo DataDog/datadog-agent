@@ -21,7 +21,7 @@ def test_stackstate_agent_log(host, hostname):
         agent_log = _get_log(host, "{}-{}".format(hostname, "agent"), agent_log_path)
         assert re.search("Successfully posted payload to.*stsAgent/intake", agent_log)
 
-    util.wait_until(wait_for_check_successes, 60, 5)
+    util.wait_until(wait_for_check_successes, 60, 3)
 
     ignored_errors_regex = [
         # TODO: Collecting processes snap -> Will be addressed with STAC-3531
@@ -75,6 +75,7 @@ def test_stackstate_trace_agent_no_log_errors(host, hostname):
     def wait_for_check_successes():
         trace_agent_log = _get_log(host, "{}-{}".format(hostname, "trace-agent"), trace_agent_log_path)
         assert re.search("Trace agent running on host", trace_agent_log)
+        assert re.search("No data received", trace_agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 

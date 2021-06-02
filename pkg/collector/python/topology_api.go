@@ -13,7 +13,6 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 /*
@@ -41,20 +40,19 @@ func SubmitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.ch
 
 	_externalID := C.GoString(externalID)
 	_componentType := C.GoString(componentType)
-	_data := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
-	if err != nil {
-		log.Error(err)
-		return
-	}
+	_json, err := tryParseYamlToMap(data)
 
-	batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
-		_instance,
-		topology.Component{
-			ExternalID: _externalID,
-			Type:       topology.Type{Name: _componentType},
-			Data:       _data,
-		})
+	if err == nil {
+		batcher.GetBatcher().SubmitComponent(check.ID(goCheckID),
+			_instance,
+			topology.Component{
+				ExternalID: _externalID,
+				Type:       topology.Type{Name: _componentType},
+				Data:       _json,
+			})
+	} else {
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
+	}
 }
 
 // SubmitRelation is the method exposed to Python scripts to submit topology relation
@@ -70,25 +68,22 @@ func SubmitRelation(id *C.char, instanceKey *C.instance_key_t, sourceID *C.char,
 	_sourceID := C.GoString(sourceID)
 	_targetID := C.GoString(targetID)
 	_relationType := C.GoString(relationType)
-
 	_externalID := fmt.Sprintf("%s-%s-%s", _sourceID, _relationType, _targetID)
+	_json, err := tryParseYamlToMap(data)
 
-	_data := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(C.GoString(data)), _data)
-	if err != nil {
-		log.Error(err)
-		return
+	if err == nil {
+		batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
+			_instance,
+			topology.Relation{
+				ExternalID: _externalID,
+				SourceID:   _sourceID,
+				TargetID:   _targetID,
+				Type:       topology.Type{Name: _relationType},
+				Data:       _json,
+			})
+	} else {
+		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
 	}
-
-	batcher.GetBatcher().SubmitRelation(check.ID(goCheckID),
-		_instance,
-		topology.Relation{
-			ExternalID: _externalID,
-			SourceID:   _sourceID,
-			TargetID:   _targetID,
-			Type:       topology.Type{Name: _relationType},
-			Data:       _data,
-		})
 }
 
 // SubmitStartSnapshot starts a snapshot

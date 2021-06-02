@@ -5,6 +5,7 @@ package python
 import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -26,50 +27,28 @@ func testComponentTopology(t *testing.T) {
 		&instanceKey,
 		C.CString("external-id"),
 		C.CString("component-type"),
-		C.CString(`
-key: value ®
-stringlist: 
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue 
-`))
+		C.CString("some: data"))
 	SubmitStopSnapshot(checkId, &instanceKey)
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
-			StartSnapshot: true,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components: []topology.Component{
-				{
-					ExternalID: "external-id",
-					Type:       topology.Type{Name: "component-type"},
-					Data: topology.Data{
-						"key":          "value ®",
-						"stringlist":   []interface{}{"a", "b", "c"},
-						"boollist":     []interface{}{true, false},
-						"intlist":      []interface{}{1},
-						"doublelist":   []interface{}{0.7, 1.42},
-						"emptykey":     nil,
-						"nestedobject": map[interface{}]interface{}{"nestedkey": "nestedValue"},
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: true,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components: []topology.Component{
+					{
+						ExternalID: "external-id",
+						Type:       topology.Type{Name: "component-type"},
+						Data:       topology.Data{"some": "data"},
 					},
 				},
+				Relations: []topology.Relation{},
 			},
-			Relations: []topology.Relation{},
 		},
 	}), expectedTopology)
 }
@@ -87,48 +66,26 @@ func testRelationTopology(t *testing.T) {
 		C.CString("source-id"),
 		C.CString("target-id"),
 		C.CString("relation-type"),
-		C.CString(`
-key: value ®
-stringlist: 
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue
-`))
+		C.CString("some: data"))
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations: []topology.Relation{
-				{
-					ExternalID: "source-id-relation-type-target-id",
-					SourceID:   "source-id",
-					TargetID:   "target-id",
-					Type:       topology.Type{Name: "relation-type"},
-					Data: map[string]interface{}{
-						"key":          "value ®",
-						"stringlist":   []interface{}{"a", "b", "c"},
-						"boollist":     []interface{}{true, false},
-						"intlist":      []interface{}{1},
-						"doublelist":   []interface{}{0.7, 1.42},
-						"emptykey":     nil,
-						"nestedobject": map[interface{}]interface{}{"nestedkey": "nestedValue"},
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations: []topology.Relation{
+					{
+						ExternalID: "source-id-relation-type-target-id",
+						SourceID:   "source-id",
+						TargetID:   "target-id",
+						Type:       topology.Type{Name: "relation-type"},
+						Data:       topology.Data{"some": "data"},
 					},
 				},
 			},
@@ -148,13 +105,16 @@ func testStartSnapshotCheck(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
-			StartSnapshot: true,
-			StopSnapshot:  false,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: true,
+				StopSnapshot:  false,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
 		},
 	}), expectedTopology)
 }
@@ -171,13 +131,16 @@ func testStopSnapshotCheck(t *testing.T) {
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}
 
-	assert.Equal(t, batcher.Topologies(map[check.ID]topology.Topology{
+	assert.Equal(t, batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"check-id": {
-			StartSnapshot: false,
-			StopSnapshot:  true,
-			Instance:      instance,
-			Components:    []topology.Component{},
-			Relations:     []topology.Relation{},
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  true,
+				Instance:      instance,
+				Components:    []topology.Component{},
+				Relations:     []topology.Relation{},
+			},
 		},
 	}), expectedTopology)
 }

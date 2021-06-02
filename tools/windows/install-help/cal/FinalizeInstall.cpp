@@ -181,7 +181,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         }
     }
     er = addDdUserPermsToFile(data, programdataroot);
-    WcaLog(LOGMSG_STANDARD, "%d setting programdataroot dir perms", er);
+    WcaLog(LOGMSG_STANDARD, "%d setting programdata dir perms", er);
     er = addDdUserPermsToFile(data, embedded2Dir);
     WcaLog(LOGMSG_STANDARD, "%d setting embedded2Dir dir perms", er);
     er = addDdUserPermsToFile(data, embedded3Dir);

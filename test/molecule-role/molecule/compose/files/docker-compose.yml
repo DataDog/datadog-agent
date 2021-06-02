@@ -17,14 +17,19 @@ services:
       KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1,sts_topology_events:1:1"
+      # This is required to be able to run create-topics within the health check
+      KAFKA_PORT: 9092
+      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
+    healthcheck:
+      # Okay, here it goes. Due to a variant on this bug: https://github.com/wurstmeister/kafka-docker/issues/661
+      # we intermittently get that not all topics are created. This causes flaky behavior on the tests
+      # We patched it by having the health check also try to create when it fails
+      test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" != \"10\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
+      interval: 3s
+      timeout: 30s
+      retries: 10
     volumes:
       - "./create-topics.sh:/usr/bin/create-topics.sh"
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -q sts_trace_events"]
-      interval: 1s
-      timeout: 10s
-      retries: 10
     mem_limit: 1G
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:{{ stackstate_branch }}"
@@ -117,7 +122,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:{{agent_current_branch}}
+    image: docker.io/stackstate/{{ agent_docker_repo }}:{{agent_current_branch}}
     network_mode: "host"
     pid: "host"
     privileged: true

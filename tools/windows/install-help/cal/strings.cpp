@@ -229,7 +229,6 @@ void getOsStrings()
 
     ddRegKey ddroot;
     std::wstring confroot;
-
     if(!ddroot.getStringValue(L"ConfigRoot", programdataroot))
     {
         if(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, 0, &outstr) == S_OK)
@@ -240,7 +239,6 @@ void getOsStrings()
         if(programdataroot.back() != L'\\'){
             programdataroot += L"\\";
         }
-        programdataroot += L"..\\";
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
@@ -260,9 +258,8 @@ void getOsStrings()
     logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
-    // [sts] Replaced the target path to a valid location
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"stackstate.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"stackstate.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;

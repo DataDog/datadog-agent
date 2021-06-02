@@ -19,6 +19,7 @@
 #include "util.h"
 #include "topology.h"
 #include "telemetry.h"
+#include "health.h"
 
 #include <algorithm>
 #include <sstream>
@@ -85,6 +86,7 @@ bool Three::init()
     PyImport_AppendInittab(CONTAINERS_MODULE_NAME, PyInit_containers);
     PyImport_AppendInittab(TOPOLOGY_MODULE_NAME, PyInit_topology);
     PyImport_AppendInittab(TELEMETRY_MODULE_NAME, PyInit_telemetry);
+    PyImport_AppendInittab(HEALTH_MODULE_NAME, PyInit_health);
 
     Py_Initialize();
 
@@ -934,6 +936,21 @@ void Three::setSubmitTopologyEventCb(cb_submit_topology_event_t cb)
     _set_submit_topology_event_cb(cb);
 }
 
+// [sts] health
+void Three::setSubmitHealthCheckDataCb(cb_submit_health_check_data_t cb)
+{
+    _set_submit_health_check_data_cb(cb);
+}
+
+void Three::setSubmitHealthStartSnapshotCb(cb_submit_health_start_snapshot_t cb)
+{
+    _set_submit_health_start_snapshot_cb(cb);
+}
+
+void Three::setSubmitHealthStopSnapshotCb(cb_submit_health_stop_snapshot_t cb)
+{
+    _set_submit_health_stop_snapshot_cb(cb);
+}
 
 // Python Helpers
 

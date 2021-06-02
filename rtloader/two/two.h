@@ -130,6 +130,11 @@ public:
     // telemetry
     void setSubmitTopologyEventCb(cb_submit_topology_event_t);
 
+    // health
+    void setSubmitHealthCheckDataCb(cb_submit_health_check_data_t);
+    void setSubmitHealthStartSnapshotCb(cb_submit_health_start_snapshot_t);
+    void setSubmitHealthStopSnapshotCb(cb_submit_health_stop_snapshot_t);
+
 private:
     //! initPythonHome member.
     /*!
