@@ -419,6 +419,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     event.process.pid = pid;
     event.process.tid = pid;
 
+    if (pid != 1 && ppid == 0)
+        return 0;
+
     struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
