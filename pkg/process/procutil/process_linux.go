@@ -821,7 +821,7 @@ func bootTime(hostProc string) (uint64, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("btime data does not exist in /proc/stat")
+	return 0, fmt.Errorf("btime data does not exist in %s", filePath)
 }
 
 // getClockTicks uses command "getconf CLK_TCK" to fetch the clock tick on current host,
