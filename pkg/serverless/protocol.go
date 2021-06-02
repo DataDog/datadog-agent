@@ -281,7 +281,7 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	return d.clientLibReady
 }
 
-// ComputeGlobalTags extracts tags from the ARN, merge them use any user-predefined tags and set them to traces, logs and metrics
+// ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMapFromArn(arn)

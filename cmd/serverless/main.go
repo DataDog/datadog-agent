@@ -316,7 +316,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
-	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
 	// initializes the DogStatsD server
 	// --------------------------------
 
