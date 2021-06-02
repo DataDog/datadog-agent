@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Added *experimental* support for Opentelemetry collecting via
+    apm_config.otlp.http_port, apm_config.otlp.grpc_port or their corresponding
+    environment variables (DD_APM_CONFIG_OTLP_{HTTP,GRPC}_PORT).
