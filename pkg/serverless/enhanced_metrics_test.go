@@ -195,11 +195,11 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	}})
 }
 
-func TestGetTagsForEnhancedMetricsWithoutColdStart(t *testing.T) {
+func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
 	defer aws.SetARN("")
 
-	generatedTags := getTagsForEnhancedMetrics([]string{
+	generatedTags := addColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})
@@ -211,12 +211,12 @@ func TestGetTagsForEnhancedMetricsWithoutColdStart(t *testing.T) {
 	})
 }
 
-func TestGetTagsForEnhancedMetricsWithColdStart(t *testing.T) {
+func TestAddColdStartTagWithColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
 	aws.SetColdStart(true)
 	defer aws.SetARN("")
 
-	generatedTags := getTagsForEnhancedMetrics([]string{
+	generatedTags := addColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})

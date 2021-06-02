@@ -300,7 +300,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 
 		if strings.ToLower(payload.ShutdownReason) == "timeout" {
-			metricTags := getTagsForEnhancedMetrics(daemon.extraTags)
+			metricTags := addColdStartTag(daemon.extraTags)
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 

@@ -330,7 +330,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func processLogMessages(l *LogsCollection, messages []aws.LogMessage, functionName string) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-	metricTags := getTagsForEnhancedMetrics(l.daemon.extraTags)
+	metricTags := addColdStartTag(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 	functionName = strings.ToLower(functionName)
