@@ -767,9 +767,7 @@ func TestBootTimeRefresh(t *testing.T) {
 	err = os.Rename("resources/test_procfs/proc/stat2", "resources/test_procfs/proc/stat")
 	require.NoError(t, err)
 
-	// wait for 1s so the bootTime is refreshed
-	time.Sleep(time.Second)
-	assert.Equal(t, uint64(1606127364), atomic.LoadUint64(&probe.bootTime))
+	assert.Eventually(t, func() bool { return uint64(1606127364) == atomic.LoadUint64(&probe.bootTime) }, time.Second, 100*time.Millisecond)
 
 	err = os.Rename("resources/test_procfs/proc/stat", "resources/test_procfs/proc/stat2")
 	require.NoError(t, err)
