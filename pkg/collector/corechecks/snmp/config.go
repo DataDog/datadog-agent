@@ -50,7 +50,7 @@ type snmpInstanceConfig struct {
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network"`
+	Network string `yaml:"network_address"`
 }
 
 type snmpConfig struct {
