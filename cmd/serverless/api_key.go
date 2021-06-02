@@ -21,7 +21,7 @@ func decryptKMS(ciphertext string) (string, error) {
 	kmsClient := kms.New(session.New(nil))
 	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("Failed to encode cipher text to base64: %v", err)
+		return "", fmt.Errorf("Failed to encode ciphertext to base64: %v", err)
 	}
 
 	params := &kms.DecryptInput{
@@ -32,10 +32,10 @@ func decryptKMS(ciphertext string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
 	}
-	// Plaintext is a byte array, so convert to string
-	decrypted := string(response.Plaintext[:])
+	// response.Plaintext is a byte array, so convert to string
+	plaintext := string(response.Plaintext[:])
 
-	return decrypted, nil
+	return plaintext, nil
 }
 
 // readAPIKeyFromKMS reads an API Key in KMS if the env var DD_KMS_API_KEY has
@@ -54,22 +54,22 @@ func readAPIKeyFromKMS() (string, error) {
 	return plaintext, nil
 }
 
-// readAPIKeyFromSecretsManager reads an API Key from Secrets Manager if the env var DD_API_KEY_SECRET_ARN
+// readAPIKeyFromSecretsManager reads an API Key from AWS Secrets Manager if the env var DD_API_KEY_SECRET_ARN
 // has been set.
-// If none has been set, it is returns an empty string and a nil error.
+// If none has been set, it returns an empty string and a nil error.
 func readAPIKeyFromSecretsManager() (string, error) {
 	arn := os.Getenv(secretsManagerAPIKeyEnvVar)
 	if arn == "" {
 		return "", nil
 	}
 	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
-	ssmClient := secretsmanager.New(session.New(nil))
+	secretsManagerClient := secretsmanager.New(session.New(nil))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
 
-	output, err := ssmClient.GetSecretValue(secret)
+	output, err := secretsManagerClient.GetSecretValue(secret)
 	if err != nil {
-		return "", fmt.Errorf("SSM read error: %s", err)
+		return "", fmt.Errorf("Secrets Manager read error: %s", err)
 	}
 
 	if output.SecretString != nil {
@@ -79,11 +79,11 @@ func readAPIKeyFromSecretsManager() (string, error) {
 		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
 		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
 		if err != nil {
-			return "", fmt.Errorf("Can't base64 decode SSM secret: %s", err)
+			return "", fmt.Errorf("Can't base64 decode Secrets Manager secret: %s", err)
 		}
 		return string(decodedBinarySecretBytes[:len]), nil
 	}
 	// should not happen but let's handle this gracefully
-	log.Warn("SSM returned something but there seems to be no data available;")
+	log.Warn("Secrets Manager returned something but there seems to be no data available")
 	return "", nil
 }
