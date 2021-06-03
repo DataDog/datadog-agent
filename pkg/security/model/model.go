@@ -257,9 +257,9 @@ type Process struct {
 	EnvsID uint32 `field:"-"`
 
 	ArgsEntry     *ArgsEntry `field:"-"`
-	ArgsTruncated bool       `field:"-"`
 	EnvsEntry     *EnvsEntry `field:"-"`
 	EnvsTruncated bool       `field:"-"`
+	ArgsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event

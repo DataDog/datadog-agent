@@ -78,7 +78,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 type ArgsEnvsCacheEntry struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [128]byte
+	ValuesRaw [256]byte
 	Next      *ArgsEnvsCacheEntry
 	Last      *ArgsEnvsCacheEntry
 }
