@@ -22,6 +22,9 @@ if ($Env:TARGET_ARCH -eq "x86") {
 mkdir  .\bin\agent
 & inv -e customaction.build --arch=$archflag
 
+# Generate the datadog.yaml config file to be used in integration tests
+& inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+
 & $Env:BUILD_ROOT\bin\agent\customaction-tests.exe
 $err = $LASTEXITCODE
 Write-Host Test result is $err

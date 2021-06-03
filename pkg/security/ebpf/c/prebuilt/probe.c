@@ -11,6 +11,7 @@
 #include "approvers.h"
 #include "discarders.h"
 #include "dentry.h"
+#include "dentry_resolver.h"
 #include "exec.h"
 #include "process.h"
 #include "container.h"

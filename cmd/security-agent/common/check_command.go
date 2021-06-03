@@ -84,7 +84,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		if err != nil {
 			return err
 		}
-		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl)))
+		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl, "")))
 	} else {
 		options = append(options, []checks.BuilderOption{
 			checks.WithHostRootMount(os.Getenv("HOST_ROOT")),

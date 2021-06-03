@@ -5,6 +5,8 @@ import os
 
 from invoke import Collection
 
+from tasks.utils import generate_config
+
 from . import (
     agent,
     android,
@@ -37,6 +39,7 @@ from .go import (
     fmt,
     generate,
     generate_licenses,
+    generate_protobuf,
     golangci_lint,
     lint,
     lint_licenses,
@@ -75,6 +78,7 @@ ns.add_task(deps)
 ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
@@ -91,6 +95,7 @@ ns.add_task(install_shellcheck)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(generate_config)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

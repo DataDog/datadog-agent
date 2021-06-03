@@ -15,6 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func newServiceAccount(ns, name string, automount bool) *corev1.ServiceAccount {
@@ -24,6 +25,7 @@ func newServiceAccount(ns, name string, automount bool) *corev1.ServiceAccount {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(name),
 			Name:      name,
 			Namespace: ns,
 		},
@@ -38,6 +40,7 @@ func newRoleBinding(ns, name string, subjects []rbacv1.Subject) *rbacv1.RoleBind
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(name),
 			Name:      name,
 			Namespace: ns,
 		},
@@ -52,6 +55,7 @@ func newClusterRoleBinding(ns, name string, subjects []rbacv1.Subject) *rbacv1.C
 			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID(name),
 			Name:      name,
 			Namespace: ns,
 		},
@@ -76,6 +80,11 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					compliance.KubeResourceFieldVersion:   "v1",
 					compliance.KubeResourceFieldGroup:     "",
 				},
+				Resource: compliance.ReportResource{
+					ID:   "default",
+					Type: "kube_serviceaccount",
+				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -94,6 +103,11 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					compliance.KubeResourceFieldVersion:   "v1",
 					compliance.KubeResourceFieldGroup:     "",
 				},
+				Resource: compliance.ReportResource{
+					ID:   "default",
+					Type: "kube_serviceaccount",
+				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -118,6 +132,11 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					compliance.KubeResourceFieldVersion:   "v1",
 					compliance.KubeResourceFieldGroup:     "",
 				},
+				Resource: compliance.ReportResource{
+					ID:   "default",
+					Type: "kube_serviceaccount",
+				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -142,6 +161,11 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					compliance.KubeResourceFieldVersion:   "v1",
 					compliance.KubeResourceFieldGroup:     "",
 				},
+				Resource: compliance.ReportResource{
+					ID:   "default",
+					Type: "kube_serviceaccount",
+				},
+				Aggregated: true,
 			},
 		},
 		{
@@ -173,6 +197,11 @@ func TestKubeDefaultServiceAccountsCheck(t *testing.T) {
 					compliance.KubeResourceFieldVersion:   "v1",
 					compliance.KubeResourceFieldGroup:     "",
 				},
+				Resource: compliance.ReportResource{
+					ID:   "default",
+					Type: "kube_serviceaccount",
+				},
+				Aggregated: true,
 			},
 		},
 	}

@@ -209,6 +209,15 @@ variables:
 .if_not_kitchen: &if_not_kitchen
   if: ($CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true") || $RUN_KITCHEN_TESTS == "false"
 
+# Rules to trigger default kitchen tests.
+# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
+# by setting RUN_KITCHEN_TESTS to false.
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
+
+.if_not_default_kitchen: &if_not_default_kitchen
+  if: $RUN_KITCHEN_TESTS == "false"
+
 # true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
 # we are building either a new tagged version of the agent (an RC for example).
 # In both cases the artifacts should be uploaded to our staging repository.

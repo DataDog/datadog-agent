@@ -36,6 +36,6 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 }
 
 // GetProcStats is not supported
-func (r *RemoteSysProbeUtil) GetProcStats() (*model.ProcStatsWithPermByPID, error) {
+func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ebpf.ErrNotImplemented
 }

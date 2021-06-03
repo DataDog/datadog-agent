@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/sprig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // getter applies jq query to get string value from json or yaml raw data
@@ -38,10 +38,11 @@ func jsonGetter(data []byte, query string) (string, error) {
 
 // yamlGetter retrieves a property from a YAML file (jq style syntax)
 func yamlGetter(data []byte, query string) (string, error) {
-	var yamlContent map[string]interface{}
+	var yamlContent interface{}
 	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
 		return "", err
 	}
+	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
 	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
 	return value, err
 }
@@ -99,10 +100,10 @@ func wrapErrorWithID(id string, err error) error {
 }
 
 // instanceToEventData converts an instance to event data filtering out fields not on the allowedFields list
-func instanceToEventData(instance *eval.Instance, allowedFields []string) event.Data {
+func instanceToEventData(instance eval.Instance, allowedFields []string) event.Data {
 	data := event.Data{}
 
-	for k, v := range instance.Vars {
+	for k, v := range instance.Vars() {
 		allow := false
 		for _, a := range allowedFields {
 			if k == a {
@@ -120,36 +121,28 @@ func instanceToEventData(instance *eval.Instance, allowedFields []string) event.
 
 // instanceToReport converts an instance and passed status to report
 // filtering out fields not on the allowedFields list
-func instanceToReport(instance *eval.Instance, passed bool, allowedFields []string) *compliance.Report {
+func instanceToReport(instance resolvedInstance, passed bool, allowedFields []string) *compliance.Report {
 	var data event.Data
+	var resourceReport compliance.ReportResource
 
 	if instance != nil {
 		data = instanceToEventData(instance, allowedFields)
+		resourceReport = compliance.ReportResource{
+			ID:   instance.ID(),
+			Type: instance.Type(),
+		}
 	}
 
 	return &compliance.Report{
-		Passed: passed,
-		Data:   data,
+		Resource: resourceReport,
+		Passed:   passed,
+		Data:     data,
 	}
 }
 
 // instanceToReports converts an evaluated instanceResult to reports
 // filtering out fields not on the allowedFields list
-func instanceResultToReports(result *eval.InstanceResult, allowedFields []string) []*compliance.Report {
-	var reports []*compliance.Report
-
-	if len(result.Instances) > 0 {
-		for _, instance := range result.Instances {
-			reports = append(reports, instanceToReport(instance, result.Passed, allowedFields))
-
-			// report only one success instance
-			if result.Passed {
-				break
-			}
-		}
-	} else {
-		reports = append(reports, &compliance.Report{Passed: false})
-	}
-
-	return reports
+func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
+	resolvedInstance, _ := result.Instance.(resolvedInstance)
+	return instanceToReport(resolvedInstance, result.Passed, allowedFields)
 }

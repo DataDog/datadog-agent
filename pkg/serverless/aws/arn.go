@@ -6,6 +6,7 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,9 +24,19 @@ import (
 
 const (
 	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
-	regionEnvVar           = "AWS_REGION"
-	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
-	qualifierEnvVar        = "AWS_LAMBDA_FUNCTION_VERSION"
+	// RegionEnvVar is used to represent the AWS region environment variable name
+	RegionEnvVar       = "AWS_REGION"
+	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	qualifierEnvVar    = "AWS_LAMBDA_FUNCTION_VERSION"
+
+	traceOriginMetadataKey   = "_dd.origin"
+	traceOriginMetadataValue = "lambda"
+	computeStatsKey          = "_dd.compute_stats"
+	computeStatsValue        = "1"
+	functionARNKey           = "function_arn"
+	functionNameKey          = "functionname"
+	regionKey                = "region"
+	awsAccountKey            = "aws_account"
 )
 
 type persistedState struct {
@@ -166,7 +177,7 @@ func RestoreCurrentStateFromFile() error {
 // in the environment.
 func FetchFunctionARNFromEnv(accountID string) (string, error) {
 	partition := "aws"
-	region := os.Getenv(regionEnvVar)
+	region := os.Getenv(RegionEnvVar)
 	functionName := os.Getenv(functionNameEnvVar)
 	qualifier := os.Getenv(qualifierEnvVar)
 
@@ -223,15 +234,33 @@ func GetARNTags() []string {
 	return tags
 }
 
+// BuildGlobalTagsMap returns tags associated with the given ARN
+func BuildGlobalTagsMap(functionARN string, functionName string, region string, awsAccountID string) map[string]string {
+	tags := make(map[string]string)
+	tags[traceOriginMetadataKey] = traceOriginMetadataValue
+	tags[computeStatsKey] = computeStatsValue
+	if functionARN != "" {
+		tags[functionARNKey] = functionARN
+	}
+	tags[functionNameKey] = functionName
+	if region != "" {
+		tags[regionKey] = region
+	}
+	if awsAccountID != "" {
+		tags[awsAccountKey] = awsAccountID
+	}
+	return tags
+}
+
 // FetchAccountID retrieves the AWS Lambda's account id by calling STS
-func FetchAccountID(svc stsiface.STSAPI) (string, error) {
+func FetchAccountID(ctx context.Context, svc stsiface.STSAPI) (string, error) {
 	// sts.GetCallerIdentity returns information about the current AWS credentials,
 	// (including account ID), and is one of the only AWS API methods that can't be
 	// denied via IAM.
 
 	input := &sts.GetCallerIdentityInput{}
 
-	result, err := svc.GetCallerIdentity(input)
+	result, err := svc.GetCallerIdentityWithContext(ctx, input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {

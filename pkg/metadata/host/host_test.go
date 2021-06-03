@@ -179,7 +179,7 @@ func TestGetProxyMeta(t *testing.T) {
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)
 
-	httputils.NoProxyWarningMap["http://someUrl.com"] = true
+	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
 }

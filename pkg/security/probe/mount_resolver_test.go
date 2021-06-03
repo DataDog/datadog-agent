@@ -8,11 +8,13 @@
 package probe
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"gotest.tools/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMountResolver(t *testing.T) {
@@ -352,5 +354,51 @@ func TestMountResolver(t *testing.T) {
 				assert.Equal(t, testC.expectedContainerPath, cp)
 			}
 		})
+	}
+}
+
+func TestGetParentPath(t *testing.T) {
+	mr := &MountResolver{
+		mounts: map[uint32]*model.MountEvent{
+			1: {
+				MountID:       1,
+				ParentMountID: 3,
+				MountPointStr: "/a",
+			},
+			2: {
+				MountID:       2,
+				ParentMountID: 1,
+				MountPointStr: "/b",
+			},
+			3: {
+				MountID:       3,
+				ParentMountID: 2,
+				MountPointStr: "/c",
+			},
+		},
+	}
+
+	parentPath := mr.getParentPath(3)
+	assert.Equal(t, "/a/b/c", parentPath)
+}
+
+func BenchmarkGetParentPath(b *testing.B) {
+	mr := &MountResolver{
+		mounts: make(map[uint32]*model.MountEvent),
+	}
+
+	var parentID uint32
+	for i := uint32(0); i != 100; i++ {
+		mr.mounts[i+1] = &model.MountEvent{
+			MountID:       i + 1,
+			ParentMountID: parentID,
+			MountPointStr: fmt.Sprintf("/%d", i+1),
+		}
+		parentID = i
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mr.getParentPath(0)
 	}
 }

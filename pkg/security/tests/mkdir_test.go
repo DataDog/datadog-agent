@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMkdir(t *testing.T) {

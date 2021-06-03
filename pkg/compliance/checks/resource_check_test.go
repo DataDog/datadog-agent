@@ -36,22 +36,31 @@ func TestResourceCheck(t *testing.T) {
 	fallback := &mockCheckable{}
 	fallback.On("check", e).Return(fallbackReports, nil)
 
-	iterator := &mockIterator{els: []*eval.Instance{
-		{
-			Vars: map[string]interface{}{
-				"a": 14,
-			},
-		},
-		{
-			Vars: map[string]interface{}{
-				"a": 6,
-			},
-		},
-		{
-			Vars: map[string]interface{}{
-				"a": 4,
-			},
-		},
+	iterator := &mockIterator{els: []eval.Instance{
+		newResolvedInstance(
+			eval.NewInstance(
+				map[string]interface{}{
+					"a": 14,
+				}, nil,
+			),
+			"test-id", "test-resource-type",
+		),
+		newResolvedInstance(
+			eval.NewInstance(
+				map[string]interface{}{
+					"a": 6,
+				}, nil,
+			),
+			"test-id", "test-resource-type",
+		),
+		newResolvedInstance(
+			eval.NewInstance(
+				map[string]interface{}{
+					"a": 4,
+				}, nil,
+			),
+			"test-id", "test-resource-type",
+		),
 	}}
 	iterator.On("Next").Return()
 	iterator.On("Done").Return()
@@ -59,7 +68,7 @@ func TestResourceCheck(t *testing.T) {
 	tests := []struct {
 		name              string
 		resourceCondition string
-		resourceResolved  interface{}
+		resourceResolved  resolved
 		fallbackCondition string
 		fallback          checkable
 		reportedFields    []string
@@ -70,12 +79,14 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "no fallback provided",
 			resourceCondition: "a > 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 4,
-					"b": 8,
-				},
-			},
+			resourceResolved: newResolvedInstance(
+				eval.NewInstance(
+					map[string]interface{}{
+						"a": 4,
+						"b": 8,
+					}, nil,
+				), "test-id", "test-resource-type",
+			),
 			reportedFields: []string{"a"},
 			expectReports: []*compliance.Report{
 				{
@@ -83,17 +94,23 @@ func TestResourceCheck(t *testing.T) {
 					Data: event.Data{
 						"a": 4,
 					},
+					Resource: compliance.ReportResource{
+						ID:   "test-id",
+						Type: "test-resource-type",
+					},
 				},
 			},
 		},
 		{
 			name:              "fallback not used",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 4,
-				},
-			},
+			resourceResolved: newResolvedInstance(
+				eval.NewInstance(
+					map[string]interface{}{
+						"a": 4,
+					}, nil,
+				), "test-id", "test-resource-type",
+			),
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
 			reportedFields:    []string{"a"},
@@ -103,17 +120,23 @@ func TestResourceCheck(t *testing.T) {
 					Data: event.Data{
 						"a": 4,
 					},
+					Resource: compliance.ReportResource{
+						ID:   "test-id",
+						Type: "test-resource-type",
+					},
 				},
 			},
 		},
 		{
 			name:              "fallback used",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 3,
-				},
-			},
+			resourceResolved: newResolvedInstance(
+				eval.NewInstance(
+					map[string]interface{}{
+						"a": 3,
+					}, nil,
+				), "test-id", "test-resource-type",
+			),
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
 			expectReports:     fallbackReports,
@@ -121,15 +144,17 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "cannot use fallback",
 			resourceCondition: "a >= 3",
-			resourceResolved: &instanceIterator{
-				instances: []*eval.Instance{
-					{
-						Vars: map[string]interface{}{
-							"a": 3,
-						},
-					},
-				},
-			},
+			resourceResolved: newResolvedIterator(
+				newInstanceIterator(
+					[]eval.Instance{newResolvedInstance(
+						eval.NewInstance(
+							map[string]interface{}{
+								"a": 3,
+							}, nil,
+						), "test-id", "test-resource-type",
+					)},
+				),
+			),
 			fallbackCondition: "a == 3",
 			fallback:          fallback,
 			expectReports: []*compliance.Report{
@@ -143,11 +168,13 @@ func TestResourceCheck(t *testing.T) {
 		{
 			name:              "fallback missing",
 			resourceCondition: "a >= 3",
-			resourceResolved: &eval.Instance{
-				Vars: map[string]interface{}{
-					"a": 3,
-				},
-			},
+			resourceResolved: newResolvedInstance(
+				eval.NewInstance(
+					map[string]interface{}{
+						"a": 3,
+					}, nil,
+				), "test-id", "test-resource-type",
+			),
 			fallbackCondition: "a == 3",
 			expectReports: []*compliance.Report{
 				{
@@ -158,29 +185,9 @@ func TestResourceCheck(t *testing.T) {
 			expectErr: ErrResourceFallbackMissing,
 		},
 		{
-			name:              "iterator not passing",
+			name:              "iterator partially passed",
 			resourceCondition: "a > 10",
-			resourceResolved:  iterator,
-			reportedFields:    []string{"a"},
-			expectReports: []*compliance.Report{
-				{
-					Passed: false,
-					Data: event.Data{
-						"a": 6,
-					},
-				},
-				{
-					Passed: false,
-					Data: event.Data{
-						"a": 4,
-					},
-				},
-			},
-		},
-		{
-			name:              "iterator passed",
-			resourceCondition: "a > 2",
-			resourceResolved:  iterator,
+			resourceResolved:  newResolvedIterator(iterator),
 			reportedFields:    []string{"a"},
 			expectReports: []*compliance.Report{
 				{
@@ -188,19 +195,9 @@ func TestResourceCheck(t *testing.T) {
 					Data: event.Data{
 						"a": 14,
 					},
-				},
-			},
-		},
-		{
-			name:              "count equals to zero multiple reports",
-			resourceCondition: "count(_) == 0",
-			resourceResolved:  iterator,
-			reportedFields:    []string{"a"},
-			expectReports: []*compliance.Report{
-				{
-					Passed: false,
-					Data: event.Data{
-						"a": 14,
+					Resource: compliance.ReportResource{
+						ID:   "test-id",
+						Type: "test-resource-type",
 					},
 				},
 				{
@@ -208,12 +205,33 @@ func TestResourceCheck(t *testing.T) {
 					Data: event.Data{
 						"a": 6,
 					},
+					Resource: compliance.ReportResource{
+						ID:   "test-id",
+						Type: "test-resource-type",
+					},
 				},
 				{
 					Passed: false,
 					Data: event.Data{
 						"a": 4,
 					},
+					Resource: compliance.ReportResource{
+						ID:   "test-id",
+						Type: "test-resource-type",
+					},
+				},
+			},
+		},
+		{
+			name:              "count equals to zero multiple reports",
+			resourceCondition: "count(_) == 0",
+			resourceResolved: &resolvedIterator{
+				Iterator: iterator,
+			},
+			reportedFields: []string{"a"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: false,
 				},
 			},
 		},
@@ -232,7 +250,7 @@ func TestResourceCheck(t *testing.T) {
 				}
 			}
 
-			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.Resource) (interface{}, error) {
+			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.Resource) (resolved, error) {
 				return test.resourceResolved, nil
 			}
 

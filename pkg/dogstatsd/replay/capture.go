@@ -14,6 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const (
+	// GUID will be used as the GUID during capture replays
+	// This is a magic number chosen for no particular reason other than the fact its
+	// quite large an improbable to match an actual Group ID on any given box. We
+	// need this number to identify replayed Unix socket ancillary credentials.
+	GUID = 999888777
+)
+
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type TrafficCapture struct {
 	Writer *TrafficCaptureWriter
@@ -63,17 +71,12 @@ func (tc *TrafficCapture) Start(d time.Duration) error {
 
 }
 
-// Stop stops an ongoing TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Stop() error {
+// Stop stops an ongoing TrafficCapture.
+func (tc *TrafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
-	err := tc.Writer.StopCapture()
-	if err != nil {
-		return nil
-	}
-
-	return nil
+	tc.Writer.StopCapture()
 }
 
 // Path returns the path to the underlying TrafficCapture file, and an error if any.
