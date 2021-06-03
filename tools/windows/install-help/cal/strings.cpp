@@ -239,6 +239,7 @@ void getOsStrings()
         if(programdataroot.back() != L'\\'){
             programdataroot += L"\\";
         }
+        programdataroot += L"..\\";
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
