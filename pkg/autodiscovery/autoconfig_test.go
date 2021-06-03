@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,6 +41,10 @@ func (p *MockProvider) String() string {
 
 func (p *MockProvider) IsUpToDate() (bool, error) {
 	return true, nil
+}
+
+func (p *MockProvider) GetConfigErrors() map[string]providers.ErrorMsgSet {
+	return make(map[string]providers.ErrorMsgSet)
 }
 
 type MockProvider2 struct {

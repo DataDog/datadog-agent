@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -73,9 +74,16 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
-		httputils.NoProxyWarningMapMutex.Lock()
-		stats["TransportWarnings"] = httputils.NoProxyWarningMap
-		httputils.NoProxyWarningMapMutex.Unlock()
+		httputils.NoProxyMapMutex.Lock()
+		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
+		stats["NoProxyIgnoredWarningMap"] = httputils.NoProxyIgnoredWarningMap
+		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
+		stats["NoProxyChanged"] = httputils.NoProxyChanged
+		httputils.NoProxyMapMutex.Unlock()
+	}
+
+	if config.IsContainerized() {
+		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors()
 	}
 
 	return stats, nil

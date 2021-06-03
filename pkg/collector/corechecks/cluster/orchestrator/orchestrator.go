@@ -56,6 +56,8 @@ var (
 		"replicasets",
 		"services",
 		"nodes",
+		"jobs",
+		"cronjobs",
 	}
 )
 
@@ -102,6 +104,8 @@ type OrchestratorCheck struct {
 	jobsListerSync          cache.InformerSynced
 	cronJobsLister          batchlistersBeta1.CronJobLister
 	cronJobsListerSync      cache.InformerSynced
+	daemonSetsLister        appslisters.DaemonSetLister
+	daemonSetsListerSync    cache.InformerSynced
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -223,6 +227,11 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.cronJobsLister = cronJobsInformer.Lister()
 			o.cronJobsListerSync = cronJobsInformer.Informer().HasSynced
 			informersToSync[apiserver.CronJobsInformer] = cronJobsInformer.Informer()
+		case "daemonsets":
+			daemonSetsInformer := apiCl.InformerFactory.Apps().V1().DaemonSets()
+			o.daemonSetsLister = daemonSetsInformer.Lister()
+			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
+			informersToSync[apiserver.DaemonSetsInformer] = daemonSetsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -273,6 +282,7 @@ func (o *OrchestratorCheck) Run() error {
 	o.processNodes(sender)
 	o.processJobs(sender)
 	o.processCronJobs(sender)
+	o.processDaemonSets(sender)
 
 	return nil
 }
@@ -439,6 +449,33 @@ func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCronJob), stats, orchestrator.NoExpiration)
 
 	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeCronJob)
+}
+
+func (o *OrchestratorCheck) processDaemonSets(sender aggregator.Sender) {
+	if o.daemonSetsLister == nil {
+		return
+	}
+	daemonSetLists, err := o.daemonSetsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list daemonSets: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processDaemonSetList(daemonSetLists, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process daemonSets list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(daemonSetLists) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sDaemonSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDaemonSet), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDaemonset)
 }
 
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {

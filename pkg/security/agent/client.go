@@ -9,9 +9,10 @@ import (
 	"context"
 	"errors"
 
+	"google.golang.org/grpc"
+
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"google.golang.org/grpc"
 )
 
 // RuntimeSecurityClient is used to send request to security module
@@ -29,6 +30,17 @@ func (c *RuntimeSecurityClient) DumpProcessCache() (string, error) {
 	}
 
 	return response.Filename, nil
+}
+
+// GetConfig retrieves the config of the runtime security module
+func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.GetConfig(context.Background(), &api.GetConfigParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
 }
 
 // Close closes the connection

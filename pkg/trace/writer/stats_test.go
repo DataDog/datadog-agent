@@ -109,8 +109,15 @@ func TestStatsWriter(t *testing.T) {
 			AgentEnv:      "agentenv",
 			AgentVersion:  "agent-version",
 			Stats: []pb.ClientStatsPayload{{
-				Hostname: testHostname,
-				Env:      testEnv,
+				Hostname:         testHostname,
+				Env:              testEnv,
+				Version:          "version",
+				Lang:             "lang",
+				TracerVersion:    "tracer-version",
+				RuntimeID:        "runtime-id",
+				Sequence:         34,
+				AgentAggregation: "aggregation",
+				Service:          "service",
 				Stats: []pb.ClientStatsBucket{
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
@@ -118,6 +125,8 @@ func TestStatsWriter(t *testing.T) {
 				}},
 			},
 		}
+		baseClientPayload := stats.Stats[0]
+		baseClientPayload.Stats = nil
 		expectedNbEntries := 15
 		expectedNbPayloads := int(math.Ceil(float64(expectedNbEntries) / 12))
 		// Compute our expected number of entries by payload
@@ -133,6 +142,9 @@ func TestStatsWriter(t *testing.T) {
 			assert.Equal(1, len(payloads[i].Stats))
 			assert.Equal(1, len(payloads[i].Stats[0].Stats))
 			assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
+			actual := payloads[i].Stats[0]
+			actual.Stats = nil
+			assert.Equal(baseClientPayload, actual)
 		}
 		assert.Equal(extractCounts([]pb.StatsPayload{stats}), extractCounts(payloads))
 		for _, p := range payloads {

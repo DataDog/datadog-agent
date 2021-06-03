@@ -4,39 +4,10 @@
     "type": "object",
     "anyOf": [
         {
-            "allOf": [
-                {
-                    "$ref": "file:///event.json"
-                },
-                {
-                    "$ref": "file:///file.json"
-                },
-                {
-                    "$ref": "file:///usr.json"
-                },
-                {
-                    "$ref": "file:///process_context.json"
-                },
-                {
-                    "$ref": "file:///container_context.json"
-                }
-            ]
+            "$ref": "file:///container_event.json"
         },
         {
-            "allOf": [
-                {
-                    "$ref": "file:///event.json"
-                },
-                {
-                    "$ref": "file:///file.json"
-                },
-                {
-                    "$ref": "file:///usr.json"
-                },
-                {
-                    "$ref": "file:///process_context.json"
-                }
-            ]
+            "$ref": "file:///host_event.json"
         }
     ],
     "allOf": [

@@ -208,8 +208,10 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 		if datadogMetricCached != nil {
 			// Feeding local cache with DatadogMetric information
 			c.store.Set(datadogMetricKey, model.NewDatadogMetricInternal(datadogMetricKey, *datadogMetricCached), ddmControllerStoreID)
+			setDatadogMetricTelemetry(datadogMetricCached)
 		} else {
 			c.store.Delete(datadogMetricKey, ddmControllerStoreID)
+			unsetDatadogMetricTelemetry(ns, name)
 		}
 	}
 
@@ -307,6 +309,8 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 		return fmt.Errorf("Unable to create DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
 
+	setDatadogMetricTelemetry(datadogMetric)
+
 	return nil
 }
 
@@ -331,6 +335,7 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 		if err != nil {
 			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %v", ns, name, err)
 		}
+		setDatadogMetricTelemetry(datadogMetric)
 	} else {
 		return fmt.Errorf("Impossible to build new status for DatadogMetric: %s", datadogMetricInternal.ID)
 	}
@@ -344,5 +349,6 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	if err != nil {
 		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
+	unsetDatadogMetricTelemetry(ns, name)
 	return nil
 }

@@ -12,6 +12,8 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
+## Set to 'us3.datadoghq.com' to send data to the US3 site. 
+## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
 
@@ -213,12 +215,6 @@ api_key:
 ## whichever is lower.
 #
 # forwarder_storage_max_disk_ratio: 0.95
-
-## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
-## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
-## the retry queue is full.
-#
-# forwarder_storage_path: /opt/datadog-agent/run/transactions_to_retry
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
@@ -524,12 +520,12 @@ api_key:
   #
   # discovery_interval: 3600
 
-  ## @param allowed_failures - integer - optional - default: 3
+  ## @param discovery_allowed_failures - integer - optional - default: 3
   ## The number of failed requests to a given SNMP device before removing it from the list of monitored
   ## devices.
-  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
   #
-  # allowed_failures: 3
+  # discovery_allowed_failures: 3
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
@@ -545,14 +541,14 @@ api_key:
   ##      - 10.0.1.1
   #
   # configs:
-    ## @param network - string - required
+    ## @param network_address - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
     ## All unignored IP addresses in the CIDR range are scanned.
     ## For optimal discovery time, be sure to use the smallest network mask
     ## possible as is appropriate for your network topology.
     ## Ex: 10.0.1.0/24
     #
-    # - network: <NETWORK>
+    # - network_address: <NETWORK>
 
     ## @param ignored_ip_addresses - list of strings - optional
     ## A list of IP addresses to ignore when scanning the network.
@@ -566,12 +562,12 @@ api_key:
     #
     # port: 161
 
-    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## @param snmp_version - integer - optional - default: <BEST_GUESS>
     ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
     ## If unset, the Agent tries to guess the correct version based on other configuration
     ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
     #
-    # version: <VERSION>
+    # snmp_version: <VERSION>
 
     ## @param timeout - integer - optional - default: 5
     ## The number of seconds before timing out.
@@ -583,11 +579,11 @@ api_key:
     #
     # retries: 3
 
-    ## @param community - string - optional
+    ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
     ## Ex: 'public'
     #
-    # community: <COMMUNITY>
+    # community_string: <COMMUNITY>
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -595,33 +591,33 @@ api_key:
     #
     # user: <USERNAME>
 
-    ## @param authentication_key - string - optional
+    ## @param authKey - string - optional
     ## The passphrase to use with your Authentication type.
     ## SNMPv3 only.
     #
-    # authentication_key: <AUTHENTICATION_KEY>
+    # authKey: <AUTHENTICATION_KEY>
 
-    ## @param authentication_protocol - string - optional
+    ## @param authProtocol - string - optional
     ## The authentication protocol to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA.
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
-    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+    # authProtocol: <AUTHENTICATION_PROTOCOL>
 
-    ## @param privacy_key - string - optional
+    ## @param privKey - string - optional
     ## The passphrase to use with your privacy protocol.
     ## SNMPv3 only.
     #
-    # privacy_key: <PRIVACY_KEY>
+    # privKey: <PRIVACY_KEY>
 
-    ## @param privacy_protocol - string - optional
+    ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
     ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
-    # privacy_protocol: <PRIVACY_PROTOCOL>
+    # privProtocol: <PRIVACY_PROTOCOL>
 
     ## @param context_name - string - optional
     ## The name of your context (optional SNMP v3-only parameter).

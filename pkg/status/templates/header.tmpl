@@ -85,17 +85,34 @@ NOTE: Changes made to this template should be reflected on the following templat
     {{ $key }}: {{ $value }}
   {{- end }}
 
-  {{- if .TransportWarnings }}
+{{- if .TransportWarnings }}
 
   Transport Proxy Warnings
   ========================
+  {{- if .NoProxyIgnoredWarningMap }}
     The requests to the following hosts use a proxy - but will ignore the proxy in future Agent versions based on the no_proxy setting.
     Enable the new behavior now with no_proxy_nonexact_match: true
-    {{- range $key, $value := .TransportWarnings }}
+    {{- range $key, $value := .NoProxyIgnoredWarningMap }}
+      {{ $key }}
+    {{- end }}
+
+  {{- end }}
+  {{- if .NoProxyUsedInFuture }}
+    The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+    {{- range $key, $value := .NoProxyUsedInFuture }}
+      {{ $key }}
+    {{- end }}
+
+  {{- end }}
+  {{- if .NoProxyChanged }}
+    The following hosts proxy behavior will change in a future Agent version.
+    Enable the new behavior now with no_proxy_nonexact_match: true
+    {{- range $key, $value := .NoProxyChanged }}
       {{ $key }}
     {{- end }}
   {{- end }}
-
+{{- end }}
 
 {{- if .leaderelection}}
 

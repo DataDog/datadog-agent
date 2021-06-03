@@ -18,6 +18,8 @@ const (
 	snmpLoaderTag = "loader:core"
 )
 
+var timeNow = time.Now
+
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
@@ -39,7 +41,7 @@ func (c *Check) Run() error {
 	staticTags := c.config.getStaticTags()
 
 	var checkErr error
-	tags, checkErr := c.processSnmpMetrics(staticTags)
+	tags, checkErr := c.processMetricsAndMetadata(staticTags)
 	if checkErr != nil {
 		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
@@ -53,7 +55,7 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
+func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error) {
 	tags := copyStrings(staticTags)
 
 	// Create connection
@@ -90,6 +92,7 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 	if c.config.oidConfig.hasOids() {
 		c.config.addUptimeMetric()
 
+		collectionTime := timeNow()
 		valuesStore, err := fetchValues(c.session, c.config)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetch values: %s", err)
@@ -100,6 +103,14 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 			newTags := copyStrings(tags)
 			newTags = append(newTags, "metrics_copy:"+strconv.Itoa(i))
 			c.sender.reportMetrics(c.config.metrics, valuesStore, newTags)
+		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+
+		if c.config.collectDeviceMetadata {
+			// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
+			// `checkSender.checkTags` are added for metrics, service checks, events only.
+			// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
+			deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
+			c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime)
 		}
 	}
 	return tags, nil

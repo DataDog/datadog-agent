@@ -109,6 +109,7 @@ type RuleSet struct {
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
+	pool   *eval.ContextPool
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -356,7 +357,8 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := rs.pool.Get(event.GetPointer())
+	defer rs.pool.Put(ctx)
 
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
@@ -369,7 +371,8 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := rs.pool.Get(event.GetPointer())
+	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
 
@@ -469,5 +472,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           opts.Logger,
+		pool:             eval.NewContextPool(),
 	}
 }

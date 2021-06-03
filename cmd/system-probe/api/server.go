@@ -1,6 +1,7 @@
 package api
 
 import (
+	"expvar"
 	"fmt"
 	"net/http"
 
@@ -37,6 +38,8 @@ func StartServer(cfg *config.Config) error {
 	// Module-restart handler
 	mux.HandleFunc("/module-restart/{module-name}", restartModuleHandler).Methods("POST")
 
+	mux.Handle("/debug/vars", http.DefaultServeMux)
+
 	go func() {
 		err = http.Serve(conn.GetListener(), mux)
 		if err != nil && err != http.ErrServerClosed {
@@ -45,4 +48,10 @@ func StartServer(cfg *config.Config) error {
 	}()
 
 	return nil
+}
+
+func init() {
+	expvar.Publish("modules", expvar.Func(func() interface{} {
+		return module.GetStats()
+	}))
 }

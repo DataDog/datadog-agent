@@ -174,7 +174,7 @@ int kprobe__do_dentry_open(struct pt_regs *ctx) {
     struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
 
-    return handle_exec_event(syscall, file, &file->f_path, inode);
+    return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
 }
 
 struct open_flags {
@@ -206,8 +206,12 @@ int kprobe__io_openat2(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall)
         return 0;
 
     // increase mount ref
@@ -215,68 +219,78 @@ int __attribute__((always_inline)) do_sys_open_ret(void *ctx, struct syscall_cac
     if (syscall->discarded)
         return 0;
 
-    struct open_event_t event = {
-        .syscall.retval = retval,
-        .file = syscall->open.file,
-        .flags = syscall->open.flags,
-        .mode = syscall->open.mode,
-    };
+    syscall->resolver.key = syscall->open.file.path_key;
+    syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_OPEN_CALLBACK_KPROBE_KEY : DR_OPEN_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    // tail call
+    resolve_dentry(ctx, dr_type);
 
-    int ret = resolve_dentry(syscall->open.dentry, syscall->open.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0);
-    if (ret == DENTRY_DISCARDED || (ret == DENTRY_INVALID && !(IS_UNHANDLED_ERROR(retval)))) {
-       return 0;
-    }
-
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-
-    send_event(ctx, EVENT_OPEN, event);
-
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_OPEN);
     return 0;
 }
 
-SEC("tracepoint/handle_sys_open_exit")
-int handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall)
-        return 0;
-
-    return do_sys_open_ret(args, syscall, args->ret);
+int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
-int __attribute__((always_inline)) trace__sys_open_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    return do_sys_open_ret(ctx, syscall, retval);
+SEC("tracepoint/syscalls/sys_exit_creat")
+int tracepoint_syscalls_sys_exit_creat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_KRETPROBE(creat) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_open_by_handle_at")
+int tracepoint_syscalls_sys_exit_open_by_handle_at(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_truncate")
+int tracepoint_syscalls_sys_exit_truncate(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_open")
+int tracepoint_syscalls_sys_exit_open(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_openat")
+int tracepoint_syscalls_sys_exit_openat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_COMPAT_KRETPROBE(openat) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_openat2")
+int tracepoint_syscalls_sys_exit_openat2(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_KRETPROBE(openat2) {
-    return trace__sys_open_ret(ctx);
+    return kprobe_sys_open_ret(ctx);
 }
 
 SEC("kretprobe/io_openat2")
@@ -285,11 +299,7 @@ int kretprobe__io_openat2(struct pt_regs *ctx) {
     if (IS_ERR(f))
         return 0;
 
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall)
-        return 0;
-
-    return do_sys_open_ret(ctx, syscall, 0);
+    return sys_open_ret(ctx, 0, DR_KPROBE);
 }
 
 SEC("kprobe/filp_close")
@@ -301,6 +311,44 @@ int kprobe__filp_close(struct pt_regs *ctx) {
     }
 
     return 0;
+}
+
+int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {
+       return 0;
+    }
+
+    struct open_event_t event = {
+        .syscall.retval = retval,
+        .file = syscall->open.file,
+        .flags = syscall->open.flags,
+        .mode = syscall->open.mode,
+    };
+
+    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+
+    send_event(ctx, EVENT_OPEN, event);
+    return 0;
+}
+
+SEC("kprobe/dr_open_callback")
+int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return dr_open_callback(ctx, retval);
+}
+
+SEC("tracepoint/dr_open_callback")
+int __attribute__((always_inline)) tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_open_callback(args, args->ret);
 }
 
 #endif

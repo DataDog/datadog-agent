@@ -15,8 +15,5 @@ var (
 
 	globalVars = eval.VarMap{}
 
-	globalInstance = &eval.Instance{
-		Vars:      globalVars,
-		Functions: globalFunctions,
-	}
+	globalInstance = eval.NewInstance(globalVars, globalFunctions)
 )

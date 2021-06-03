@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -19,6 +20,9 @@ import (
 const (
 	eventTypeDBMSamples = "dbm-samples"
 	eventTypeDBMMetrics = "dbm-metrics"
+
+	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
+	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -38,6 +42,14 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesMetadata,
+		endpointsConfigPrefix:         "network_devices.metadata.",
+		hostnameEndpointPrefix:        "network-devices.",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 }
@@ -131,7 +143,8 @@ type passthroughPipelineDesc struct {
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(config.NewLogsConfigKeys(desc.endpointsConfigPrefix), desc.hostnameEndpointPrefix)
+	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix)
 	if err != nil {
 		return nil, err
 	}

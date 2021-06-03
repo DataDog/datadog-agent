@@ -277,6 +277,16 @@ struct tracepoint_raw_syscalls_sys_exit_t
     long ret;
 };
 
+struct tracepoint_syscalls_sys_exit_t {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+
+    int __syscall_ret;
+    long ret;
+};
+
 struct bpf_map_def SEC("maps/path_id") path_id = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),

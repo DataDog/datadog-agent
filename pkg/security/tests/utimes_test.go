@@ -14,8 +14,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestUtime(t *testing.T) {
