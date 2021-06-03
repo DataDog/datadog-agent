@@ -198,9 +198,13 @@ func TestGetCheckStats(t *testing.T) {
 	if !reflect.DeepEqual(checkStats.Stats, newStats) {
 		t.Fatal("checkStats.Stats and newStats values are expected to be the same")
 	}
+	assert.Equal(t, 1, len(newStats["TestCheck"]))
+	assert.Equal(t, 1, len(checkStats.Stats["TestCheck"]))
 
 	checkStats.Stats[c.String()][c2.ID()] = s2
 	if reflect.DeepEqual(checkStats.Stats, newStats) {
 		t.Fatal("checkStats.Stats and newStats values are expected to be different")
 	}
+	assert.Equal(t, 1, len(newStats["TestCheck"]))
+	assert.Equal(t, 2, len(checkStats.Stats["TestCheck"]))
 }
