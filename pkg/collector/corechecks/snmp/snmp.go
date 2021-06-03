@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -95,7 +96,11 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		}
 		log.Debugf("fetched valuesStore: %v", valuesStore)
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
-		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+		for i := 0; i < 100; i++ {
+			newTags := copyStrings(tags)
+			newTags = append(newTags, "metrics_copy:" + strconv.Itoa(i))
+			c.sender.reportMetrics(c.config.metrics, valuesStore, newTags)
+		}
 	}
 	return tags, nil
 }
