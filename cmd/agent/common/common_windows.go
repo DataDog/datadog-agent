@@ -306,6 +306,9 @@ func ImportRegistryConfig() error {
 		log.Errorf("unable to unmarshal config to YAML: %v", err)
 		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
 	}
+
+	overrides["api_key"] = "test-key"
+
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
 	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
