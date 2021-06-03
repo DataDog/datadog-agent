@@ -388,7 +388,7 @@ build_deb_py2:
   - cat version.txt || true
   - source ./.gitlab-scripts/setup_artifactory.sh
 
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python_runtimes 2
+  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python-runtimes 2
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
