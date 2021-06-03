@@ -13,6 +13,15 @@ import (
 	"time"
 )
 
+const (
+	// ContainerEventActionStart is the action of starting a docker container
+	ContainerEventActionStart = "start"
+	// ContainerEventActionDie is the action of stopping a docker container
+	ContainerEventActionDie = "die"
+	// ContainerEventActionRename is the action of renaming a docker container
+	ContainerEventActionRename = "rename"
+)
+
 // ContainerEvent describes an event from the docker daemon
 type ContainerEvent struct {
 	ContainerID   string
