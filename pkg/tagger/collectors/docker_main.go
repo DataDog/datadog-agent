@@ -102,10 +102,12 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	var info *TagInfo
 
 	switch e.Action {
-	case "die":
+	case docker.ContainerEventActionDie:
 		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
-	case "start", "rename":
-		low, orchestrator, high, standard, err := c.fetchForDockerID(e.ContainerID, e.Action == "start")
+	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
+		inspectCached := e.Action == docker.ContainerEventActionStart
+		low, orchestrator, high, standard, err := c.fetchForDockerID(e.ContainerID, inspectCached)
+
 		if err != nil {
 			log.Debugf("Error fetching tags for container '%s': %v", e.ContainerName, err)
 		}

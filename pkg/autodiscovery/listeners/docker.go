@@ -204,9 +204,9 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 
 	if found {
 		switch e.Action {
-		case "die":
+		case docker.ContainerEventActionDie:
 			l.removeService(cID)
-		case "start":
+		case docker.ContainerEventActionStart:
 			// Container restarted with the same ID within 5 seconds.
 			time.AfterFunc(5*time.Second, func() {
 				l.createService(cID)
