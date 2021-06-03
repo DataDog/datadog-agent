@@ -74,10 +74,10 @@ const (
 	DefaultLogsSenderBackoffFactor = 2.0
 
 	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 0.05
+	DefaultLogsSenderBackoffBase = 1.0
 
 	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 1.0
+	DefaultLogsSenderBackoffMax = 120.0
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
