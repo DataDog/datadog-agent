@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	Wildcard = "*"
+	wildcard = "*"
 	depth    = 4
 )
 
@@ -29,7 +29,6 @@ var re = regexp.MustCompile(`[^\.]*\/([^\.]*)\.\(?\*?([^\.\)]*)\)?\.(.*)$`)
 type PatternLogger struct {
 	sync.RWMutex
 
-	re       *regexp.Regexp
 	patterns [][]string
 }
 
@@ -37,7 +36,7 @@ func (l *PatternLogger) match(els []string) bool {
 LOOP:
 	for _, pattern := range l.patterns {
 		for i, node := range pattern {
-			if node == Wildcard {
+			if node == wildcard {
 				continue
 			}
 
@@ -80,7 +79,7 @@ func (l *PatternLogger) trace(format string, params ...interface{}) {
 	}
 }
 
-// TraceTag is used to print a trace level log
+// Trace is used to print a trace level log
 func (l *PatternLogger) Trace(v interface{}) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
 		return
@@ -89,7 +88,7 @@ func (l *PatternLogger) Trace(v interface{}) {
 	l.trace("%v", v)
 }
 
-// TraceTagf is used to print a trace level log
+// Tracef is used to print a trace level log
 func (l *PatternLogger) Tracef(format string, params ...interface{}) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != seelog.TraceLvl {
 		return

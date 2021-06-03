@@ -57,6 +57,8 @@ const (
 	getEventTimeout = 3 * time.Second
 )
 
+type stringSlice []string
+
 const testConfig = `---
 log_level: DEBUG
 system_probe_config:
@@ -87,6 +89,10 @@ runtime_security_config:
 
   policies:
     dir: {{.TestPoliciesDir}}
+  log_patterns:
+  {{range .LogPatterns}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -110,6 +116,7 @@ var (
 	testEnvironment             string
 	useReload                   bool
 	logLevelStr                 string
+	logPatterns                 stringSlice
 )
 
 const (
@@ -132,6 +139,16 @@ type testOpts struct {
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
 	disableMapDentryResolution  bool
+	logPatterns                 []string
+}
+
+func (s *stringSlice) String() string {
+	return strings.Join(*s, " ")
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
@@ -313,6 +330,7 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
+		"LogPatterns":                 logPatterns,
 	}); err != nil {
 		return "", err
 	}
@@ -946,4 +964,5 @@ func init() {
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
+	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 }

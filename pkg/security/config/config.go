@@ -80,7 +80,7 @@ type Config struct {
 	RemoteTaggerEnabled bool
 	// HostServiceName string
 	HostServiceName string
-	// LogTags tags to be used by the logger for trace level
+	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
 }
 
