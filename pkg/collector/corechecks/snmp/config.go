@@ -17,9 +17,10 @@ var defaultRetries = 3
 var defaultTimeout = 2
 
 type snmpInitConfig struct {
-	Profiles      profileConfigMap `yaml:"profiles"`
-	GlobalMetrics []metricsConfig  `yaml:"global_metrics"`
-	OidBatchSize  Number           `yaml:"oid_batch_size"`
+	Profiles          profileConfigMap `yaml:"profiles"`
+	GlobalMetrics     []metricsConfig  `yaml:"global_metrics"`
+	OidBatchSize      Number           `yaml:"oid_batch_size"`
+	MetricsMultiplier Number           `yaml:"metrics_multiplier"`
 }
 
 type snmpInstanceConfig struct {
@@ -68,6 +69,7 @@ type snmpConfig struct {
 	profileTags       []string
 	uptimeMetricAdded bool
 	extraTags         []string
+	metricsMultiplier int
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -146,6 +148,10 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c := snmpConfig{}
 
+	c.metricsMultiplier = int(initConfig.MetricsMultiplier)
+	if c.metricsMultiplier == 0 {
+		c.metricsMultiplier = 1
+	}
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
 	c.port = uint16(instance.Port)

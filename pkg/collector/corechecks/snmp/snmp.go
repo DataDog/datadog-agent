@@ -96,9 +96,9 @@ func (c *Check) processSnmpMetrics(staticTags []string) ([]string, error) {
 		}
 		log.Debugf("fetched valuesStore: %v", valuesStore)
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
-		for i := 0; i < 100; i++ {
+		for i := 0; i < c.config.metricsMultiplier; i++ {
 			newTags := copyStrings(tags)
-			newTags = append(newTags, "metrics_copy:" + strconv.Itoa(i))
+			newTags = append(newTags, "metrics_copy:"+strconv.Itoa(i))
 			c.sender.reportMetrics(c.config.metrics, valuesStore, newTags)
 		}
 	}
