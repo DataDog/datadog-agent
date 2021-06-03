@@ -369,6 +369,55 @@ build_deb:
         - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
 
+build_deb_py2:
+  stage: build_and_test
+  needs:
+    - deps_deb
+  tags:
+    - sts-k8s-xl-no-docker-runner
+  cache:
+    key: "build-deb-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .omnibus
+  script:
+    # We move .omnibus out of the CI root because this seems to cause issues with git
+    # cloning in omnibus and operations on datadog-agent
+  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+
+  - inv version
+  - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
+
+  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python_runtimes 2
+
+    # Prepare outputs
+  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
+  - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
+  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+
+  - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
+
+    # Prepare cache
+    # Drop packages for cache
+  - rm -rf /omnibus/pkg
+    # Drop agent for cache (will be resynced anyway)
+  - rm -rf /omnibus/src/datadog-agent
+    # Drop symlink because it will fail the build when coming from a cache
+  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+#  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+  artifacts:
+    paths:
+        - $CI_PROJECT_DIR/outcomes/pkg/*.deb
+        - $CI_PROJECT_DIR/outcomes/pkg/*.json
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+        - $CI_PROJECT_DIR/version.txt
+        - $CI_PROJECT_DIR/outcomes/binary/trace-agent
+    expire_in: 1 week
+
 build_rpm:
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
