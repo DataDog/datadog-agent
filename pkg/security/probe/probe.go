@@ -608,7 +608,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.SelectorsPerEventType {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+		if eventType == "*" || rs.HasRulesForEventType(eventType) || eventType == "write" {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
