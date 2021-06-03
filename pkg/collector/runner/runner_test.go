@@ -8,6 +8,7 @@ package runner
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -175,4 +176,31 @@ func TestStopCheck(t *testing.T) {
 	r.runningChecks[c2.ID()] = c2
 	err = r.StopCheck(c2.ID())
 	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
+}
+
+func TestGetCheckStats(t *testing.T) {
+	c := newTestCheck(false, "1")
+	c2 := newTestCheck(false, "2")
+	s := &check.Stats{
+		CheckID:   c.ID(),
+		CheckName: c.String(),
+	}
+	s2 := &check.Stats{
+		CheckID:   c2.ID(),
+		CheckName: c2.String(),
+	}
+	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
+	checkStats.Stats[c.String()][c.ID()] = s
+
+	newStats := GetCheckStats()
+	fmt.Printf("newStats: %p\n", newStats)
+	fmt.Printf("checkStats.Stats: %p\n", checkStats.Stats)
+	if !reflect.DeepEqual(checkStats.Stats, newStats) {
+		t.Fatal("checkStats.Stats and newStats values are expected to be the same")
+	}
+
+	checkStats.Stats[c.String()][c2.ID()] = s2
+	if reflect.DeepEqual(checkStats.Stats, newStats) {
+		t.Fatal("checkStats.Stats and newStats values are expected to be different")
+	}
 }

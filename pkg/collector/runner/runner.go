@@ -397,10 +397,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 }
 
 func expCheckStats() interface{} {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	return checkStats.Stats
+	return GetCheckStats()
 }
 
 // GetCheckStats returns the check stats map
@@ -408,7 +405,14 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
-	return checkStats.Stats
+	retStats := make(map[string]map[check.ID]*check.Stats, len(checkStats.Stats))
+	for checkName, curCheckStats := range checkStats.Stats {
+		retStats[checkName] = make(map[check.ID]*check.Stats, len(curCheckStats))
+		for checkID, stats := range curCheckStats {
+			retStats[checkName][checkID] = stats
+		}
+	}
+	return retStats
 }
 
 // RemoveCheckStats removes a check from the check stats map
