@@ -63,7 +63,6 @@ variables: &globalvariables
   export PATH=/go/bin:/usr/local/go/bin:$PATH
   eval $(gimme)
 
-
 .configure_debian_environment: &configure_debian_environment |
   . /root/miniconda3/etc/profile.d/conda.sh # TODO: check possibility to use bash from the start
   conda activate ddpy3
@@ -79,9 +78,6 @@ variables: &globalvariables
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir
 
-.configure_windows_cmd_environment: &configure_windows_cmd_environment |
-  c:\tools\miniconda3\condabin\activate
-  conda activate ddpy3
 ######################### /pipeline bricks
 
 
@@ -162,7 +158,7 @@ deps_deb:
 deps_deb_py2:
   stage: prepare
   cache:
-    key: "deps-deb-$CI_COMMIT_REF_SLUG"
+    key: "deps-deb-py2-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -400,7 +396,7 @@ build_deb_py2:
   tags:
     - sts-k8s-xl-no-docker-runner
   cache:
-    key: "build-deb-$CI_COMMIT_REF_SLUG"
+    key: "build-deb-py2-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
   script:

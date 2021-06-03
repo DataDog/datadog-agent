@@ -6,7 +6,7 @@
 require './lib/ostools.rb'
 require 'json'
 
-name 'stackstate-agent-integrations-py3'
+name 'stackstate-agent-integrations-py2'
 
 dependency 'datadog-agent'
 dependency 'pip2'
