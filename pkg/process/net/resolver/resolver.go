@@ -118,10 +118,6 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 	log.Tracef("ctrsByLaddr = %v", ctrsByLaddr)
 
-	rootNs, err := procutil.GetNetNsInoFromPid(procutil.HostProc(), 1)
-	if err != nil {
-		log.Errorf("failed to get root network namespace, some loopback resolution will not be possible: %s", err)
-	}
 	// go over connections again using hashtable computed earlier to resolver raddr
 	for _, conn := range c.Conns {
 		if conn.Raddr.ContainerId == "" {
@@ -133,14 +129,8 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 
 			// first match within net namespace
 			cid, ok := ctrsByLaddr[addrWithNS{raddr, conn.NetNS}]
-			if ok {
-				// done
-			} else if !ip.IsLoopback() {
+			if !ok && !ip.IsLoopback() {
 				cid, _ = ctrsByLaddr[addrWithNS{raddr, 0}]
-			} else {
-				// raddr is loopback, try the root NS (already tried the local
-				// NS above)
-				cid, _ = ctrsByLaddr[addrWithNS{raddr, rootNs}]
 			}
 
 			conn.Raddr.ContainerId = cid
