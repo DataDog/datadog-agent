@@ -18,8 +18,8 @@ type Collector interface {
 type CollectorPriority int
 
 // List of collector priorities
-// Order is reverse from the tagger: docker > kubelet
+// Order prefers kubelet over docker collector (docker < kubelet)
 const (
-	NodeOrchestrator CollectorPriority = iota
-	NodeRuntime
+	NodeRuntime CollectorPriority = iota
+	NodeOrchestrator
 )
