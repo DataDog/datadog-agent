@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockEncryptedApiKeyBase64 represents an API key encrypted with KMS and encoded as a base64 string
-const mockEncryptedApiKeyBase64 = "MjIyMjIyMjIyMjIyMjIyMg=="
+// mockEncryptedAPIKeyBase64 represents an API key encrypted with KMS and encoded as a base64 string
+const mockEncryptedAPIKeyBase64 = "MjIyMjIyMjIyMjIyMjIyMg=="
 
-// mockEncryptedApiKey represents the encrypted API key after it has been decoded from base64
-const mockEncryptedApiKey = "2222222222222222"
+// mockEncryptedAPIKey represents the encrypted API key after it has been decoded from base64
+const mockEncryptedAPIKey = "2222222222222222"
 
-// expectedDecryptedApiKey represents the true value of the API key after decryption by KMS
-const expectedDecryptedApiKey = "1111111111111111"
+// expectedDecryptedAPIKey represents the true value of the API key after decryption by KMS
+const expectedDecryptedAPIKey = "1111111111111111"
 
 // mockFunctionName represents the name of the current function
 var mockFunctionName = "my-Function"
@@ -32,13 +32,13 @@ type mockKMSClientWithEncryptionContext struct {
 	kmsiface.KMSAPI
 }
 
-func (_ mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
+func (mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
 	if *params.EncryptionContext[encryptionContextKey] != mockFunctionName {
 		return nil, errors.New("InvalidCiphertextExeption")
 	}
-	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedApiKey)) {
+	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedAPIKey)) {
 		return &kms.DecryptOutput{
-			Plaintext: []byte(expectedDecryptedApiKey),
+			Plaintext: []byte(expectedDecryptedAPIKey),
 		}, nil
 	}
 	return nil, errors.New("KMS error")
@@ -48,13 +48,13 @@ type mockKMSClientNoEncryptionContext struct {
 	kmsiface.KMSAPI
 }
 
-func (_ mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
+func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
 	if params.EncryptionContext[encryptionContextKey] != nil {
 		return nil, errors.New("InvalidCiphertextExeption")
 	}
-	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedApiKey)) {
+	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedAPIKey)) {
 		return &kms.DecryptOutput{
-			Plaintext: []byte(expectedDecryptedApiKey),
+			Plaintext: []byte(expectedDecryptedAPIKey),
 		}, nil
 	}
 	return nil, errors.New("KMS error")
@@ -65,12 +65,12 @@ func TestDecryptKMSWithEncryptionContext(t *testing.T) {
 	defer os.Setenv(functionNameEnvVar, "")
 
 	client := mockKMSClientWithEncryptionContext{}
-	result, _ := decryptKMS(client, mockEncryptedApiKeyBase64)
-	assert.Equal(t, expectedDecryptedApiKey, result)
+	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)
+	assert.Equal(t, expectedDecryptedAPIKey, result)
 }
 
 func TestDecryptKMSNoEncryptionContext(t *testing.T) {
 	client := mockKMSClientNoEncryptionContext{}
-	result, _ := decryptKMS(client, mockEncryptedApiKeyBase64)
-	assert.Equal(t, expectedDecryptedApiKey, result)
+	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)
+	assert.Equal(t, expectedDecryptedAPIKey, result)
 }
