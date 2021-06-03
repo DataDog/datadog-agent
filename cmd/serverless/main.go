@@ -199,6 +199,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
+		log.Debug(apiKey)
 		os.Setenv(apiKeyEnvVar, apiKey)
 	}
 
@@ -266,7 +267,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// restore the current function ARN and request ID from the cache in case the extension was restarted
 	// ---------------------------
 
-	err = aws.StateFromFile()
+	err = aws.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Did not restore current state from file")
 	}
