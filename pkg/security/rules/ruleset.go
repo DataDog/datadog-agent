@@ -37,6 +37,7 @@ type RuleID = string
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID          RuleID            `yaml:"id"`
+	GroupID     RuleID            `yaml:"group_id"`
 	Version     string            `yaml:"version"`
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`

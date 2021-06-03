@@ -204,8 +204,13 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
+	ruleID := rule.Definition.GroupID
+	if ruleID == "" {
+		ruleID = rule.Definition.ID
+	}
+
 	agentContext := &AgentContext{
-		RuleID:      rule.Definition.ID,
+		RuleID:      ruleID,
 		RuleVersion: rule.Definition.Version,
 	}
 
@@ -233,17 +238,17 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 	data := append(probeJSON[:len(probeJSON)-1], ',')
 	data = append(data, ruleEventJSON[1:]...)
-	log.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
+	log.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
 	msg := &pendingMsg{
-		ruleID:    rule.Definition.ID,
+		ruleID:    ruleID,
 		data:      data,
 		extTagsCb: extTagsCb,
 		tags:      make(map[string]bool),
 		sendAfter: time.Now().Add(a.retention),
 	}
 
-	msg.tags["rule_id:"+rule.Definition.ID] = true
+	msg.tags["rule_id:"+ruleID] = true
 
 	for _, tag := range rule.Tags {
 		msg.tags[tag] = true
