@@ -159,6 +159,30 @@ deps_deb:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
 
+deps_deb_py2:
+  stage: prepare
+  cache:
+    key: "deps-deb-$CI_COMMIT_REF_SLUG"
+    paths:
+      - vendor
+      - venv
+  script:
+    - conda activate ddpy2
+    - inv -e deps --verbose --dep-vendor-only
+    - inv version -u > version.txt
+    - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
+    - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
+    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
+  artifacts:
+    paths:
+#      - $CI_PROJECT_DIR/vendor
+#      - $CI_PROJECT_DIR/venv
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/go-pkg.tar.gz
+      - $CI_PROJECT_DIR/go-bin.tar.gz
+      - $CI_PROJECT_DIR/vendor.tar.gz
+    expire_in: 1 week
+
 deps_rpm:
   stage: prepare
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
@@ -372,7 +396,7 @@ build_deb:
 build_deb_py2:
   stage: build_and_test
   needs:
-    - deps_deb
+    - deps_deb_py2
   tags:
     - sts-k8s-xl-no-docker-runner
   cache:
@@ -384,6 +408,7 @@ build_deb_py2:
     # cloning in omnibus and operations on datadog-agent
   - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
+  - conda activate ddpy2
   - inv version
   - cat version.txt || true
   - source ./.gitlab-scripts/setup_artifactory.sh
