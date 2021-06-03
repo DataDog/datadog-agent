@@ -20,6 +20,7 @@ metadata:
     run: my-nginx
     test: pod-nginx-http
 spec:
+  type: ClusterIP
   ports:
     - port: 80
       protocol: TCP
