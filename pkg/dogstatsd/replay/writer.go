@@ -265,12 +265,10 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
 	qd := false
 
-	tc.RLock()
-	if tc.ongoing {
+	if tc.IsOngoing() {
 		tc.Traffic <- msg
 		qd = true
 	}
-	tc.RUnlock()
 
 	return qd
 }
