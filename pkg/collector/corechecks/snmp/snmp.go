@@ -103,7 +103,7 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 			newTags := copyStrings(tags)
 			newTags = append(newTags, "metrics_copy:"+strconv.Itoa(i))
 			c.sender.reportMetrics(c.config.metrics, valuesStore, newTags)
-		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+		}
 
 		if c.config.collectDeviceMetadata {
 			// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
