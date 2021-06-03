@@ -37,6 +37,7 @@
 #include "setxattr.h"
 #include "erpc.h"
 #include "ioctl.h"
+#include "write.h"
 #include "raw_syscalls.h"
 
 struct invalidate_dentry_event_t {
