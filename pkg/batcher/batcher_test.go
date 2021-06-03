@@ -172,38 +172,35 @@ func TestBatchMultipleTopologiesAndHealthStreams(t *testing.T) {
 	batcher.SubmitHealthCheckData(testID2, testStream2, testCheckData)
 	batcher.SubmitStopSnapshot(testID, testInstance)
 
-	message := serializer.GetJSONToV1IntakeMessage()
+	message := serializer.GetJSONToV1IntakeMessage().(map[string]interface{})
 
-	assert.EqualValues(t, message, map[string]interface{}{
-		"internalHostname": "myhost",
-		"topologies": []topology.Topology{
-			{
-				StartSnapshot: true,
-				StopSnapshot:  true,
-				Instance:      testInstance,
-				Components:    []topology.Component{testComponent},
-				Relations:     []topology.Relation{},
-			},
-			{
-				StartSnapshot: false,
-				StopSnapshot:  false,
-				Instance:      testInstance2,
-				Components:    []topology.Component{testComponent, testComponent, testComponent},
-				Relations:     []topology.Relation{},
-			},
+	assert.EqualValues(t, message["topologies"], []topology.Topology{
+		{
+			StartSnapshot: true,
+			StopSnapshot:  true,
+			Instance:      testInstance,
+			Components:    []topology.Component{testComponent},
+			Relations:     []topology.Relation{},
 		},
-		"health": []health.Health{
-			{
-				StartSnapshot: &testStartSnapshot,
-				Stream:        testStream,
-				CheckStates:   []health.CheckData{testCheckData},
-			},
-			{
-				Stream:      testStream2,
-				CheckStates: []health.CheckData{testCheckData},
-			},
+		{
+			StartSnapshot: false,
+			StopSnapshot:  false,
+			Instance:      testInstance2,
+			Components:    []topology.Component{testComponent, testComponent, testComponent},
+			Relations:     []topology.Relation{},
 		},
 	}, message)
+
+	assert.Contains(t, message["health"], health.Health{
+		StartSnapshot: &testStartSnapshot,
+		Stream:        testStream,
+		CheckStates:   []health.CheckData{testCheckData},
+	})
+
+	assert.Contains(t, message["health"], health.Health{
+		Stream:      testStream2,
+		CheckStates: []health.CheckData{testCheckData},
+	})
 
 	batcher.Shutdown()
 }
