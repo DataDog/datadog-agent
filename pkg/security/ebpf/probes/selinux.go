@@ -11,14 +11,14 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
-// writeProbes holds the list of probes used to track fs write events
-var writeProbes = []*manager.Probe{
+// selinuxProbes holds the list of probes used to track fs write events
+var selinuxProbes = []*manager.Probe{
 	{
 		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_write",
+		Section: "kprobe/sel_write_enforce",
 	},
 }
 
-func getWriteProbes() []*manager.Probe {
-	return writeProbes
+func getSelinuxProbes() []*manager.Probe {
+	return selinuxProbes
 }
