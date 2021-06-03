@@ -323,9 +323,7 @@ def generate_failure_messages(base):
             # message, do not overwrite the failed jobs list
             pass
         else:
-            pass
-            # TODO: enable also jobs
-            # messages_to_send[owner].failed_jobs = jobs
+            messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send
 
