@@ -47,6 +47,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	response, err := kmsClient.Decrypt(params)
 
 	if err != nil {
+		log.Debug("Failed to decrypt ciphertext with encryption context, retrying without encryption context")
 		// Try without encryption context
 		params = &kms.DecryptInput{
 			CiphertextBlob: decodedBytes,
@@ -57,7 +58,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 		}
 	}
 
-	plaintext := base64.StdEncoding.EncodeToString(response.Plaintext)
+	plaintext := string(response.Plaintext)
 	return plaintext, nil
 }
 

@@ -7,7 +7,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"errors"
 	"os"
 	"testing"
@@ -26,9 +25,6 @@ const mockEncryptedApiKey = "2222222222222222"
 // expectedDecryptedApiKey represents the true value of the API key after decryption by KMS
 const expectedDecryptedApiKey = "1111111111111111"
 
-// mockDecryptResponse represents the response from the KMS API after successfully decrypting the API key
-var mockDecryptResponse, _ = base64.StdEncoding.DecodeString(expectedDecryptedApiKey)
-
 // mockFunctionName represents the name of the current function
 var mockFunctionName = "my-Function"
 
@@ -42,7 +38,7 @@ func (_ mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*
 	}
 	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedApiKey)) {
 		return &kms.DecryptOutput{
-			Plaintext: mockDecryptResponse,
+			Plaintext: []byte(expectedDecryptedApiKey),
 		}, nil
 	}
 	return nil, errors.New("KMS error")
@@ -58,7 +54,7 @@ func (_ mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*km
 	}
 	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedApiKey)) {
 		return &kms.DecryptOutput{
-			Plaintext: mockDecryptResponse,
+			Plaintext: []byte(expectedDecryptedApiKey),
 		}, nil
 	}
 	return nil, errors.New("KMS error")
