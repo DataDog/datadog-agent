@@ -249,7 +249,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
-
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
@@ -266,6 +265,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 
 	if payload.EventType == "INVOKE" {
 		log.Debug("Received invocation event")
+		daemon.ComputeGlobalTags(payload.InvokedFunctionArn, config.GetConfiguredTags(true))
 		aws.SetARN(payload.InvokedFunctionArn)
 		daemon.StartInvocation()
 		if coldstart {
@@ -300,7 +300,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 
 		if strings.ToLower(payload.ShutdownReason) == "timeout" {
-			metricTags := getTagsForEnhancedMetrics()
+			metricTags := addColdStartTag(daemon.extraTags)
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 
