@@ -1,0 +1,24 @@
+---
+# deploy7 stage
+# Contains a job which deploys the Winget Agent package.
+
+.if_deploy_on_tag_7: &if_deploy_on_tag_7
+  # no RELEASE_VERSION means a nightly build for omnibus
+  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
+
+publish_winget_7_x64:
+  rules:
+    - <<: *if_deploy_on_tag_7
+      when: manual
+      allow_failure: true
+  stage: deploy7
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    ARCH: "x64"
+  before_script:
+    - $wingetPat = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.winget_pat --with-decryption --query "Parameter.Value" --out text)
+  script:
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - $ErrorActionPreference = "Stop"
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e WINGET_GITHUB_ACCESS_TOKEN=${chocolateyApiKey} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES Powershell -C "C:\mnt\tasks\winbuildscripts\Update-Winget-Manifest.ps1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
