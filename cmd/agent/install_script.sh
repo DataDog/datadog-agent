@@ -85,8 +85,24 @@ Troubleshooting and basic usage information for the Agent are available at:
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
           [Yy]* )
-            read -p "Enter an email address so we can follow up: " -r email
-            report
+            cntr_max=3
+            cntr=0
+            email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$'
+            until [[ "$email" =~ $email_regex ]]
+            do
+                if [[ "$cntr" -gt 0 ]]; then
+                  echo "($cntr/$cntr_max) Email address invalid: $email"
+                  if [[ "$cntr" -eq "$cntr_max" ]]; then
+                    fallback_msg
+                    break
+                  fi
+                fi
+                read -p "Enter an email address so we can follow up: " -r email
+                ((cntr=cntr+1))
+            done
+            if [[ "$email" =~ $email_regex ]]; then
+              report
+            fi
             break;;
           [Nn]*|"" )
             fallback_msg
