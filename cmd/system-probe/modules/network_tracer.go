@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -61,7 +60,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // Register all networkTracer endpoints
-func (nt *networkTracer) Register(httpMux *mux.Router) error {
+func (nt *networkTracer) Register(httpMux *module.Router) error {
 	var runCounter uint64
 
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {

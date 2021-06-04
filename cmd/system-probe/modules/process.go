@@ -17,7 +17,6 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
@@ -48,7 +47,7 @@ func (t *process) GetStats() map[string]interface{} {
 }
 
 // Register registers endpoints for the module to expose data
-func (t *process) Register(httpMux *mux.Router) error {
+func (t *process) Register(httpMux *module.Router) error {
 	var runCounter uint64
 	httpMux.HandleFunc("/proc/stats", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
