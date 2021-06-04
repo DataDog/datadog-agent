@@ -122,7 +122,7 @@ berks vendor ./cookbooks
 set +o pipefail
 
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
-for attempt in 1 2 3; do
+for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
   # Test every suite, as we only generate those we want to run
   bundle exec kitchen test ".*" -c -d always 2>&1 | tee /tmp/runlog$attempt
   result=${PIPESTATUS[0]}

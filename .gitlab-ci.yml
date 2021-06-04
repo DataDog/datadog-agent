@@ -145,6 +145,7 @@ variables:
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
 
 #
 # Condition mixins for simplification of rules
