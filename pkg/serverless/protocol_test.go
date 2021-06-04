@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var isTimeout = false
+
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	_, cancel := context.WithCancel(context.Background())
@@ -97,4 +99,24 @@ func TestProcessMessage(t *testing.T) {
 	case <-time.After(time.Second):
 		//nothing to do here
 	}
+}
+
+func TestDetectTimeoutValidTimeout(t *testing.T) {
+	_, cancel := context.WithCancel(context.Background())
+	d := StartDaemon(cancel)
+	d.ReadyWg.Done()
+	d.ReadyWg.Done()
+	d.ReadyWg.Done()
+	defer d.Stop(false)
+
+	//deadline = current time + 50 ms
+	d.DetectTimeout((time.Now().Unix()+1)*1000-950, 0, handleTimeout)
+
+	assert.False(t, isTimeout)
+	time.Sleep(50 * time.Millisecond)
+	assert.True(t, isTimeout)
+}
+
+func handleTimeout() {
+	isTimeout = true
 }

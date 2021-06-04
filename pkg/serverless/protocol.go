@@ -41,6 +41,8 @@ const httpLogsCollectionRoute string = "/lambda/logs"
 // to arrive from the Logs API.
 const shutdownDelay time.Duration = 1 * time.Second
 
+type afterTimoutFunction func()
+
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {
@@ -312,13 +314,15 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	}
 }
 
-func (d *Daemon) DetectTimeout(deadlineMs int64, safetyBuffer time.Duration) {
+func (d *Daemon) handleTimeout() {
+	d.TimeoutWg.Add(1)
+	log.Debug("Timeout detected, finishing the current invocation now to allow receving the SHUTDOWN event")
+	d.FinishInvocation()
+}
+
+func (d *Daemon) DetectTimeout(deadlineMs int64, safetyBuffer time.Duration, action afterTimoutFunction) {
 	currentTime := time.Now().UnixNano()
-	time.AfterFunc(time.Duration(deadlineMs*int64(time.Millisecond)-int64(safetyBuffer)-currentTime), func() {
-		d.TimeoutWg.Add(1)
-		log.Debug("Timeout detected, finishing the current invocation now to allow receving the SHUTDOWN event")
-		d.FinishInvocation()
-	})
+	time.AfterFunc(time.Duration(deadlineMs*int64(time.Millisecond)-int64(safetyBuffer)-currentTime), action)
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -417,7 +421,7 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// prevent double flushing in case of a race condition between timeout handling + flushing
-	//f.daemon.TimeoutWg.Wait()
+	f.daemon.TimeoutWg.Wait()
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
