@@ -291,8 +291,6 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
-	overrides["api_key"] = "test-key"
-
 	// apply overrides to the config
 	config.AddOverrides(overrides)
 
