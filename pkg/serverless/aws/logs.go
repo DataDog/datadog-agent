@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -198,4 +200,16 @@ func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 // removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
 	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
+}
+
+// GetLambdaSource returns the LogSource used by the extension
+func GetLambaSource() *logConfig.LogSource {
+	if scheduler.GetScheduler() != nil {
+		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+		if source != nil {
+			return source
+		}
+	}
+	log.Debug("Impossible to retrieve the lambda LogSource")
+	return nil
 }

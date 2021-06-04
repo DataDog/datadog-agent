@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
@@ -80,6 +79,10 @@ type Daemon struct {
 	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
+
+	// Wait on this WaitGroup to be sure that the daemon isn't shutting down
+	// to avoid double flushing in case a the flush is received between a timeout and the actual shutdown
+	TimeoutWg *sync.WaitGroup
 
 	extraTags []string
 }
@@ -159,7 +162,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop() {
+func (d *Daemon) Stop(isTimeout bool) {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 	d.ReadyWg.Wait()
@@ -170,9 +173,12 @@ func (d *Daemon) Stop() {
 	}
 	d.stopped = true
 
-	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
-	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	if !isTimeout {
+		// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
+		log.Debug("Waiting to shut down HTTP server")
+		time.Sleep(shutdownDelay)
+	}
+
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
 	if err != nil {
@@ -214,6 +220,7 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
+		TimeoutWg:        &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
@@ -226,8 +233,11 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until the DogStatsD server has been instantiated + extra tags have been set
-	daemon.ReadyWg.Add(2)
+	// this wait group will be blocking until
+	// 1 - the DogStatsD server has been instantiated
+	// 2 - extra tags have been set
+	// 3 - at least one event (INVOKE or SHUTDOWN) has been received
+	daemon.ReadyWg.Add(3)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -293,14 +303,21 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
 		}
 		d.extraTags = tagArray
-		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+		source := aws.GetLambaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
-		} else {
-			log.Debug("Impossible to retrieve the lambda LogSource")
 		}
 		d.ReadyWg.Done()
 	}
+}
+
+func (d *Daemon) DetectTimeout(deadlineMs int64, safetyBuffer time.Duration) {
+	currentTime := time.Now().UnixNano()
+	time.AfterFunc(time.Duration(deadlineMs*int64(time.Millisecond)-int64(safetyBuffer)-currentTime), func() {
+		d.TimeoutWg.Add(1)
+		log.Debug("Timeout detected, finishing the current invocation now to allow receving the SHUTDOWN event")
+		d.FinishInvocation()
+	})
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -314,6 +331,8 @@ type LogsCollection struct {
 // ServeHTTP - see type LogsCollection comment.
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the DogStatsD daemon isn't ready, wait for it.
+	// If the extra tag are not set, wait for it.
+	// If the extension has just restart, wait for an event before processing the log (this prevent logs from being parsed but not actually sent)
 	l.daemon.ReadyWg.Wait()
 
 	data, _ := ioutil.ReadAll(r.Body)
@@ -396,8 +415,9 @@ type Flush struct {
 
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// prevent double flushing in case of a race condition between timeout handling + flushing
+	//f.daemon.TimeoutWg.Wait()
 	log.Debug("Hit on the serverless.Flush route.")
-
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()

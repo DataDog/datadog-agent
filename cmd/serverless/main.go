@@ -250,14 +250,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Error("No API key configured, exiting")
 	}
 
-	// restore the current function ARN and request ID from the cache in case the extension was restarted
-	// ---------------------------
-
-	err = aws.RestoreCurrentStateFromFile()
-	if err != nil {
-		log.Debug("Did not restore current state from file")
-	}
-
 	// starts logs collection
 	// ----------------------
 
@@ -346,6 +338,17 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		}
 	}
 
+	// restore the current function ARN and request ID from the cache in case the extension was restarted
+	// ---------------------------
+
+	errRestore := aws.RestoreCurrentStateFromFile()
+	if errRestore != nil {
+		log.Debug("Did not restore current state from file")
+	} else {
+		log.Debug("Restored from previous state")
+		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
+	}
+
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
@@ -382,7 +385,7 @@ func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
-			daemon.Stop()
+			daemon.Stop(false)
 			stopCh <- struct{}{}
 			return
 		}

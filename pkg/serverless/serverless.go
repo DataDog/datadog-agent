@@ -40,6 +40,8 @@ const (
 	requestTimeout     time.Duration = 5 * time.Second
 	clientReadyTimeout time.Duration = 2 * time.Second
 
+	safetyBufferTimout time.Duration = 100 * time.Millisecond
+
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
 	// without stopping the extension.
@@ -250,6 +252,9 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 	// we received an INVOKE or SHUTDOWN event
+	if len(daemon.lastInvocations) == 0 {
+		daemon.ReadyWg.Done()
+	}
 	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
@@ -268,6 +273,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		daemon.ComputeGlobalTags(payload.InvokedFunctionArn, config.GetConfiguredTags(true))
 		aws.SetARN(payload.InvokedFunctionArn)
 		daemon.StartInvocation()
+		daemon.DetectTimeout(payload.DeadlineMs, safetyBufferTimout)
 		if coldstart {
 			ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 			if ready {
@@ -298,13 +304,13 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	}
 	if payload.EventType == "SHUTDOWN" {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
-
-		if strings.ToLower(payload.ShutdownReason) == "timeout" {
+		isTimeout := strings.ToLower(payload.ShutdownReason) == "timeout"
+		if isTimeout {
 			metricTags := addColdStartTag(daemon.extraTags)
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 
-		daemon.Stop()
+		daemon.Stop(isTimeout)
 		stopCh <- struct{}{}
 	}
 
