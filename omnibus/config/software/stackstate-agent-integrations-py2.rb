@@ -146,7 +146,7 @@ build do
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\stackstate_checks_base\\stackstate_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
     else
-      command "#{pip} install pip-tools==4.2.0"
+      command "#{pip} install pip-tools==5.4.0"
       static_reqs_in_file = "#{project_dir}/stackstate_checks_base/stackstate_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
     end
