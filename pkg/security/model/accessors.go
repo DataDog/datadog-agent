@@ -50,6 +50,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("rmdir"),
 
+		eval.EventType("selinux"),
+
 		eval.EventType("setgid"),
 
 		eval.EventType("setuid"),
@@ -3110,6 +3112,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "selinux.magic":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.Magic)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "setgid.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4153,6 +4165,8 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.user",
 
 		"rmdir.retval",
+
+		"selinux.magic",
 
 		"setgid.egid",
 
@@ -5889,6 +5903,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "selinux.magic":
+
+		return int(e.SELinux.Magic), nil
+
 	case "setgid.egid":
 
 		return int(e.SetGID.EGID), nil
@@ -6867,6 +6885,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "selinux.magic":
+		return "selinux", nil
 
 	case "setgid.egid":
 		return "setgid", nil
@@ -8044,6 +8065,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "rmdir.retval":
+
+		return reflect.Int, nil
+
+	case "selinux.magic":
 
 		return reflect.Int, nil
 
@@ -11004,6 +11029,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "selinux.magic":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.Magic"}
+		}
+		e.SELinux.Magic = uint32(v)
 		return nil
 
 	case "setgid.egid":
