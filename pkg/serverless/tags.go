@@ -54,8 +54,9 @@ func buildTagMapFromArn(arn string) map[string]string {
 	return tags
 }
 
-func buildTagsFromMap(configTags []string, tags map[string]string, tagBlackList []string) []string {
+func buildTagsFromMap(configTags []string, tags map[string]string) []string {
 	tagsMap := make(map[string]string)
+	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
@@ -70,8 +71,9 @@ func buildTagsFromMap(configTags []string, tags map[string]string, tagBlackList 
 	return tagsArray
 }
 
-func buildTracerTags(tags map[string]string, tagBlackList []string) map[string]string {
+func buildTracerTags(tags map[string]string) map[string]string {
 	tagsMap := make(map[string]string)
+	tagBlackList := []string{resourceKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
@@ -86,12 +88,4 @@ func setIfNotEmpty(tagMap map[string]string, key string, value string) map[strin
 		tagMap[key] = strings.ToLower(value)
 	}
 	return tagMap
-}
-
-func blackListTagForMetricsAndLogs() []string {
-	return []string{traceOriginMetadataKey, computeStatsKey}
-}
-
-func blackListTagForTraces() []string {
-	return []string{resourceKey}
 }
