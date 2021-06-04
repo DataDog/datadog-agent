@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -141,4 +143,33 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ParseLogsAPIPayload(raw)
 	assert.NotNil(t, err)
+}
+
+func TestGetLambaSourceNilScheduler(t *testing.T) {
+	assert.Nil(t, GetLambaSource(nil))
+}
+
+type mockedServerlessScheduler struct {
+	validLogSource bool
+}
+
+func TestGetLambaSourceNilSource(t *testing.T) {
+	serverlessScheduler := mockedServerlessScheduler{false}
+	assert.Nil(t, GetLambaSource(&serverlessScheduler))
+}
+
+func TestGetLambaSourceValidSource(t *testing.T) {
+	serverlessScheduler := mockedServerlessScheduler{true}
+	assert.NotNil(t, GetLambaSource(&serverlessScheduler))
+}
+
+func (m *mockedServerlessScheduler) GetSourceFromName(name string) *logConfig.LogSource {
+	if m.validLogSource {
+		return config.NewLogSource(
+			"test",
+			&config.LogsConfig{},
+		)
+	} else {
+		return nil
+	}
 }

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,6 +64,10 @@ type ReportLogMetrics struct {
 	MemorySizeMB     int
 	MaxMemoryUsedMB  int
 	InitDurationMs   float64
+}
+
+type serverlessScheduler interface {
+	GetSourceFromName(name string) *logConfig.LogSource
 }
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -203,9 +206,9 @@ func removeInvalidTracingItem(data []byte) []byte {
 }
 
 // GetLambdaSource returns the LogSource used by the extension
-func GetLambaSource() *logConfig.LogSource {
-	if scheduler.GetScheduler() != nil {
-		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+func GetLambaSource(scheduler serverlessScheduler) *logConfig.LogSource {
+	if scheduler != nil {
+		source := scheduler.GetSourceFromName("lambda")
 		if source != nil {
 			return source
 		}

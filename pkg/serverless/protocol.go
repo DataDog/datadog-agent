@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
@@ -303,7 +304,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
 		}
 		d.extraTags = tagArray
-		source := aws.GetLambaSource()
+		source := aws.GetLambaSource(scheduler.GetScheduler())
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
