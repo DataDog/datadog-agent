@@ -271,7 +271,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(60 * time.Second)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
