@@ -220,6 +220,9 @@
         "MACOS_BUILD_VERSION": "7.23.0",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.5"
     },
+    "dca-1.13.0": {
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.10"
+    },
     "dca-1.12.0": {
         "SECURITY_AGENT_POLICIES_VERSION": "v0.9"
     },
