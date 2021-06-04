@@ -35,6 +35,8 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
+	// SELinuxEventType selinux event
+	SELinuxEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -126,6 +128,8 @@ func (t EventType) String() string {
 		return "args_envs"
 	case MountReleasedEventType:
 		return "mount_released"
+	case SELinuxEventType:
+		return "selinux"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

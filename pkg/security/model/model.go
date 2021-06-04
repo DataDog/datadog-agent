@@ -138,6 +138,8 @@ type Event struct {
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
+
+	SELinux SELinuxEvent `field:"-"`
 }
 
 // GetType returns the event type
@@ -404,6 +406,11 @@ type OpenEvent struct {
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`
 	Mode  uint32    `field:"file.destination.mode"`
+}
+
+// SELinuxEvent represents a selinux event
+type SELinuxEvent struct {
+	Magic uint32 `field:"magic"`
 }
 
 var zeroProcessContext ProcessContext

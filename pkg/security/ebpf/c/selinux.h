@@ -6,10 +6,25 @@
 #include "syscalls.h"
 #include "process.h"
 
+struct selinux_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    u32 magic;
+};
 
 SEC("kprobe/sel_write_enforce")
 int kprobe__sel_write_enforce(struct pt_regs *ctx) {
     bpf_printk("sel_write_enforce hit\n");
+
+    struct selinux_event_t event = {
+        .magic = 42,
+    };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+
+    send_event(ctx, EVENT_SELINUX, event);
     return 0;
 }
 
