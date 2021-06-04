@@ -39,18 +39,14 @@ int __attribute__((always_inline)) bump_discarder_revision(u32 mount_id) {
     return *revision;
 }
 
-struct discarder_state_t {
+struct discarder_params_t {
+    u64 event_mask;
+    u64 timestamps[EVENT_LAST_DISCARDER-EVENT_FIRST_DISCARDER];
     u64 expire_at;
     u32 is_retained;
 };
 
-struct discarder_parameters_t {
-    u64 event_mask;
-    u64 timestamps[EVENT_LAST_DISCARDER-EVENT_FIRST_DISCARDER];
-    struct discarder_state_t state;
-};
-
-u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_parameters_t *params, u64 event_type) {
+u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_params_t *params, u64 event_type) {
     switch (event_type) {
         case EVENT_OPEN:
             return &params->timestamps[EVENT_OPEN-EVENT_FIRST_DISCARDER];
@@ -79,89 +75,63 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
     }
 }
 
-void __attribute__((always_inline)) discard(struct bpf_map_def *discarder_map, void *key, u64 event_type, u64 timeout) {
-    u64 *discarder_timestamp;
-    u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
+void * __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type) {
+    void *entry = bpf_map_lookup_elem(discarder_map, key);
+    if (entry == NULL)
+        return NULL;
 
-    struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
-    if (params) {
-        params->event_mask |= event_type;
-
-        if ((discarder_timestamp = get_discarder_timestamp(params, event_type)) != NULL) {
-            *discarder_timestamp = timestamp;
-        }
-    } else {
-        struct discarder_parameters_t new_params = {
-            .event_mask = event_type,
-        };
-
-        if ((discarder_timestamp = get_discarder_timestamp(&new_params, event_type)) != NULL) {
-            *discarder_timestamp = timestamp;
-        }
-
-        bpf_map_update_elem(discarder_map, key, &new_params, BPF_NOEXIST);
-    }
-}
-
-int __attribute__((always_inline)) is_discarded(struct bpf_map_def *discarder_map, void *key, u64 event_type) {
-    struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
-    if (params == NULL)
-        return 0;
-
+    struct discarder_params_t *params = (struct discarder_params_t *)entry;
+    
     u64 tm = bpf_ktime_get_ns();
 
     // this discarder has been marked as on hold by event such as unlink, rename, etc.
     // keep them for a while in the map to avoid userspace to reinsert it with a pending userspace event
-    if (params->state.is_retained) {
-        if (params->state.expire_at < tm) {
+    if (params->is_retained) {
+        if (params->expire_at < tm) {
             bpf_map_delete_elem(discarder_map, key);
         }
-        return 0;
+        return NULL;
     }
 
     u64* pid_tm = get_discarder_timestamp(params, event_type);
     if (pid_tm != NULL && *pid_tm && *pid_tm <= tm) {
-        return 0;
+        return NULL;
     }
 
     if (mask_has_event(params->event_mask, event_type)) {
-        return 1;
+        return entry;
     }
 
-    return 0;
+    return NULL;
 }
 
 // do not remove it directly, first mark it as on hold for a period of time, after that it will be removed
 void __attribute__((always_inline)) remove_discarder(struct bpf_map_def *discarder_map, void *key) {
-    struct discarder_parameters_t *params = bpf_map_lookup_elem(discarder_map, key);
+    struct discarder_params_t *params = bpf_map_lookup_elem(discarder_map, key);
     if (params) {
         u64 retention;
         LOAD_CONSTANT("discarder_retention", retention);
 
-        params->state.is_retained = 1;
-        params->state.expire_at = bpf_ktime_get_ns() + retention;
+        params->is_retained = 1;
+        params->expire_at = bpf_ktime_get_ns() + retention;
     }
 }
 
 struct inode_discarder_t {
     struct path_key_t path_key;
-    u32 revision;
     u32 is_leaf;
+    u32 padding;
 };
 
-struct inode_filter_t {
-    struct discarder_parameters_t params;
-    u64 parent_mask;
-    u64 leaf_mask;
-    u64 timestamp;
-    u32 is_retained;
-    u32 padding;
+struct inode_discarder_params_t {
+    struct discarder_params_t params;
+    u32 revision;
 };
 
 struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(struct inode_discarder_t),
-    .value_size = sizeof(struct discarder_parameters_t),
+    .value_size = sizeof(struct inode_discarder_params_t),
     .max_entries = 512,
     .pinning = 0,
     .namespace = "",
@@ -173,11 +143,30 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
             .ino = inode,
             .mount_id = mount_id,
         },
-        .revision = get_discarder_revision(mount_id),
         .is_leaf = is_leaf,
     };
 
-    discard(&inode_discarders, &key, event_type, timeout);
+    u64 *discarder_timestamp;
+    u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
+
+    struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
+    if (inode_params) {
+        inode_params->params.event_mask |= event_type;
+
+        if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
+    } else {
+        struct inode_discarder_params_t new_inode_params = {
+            .params.event_mask = event_type,
+            .revision = get_discarder_revision(mount_id),
+        };
+
+        if ((discarder_timestamp = get_discarder_timestamp(&new_inode_params.params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
+        bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
+    }
 
     return 0;
 }
@@ -188,11 +177,15 @@ int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mou
             .ino = inode,
             .mount_id = mount_id,
         },
-        .revision = get_discarder_revision(mount_id),
         .is_leaf = is_leaf,
     };
 
-    return is_discarded(&inode_discarders, &key, event_type);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, event_type);
+    if (!inode_params) {
+        return 0;
+    }
+
+    return inode_params->revision == get_discarder_revision(mount_id);
 }
 
 void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
@@ -205,28 +198,28 @@ void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 in
         .path_key = {
             .ino = inode,
             .mount_id = mount_id,
-        },
-        .revision = get_discarder_revision(mount_id),
+        }
     };
 
-    struct discarder_parameters_t new_params = {
-        .state = {
+    struct inode_discarder_params_t new_inode_params = {
+        .params = {
             .is_retained = 1,
             .expire_at = expire_at,
-        }
+        },
+        .revision = get_discarder_revision(mount_id),
     };
 
     #pragma unroll
     for (int i = 0; i != 2; i++) {
         key.is_leaf = i;
 
-        struct discarder_parameters_t *params = bpf_map_lookup_elem(&inode_discarders, &key);
-        if (params) {
-            params->state.is_retained = 1;
-            params->state.expire_at = expire_at;
+        struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
+        if (inode_params) {
+            inode_params->params.is_retained = 1;
+            inode_params->params.expire_at = expire_at;
         } else {
             // add a retention anyway
-            bpf_map_update_elem(&inode_discarders, &key, &new_params, BPF_NOEXIST);
+            bpf_map_update_elem(&inode_discarders, &key, &new_inode_params, BPF_NOEXIST);
         }
     }
 }
@@ -237,6 +230,10 @@ static __always_inline u32 get_system_probe_pid() {
     return val;
 }
 
+struct pid_discarder_params_t {
+    struct discarder_params_t params;
+};
+
 struct pid_discarder_t {
     u32 tgid;
 };
@@ -244,7 +241,7 @@ struct pid_discarder_t {
 struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
-    .value_size = sizeof(struct discarder_parameters_t),
+    .value_size = sizeof(struct pid_discarder_params_t),
     .max_entries = 512,
     .pinning = 0,
     .namespace = "",
@@ -255,7 +252,26 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
         .tgid = tgid,
     };
 
-    discard(&pid_discarders, &key, event_type, timeout);
+    u64 *discarder_timestamp;
+    u64 timestamp = timeout ? bpf_ktime_get_ns() + timeout : 0;
+
+    struct pid_discarder_params_t *pid_params = bpf_map_lookup_elem(&pid_discarders, &key);
+    if (pid_params) {
+        pid_params->params.event_mask |= event_type;
+
+        if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
+    } else {
+        struct pid_discarder_params_t new_pid_params = {
+            .params.event_mask = event_type,
+        };
+
+        if ((discarder_timestamp = get_discarder_timestamp(&new_pid_params.params, event_type)) != NULL) {
+            *discarder_timestamp = timestamp;
+        }
+        bpf_map_update_elem(&pid_discarders, &key, &new_pid_params, BPF_NOEXIST);
+    }
 
     return 0;
 }
@@ -270,7 +286,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
         .tgid = tgid,
     };
 
-    return is_discarded(&pid_discarders, &key, event_type);
+    return is_discarded(&pid_discarders, &key, event_type) != NULL;
 }
 
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {

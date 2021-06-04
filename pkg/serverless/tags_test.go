@@ -28,33 +28,34 @@ func TestSetIfNotEmptyWithEmptyKey(t *testing.T) {
 
 func TestBuildTracerTags(t *testing.T) {
 	tagsMap := map[string]string{
-		"key0": "value0",
-		"key1": "value1",
-		"key2": "value2",
-		"key3": "value3",
+		"key0":     "value0",
+		"resource": "value1",
+		"key1":     "value1",
 	}
-	blackList := []string{"key2", "key1"}
-	resultTagsMap := buildTracerTags(tagsMap, blackList)
+	resultTagsMap := buildTracerTags(tagsMap)
 	assert.Equal(t, 2, len(resultTagsMap))
 	assert.Equal(t, "value0", resultTagsMap["key0"])
-	assert.Equal(t, "value3", resultTagsMap["key3"])
+	assert.Equal(t, "value1", resultTagsMap["key1"])
 }
 
 func TestBuildTagsFromMap(t *testing.T) {
 	tagsMap := map[string]string{
-		"key0": "value0",
-		"key1": "value1",
-		"key2": "value2",
-		"key3": "value3",
+		"key0":              "value0",
+		"key1":              "value1",
+		"key2":              "value2",
+		"key3":              "value3",
+		"_dd.origin":        "xxx",
+		"_dd.compute_stats": "xxx",
 	}
 	configTags := []string{"configTagKey0:configTagValue0", "configTagKey1:configTagValue1"}
-	blackList := []string{"key1", "key2"}
-	resultTagsArray := buildTagsFromMap(configTags, tagsMap, blackList)
+	resultTagsArray := buildTagsFromMap(configTags, tagsMap)
 	sort.Strings(resultTagsArray)
 	assert.Equal(t, []string{
 		"configTagKey0:configTagValue0",
 		"configTagKey1:configTagValue1",
 		"key0:value0",
+		"key1:value1",
+		"key2:value2",
 		"key3:value3",
 	}, resultTagsArray)
 }

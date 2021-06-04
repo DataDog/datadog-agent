@@ -269,6 +269,11 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 }
 
 func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+	// sanity check
+	if mountID == 0 || inode == 0 {
+		log.Errorf("invalid mount_id/inode tuple %d:%d", mountID, inode)
+	}
+
 	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
 		log.Tracef("remove all dentry entries for mount id %d", mountID)
 		p.resolvers.DentryResolver.DelCacheEntries(mountID)
@@ -832,6 +837,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "sb_magic_offset",
 			Value: getSuperBlockMagicOffset(p),
+		},
+		manager.ConstantEditor{
+			Name:  "getattr2",
+			Value: getAttr2(p),
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)

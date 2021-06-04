@@ -401,9 +401,17 @@ func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance
 
 func (b *builder) kubeResourceReporter(rule *compliance.Rule, resourceType string) resourceReporter {
 	return func(report *compliance.Report) compliance.ReportResource {
-		clusterID, err := b.kubeClient.ClusterID()
-		if err != nil {
-			log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+		var clusterID string
+		var err error
+
+		if b.kubeClient != nil {
+			clusterID, err = b.kubeClient.ClusterID()
+			if err != nil {
+				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+			}
+		}
+
+		if clusterID == "" {
 			clusterID = b.Hostname()
 		}
 

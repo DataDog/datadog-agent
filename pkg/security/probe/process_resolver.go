@@ -46,6 +46,13 @@ const (
 
 const procResolveMaxDepth = 16
 
+func getAttr2(probe *Probe) uint64 {
+	if probe.kernelVersion.IsRH7Kernel() {
+		return 1
+	}
+	return 0
+}
+
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
 	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= kernel.Kernel5_3 {

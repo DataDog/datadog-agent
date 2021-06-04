@@ -298,12 +298,12 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMapFromArn(arn)
-		tagArray := buildTagsFromMap(configTags, tagMap, blackListTagForMetricsAndLogs())
+		tagArray := buildTagsFromMap(configTags, tagMap)
 		if d.statsdServer != nil {
 			d.statsdServer.SetExtraTags(tagArray)
 		}
 		if d.traceAgent != nil {
-			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap, blackListTagForTraces()))
+			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
 		}
 		d.extraTags = tagArray
 		source := aws.GetLambaSource(scheduler.GetScheduler())

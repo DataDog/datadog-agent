@@ -50,7 +50,7 @@ type snmpInstanceConfig struct {
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network"`
+	Network string `yaml:"network_address"`
 }
 
 type snmpConfig struct {
@@ -193,7 +193,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if instance.Network != "" {
-		log.Warnf("`network` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	}
 
 	if c.ipAddress == "" {

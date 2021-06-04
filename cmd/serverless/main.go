@@ -308,6 +308,10 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
+	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
+	// by setting this option to 1ms, all packets received will directly be sent to the parser
+	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+
 	// initializes the DogStatsD server
 	// --------------------------------
 

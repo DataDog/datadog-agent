@@ -263,7 +263,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 
 	durationCompare := func(op string) func(a string, b string) string {
 		return func(a string, b string) string {
-			return fmt.Sprintf("int64(%s + %s) %s ctx.Now().UnixNano()", a, b, op)
+			return fmt.Sprintf("ctx.Now().UnixNano() - int64(%s) %s int64(%s)", a, op, b)
 		}
 	}
 
@@ -379,7 +379,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare(">"),
+				Op:             durationCompare("<"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -388,7 +388,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare(">="),
+				Op:             durationCompare("<="),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -397,7 +397,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare("<"),
+				Op:             durationCompare(">"),
 				ValueType:      "ScalarValueType",
 			},
 			{
@@ -406,7 +406,7 @@ func Array{{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, opts *Opts, st
 				Arg2Type:       "IntEvaluator",
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
-				Op:             durationCompare("<="),
+				Op:             durationCompare(">="),
 				ValueType:      "ScalarValueType",
 			},
 		},

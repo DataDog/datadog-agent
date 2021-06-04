@@ -881,7 +881,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb(ctx)) > ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) < int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -898,7 +898,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     int64(ea+eb) > ctx.Now().UnixNano(),
+			Value:     ctx.Now().UnixNano()-int64(ea) < int64(eb),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -913,7 +913,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb) > ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) < int64(eb)
 		}
 
 		return &BoolEvaluator{
@@ -932,7 +932,7 @@ func DurationLesserThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *sta
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return int64(ea+eb(ctx)) > ctx.Now().UnixNano()
+		return ctx.Now().UnixNano()-int64(ea) < int64(eb(ctx))
 	}
 
 	return &BoolEvaluator{
@@ -951,7 +951,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb(ctx)) >= ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) <= int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -968,7 +968,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     int64(ea+eb) >= ctx.Now().UnixNano(),
+			Value:     ctx.Now().UnixNano()-int64(ea) <= int64(eb),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -983,7 +983,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb) >= ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) <= int64(eb)
 		}
 
 		return &BoolEvaluator{
@@ -1002,7 +1002,7 @@ func DurationLesserOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, sta
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return int64(ea+eb(ctx)) >= ctx.Now().UnixNano()
+		return ctx.Now().UnixNano()-int64(ea) <= int64(eb(ctx))
 	}
 
 	return &BoolEvaluator{
@@ -1021,7 +1021,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *st
 		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb(ctx)) < ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) > int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -1038,7 +1038,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *st
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     int64(ea+eb) < ctx.Now().UnixNano(),
+			Value:     ctx.Now().UnixNano()-int64(ea) > int64(eb),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1053,7 +1053,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *st
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb) < ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) > int64(eb)
 		}
 
 		return &BoolEvaluator{
@@ -1072,7 +1072,7 @@ func DurationGreaterThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, state *st
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return int64(ea+eb(ctx)) < ctx.Now().UnixNano()
+		return ctx.Now().UnixNano()-int64(ea) > int64(eb(ctx))
 	}
 
 	return &BoolEvaluator{
@@ -1091,7 +1091,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 		// optimize the evaluation if needed, moving the evaluation with more weight at the right
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb(ctx)) <= ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) >= int64(eb(ctx))
 		}
 
 		return &BoolEvaluator{
@@ -1108,7 +1108,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 		_ = ctx
 
 		return &BoolEvaluator{
-			Value:     int64(ea+eb) <= ctx.Now().UnixNano(),
+			Value:     ctx.Now().UnixNano()-int64(ea) >= int64(eb),
 			isPartial: isPartialLeaf,
 		}, nil
 	}
@@ -1123,7 +1123,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 		}
 
 		evalFnc := func(ctx *Context) bool {
-			return int64(ea(ctx)+eb) <= ctx.Now().UnixNano()
+			return ctx.Now().UnixNano()-int64(ea(ctx)) >= int64(eb)
 		}
 
 		return &BoolEvaluator{
@@ -1142,7 +1142,7 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, opts *Opts, st
 	}
 
 	evalFnc := func(ctx *Context) bool {
-		return int64(ea+eb(ctx)) <= ctx.Now().UnixNano()
+		return ctx.Now().UnixNano()-int64(ea) >= int64(eb(ctx))
 	}
 
 	return &BoolEvaluator{
