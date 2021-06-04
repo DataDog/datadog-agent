@@ -291,6 +291,8 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
+	overrides["api_key"] = "test-key"
+
 	// apply overrides to the config
 	config.AddOverrides(overrides)
 
@@ -306,8 +308,6 @@ func ImportRegistryConfig() error {
 		log.Errorf("unable to unmarshal config to YAML: %v", err)
 		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
 	}
-
-	overrides["api_key"] = "test-key"
 
 	// file permissions will be used only to create the file if doesn't exist,
 	// please note on Windows such permissions have no effect.
