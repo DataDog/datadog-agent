@@ -35,8 +35,6 @@ const (
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
-	// SELinuxEventType selinux event
-	SELinuxEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -59,6 +57,8 @@ const (
 	ArgsEnvsEventType
 	// MountReleasedEventType sent when a mount point is released
 	MountReleasedEventType
+	// SELinuxEventType selinux event
+	SELinuxEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 

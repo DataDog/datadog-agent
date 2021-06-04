@@ -495,6 +495,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
+	case model.SELinuxEventType:
+		if _, err := event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

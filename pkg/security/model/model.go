@@ -133,13 +133,13 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"`
 	Capset CapsetEvent `field:"capset" event:"capset"`
 
+	SELinux SELinuxEvent `field:"selinux" event:"selinux"`
+
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
-
-	SELinux SELinuxEvent `field:"-"`
 }
 
 // GetType returns the event type

@@ -198,7 +198,6 @@ enum event_type
     EVENT_UTIME,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
-    EVENT_SELINUX,
     EVENT_LAST_DISCARDER = EVENT_REMOVEXATTR,
 
     EVENT_MOUNT,
@@ -212,6 +211,7 @@ enum event_type
     EVENT_CAPSET,
     EVENT_ARGS_ENVS,
     EVENT_MOUNT_RELEASED,
+    EVENT_SELINUX,
     EVENT_MAX, // has to be the last one
 };
 
