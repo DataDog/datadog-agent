@@ -88,6 +88,8 @@ type Daemon struct {
 	TimeoutWg *sync.WaitGroup
 
 	extraTags []string
+
+	timeoutChan chan bool
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -271,6 +273,7 @@ func (d *Daemon) StartInvocation() {
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
 	d.InvcWg.Done()
+	d.timeoutChan <- true
 }
 
 // WaitForDaemon waits until invocation finished any pending work
@@ -321,8 +324,20 @@ func (d *Daemon) handleTimeout() {
 }
 
 func (d *Daemon) DetectTimeout(deadlineMs int64, safetyBuffer time.Duration, action afterTimoutFunction) {
+	d.timeoutChan = make(chan bool)
 	currentTime := time.Now().UnixNano()
-	time.AfterFunc(time.Duration(deadlineMs*int64(time.Millisecond)-int64(safetyBuffer)-currentTime), action)
+	ticker := time.NewTicker(time.Duration(deadlineMs*int64(time.Millisecond) - int64(safetyBuffer) - currentTime))
+	go func() {
+		for {
+			select {
+			case <-d.timeoutChan:
+				return
+			case <-ticker.C:
+				action()
+			}
+		}
+	}()
+
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
