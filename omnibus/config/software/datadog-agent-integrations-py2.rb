@@ -34,10 +34,9 @@ if linux?
   # need kerberos for hdfs
   dependency 'libkrb5'
 
-  # [sts] we do not use the aerospike check
-  # unless suse? || arm?
-  #   dependency 'aerospike-py2'
-  # end
+  unless suse? || arm?
+    dependency 'aerospike-py2'
+  end
 end
 
 relative_path 'integrations-core'
