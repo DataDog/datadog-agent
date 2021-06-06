@@ -106,12 +106,7 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 
 	for _, info := range updates {
 		if info.Entity == entity {
-			var err error
-			if info.SkipCache {
-				err = errors.NewPartial(entity)
-			}
-
-			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, err
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
 	// container not found in updates
