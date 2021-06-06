@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -297,6 +298,66 @@ func TestErrNotFound(t *testing.T) {
 	c := &DummyCollector{}
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
 
+	catalog := collectors.Catalog{
+		"fetcher": func() collectors.Collector { return c },
+	}
+	tagger := NewTagger(catalog)
+	tagger.Init()
+	defer tagger.Stop()
+
+	// Result should be cached
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
+	_, err := tagger.Tag("invalid", collectors.HighCardinality)
+	assert.NoError(t, err)
+	c.AssertNumberOfCalls(t, "Fetch", 1)
+
+	// Fetch will not be called again
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
+	_, err = tagger.Tag("invalid", collectors.HighCardinality)
+	assert.NoError(t, err)
+	c.AssertNumberOfCalls(t, "Fetch", 1)
+}
+
+func TestRetryWithDelay(t *testing.T) {
+	c := &DummyCollector{}
+	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+
+	catalog := collectors.Catalog{
+		"fetcher": func() collectors.Collector { return c },
+	}
+	tagger := NewTagger(catalog)
+	tagger.Init()
+	defer tagger.Stop()
+
+
+	tagger.store.processTagInfo([]*collectors.TagInfo{
+		{
+			Entity:      "entity_name",
+			Source:      "pull",
+			LowCardTags: []string{"low1", "low2", "low3"},
+		},
+  })
+  badErr := fmt.Errorf("test failure")
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	tagger.Tag("invalid", collectors.HighCardinality)
+
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	tagger.Tag("invalid", collectors.HighCardinality)
+
+	//Expect Fetch to be called only once although it was to calls of tagger.Tag
+	c.AssertNumberOfCalls(t, "Fetch", 1)
+
+	time.Sleep(1 * time.Second)
+
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	tagger.Tag("invalid", collectors.HighCardinality)
+	c.AssertNumberOfCalls(t, "Fetch", 2)
+}
+
+func TestRetryWithDelayForTwoEntities(t *testing.T) {
+	c := &DummyCollector{}
+	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+
 	badErr := fmt.Errorf("test failure")
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
@@ -305,22 +366,18 @@ func TestErrNotFound(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	// Result should not be cached
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
-	_, err := tagger.Tag("invalid", collectors.HighCardinality)
-	assert.NoError(t, err)
+	tagger.Tag("entityA", collectors.HighCardinality)
+
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	tagger.Tag("entityA", collectors.HighCardinality)
+
+	//Expect Fetch to be called only once although it was to calls of tagger.Tag
 	c.AssertNumberOfCalls(t, "Fetch", 1)
 
-	// Nil result should be cached now
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
-	_, err = tagger.Tag("invalid", collectors.HighCardinality)
-	assert.NoError(t, err)
-	c.AssertNumberOfCalls(t, "Fetch", 2)
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	tagger.Tag("entityB", collectors.HighCardinality)
 
-	// Fetch will not be called again
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
-	_, err = tagger.Tag("invalid", collectors.HighCardinality)
-	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 }
 

@@ -8,6 +8,7 @@ package local
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -281,7 +282,7 @@ func TestGetEntityTags(t *testing.T) {
 	tags, sources := etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
 	etags.sourceTags["source"] = sourceTags{
@@ -291,19 +292,46 @@ func TestGetEntityTags(t *testing.T) {
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 
 	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
+	etags.storeWasUpdated = true
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 4)
 	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
 	assert.Len(t, sources, 1)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 	tags, sources = etags.get(collectors.LowCardinality)
 	assert.Len(t, tags, 2)
 	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
 	assert.Len(t, sources, 1)
+}
+
+func (s *StoreTestSuite) TestGetExpiredTags() {
+	expiryDate := time.Now().Add(1 * time.Second)
+	s.store.processTagInfo([]*collectors.TagInfo{
+		{
+			Source:       "source",
+			Entity:       "entityA",
+			HighCardTags: []string{"expiresSoon"},
+			ExpiryDate:   &expiryDate,
+		},
+	})
+
+	tagsHigh, _ := s.store.lookup("entityA", collectors.HighCardinality)
+	assert.Contains(s.T(), tagsHigh, "expiresSoon")
+
+	time.Sleep(500 * time.Millisecond)
+
+	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
+	//cache didn't expire yet
+	assert.Contains(s.T(), tagsHigh, "expiresSoon")
+
+	time.Sleep(500 * time.Millisecond)
+
+	//cache expired after 1 second. It should be no tags
+	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
+	assert.NotContains(s.T(), tagsHigh, "expiresSoon")
 }
 
 func TestDuplicateSourceTags(t *testing.T) {
@@ -313,7 +341,7 @@ func TestDuplicateSourceTags(t *testing.T) {
 	tags, sources := etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 
 	// Mock collector priorities
 	collectors.CollectorPriorities = map[string]collectors.CollectorPriority{
@@ -341,15 +369,15 @@ func TestDuplicateSourceTags(t *testing.T) {
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 
 	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
+	etags.storeWasUpdated = true
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 7)
 	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
 	assert.Len(t, sources, 3)
-	assert.True(t, etags.cacheValid)
+	assert.True(t, etags.cacheValid())
 	tags, sources = etags.get(collectors.LowCardinality)
 	assert.Len(t, sources, 3)
 	assert.Len(t, tags, 5)

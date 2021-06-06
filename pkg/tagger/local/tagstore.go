@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
+  "fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
@@ -26,12 +28,13 @@ var errNotFound = errors.New("entity not found")
 type entityTags struct {
 	entityID           string
 	sourceTags         map[string]sourceTags
-	cacheValid         bool
+	storeWasUpdated    bool
 	cachedSource       []string
 	cachedAll          []string // Low + orchestrator + high
 	cachedOrchestrator []string // Low + orchestrator (subslice of cachedAll)
 	cachedLow          []string // Sub-slice of cachedAll
 	toDelete           map[string]struct{}
+	expiryDate         *time.Time
 }
 
 func newEntityTags(entityID string) *entityTags {
@@ -49,6 +52,7 @@ type sourceTags struct {
 	orchestratorCardTags []string
 	highCardTags         []string
 	standardTags         []string
+	expiryDate           *time.Time
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -89,11 +93,6 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 		}
 		if info.Source == "" {
 			log.Tracef("processTagInfo err: empty source name, skipping message")
-			continue
-		}
-		if info.SkipCache {
-			telemetry.CacheSkipped.Inc()
-			log.Tracef("processTagInfo: skipping message due to SkipCache")
 			continue
 		}
 
@@ -138,12 +137,13 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 }
 
 func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) {
-	storedTags.cacheValid = false
+	storedTags.storeWasUpdated = true
 	storedTags.sourceTags[info.Source] = sourceTags{
 		lowCardTags:          info.LowCardTags,
 		orchestratorCardTags: info.OrchestratorCardTags,
 		highCardTags:         info.HighCardTags,
 		standardTags:         info.StandardTags,
+    expiryDate:           info.ExpiryDate,
 	}
 }
 
@@ -239,7 +239,7 @@ func (s *tagStore) pruneDeletedEntities() {
 				Entity:    storedTags.toEntity(),
 			})
 		} else {
-			storedTags.cacheValid = false
+			storedTags.storeWasUpdated = true
 			storedTags.toDelete = make(map[string]struct{})
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeModified,
@@ -323,6 +323,18 @@ func (s *tagStore) getEntityTags(entityID string) (*entityTags, error) {
 	return storedTags, nil
 }
 
+func (e *entityTags) cacheValid() bool {
+	if e.storeWasUpdated {
+		return false
+	}
+
+	if e.expiryDate != nil && time.Now().After(*e.expiryDate) {
+		return false
+	}
+
+	return true
+}
+
 func (e *entityTags) getStandard() []string {
 	tags := []string{}
 	for _, t := range e.sourceTags {
@@ -361,18 +373,46 @@ func (e *entityTags) toEntity() types.Entity {
 }
 
 func (e *entityTags) computeCache() {
-	if e.cacheValid {
+	if e.cacheValid() {
 		return
 	}
 
+  fmt.Println("compute cache")
 	var sources []string
 	tagPrioMapper := make(map[string][]tagPriority)
 
+	now := time.Now()
+	//nearest expiery date
 	for source, tags := range e.sourceTags {
+    fmt.Println(tags.expiryDate, now)
+		if tags.expiryDate != nil && tags.expiryDate.Before(now) {
+			//tags have expired don't store them anymore
+			delete(e.sourceTags, source)
+			continue
+		}
+
 		sources = append(sources, source)
 		insertWithPriority(tagPrioMapper, tags.lowCardTags, source, collectors.LowCardinality)
 		insertWithPriority(tagPrioMapper, tags.orchestratorCardTags, source, collectors.OrchestratorCardinality)
 		insertWithPriority(tagPrioMapper, tags.highCardTags, source, collectors.HighCardinality)
+	}
+
+	var earliestExpiryDate *time.Time
+	//get earliest expiry date among all sourceTags
+	for _, tags := range e.sourceTags {
+		if tags.expiryDate == nil {
+			continue
+		}
+
+		// first tag with expiryDate, use this date as expire date for
+		// the whole enityCache
+		if earliestExpiryDate == nil {
+			earliestExpiryDate = tags.expiryDate
+
+			// if earliestExpiryDate exists than look for tags that will exire earlier
+		} else if tags.expiryDate.Before(*earliestExpiryDate) {
+			earliestExpiryDate = tags.expiryDate
+		}
 	}
 
 	var lowCardTags []string
@@ -406,11 +446,13 @@ func (e *entityTags) computeCache() {
 	tags = append(tags, highCardTags...)
 
 	// Write cache
-	e.cacheValid = true
+	e.storeWasUpdated = false
 	e.cachedSource = sources
 	e.cachedAll = tags
 	e.cachedLow = e.cachedAll[:len(lowCardTags)]
 	e.cachedOrchestrator = e.cachedAll[:len(lowCardTags)+len(orchestratorCardTags)]
+	//expires when earliest sourceTag expires
+	e.expiryDate = earliestExpiryDate
 }
 
 func (e *entityTags) isEmpty() bool {
