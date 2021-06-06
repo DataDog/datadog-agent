@@ -23,9 +23,9 @@ configMapGenerator:
       - STS_CLUSTER_NAME={{ cluster_name }}
 
 images:
-  - name: docker.io/stackstate/stackstate-agent-2-test
+  - name: {{ agent_docker_repo }}
     newTag: {{ agent_current_branch }}
-  - name: docker.io/stackstate/stackstate-cluster-agent-test
+  - name: {{ cluster_agent_docker_repo }}
     newTag: {{ agent_current_branch }}
 
 secretGenerator:
