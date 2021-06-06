@@ -3,8 +3,6 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   vars:
     ssh_port: 22
 

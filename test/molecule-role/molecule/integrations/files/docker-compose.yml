@@ -87,7 +87,7 @@ services:
       - mysql
 
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
     pid: "host"
     privileged: true
