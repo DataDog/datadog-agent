@@ -57,14 +57,19 @@
         - docker-compose.yml
     - name: Gather facts (we need the docker network interface ip)
       setup:
+
+    - name: Configure .env file used by docker-compose
+        copy:
+          content: |
+            AGENT_DOCKER_REPO={{ agent_docker_repo }}
+            AGENT_VERSION={{ agent_current_branch }}
+            DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
+            STACKSTATE_BRANCH={{ stackstate_branch }}
+          dest: /home/ubuntu/.env
     - name: Run Docker compose
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
-      environment:
-        AGENT_VERSION: "{{ agent_current_branch }}"
-        DOCKER_HOST_IP: "{{ ansible_docker0['ipv4']['address'] }}"
-        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
 
     - name: Wait for receiver http://localhost:7077/health
       uri:
