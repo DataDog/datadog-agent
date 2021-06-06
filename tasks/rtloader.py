@@ -113,7 +113,7 @@ def clean(ctx):
         try:
             shutil.rmtree(p)
             print("Successfully cleaned '{}'".format(p))
-        except FileNotFoundError:
+        except Exception:
             print("Nothing to clean up '{}'".format(p))
 
 
