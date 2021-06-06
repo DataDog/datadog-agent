@@ -41,13 +41,15 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
 
-				skipCache := false
+        var expiryDate time.Time
 				for _, fn := range containerHandlers {
 					if fn != nil {
 						err := fn(container.DockerID, tags)
 						if err != nil {
 							log.Warnf("container handler func failed: %s", err)
-							skipCache = true
+              //cache result for 1 sencond
+              //it prevents tagger to aggresivelly retry fetch
+              expiryDate = time.Now().Add(1 * time.Second)
 						}
 					}
 				}
@@ -62,7 +64,7 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,
-					SkipCache:            skipCache,
+					ExpiryDate:           &expiryDate,
 				}
 				output = append(output, info)
 			}
