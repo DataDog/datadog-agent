@@ -163,7 +163,7 @@ def genconfig(
 
 
 @task
-def should_rerun_failed(ctx, runlog):
+def should_rerun_failed(_, runlog):
     """
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
