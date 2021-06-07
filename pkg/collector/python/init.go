@@ -11,6 +11,7 @@ import (
 	"expvar"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -237,7 +238,21 @@ func sendTelemetry(pythonVersion string) {
 	})
 }
 
-func detectPythonLocation(pythonVersion string) {
+func resolveExecPath(execName string) (string, error) {
+	execPath, err := exec.LookPath(execName)
+	if err != nil {
+		return "", err
+	}
+
+	execAbsPath, err := filepath.Abs(execPath)
+	if err != nil {
+		return "", err
+	}
+
+	return execAbsPath, nil
+}
+
+func resolvePythonExecPath(pythonVersion string) string {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, err := executable.Folder()
@@ -251,24 +266,22 @@ func detectPythonLocation(pythonVersion string) {
 		}
 		log.Debugf("Executable folder is %v", _here)
 
-		agentpythonHome2 := filepath.Join(_here, "..", "embedded2")
-		agentpythonHome3 := filepath.Join(_here, "..", "embedded3")
+		embeddedPythonHome2 := filepath.Join(_here, "..", "embedded2")
+		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
 
-		/*
-		 * want to use the path relative embedded2/3 directories above by default;
-		 * they'll be correct for normal installation (on windows).
-		 * However, if they're not present (for cases like running unit tests) fall
-		 * back to the compile time values
-		 */
-		if _, err := os.Stat(agentpythonHome2); os.IsNotExist(err) {
-			log.Warnf("relative embedded directory not found for python2; using default %s", pythonHome2)
+		// We want to use the path-relative embedded2/3 directories above by default.
+		// They will be correct for normal installation on Windows. However, if they
+		// are not present for cases like running unit tests, fall back to the compile
+		// time values.
+		if _, err := os.Stat(embeddedPythonHome2); os.IsNotExist(err) {
+			log.Warnf("Relative embedded directory not found for Python 2. Using default: %s", pythonHome2)
 		} else {
-			pythonHome2 = agentpythonHome2
+			pythonHome2 = embeddedPythonHome2
 		}
-		if _, err := os.Stat(agentpythonHome3); os.IsNotExist(err) {
-			log.Warnf("relative embedded directory not found for python3; using default %s", pythonHome3)
+		if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
+			log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
 		} else {
-			pythonHome3 = agentpythonHome3
+			pythonHome3 = embeddedPythonHome3
 		}
 	}
 
@@ -278,21 +291,42 @@ func detectPythonLocation(pythonVersion string) {
 		PythonHome = pythonHome3
 	}
 
+	log.Infof("Using '%s' as Python home", PythonHome)
+
+	// For Windows, the binary should be in our path already and have a
+	// consistent name
 	if runtime.GOOS == "windows" {
-		pythonBinPath = filepath.Join(PythonHome, "python.exe")
-	} else {
-		// On Unix both python are installed on the same embedded
-		// directory. We don't want to use the default version (aka
-		// "python") but either "python2" or "python3" based on the
-		// configuration.
-		pythonBinPath = filepath.Join(PythonHome, "bin", "python"+pythonVersion)
+		return filepath.Join(PythonHome, "python.exe")
 	}
+
+	// On *nix both Python versions are installed in the same embedded directory. We
+	// don't want to use the default version (aka "python") but rather "python2" or
+	// "python3" based on the configuration. Also on some Python3 platforms there
+	// are no "python" aliases either.
+	interpreterBasename := "python" + pythonVersion
+
+	// If we are in a development env or just the ldflags haven't been set, the PythonHome
+	// variable won't be set so what we do here is to just find out where our current
+	// default in-path "python2"/"python3" command is located and get its absolute path.
+	if PythonHome == "" {
+		interpreterPath, err := resolveExecPath(interpreterBasename)
+		if err != nil {
+			log.Warnf("Error trying to resolve interpreter path for executable '%v'", err)
+			return interpreterBasename
+		}
+
+		return interpreterPath
+	}
+
+	// If we're here, the ldflags have been used so we key off of those to get the
+	// absolute path of the interpreter executable
+	return filepath.Join(PythonHome, "bin", interpreterBasename)
 }
 
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 
-	// memory related RTLoader-global initialization
+	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
 	}
@@ -300,26 +334,34 @@ func Initialize(paths ...string) error {
 	// Any platform-specific initialization
 	// should be done before rtloader initialization
 	if initializePlatform() != nil {
-		log.Warnf("unable to complete platform-specific initialization - should be non-fatal")
+		log.Warnf("Unable to complete platform-specific initialization - should be non-fatal")
 	}
 
-	detectPythonLocation(pythonVersion)
+	// Note: pythonBinPath is a module-level var
+	pythonBinPath = resolvePythonExecPath(pythonVersion)
+	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
 	var pyErr *C.char = nil
+
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))
+	csPythonExecPath := TrackedCString(pythonBinPath)
+	defer C._free(unsafe.Pointer(csPythonExecPath))
+
 	if pythonVersion == "2" {
-		rtloader = C.make2(csPythonHome, &pyErr)
-		log.Infof("Initializing rtloader with python2 %s", PythonHome)
+		log.Infof("Initializing rtloader with Python 2 %s", PythonHome)
+		rtloader = C.make2(csPythonHome, csPythonExecPath, &pyErr)
 	} else if pythonVersion == "3" {
-		rtloader = C.make3(csPythonHome, &pyErr)
-		log.Infof("Initializing rtloader with python3 %s", PythonHome)
+		log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
+		rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 	} else {
 		return addExpvarPythonInitErrors(fmt.Sprintf("unsuported version of python: %s", pythonVersion))
 	}
 
 	if rtloader == nil {
-		err := addExpvarPythonInitErrors(fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)))
+		err := addExpvarPythonInitErrors(
+			fmt.Sprintf("could not load runtime python for version %s: %s", pythonVersion, C.GoString(pyErr)),
+		)
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
 			C._free(unsafe.Pointer(pyErr))

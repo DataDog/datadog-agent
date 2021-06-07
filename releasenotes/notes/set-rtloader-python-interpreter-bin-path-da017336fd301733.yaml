@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Python interpreter ``sys.executable`` is now set to the appropriate interpreter's
+    executable path. This should allow ``multiprocessing`` to be able to spawn new
+    processes since it will try to invoke the Python interpreter instead of the Agent
+    itself. It should be noted though that the ``datadog_agent`` import should be
+    guarded with ``try``/``except`` clauses and only used from within the main process
+    as the ``rtloader``-injected helpers are not available in the child processes.
