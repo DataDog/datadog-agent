@@ -107,7 +107,7 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 					out <- formatMessage(msgPair.msg, msgPair.redactedMsg)
 				}
 			case <-done:
-				break
+				return
 			}
 		}
 	}()
