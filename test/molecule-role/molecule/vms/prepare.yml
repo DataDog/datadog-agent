@@ -265,7 +265,7 @@
         path: /etc/hosts
         line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
     - name: Install stackstate-agent
-      shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
+      shell: "curl -o- {{ agent_repo_url_v2 }}/install.sh | bash"
       environment:
         STS_API_KEY: "API_KEY"
         STS_URL: "https://test-stackstate-agent.sts/stsAgent"
