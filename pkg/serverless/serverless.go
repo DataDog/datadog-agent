@@ -58,9 +58,12 @@ const (
 	// a connection failed.
 	FatalConnectFailed ErrorEnum = "Fatal.ConnectFailed"
 
-	Invoke   RuntimeEvent = "INVOKE"
+	// Invoke event
+	Invoke RuntimeEvent = "INVOKE"
+	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
 
+	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
 )
 
@@ -91,6 +94,7 @@ func (s ShutdownReason) String() string {
 	return string(s)
 }
 
+// InvocationHandler is the invocation handler signature
 type InvocationHandler func(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool)
 
 // Payload is the payload read in the response while subscribing to
