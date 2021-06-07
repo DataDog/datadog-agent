@@ -1,7 +1,7 @@
 package settings
 
 import (
-	"runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // RuntimeMutexProfileFraction wraps runtime.SetMutexProfileFraction setting.
@@ -24,8 +24,7 @@ func (r RuntimeMutexProfileFraction) Hidden() bool {
 
 // Get returns the current value of the runtime setting
 func (r RuntimeMutexProfileFraction) Get() (interface{}, error) {
-	rate := runtime.SetMutexProfileFraction(-1) // docs: "To just read the current rate, pass rate < 0."
-	return rate, nil
+	return profiling.GetMutexProfileFraction(), nil
 }
 
 // Set changes the value of the runtime setting
@@ -35,7 +34,7 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 		return err
 	}
 
-	runtime.SetMutexProfileFraction(rate)
+	profiling.SetMutexProfileFraction(rate)
 
 	return nil
 }

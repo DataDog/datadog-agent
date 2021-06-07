@@ -1,12 +1,8 @@
 package settings
 
 import (
-	"runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
-
-// Go runtime does not support reading block profile rate, so we emulate it here for the
-// benefit of the flare collector.
-var currentValue = 0
 
 // RuntimeBlockProfileRate wraps runtime.SetBlockProfileRate setting
 type RuntimeBlockProfileRate (string)
@@ -28,7 +24,7 @@ func (r RuntimeBlockProfileRate) Hidden() bool {
 
 // Get returns the current value of the runtime setting
 func (r RuntimeBlockProfileRate) Get() (interface{}, error) {
-	return currentValue, nil
+	return profiling.GetBlockProfileRate(), nil
 }
 
 // Set changes the value of the runtime setting
@@ -38,8 +34,7 @@ func (r RuntimeBlockProfileRate) Set(value interface{}) error {
 		return err
 	}
 
-	runtime.SetBlockProfileRate(rate)
-	currentValue = rate
+	profiling.SetBlockProfileRate(rate)
 
 	return nil
 }
