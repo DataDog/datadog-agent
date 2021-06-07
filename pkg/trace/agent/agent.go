@@ -11,6 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -177,7 +180,7 @@ func (a *Agent) Process(p *api.Payload) {
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledSpans)
-	var sinputs []stats.Input
+	var sinputs []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	for _, t := range p.Traces {
 		if len(t) == 0 {
@@ -259,9 +262,9 @@ func (a *Agent) Process(p *api.Payload) {
 		events, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
 			if sinputs == nil {
-				sinputs = make([]stats.Input, 0, len(p.Traces))
+				sinputs = make([]stats.EnvTrace, 0, len(p.Traces))
 			}
-			sinputs = append(sinputs, stats.Input{
+			sinputs = append(sinputs, stats.EnvTrace{
 				Trace: pt.WeightedTrace,
 				Env:   pt.Env,
 			})
@@ -285,7 +288,10 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TraceWriter.In <- ss
 	}
 	if len(sinputs) > 0 {
-		a.Concentrator.In <- sinputs
+		a.Concentrator.In <- stats.Input{
+			Traces:      sinputs,
+			ContainerID: p.ContainerID,
+		}
 	}
 }
 
@@ -298,6 +304,11 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	in.Env = traceutil.NormalizeTag(in.Env)
 	in.TracerVersion = tracerVersion
 	in.Lang = lang
+	ctags, err := tagger.Tag("container_id://"+in.ContainerID, collectors.HighCardinality)
+	if err != nil {
+		log.Tracef("Getting container tags for ID %q: %v", in.ContainerID, err)
+	}
+	in.Tags = append(mainconfig.GetConfiguredTags(false), ctags...)
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {

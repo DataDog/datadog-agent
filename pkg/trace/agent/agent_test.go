@@ -1013,13 +1013,15 @@ func TestConvertStats(t *testing.T) {
 		in            pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
+		containerID   string
 		out           pb.ClientStatsPayload
 	}{
 		{
 			in: pb.ClientStatsPayload{
-				Hostname: "tracer_hots",
-				Env:      "tracer_env",
-				Version:  "code_version",
+				Hostname:    "tracer_hots",
+				Env:         "tracer_env",
+				Version:     "code_version",
+				ContainerID: "id-123",
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1052,12 +1054,15 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
+			containerID:   "id-123",
 			out: pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
+				ContainerID:   "id-123",
+				Tags:          []string{},
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,

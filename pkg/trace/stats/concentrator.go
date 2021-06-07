@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -25,7 +28,7 @@ const defaultBufferLen = 2
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	In  chan []Input
+	In  chan Input
 	Out chan pb.StatsPayload
 
 	// bucket duration in nanoseconds
@@ -57,7 +60,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen:     defaultBufferLen,
-		In:            make(chan []Input, 100),
+		In:            make(chan Input, 100),
 		Out:           out,
 		exit:          make(chan struct{}),
 		agentEnv:      conf.DefaultEnv,
@@ -112,24 +115,33 @@ func (c *Concentrator) Stop() {
 	c.exitWG.Wait()
 }
 
-// Input contains input for the concentractor.
-type Input struct {
+// EnvTrace specifies a stats-processed trace and its env.
+type EnvTrace struct {
 	Trace WeightedTrace
 	Env   string
 }
 
+// Input specifies a set of processed traces along with their metadata.
+type Input struct {
+	// Traces specifies a group of Inputs for the concentrator.
+	Traces []EnvTrace
+
+	// ContainerID optionally specifies the entity ID.
+	ContainerID string
+}
+
 // Add applies the given input to the concentrator.
-func (c *Concentrator) Add(inputs []Input) {
+func (c *Concentrator) Add(in Input) {
 	c.mu.Lock()
-	for i := range inputs {
-		c.addNow(&inputs[i])
+	for i := range in.Traces {
+		c.addNow(&in.Traces[i], in.ContainerID)
 	}
 	c.mu.Unlock()
 }
 
 // addNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(i *Input) {
+func (c *Concentrator) addNow(i *EnvTrace, containerID string) {
 	env := i.Env
 	if env == "" {
 		env = c.agentEnv
@@ -151,7 +163,7 @@ func (c *Concentrator) addNow(i *Input) {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, env, c.agentHostname)
+		b.HandleSpan(s, env, c.agentHostname, containerID)
 	}
 }
 
@@ -187,11 +199,17 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	c.mu.Unlock()
 	sb := make([]pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
+		ctags, err := tagger.Tag("container_id://"+k.containerID, collectors.HighCardinality)
+		if err != nil {
+			log.Tracef("Getting container tags for ID %q: %v", k.containerID, err)
+		}
 		sb = append(sb, pb.ClientStatsPayload{
-			Env:      k.env,
-			Hostname: k.hostname,
-			Version:  k.version,
-			Stats:    s,
+			Env:         k.env,
+			Hostname:    k.hostname,
+			Version:     k.version,
+			ContainerID: k.containerID,
+			Tags:        append(mainconfig.GetConfiguredTags(false), ctags...),
+			Stats:       s,
 		})
 	}
 	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}

@@ -22,15 +22,16 @@ const (
 // WriteKey and the structs payloadAggregationKey, bucketAggregationKey in the ClientStatsAggregator
 // should always be updated accordingly.
 type Aggregation struct {
-	Env        string
-	Resource   string
-	Service    string
-	Name       string
-	Type       string
-	Hostname   string
-	StatusCode uint32
-	Version    string
-	Synthetics bool
+	Env         string
+	Resource    string
+	Service     string
+	Name        string
+	Type        string
+	Hostname    string
+	ContainerID string
+	StatusCode  uint32
+	Version     string
+	Synthetics  bool
 }
 
 func getStatusCode(s *pb.Span) uint32 {
@@ -47,22 +48,23 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, env string, agentHostname string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, env, agentHostname, containerID string) Aggregation {
 	synthetics := strings.HasPrefix(traceutil.GetMetaDefault(s, tagOrigin, ""), tagSynthetics)
 	hostname := traceutil.GetMetaDefault(s, tagHostname, "")
 	if hostname == "" {
 		hostname = agentHostname
 	}
 	return Aggregation{
-		Env:        env,
-		Resource:   s.Resource,
-		Service:    s.Service,
-		Name:       s.Name,
-		Type:       s.Type,
-		Hostname:   hostname,
-		StatusCode: getStatusCode(s),
-		Version:    traceutil.GetMetaDefault(s, tagVersion, ""),
-		Synthetics: synthetics,
+		Env:         env,
+		Resource:    s.Resource,
+		Service:     s.Service,
+		Name:        s.Name,
+		Type:        s.Type,
+		Hostname:    hostname,
+		StatusCode:  getStatusCode(s),
+		Version:     traceutil.GetMetaDefault(s, tagVersion, ""),
+		Synthetics:  synthetics,
+		ContainerID: containerID,
 	}
 }
 

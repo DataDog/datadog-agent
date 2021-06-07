@@ -17,29 +17,31 @@ import (
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr := NewAggregationFromSpan(&s, "default", "default")
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
 	assert.Equal(Aggregation{
-		Env:      "default",
-		Hostname: "default",
-		Service:  "thing",
-		Name:     "other",
-		Resource: "yo",
+		Env:         "default",
+		Hostname:    "default",
+		Service:     "thing",
+		Name:        "other",
+		ContainerID: "cid",
+		Resource:    "yo",
 	}, aggr)
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418", tagOrigin: "synthetics-browser"}}
-	aggr := NewAggregationFromSpan(&s, "default", "default")
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
 	assert.Equal(Aggregation{
-		Env:        "default",
-		Service:    "thing",
-		Resource:   "yo",
-		Name:       "other",
-		Hostname:   "host-id",
-		StatusCode: 418,
-		Version:    "v0",
-		Synthetics: true,
+		Env:         "default",
+		Service:     "thing",
+		Resource:    "yo",
+		Name:        "other",
+		Hostname:    "host-id",
+		ContainerID: "cid",
+		StatusCode:  418,
+		Version:     "v0",
+		Synthetics:  true,
 	}, aggr)
 }
 
@@ -52,7 +54,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", "hostname")
+			sb.HandleSpan(span, "dev", "hostname", "cid")
 		}
 	}
 }
