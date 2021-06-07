@@ -119,6 +119,11 @@ struct syscall_cache_t {
             u32 next_tail;
             u8 is_parsed;
         } exec;
+
+        struct {
+            struct dentry *dentry;
+            struct file_t file;
+        } selinux;
     };
 };
 
