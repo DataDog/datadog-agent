@@ -733,6 +733,12 @@ api_key:
   #
   # compression_level: 6
 
+  ## @param validate_pod_container_id - boolean - optional - default: false
+  ## While running in Kubernetes, use the symbolic links in /var/log/containers
+  ## to validate the container ID attached to pod logs.
+  #
+  # validate_pod_container_id: false
+
 {{ end -}}
 {{- if .TraceAgent }}
 

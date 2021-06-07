@@ -52,12 +52,13 @@ type Scanner struct {
 	stop                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
+	// Feature flag defaulting to false.
 	validatePodContainerId bool
 }
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
-	validatePodContainerId := coreConfig.Datadog.GetBool("logs_agent.validate_pod_container_id")
+	validatePodContainerId := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
 	if validatePodContainerId {
 		log.Debug("Logs Agent will try to use /var/log/containers to validate container ID")
 	}
