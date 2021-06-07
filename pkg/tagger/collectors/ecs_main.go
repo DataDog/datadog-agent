@@ -11,14 +11,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
@@ -40,82 +37,18 @@ type ECSCollector struct {
 	clusterName string
 }
 
-// Detect tries to connect to the ECS agent
+// We emulate Detect to be always successful
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	if ecsutil.IsFargateInstance() {
-		return NoCollection, fmt.Errorf("ECS collector is disabled on Fargate")
-	}
-
-	metaV1, err := ecsmeta.V1()
-	if err != nil {
-		return NoCollection, err
-	}
-
-	c.metaV1 = metaV1
-	c.infoOut = out
-	c.lastExpire = time.Now()
-	c.expireFreq = ecsExpireFreq
-
-	c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
-	if err != nil {
-		return NoCollection, err
-	}
-
-	instance, err := c.metaV1.GetInstance()
-	if err != nil {
-		log.Warnf("Cannot determine ECS cluster name: %s", err)
-	}
-
-	c.clusterName = instance.Cluster
-
 	return FetchOnlyCollection, nil
 }
 
-// Fetch fetches ECS tags
+// Emulate Fetch to fail allways with timeout
 func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	entityType, cID := containers.SplitEntityName(entity)
-	if entityType != containers.ContainerEntityName || len(cID) == 0 {
-		return nil, nil, nil, nil
-	}
-
-	tasks, err := c.metaV1.GetTasks()
-	if err != nil {
-		return []string{}, []string{}, []string{}, err
-	}
-
-	var updates []*TagInfo
-
-	if config.Datadog.GetBool("ecs_collect_resource_tags_ec2") && ecsutil.HasEC2ResourceTags() {
-		updates, err = c.parseTasks(tasks, cID, addTagsForContainer)
-	} else {
-		updates, err = c.parseTasks(tasks, cID)
-	}
-	if err != nil {
-		return []string{}, []string{}, []string{}, err
-	}
-
-	c.infoOut <- updates
-
-	// Only run the expire process with the most up to date tasks parsed.
-	// Using a go routine as the expire process can be done asynchronously.
-	// We do not use the output as the ECSCollector is not meant run in standalone.
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
-		go c.expire.ComputeExpires() //nolint:errcheck
-		c.lastExpire = time.Now()
-	}
-
-	for _, info := range updates {
-		if info.Entity == entity {
-			var err error
-			if info.SkipCache {
-				err = errors.NewPartial(entity)
-			}
-
-			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, err
-		}
-	}
-	// container not found in updates
-	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+  log.Info("-------Fetch tags----------")
+  //Here we emulated timeout for failed fetchContainerTaskWithTagsV3
+  time.Sleep(500 * time.Millisecond)
+  err := errors.NewPartial(entity)
+  return []string{}, []string{}, []string{}, err
 }
 
 func addTagsForContainer(containerID string, tags *utils.TagList) error {

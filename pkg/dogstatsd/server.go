@@ -535,7 +535,9 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
+        //use hardcoded origin because if dogstatd runs locally packet.Origin is empty
+        origin := "mac_book_pro"
+				samples, err = s.parseMetricMessage(samples, parser, message, origin, debugEnabled)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
