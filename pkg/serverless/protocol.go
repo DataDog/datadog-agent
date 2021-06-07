@@ -28,7 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+// FunctionNameEnvVar is the environment variable that stores the function name.
+const FunctionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
@@ -323,7 +324,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogMessages(l, messages, os.Getenv(functionNameEnvVar))
+		processLogMessages(l, messages, os.Getenv(FunctionNameEnvVar))
 		w.WriteHeader(200)
 	}
 }

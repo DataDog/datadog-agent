@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	_ "expvar"
 	"fmt"
 	_ "net/http/pprof"
@@ -18,9 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -71,18 +67,12 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	statsdServer *dogstatsd.Server
 
-	// Apikey reading priority:
-	// KSM > SSM > Apikey in environment var
-	// If one is set but failing, the next will be tried
-	kmsAPIKeyEnvVar = "DD_KMS_API_KEY"
-	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyEnvVar    = "DD_API_KEY"
-
-	logLevelEnvVar = "DD_LOG_LEVEL"
-
-	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
-
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
+	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	apiKeyEnvVar               = "DD_API_KEY"
+	logLevelEnvVar             = "DD_LOG_LEVEL"
+	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -178,13 +168,17 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// api key reading
 	// ---------------
 
+	// API key reading priority:
+	// KSM > Secrets Manager > Plaintext API key
+	// If one is set but failing, the next will be tried
+
 	// some useful warnings first
 
 	var apikeySetIn = []string{}
 	if os.Getenv(kmsAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")
 	}
-	if os.Getenv(ssmAPIKeyEnvVar) != "" {
+	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "SSM")
 	}
 	if os.Getenv(apiKeyEnvVar) != "" {
@@ -195,24 +189,24 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// try to read apikey from KMS
+	// try to read API key from KMS
 
 	var apiKey string
 	if apiKey, err = readAPIKeyFromKMS(); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+		os.Setenv(apiKeyEnvVar, apiKey)
 	}
 
-	// try to read the apikey from SSM, only if not set from KMS
+	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSSM(); err != nil {
-			log.Errorf("Error while trying to read an API Key from SSM: %s", err)
+		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
-			log.Info("Using API key set in SSM.")
-			os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+			log.Info("Using API key set in Secrets Manager.")
+			os.Setenv(apiKeyEnvVar, apiKey)
 		}
 	}
 
@@ -239,7 +233,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
 
-	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
+	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
 
 	if !config.Datadog.IsSet("api_key") {
@@ -391,77 +385,4 @@ func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 			return
 		}
 	}
-}
-
-// decryptKMS deciphered the cipherText given as parameter.
-// Function stolen and adapted from datadog-lambda-go/internal/metrics/kms_decrypter.go
-func decryptKMS(cipherText string) (string, error) {
-	kmsClient := kms.New(session.New(nil))
-	decodedBytes, err := base64.StdEncoding.DecodeString(cipherText)
-	if err != nil {
-		return "", fmt.Errorf("Failed to encode cipher text to base64: %v", err)
-	}
-
-	params := &kms.DecryptInput{
-		CiphertextBlob: decodedBytes,
-	}
-
-	response, err := kmsClient.Decrypt(params)
-	if err != nil {
-		return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
-	}
-	// Plaintext is a byte array, so convert to string
-	decrypted := string(response.Plaintext[:])
-
-	return decrypted, nil
-}
-
-// readAPIKeyFromKMS reads an API Key in KMS if the env var DD_KMS_API_KEY has
-// been set.
-// If none has been set, it is returning an empty string and a nil error
-func readAPIKeyFromKMS() (string, error) {
-	ciphered := os.Getenv(kmsAPIKeyEnvVar)
-	if ciphered == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_KMS_API_KEY value, trying to decipher it.")
-	rv, err := decryptKMS(ciphered)
-	if err != nil {
-		return "", fmt.Errorf("decryptKMS error: %s", err)
-	}
-	return rv, nil
-}
-
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
-// has been set.
-// If none has been set, it is returning an empty string and a nil error.
-func readAPIKeyFromSSM() (string, error) {
-	arn := os.Getenv(ssmAPIKeyEnvVar)
-	if arn == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
-	ssmClient := secretsmanager.New(session.New(nil))
-	secret := &secretsmanager.GetSecretValueInput{}
-	secret.SetSecretId(arn)
-
-	output, err := ssmClient.GetSecretValue(secret)
-	if err != nil {
-		return "", fmt.Errorf("SSM read error: %s", err)
-	}
-
-	if output.SecretString != nil {
-		secretString := *output.SecretString // create a copy to not return an object within the AWS response
-		return secretString, nil
-	} else if output.SecretBinary != nil {
-		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
-		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
-		if err != nil {
-			return "", fmt.Errorf("Can't base64 decode SSM secret: %s", err)
-		}
-		return string(decodedBinarySecretBytes[:len]), nil
-	}
-	// should not happen but let's handle this gracefully
-	log.Warn("SSM returned something but there seems to be no data available;")
-	return "", nil
 }
