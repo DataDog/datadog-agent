@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	chanBufferSize = 100
+	chanBufferSize = 1000
 	flushInterval  = 5 * time.Second
 )
 
