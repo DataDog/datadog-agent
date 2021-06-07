@@ -52,7 +52,7 @@ type Scanner struct {
 	stop                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
-	// Feature flag defaulting to false.
+	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerId bool
 }
 
