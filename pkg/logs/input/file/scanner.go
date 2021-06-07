@@ -53,13 +53,13 @@ type Scanner struct {
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
-	validatePodContainerId bool
+	validatePodContainerID bool
 }
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
-	validatePodContainerId := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
-	if validatePodContainerId {
+	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
+	if validatePodContainerID {
 		log.Debug("Logs Agent file.Scanner will try to use /var/log/containers to validate container ID while parsing pod logs.")
 	}
 	return &Scanner{
@@ -72,7 +72,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 		registry:               registry,
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
-		validatePodContainerId: validatePodContainerId,
+		validatePodContainerID: validatePodContainerID,
 	}
 }
 
@@ -250,7 +250,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 	// See these links for more info:
 	//   - https://github.com/kubernetes/kubernetes/issues/58638
 	//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-	if s.validatePodContainerId && file.Source != nil &&
+	if s.validatePodContainerID && file.Source != nil &&
 		(file.Source.GetSourceType() == config.KubernetesSourceType || file.Source.GetSourceType() == config.DockerSourceType) &&
 		s.shouldIgnore(file) {
 		return false
