@@ -64,6 +64,8 @@ var (
 		[]string{"domain", "endpoint"}, "Transaction retry count")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
+	tlmTxChanBufferSize = telemetry.NewGauge("transactions", "chan_buffer_size",
+		[]string{"domain"}, "Chan Buffer Size")
 )
 
 func init() {

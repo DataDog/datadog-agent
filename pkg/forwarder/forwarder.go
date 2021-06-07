@@ -419,6 +419,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.CompletionHandler = f.completionHandler
 				}
 
+				tlmTxChanBufferSize.Set(float64(chanBufferSize), domain)
 				tlmTxInputCount.Inc(domain, endpoint.Name)
 				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
 				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
