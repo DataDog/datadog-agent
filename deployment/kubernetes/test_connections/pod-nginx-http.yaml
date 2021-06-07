@@ -30,16 +30,16 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: webserver
+  name: nginx-client
   labels:
     test: pod-nginx-http
 spec:
   containers:
     - name: ngnix-client
-      image: continuous-curl:latest
+      image: plavignotte/continuous-curl:latest
       args: ["my-nginx"]
       env:
         - name: METHOD
           value: "GET"
         - name: LOOP
-          value: "3"
+          value: "2"
