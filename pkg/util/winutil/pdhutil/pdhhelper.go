@@ -24,6 +24,7 @@ var (
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
 	procPdhAddCounterW              = modPdhDll.NewProc("PdhAddCounterW")
+	procPdhAddEnglishCounterW       = modPdhDll.NewProc("PdhAddEnglishCounterW")
 	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
@@ -247,6 +248,11 @@ func makeCounterSetIndexes() error {
 		} else if regerr != nil {
 			return regerr
 		}
+		// must set the length of the slice to the actual amount of data
+		// sz is in bytes, but it's a slice of uint16s, so divide the returned
+		// buffer size by two.
+
+		counterlist = counterlist[:(sz / 2)]
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)

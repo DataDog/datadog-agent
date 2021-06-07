@@ -25,13 +25,21 @@ func TestCPU(t *testing.T) {
 		"user":   64140,
 		"system": 18327,
 	}
+
+	// First run returns an error because cgroup file doesn't exist
+	cgroupEmpty := newDummyContainerCgroup(tempFolder.RootPath, "")
+	timeStat, err := cgroupEmpty.CPU()
+	assert.NotNil(t, err)
+	assert.Nil(t, timeStat)
+
+	// Second run, add files
 	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
 	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
 	tempFolder.add("cpu/cpu.shares", "1024")
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct", "cpu")
 
-	timeStat, err := cgroup.CPU()
+	timeStat, err = cgroup.CPU()
 	assert.Nil(t, err)
 	assert.Equal(t, timeStat.User, uint64(64140))
 	assert.Equal(t, timeStat.System, uint64(18327))

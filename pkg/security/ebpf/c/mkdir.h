@@ -66,16 +66,65 @@ int kprobe__vfs_mkdir(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_mkdir_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall)
         return 0;
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
-    int ret = resolve_dentry(syscall->mkdir.dentry, syscall->mkdir.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0);
-    if (ret == DENTRY_DISCARDED) {
+    syscall->resolver.key = syscall->mkdir.file.path_key;
+    syscall->resolver.dentry = syscall->mkdir.dentry;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MKDIR_CALLBACK_KPROBE_KEY : DR_MKDIR_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_MKDIR);
+    return 0;
+}
+
+int __attribute__((always_inline)) kprobe_sys_mkdir_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
+}
+
+SEC("tracepoint/syscalls/sys_exit_mkdir")
+int tracepoint_syscalls_sys_exit_mkdir(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_mkdir_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(mkdir)
+{
+    return kprobe_sys_mkdir_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_mkdirat")
+int tracepoint_syscalls_sys_exit_mkdirat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_mkdir_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(mkdirat) {
+    return kprobe_sys_mkdir_ret(ctx);
+}
+
+int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+       return 0;
     }
 
     struct mkdir_event_t event = {
@@ -89,35 +138,18 @@ int __attribute__((always_inline)) do_sys_mkdir_ret(void *ctx, struct syscall_ca
     fill_container_context(entry, &event.container);
 
     send_event(ctx, EVENT_MKDIR, event);
-
     return 0;
 }
 
-SEC("tracepoint/handle_sys_mkdir_exit")
-int handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
-    if (!syscall)
-        return 0;
-
-    return do_sys_mkdir_ret(args, syscall, args->ret);
-}
-
-int __attribute__((always_inline)) trace__sys_mkdir_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
-    if (!syscall)
-        return 0;
-
+SEC("kprobe/dr_mkdir_callback")
+int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
-    return do_sys_mkdir_ret(ctx, syscall, retval);
+    return dr_mkdir_callback(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(mkdir)
-{
-    return trace__sys_mkdir_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(mkdirat) {
-    return trace__sys_mkdir_ret(ctx);
+SEC("tracepoint/dr_mkdir_callback")
+int __attribute__((always_inline)) tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_mkdir_callback(args, args->ret);
 }
 
 #endif

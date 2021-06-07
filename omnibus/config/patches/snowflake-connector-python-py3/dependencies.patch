@@ -1,0 +1,26 @@
+diff --git a/setup.py b/setup.py
+index 0da6a8a..509e3a1 100644
+--- a/setup.py
++++ b/setup.py
+@@ -182,16 +182,16 @@ setup(
+         'botocore>=1.5.0,<1.14.0',
+         'requests<2.23.0',
+         'urllib3>=1.20,<1.26.0',
+-        'certifi<2021.0.0',
++        'certifi',
+         'future<1.0.0',
+         'six<2.0.0',
+-        'pytz<2021.0',
++        'pytz<2021.2',
+         'pycryptodomex>=3.2,!=3.5.0,<4.0.0',
+         'pyOpenSSL>=16.2.0,<21.0.0',
+-        'cffi>=1.9,<1.14',
+-        'cryptography>=1.8.2,<3.0.0',
++        'cffi>=1.9,<1.15',
++        'cryptography>=1.8.2,<4.0.0',
+         'ijson<3.0.0',
+-        'pyjwt<2.0.0',
++        'pyjwt<3.0.0',
+         'idna<3.0.0',
+         'oscrypto<2.0.0',
+         'asn1crypto>0.24.0,<2.0.0',

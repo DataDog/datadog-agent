@@ -14,11 +14,11 @@ import (
 
 // Evaluatable abstracts part of an expression that can be evaluated for an instance
 type Evaluatable interface {
-	Evaluate(instance *Instance) (interface{}, error)
+	Evaluate(instance Instance) (interface{}, error)
 }
 
 // Function describes a function callable for an instance
-type Function func(instance *Instance, args ...interface{}) (interface{}, error)
+type Function func(instance Instance, args ...interface{}) (interface{}, error)
 
 // FunctionMap describes a map of functions
 type FunctionMap map[string]Function
@@ -27,22 +27,68 @@ type FunctionMap map[string]Function
 type VarMap map[string]interface{}
 
 // Instance for evaluation
-type Instance struct {
+type Instance interface {
+	Var(name string) (interface{}, bool)
+	Vars() VarMap
+	Function(name string) (Function, bool)
+	Functions() FunctionMap
+}
+
+// instance for evaluation
+type instance struct {
 	// Instance functions
-	Functions FunctionMap
+	functions FunctionMap
 	// Vars defined during evaluation.
-	Vars VarMap
+	vars VarMap
+}
+
+func (i *instance) Vars() VarMap {
+	if i == nil || i.vars == nil {
+		return VarMap{}
+	}
+	return i.vars
+}
+
+func (i *instance) Functions() FunctionMap {
+	if i == nil || i.functions == nil {
+		return FunctionMap{}
+	}
+	return i.functions
+}
+
+func (i *instance) Var(name string) (interface{}, bool) {
+	if i == nil || i.vars == nil {
+		return nil, false
+	}
+	value, ok := i.vars[name]
+	return value, ok
+}
+
+func (i *instance) Function(name string) (Function, bool) {
+	if i == nil || i.functions == nil {
+		return nil, false
+	}
+	function, ok := i.functions[name]
+	return function, ok
+}
+
+// NewInstance instantiates a new evaluation instance
+func NewInstance(vars VarMap, functions FunctionMap) Instance {
+	return &instance{
+		vars:      vars,
+		functions: functions,
+	}
 }
 
 // Iterator abstracts iteration over a set of instances for expression evaluation
 type Iterator interface {
-	Next() (*Instance, error)
+	Next() (Instance, error)
 	Done() bool
 }
 
 // InstanceResult captures an Instance along with the passed or failed status for the result
 type InstanceResult struct {
-	Instance *Instance
+	Instance Instance
 	Passed   bool
 }
 
@@ -59,7 +105,7 @@ var (
 )
 
 // EvaluateIterator evaluates an iterable expression for an iterator
-func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) ([]*InstanceResult, error) {
+func (e *IterableExpression) EvaluateIterator(it Iterator, global Instance) ([]*InstanceResult, error) {
 	if e.IterableComparison == nil {
 		return e.iterate(
 			it,
@@ -77,9 +123,9 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) ([]
 		passedCount int64
 	)
 
-	results, err := e.iterate(
+	_, err := e.iterate(
 		it,
-		e.IterableComparison.Expression, func(instance *Instance, passed bool) bool {
+		e.IterableComparison.Expression, func(instance Instance, passed bool) bool {
 			totalCount++
 			if passed {
 				passedCount++
@@ -96,24 +142,14 @@ func (e *IterableExpression) EvaluateIterator(it Iterator, global *Instance) ([]
 		return nil, err
 	}
 
-	// keep the first one which passed the sub expression
-	var instance *Instance
-	for _, result := range results {
-		if result.Passed {
-			instance = result.Instance
-			break
-		}
-	}
-
 	return []*InstanceResult{
 		{
-			Instance: instance,
-			Passed:   passed,
+			Passed: passed,
 		},
 	}, nil
 }
 
-func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, totalCount int64) (bool, error) {
+func (e *IterableExpression) evaluatePassed(instance Instance, passedCount, totalCount int64) (bool, error) {
 	fn := *e.IterableComparison.Fn
 	switch fn {
 	case allFn:
@@ -151,9 +187,9 @@ func (e *IterableExpression) evaluatePassed(instance *Instance, passedCount, tot
 	}
 }
 
-func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance *Instance, passed bool) bool) ([]*InstanceResult, error) {
+func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkResult func(instance Instance, passed bool) bool) ([]*InstanceResult, error) {
 	var (
-		instance *Instance
+		instance Instance
 		results  []*InstanceResult
 		err      error
 		passed   bool
@@ -193,7 +229,7 @@ func (e *IterableExpression) iterate(it Iterator, expression *Expression, checkR
 	return results, nil
 }
 
-func (e *IterableExpression) evaluateSubExpression(instance *Instance, expression *Expression) (bool, error) {
+func (e *IterableExpression) evaluateSubExpression(instance Instance, expression *Expression) (bool, error) {
 	v, err := expression.Evaluate(instance)
 	if err != nil {
 		return false, err
@@ -207,7 +243,7 @@ func (e *IterableExpression) evaluateSubExpression(instance *Instance, expressio
 }
 
 // Evaluate evaluates an iterable expression for a single instance
-func (e *IterableExpression) Evaluate(instance *Instance) (bool, error) {
+func (e *IterableExpression) Evaluate(instance Instance) (bool, error) {
 	if e.IterableComparison == nil {
 		return e.evaluateSubExpression(instance, e.Expression)
 	}
@@ -229,7 +265,7 @@ func (e *IterableExpression) Evaluate(instance *Instance) (bool, error) {
 }
 
 // Evaluate evaluates a path expression for an instance
-func (e *PathExpression) Evaluate(instance *Instance) (interface{}, error) {
+func (e *PathExpression) Evaluate(instance Instance) (interface{}, error) {
 	if e.Path != nil {
 		return *e.Path, nil
 	}
@@ -237,7 +273,7 @@ func (e *PathExpression) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // Evaluate evaluates an expression for an instance
-func (e *Expression) Evaluate(instance *Instance) (interface{}, error) {
+func (e *Expression) Evaluate(instance Instance) (interface{}, error) {
 	lhs, err := e.Comparison.Evaluate(instance)
 	if err != nil {
 		return nil, err
@@ -273,7 +309,7 @@ func (e *Expression) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // BoolEvaluate evaluates an expression for an instance as a boolean value
-func (e *Expression) BoolEvaluate(instance *Instance) (bool, error) {
+func (e *Expression) BoolEvaluate(instance Instance) (bool, error) {
 	v, err := e.Evaluate(instance)
 	if err != nil {
 		return false, err
@@ -286,7 +322,7 @@ func (e *Expression) BoolEvaluate(instance *Instance) (bool, error) {
 }
 
 // Evaluate implements Evaluatable interface
-func (c *Comparison) Evaluate(instance *Instance) (interface{}, error) {
+func (c *Comparison) Evaluate(instance Instance) (interface{}, error) {
 	lhs, err := c.Term.Evaluate(instance)
 	if err != nil {
 		return nil, err
@@ -363,7 +399,7 @@ func (c *Comparison) compare(lhs, rhs interface{}, op string) (interface{}, erro
 }
 
 // Evaluate implements Evaluatable interface
-func (t *Term) Evaluate(instance *Instance) (interface{}, error) {
+func (t *Term) Evaluate(instance Instance) (interface{}, error) {
 	lhs, err := t.Unary.Evaluate(instance)
 	if err != nil {
 		return nil, err
@@ -416,7 +452,7 @@ func (t *Term) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // Evaluate implements Evaluatable interface
-func (u *Unary) Evaluate(instance *Instance) (interface{}, error) {
+func (u *Unary) Evaluate(instance Instance) (interface{}, error) {
 	if u.Value != nil {
 		return u.Value.Evaluate(instance)
 	}
@@ -461,7 +497,7 @@ func (u *Unary) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // Evaluate implements Evaluatable interface
-func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
+func (v *Value) Evaluate(instance Instance) (interface{}, error) {
 	switch {
 	case v.Hex != nil:
 		return strconv.ParseUint(*v.Hex, 0, 64)
@@ -472,13 +508,7 @@ func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
 	case v.String != nil:
 		return *v.String, nil
 	case v.Variable != nil:
-		var (
-			ok    bool
-			value interface{}
-		)
-		if instance.Vars != nil {
-			value, ok = instance.Vars[*v.Variable]
-		}
+		value, ok := instance.Var(*v.Variable)
 		if !ok {
 			value, ok = builtInVars[*v.Variable]
 		}
@@ -496,9 +526,9 @@ func (v *Value) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // Evaluate implements Evaluatable interface
-func (a *Array) Evaluate(instance *Instance) (interface{}, error) {
+func (a *Array) Evaluate(instance Instance) (interface{}, error) {
 	if a.Ident != nil {
-		value, ok := instance.Vars[*a.Ident]
+		value, ok := instance.Var(*a.Ident)
 		if !ok {
 			return nil, lexer.Errorf(a.Pos, `unknown variable %q used as array`, *a.Ident)
 		}
@@ -516,14 +546,8 @@ func (a *Array) Evaluate(instance *Instance) (interface{}, error) {
 }
 
 // Evaluate implements Evaluatable interface
-func (c *Call) Evaluate(instance *Instance) (interface{}, error) {
-	var (
-		fn Function
-		ok bool
-	)
-	if instance.Functions != nil {
-		fn, ok = instance.Functions[c.Name]
-	}
+func (c *Call) Evaluate(instance Instance) (interface{}, error) {
+	fn, ok := instance.Function(c.Name)
 	if !ok {
 		return nil, lexer.Errorf(c.Pos, `unknown function "%s()"`, c.Name)
 	}

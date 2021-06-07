@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,12 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
@@ -75,6 +80,8 @@ type Daemon struct {
 	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
+
+	extraTags []string
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -211,6 +218,7 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
 		flushStrategy:    &flush.AtTheEnd{},
+		extraTags:        nil,
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -218,8 +226,8 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until the DogStatsD server has been instantiated
-	daemon.ReadyWg.Add(1)
+	// this wait group will be blocking until the DogStatsD server has been instantiated + extra tags have been set
+	daemon.ReadyWg.Add(2)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -273,6 +281,28 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	return d.clientLibReady
 }
 
+// ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
+func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
+	if len(d.extraTags) == 0 {
+		tagMap := buildTagMapFromArn(arn)
+		tagArray := buildTagsFromMap(configTags, tagMap)
+		if d.statsdServer != nil {
+			d.statsdServer.SetExtraTags(tagArray)
+		}
+		if d.traceAgent != nil {
+			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
+		}
+		d.extraTags = tagArray
+		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+		if source != nil {
+			source.Config.Tags = tagArray
+		} else {
+			log.Debug("Impossible to retrieve the lambda LogSource")
+		}
+		d.ReadyWg.Done()
+	}
+}
+
 // LogsCollection is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
@@ -293,19 +323,19 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogMessages(l, messages)
+		processLogMessages(l, messages, os.Getenv(functionNameEnvVar))
 		w.WriteHeader(200)
 	}
 }
 
-func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
+func processLogMessages(l *LogsCollection, messages []aws.LogMessage, functionName string) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-	metricTags := getTagsForEnhancedMetrics()
+	metricTags := addColdStartTag(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
+	functionName = strings.ToLower(functionName)
 	arn := aws.GetARN()
 	lastRequestID := aws.GetRequestID()
-	functionName := aws.FunctionNameFromARN()
 	for _, message := range messages {
 		processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.

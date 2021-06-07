@@ -73,16 +73,81 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     if (is_overlayfs(src_dentry))
         syscall->link.target_file.flags |= UPPER_LAYER;
 
-    int ret = resolve_dentry(src_dentry, syscall->link.src_file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
-    if (ret == DENTRY_DISCARDED) {
+    syscall->resolver.dentry = src_dentry;
+    syscall->resolver.key = syscall->link.src_file.path_key;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0;
+    syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+SEC("kprobe/dr_link_src_callback")
+int __attribute__((always_inline)) dr_link_src_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
         return discard_syscall(syscall);
     }
 
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_link_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall)
+        return 0;
+
+    syscall->resolver.dentry = syscall->link.target_dentry;
+    syscall->resolver.key = syscall->link.target_file.path_key;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_LINK);
+    return 0;
+}
+
+int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE);
+}
+
+SEC("tracepoint/syscalls/sys_exit_link")
+int tracepoint_syscalls_sys_exit_link(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(link) {
+    return kprobe_sys_link_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_linkat")
+int tracepoint_syscalls_sys_exit_linkat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(linkat) {
+    return kprobe_sys_link_ret(ctx);
+}
+
+int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
+    if (!syscall)
         return 0;
 
     struct link_event_t event = {
@@ -96,37 +161,20 @@ int __attribute__((always_inline)) do_sys_link_ret(void *ctx, struct syscall_cac
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_file.path_key, 0);
-
     send_event(ctx, EVENT_LINK, event);
 
     return 0;
 }
 
-SEC("tracepoint/handle_sys_link_exit")
-int handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
-    if (!syscall)
-        return 0;
-
-    return do_sys_link_ret(args, syscall, args->ret);
+SEC("kprobe/dr_link_dst_callback")
+int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    return dr_link_dst_callback(ctx, ret);
 }
 
-int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    return do_sys_link_ret(ctx, syscall, retval);
-}
-
-SYSCALL_KRETPROBE(link) {
-    return trace__sys_link_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(linkat) {
-    return trace__sys_link_ret(ctx);
+SEC("tracepoint/dr_link_dst_callback")
+int __attribute__((always_inline)) tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_link_dst_callback(args, args->ret);
 }
 
 #endif

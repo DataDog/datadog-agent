@@ -10,13 +10,22 @@ package probe
 import (
 	"C"
 	"fmt"
+	"os"
+	"runtime"
+	"sync/atomic"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+
+	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
-import "github.com/DataDog/datadog-agent/pkg/security/model"
 
 const (
 	dentryPathKeyNotFound = "error: dentry path key not found"
@@ -25,9 +34,21 @@ const (
 
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
-	probe     *Probe
-	pathnames *lib.Map
-	cache     map[uint32]*lru.Cache
+	client                *statsd.Client
+	pathnames             *lib.Map
+	erpcStats             [2]*lib.Map
+	bufferSelector        *lib.Map
+	activeERPCStatsBuffer uint32
+	cache                 map[uint32]*lru.Cache
+	erpc                  *ERPC
+	erpcSegment           []byte
+	erpcSegmentSize       int
+	erpcRequest           ERPCRequest
+	erpcEnabled           bool
+	mapEnabled            bool
+
+	hitsCounters map[string]map[string]*int64
+	missCounters map[string]map[string]*int64
 }
 
 // ErrInvalidKeyPath is returned when inode or mountid are not valid
@@ -71,13 +92,116 @@ func (p *PathKey) MarshalBinary() ([]byte, error) {
 		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
 	}
 
-	return make([]byte, 16), nil
+	buff := make([]byte, 16)
+	p.Write(buff)
+
+	return buff, nil
 }
 
 // PathValue describes a value of an entry of the cache
 type PathValue struct {
 	Parent PathKey
 	Name   [model.MaxSegmentLength + 1]byte
+	Len    uint16
+}
+
+// GetName returns the path value as a string
+func (pv *PathValue) GetName() string {
+	return C.GoString((*C.char)(unsafe.Pointer(&pv.Name)))
+}
+
+// eRPCStats is used to collect kernel space metrics about the eRPC resolution
+type eRPCStats struct {
+	Count uint64
+}
+
+// eRPCRet is the type used to parse the eRPC return value
+type eRPCRet uint32
+
+func (ret eRPCRet) String() string {
+	switch ret {
+	case eRPCok:
+		return "ok"
+	case eRPCCacheMiss:
+		return "cache_miss"
+	case eRPCBufferSize:
+		return "buffer_size"
+	case eRPCMajorPageFault:
+		return "major_page_fault"
+	case eRPCTailCallError:
+		return "tail_call_error"
+	default:
+		return "unknown"
+	}
+}
+
+const (
+	eRPCok eRPCRet = iota
+	eRPCCacheMiss
+	eRPCBufferSize
+	eRPCMajorPageFault
+	eRPCTailCallError
+	eRPCUnknownError
+)
+
+func allERPCRet() []eRPCRet {
+	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCMajorPageFault, eRPCTailCallError, eRPCUnknownError}
+}
+
+// SendStats sends the dentry resolver metrics
+func (dr *DentryResolver) SendStats() error {
+	for resolution, hitsCounters := range dr.hitsCounters {
+		for resolutionType, value := range hitsCounters {
+			val := atomic.SwapInt64(value, 0)
+			if val > 0 {
+				_ = dr.client.Count(metrics.MetricDentryResolverHits, val, []string{resolutionType, resolution}, 1.0)
+			}
+		}
+	}
+
+	for resolution, hitsCounters := range dr.missCounters {
+		for resolutionType, value := range hitsCounters {
+			val := atomic.SwapInt64(value, 0)
+			if val > 0 {
+				_ = dr.client.Count(metrics.MetricDentryResolverMiss, val, []string{resolutionType, resolution}, 1.0)
+			}
+		}
+	}
+
+	return dr.sendERPCStats()
+}
+
+var eRPCStatsZero = make([]eRPCStats, runtime.NumCPU())
+
+func (dr *DentryResolver) sendERPCStats() error {
+	buffer := dr.erpcStats[1-dr.activeERPCStatsBuffer]
+	iterator := buffer.Iterate()
+	stats := make([]eRPCStats, runtime.NumCPU())
+	counters := map[eRPCRet]int64{}
+	var ret eRPCRet
+
+	for iterator.Next(&ret, &stats) {
+		if ret == eRPCok {
+			continue
+		}
+		for _, count := range stats {
+			if _, ok := counters[ret]; !ok {
+				counters[ret] = 0
+			}
+			counters[ret] += int64(count.Count)
+		}
+	}
+	for r, count := range counters {
+		if count > 0 {
+			_ = dr.client.Count(metrics.MetricDentryERPC, count, []string{fmt.Sprintf("ret:%s", r)}, 1.0)
+		}
+	}
+	for _, r := range allERPCRet() {
+		_ = buffer.Put(r, eRPCStatsZero)
+	}
+
+	dr.activeERPCStatsBuffer = 1 - dr.activeERPCStatsBuffer
+	return dr.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, dr.activeERPCStatsBuffer)
 }
 
 // DelCacheEntry removes an entry from the cache
@@ -109,7 +233,7 @@ func (dr *DentryResolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)
 }
 
-func (dr *DentryResolver) lookupInode(mountID uint32, inode uint64) (pathValue PathValue, err error) {
+func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (pathValue PathValue, err error) {
 	entries, exists := dr.cache[mountID]
 	if !exists {
 		return pathValue, ErrEntryNotFound
@@ -140,52 +264,77 @@ func (dr *DentryResolver) cacheInode(mountID uint32, inode uint64, pathValue Pat
 	return nil
 }
 
-func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (name string, err error) {
-	path, err := dr.lookupInode(mountID, inode)
+func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (string, error) {
+	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.CacheTag], 1)
 		return "", err
 	}
 
-	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.CacheTag], 1)
+	return path.GetName(), nil
 }
 
-func (dr *DentryResolver) getNameFromMap(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+func (dr *DentryResolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint32) (pathValue PathValue, err error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
-	var path PathValue
+	if err = dr.pathnames.Lookup(key, &pathValue); err != nil {
+		return pathValue, errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
+	}
+	return pathValue, nil
+}
 
-	if err := dr.pathnames.Lookup(key, &path); err != nil {
-		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
+// GetNameFromMap resolves the name of the provided inode
+func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
+	pathValue, err := dr.lookupInodeFromMap(mountID, inode, pathID)
+	if err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
+		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d`", mountID, inode)
 	}
 
-	return C.GoString((*C.char)(unsafe.Pointer(&path.Name))), nil
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
+	return pathValue.GetName(), nil
 }
 
 // GetName resolves a couple of mountID/inode to a path
 func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.getNameFromCache(mountID, inode)
+	if err != nil && dr.erpcEnabled {
+		name, err = dr.GetNameFromERPC(mountID, inode, pathID)
+	}
+	if err != nil && dr.mapEnabled {
+		name, err = dr.GetNameFromMap(mountID, inode, pathID)
+	}
+
 	if err != nil {
-		name, _ = dr.getNameFromMap(mountID, inode, pathID)
+		name = ""
 	}
 	return name
 }
 
-// ResolveFromCache resolve from the cache
+// ResolveFromCache resolves path from the cache
 func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filename string, err error) {
+	var path PathValue
+	depth := int64(0)
 	key := PathKey{MountID: mountID, Inode: inode}
 
 	// Fetch path recursively
-	for {
-		path, err := dr.lookupInode(key.MountID, key.Inode)
+	for i := 0; i <= model.MaxPathDepth; i++ {
+		path, err = dr.lookupInodeFromCache(key.MountID, key.Inode)
 		if err != nil {
-			return "", err
+			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.CacheTag], 1)
+			break
 		}
+		depth++
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '\x00' && path.Name[0] != '/' {
-			filename = "/" + C.GoString((*C.char)(unsafe.Pointer(&path.Name))) + filename
+			filename = "/" + path.GetName() + filename
 		}
 
 		if path.Parent.Inode == 0 {
+			if len(filename) == 0 {
+				filename = "/"
+			}
 			break
 		}
 
@@ -193,14 +342,14 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (filena
 		key = path.Parent
 	}
 
-	if len(filename) == 0 {
-		filename = "/"
+	if depth > 0 {
+		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.CacheTag], depth)
 	}
 
 	return
 }
 
-// ResolveFromMap resolves from kernel map
+// ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 	var path PathValue
@@ -212,15 +361,18 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		return "", err
 	}
 
+	depth := int64(0)
 	toAdd := make(map[PathKey]PathValue)
 
 	// Fetch path recursively
-	for {
+	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
 		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filename = dentryPathKeyNotFound
+			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 			break
 		}
+		depth++
 
 		cacheKey := PathKey{MountID: key.MountID, Inode: key.Inode}
 		toAdd[cacheKey] = path
@@ -233,9 +385,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] != '/' {
 			segment = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			if len(segment) >= (model.MaxSegmentLength) {
-				resolutionErr = errTruncatedSegment
-			}
 			filename = "/" + segment + filename
 		}
 
@@ -245,6 +394,10 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 		// Prepare next key
 		key = path.Parent
+	}
+
+	if depth > 0 {
+		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
 	}
 
 	// resolution errors are more important than regular map lookup errors
@@ -268,66 +421,223 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	return filename, err
 }
 
+func (dr *DentryResolver) preventSegmentMajorPageFault() {
+	// if we don't access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.erpcSegment[0] = 0
+	dr.erpcSegment[os.Getpagesize()] = 0
+	dr.erpcSegment[2*os.Getpagesize()] = 0
+	dr.erpcSegment[3*os.Getpagesize()] = 0
+	dr.erpcSegment[4*os.Getpagesize()] = 0
+	dr.erpcSegment[5*os.Getpagesize()] = 0
+	dr.erpcSegment[6*os.Getpagesize()] = 0
+}
+
+// GetNameFromERPC resolves the name of the provided inode / mount id / path id
+func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
+	// create eRPC request
+	dr.erpcRequest.OP = ResolveSegmentOp
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+
+	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.preventSegmentMajorPageFault()
+
+	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
+	}
+
+	if dr.erpcSegment[0] == 0 {
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+		return "", errors.Errorf("eRPC request wasn't processed")
+	}
+
+	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
+	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
+		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+		return "", errors.Errorf("couldn't resolve segment (len: %d)", len(seg))
+	}
+
+	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+	return seg, nil
+}
+
+// ResolveFromERPC resolves the path of the provided inode / mount id / path id
+func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+	var filename, segment string
+	var err, resolutionErr error
+	var key PathKey
+	var val PathValue
+	depth := int64(0)
+
+	// create eRPC request
+	dr.erpcRequest.OP = ResolvePathOp
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
+	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+
+	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
+	dr.preventSegmentMajorPageFault()
+
+	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
+		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
+	}
+
+	var keys []PathKey
+	var segments []string
+
+	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
+		return "", errors.Errorf("eRPC request wasn't processed")
+	}
+
+	i := 0
+	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
+	for i < dr.erpcSegmentSize-17 {
+		depth++
+
+		// parse the path_key_t structure
+		key.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
+		key.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+		// skip PathID
+		i += 16
+
+		if dr.erpcSegment[i] == 0 {
+			if depth >= model.MaxPathDepth {
+				resolutionErr = errTruncatedParents
+			} else {
+				resolutionErr = errERPCResolution
+			}
+			break
+		}
+
+		if dr.erpcSegment[i] != '/' {
+			segment = C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[i])))
+			filename = "/" + segment + filename
+			i += len(segment) + 1
+		} else {
+			break
+		}
+
+		keys = append(keys, key)
+		segments = append(segments, segment)
+	}
+
+	if len(filename) == 0 {
+		filename = "/"
+	}
+
+	if resolutionErr == nil {
+		var seg string
+		for i, k := range keys {
+			if k.Inode>>32 == fakeInodeMSW {
+				continue
+			}
+
+			if len(keys) > i+1 {
+				val.Parent = keys[i+1]
+			} else {
+				val.Parent = PathKey{}
+			}
+			seg = segments[i]
+			copy(val.Name[:], seg[:])
+			val.Name[len(seg)] = 0
+
+			_ = dr.cacheInode(k.MountID, k.Inode, val)
+		}
+
+		if depth > 0 {
+			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
+		}
+	} else {
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
+	}
+
+	return filename, resolutionErr
+}
+
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
 func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	path, err := dr.ResolveFromCache(mountID, inode)
-	if err != nil {
+	if err != nil && dr.erpcEnabled {
+		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
+	}
+	if err != nil && err != errTruncatedParents && dr.mapEnabled {
 		path, err = dr.ResolveFromMap(mountID, inode, pathID)
 	}
 	return path, err
 }
 
-func (dr *DentryResolver) getParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
-	path, err := dr.lookupInode(mountID, inode)
+func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
+	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.CacheTag], 1)
 		return 0, 0, ErrEntryNotFound
 	}
 
+	atomic.AddInt64(dr.hitsCounters[metrics.ParentResolutionTag][metrics.CacheTag], 1)
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
-func (dr *DentryResolver) getParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
-	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
-	var path PathValue
-
-	if err := dr.pathnames.Lookup(key, &path); err != nil {
+func (dr *DentryResolver) resolveParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+	path, err := dr.lookupInodeFromMap(mountID, inode, pathID)
+	if err != nil {
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.KernelMapsTag], 1)
 		return 0, 0, err
 	}
 
+	atomic.AddInt64(dr.hitsCounters[metrics.ParentResolutionTag][metrics.KernelMapsTag], 1)
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
 // GetParent - Return the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
-	parentMountID, parentInode, err := dr.getParentFromCache(mountID, inode)
+	parentMountID, parentInode, err := dr.resolveParentFromCache(mountID, inode)
 	if err != nil {
-		parentMountID, parentInode, err = dr.getParentFromMap(mountID, inode, pathID)
+		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
 	return parentMountID, parentInode, err
 }
 
 // Start the dentry resolver
-func (dr *DentryResolver) Start() error {
-	pathnames, ok, err := dr.probe.manager.GetMap("pathnames")
+func (dr *DentryResolver) Start(probe *Probe) error {
+	pathnames, err := probe.Map("pathnames")
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return errors.New("map pathnames not found")
-	}
 	dr.pathnames = pathnames
+
+	erpcStatsFB, err := probe.Map("dr_erpc_stats_fb")
+	if err != nil {
+		return err
+	}
+	dr.erpcStats[0] = erpcStatsFB
+
+	erpcStatsBB, err := probe.Map("dr_erpc_stats_bb")
+	if err != nil {
+		return err
+	}
+	dr.erpcStats[1] = erpcStatsBB
+
+	bufferSelector, err := probe.Map("buffer_selector")
+	if err != nil {
+		return err
+	}
+	dr.bufferSelector = bufferSelector
 
 	return nil
 }
 
-// ErrTruncatedSegment is used to notify that a segment of the path was truncated because it was too long
-type ErrTruncatedSegment struct{}
-
-func (err ErrTruncatedSegment) Error() string {
-	return "truncated_segment"
+// Close cleans up the eRPC segment
+func (dr *DentryResolver) Close() error {
+	return errors.Wrap(unix.Munmap(dr.erpcSegment), "couldn't cleanup eRPC memory segment")
 }
-
-var errTruncatedSegment ErrTruncatedSegment
 
 // ErrTruncatedParents is used to notify that some parents of the path are missing
 type ErrTruncatedParents struct{}
@@ -338,10 +648,53 @@ func (err ErrTruncatedParents) Error() string {
 
 var errTruncatedParents ErrTruncatedParents
 
+// ErrERPCResolution is used to notify that the eRPC resolution failed
+type ErrERPCResolution struct{}
+
+func (err ErrERPCResolution) Error() string {
+	return "erpc_resolution"
+}
+
+var errERPCResolution ErrERPCResolution
+
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
+	// We need at least 7 memory pages for the eRPC segment method to work.
+	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
+	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
+	// Then, 27k + 256 / page_size < 7.
+	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to mmap memory segment")
+	}
+
+	hitsCounters := make(map[string]map[string]*int64)
+	missCounters := make(map[string]map[string]*int64)
+	for _, resolution := range metrics.AllResolutionsTags {
+		hitsCounters[resolution] = make(map[string]*int64)
+		missCounters[resolution] = make(map[string]*int64)
+		for _, resolutionType := range metrics.AllTypesTags {
+			// procfs resolution doesn't exist in the dentry resolver
+			if resolutionType == metrics.ProcFSTag {
+				continue
+			}
+			hits := int64(0)
+			miss := int64(0)
+			hitsCounters[resolution][resolutionType] = &hits
+			missCounters[resolution][resolutionType] = &miss
+		}
+	}
+
 	return &DentryResolver{
-		probe: probe,
-		cache: make(map[uint32]*lru.Cache),
+		client:          probe.statsdClient,
+		cache:           make(map[uint32]*lru.Cache),
+		erpc:            probe.erpc,
+		erpcSegment:     segment,
+		erpcSegmentSize: len(segment),
+		erpcRequest:     ERPCRequest{},
+		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		mapEnabled:      probe.config.MapDentryResolutionEnabled,
+		hitsCounters:    hitsCounters,
+		missCounters:    missCounters,
 	}, nil
 }

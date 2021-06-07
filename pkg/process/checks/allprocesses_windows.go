@@ -240,17 +240,6 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 	return domain + "\\" + user, err
 }
 
-func convertWindowsString(winput []uint16) string {
-	var buf bytes.Buffer
-	for _, r := range winput {
-		if r == 0 {
-			break
-		}
-		buf.WriteRune(rune(r))
-	}
-	return buf.String()
-}
-
 func parseCmdLineArgs(cmdline string) (res []string) {
 	blocks := strings.Split(cmdline, " ")
 	findCloseQuote := false
@@ -313,7 +302,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
 	var cmderr error
-	cp.executablePath = convertWindowsString(pe32.SzExeFile[:])
+	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 	cp.commandLine, cmderr = winutil.GetCommandLineForProcess(cp.procHandle)
 	if cmderr != nil {
 		log.Debugf("Error retrieving full command line %v", cmderr)

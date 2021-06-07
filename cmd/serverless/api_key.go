@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -35,7 +35,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	// We need to try both, as supplying the incorrect encryption context will cause decryption to fail.
 
 	// Try with encryption context
-	functionName := os.Getenv(aws.FunctionNameEnvVar)
+	functionName := os.Getenv(serverless.FunctionNameEnvVar)
 	params := &kms.DecryptInput{
 		CiphertextBlob: decodedBytes,
 		EncryptionContext: map[string]*string{

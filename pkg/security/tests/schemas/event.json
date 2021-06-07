@@ -23,7 +23,7 @@
             ]
         },
         "date": {
-            "type": "string"
+            "$ref": "file:///datetime.json"
         }
     },
     "required": [

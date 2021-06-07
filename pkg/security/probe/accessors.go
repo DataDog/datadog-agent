@@ -150,7 +150,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Chmod.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Chmod.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -330,7 +330,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Chown.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Chown.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -483,10 +483,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).Exec.ArgsTruncated
+				return (*Event)(ctx.Object).ResolveExecArgsTruncated(&(*Event)(ctx.Object).Exec)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.argv":
@@ -550,6 +550,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "exec.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ResolveProcessCreatedAt(&(*Event)(ctx.Object).Exec.Process))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "exec.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -585,10 +595,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).Exec.EnvsTruncated
+				return (*Event)(ctx.Object).ResolveExecEnvsTruncated(&(*Event)(ctx.Object).Exec)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "exec.euid":
@@ -646,6 +656,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).Exec.Process.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "exec.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Exec.Process.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -905,7 +925,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Link.Target)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Link.Target.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1025,7 +1045,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Link.Source)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Link.Source.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1185,7 +1205,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Mkdir.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Mkdir.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1335,7 +1355,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Open.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Open.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1596,6 +1616,37 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]int)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []int
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -1832,6 +1883,37 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*model.ProcessCacheEntry)(value)
 
 					result = (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.FileFields)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+				ctx.Cache[field] = unsafe.Pointer(&results)
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				if ptr := ctx.Cache[field]; ptr != nil {
+					if result := (*[]bool)(ptr); result != nil {
+						return *result
+					}
+				}
+				var results []bool
+
+				iterator := &model.ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result bool
+
+					element := (*model.ProcessCacheEntry)(value)
+
+					result = (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.FileFields)
 
 					results = append(results, result)
 
@@ -2514,6 +2596,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ResolveProcessCreatedAt(&(*Event)(ctx.Object).ProcessContext.Process))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "process.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2589,6 +2681,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "process.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).ProcessContext.Process.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2858,7 +2960,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).RemoveXAttr.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).RemoveXAttr.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3008,7 +3110,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rename.New)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Rename.New.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3128,7 +3230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rename.Old)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Rename.Old.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3268,7 +3370,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Rmdir.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Rmdir.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3548,7 +3650,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).SetXAttr.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).SetXAttr.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3688,7 +3790,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Unlink.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Unlink.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3828,7 +3930,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveFileInUpperLayer(&(*Event)(ctx.Object).Utimes.File)
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).Utimes.File.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4028,6 +4130,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.cookie",
 
+		"exec.created_at",
+
 		"exec.egid",
 
 		"exec.egroup",
@@ -4047,6 +4151,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.file.gid",
 
 		"exec.file.group",
+
+		"exec.file.in_upper_layer",
 
 		"exec.file.inode",
 
@@ -4216,6 +4322,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.cookie",
 
+		"process.ancestors.created_at",
+
 		"process.ancestors.egid",
 
 		"process.ancestors.egroup",
@@ -4231,6 +4339,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.file.gid",
 
 		"process.ancestors.file.group",
+
+		"process.ancestors.file.in_upper_layer",
 
 		"process.ancestors.file.inode",
 
@@ -4282,6 +4392,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.cookie",
 
+		"process.created_at",
+
 		"process.egid",
 
 		"process.egroup",
@@ -4297,6 +4409,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.file.gid",
 
 		"process.file.group",
+
+		"process.file.in_upper_layer",
 
 		"process.file.inode",
 
@@ -4603,7 +4717,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chmod.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Chmod.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Chmod.File.FileFields), nil
 
 	case "chmod.file.inode":
 
@@ -4675,7 +4789,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "chown.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Chown.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Chown.File.FileFields), nil
 
 	case "chown.file.inode":
 
@@ -4735,7 +4849,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.args_truncated":
 
-		return e.Exec.ArgsTruncated, nil
+		return e.ResolveExecArgsTruncated(&e.Exec), nil
 
 	case "exec.argv":
 
@@ -4761,6 +4875,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Exec.Process.Cookie), nil
 
+	case "exec.created_at":
+
+		return int(e.ResolveProcessCreatedAt(&e.Exec.Process)), nil
+
 	case "exec.egid":
 
 		return int(e.Exec.Process.Credentials.EGID), nil
@@ -4775,7 +4893,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "exec.envs_truncated":
 
-		return e.Exec.EnvsTruncated, nil
+		return e.ResolveExecEnvsTruncated(&e.Exec), nil
 
 	case "exec.euid":
 
@@ -4800,6 +4918,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.file.group":
 
 		return e.ResolveFileFieldsGroup(&e.Exec.Process.FileFields), nil
+
+	case "exec.file.in_upper_layer":
+
+		return e.ResolveFileFieldsInUpperLayer(&e.Exec.Process.FileFields), nil
 
 	case "exec.file.inode":
 
@@ -4903,7 +5025,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.destination.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Link.Target), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Link.Target.FileFields), nil
 
 	case "link.file.destination.inode":
 
@@ -4951,7 +5073,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "link.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Link.Source), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Link.Source.FileFields), nil
 
 	case "link.file.inode":
 
@@ -5015,7 +5137,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "mkdir.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Mkdir.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Mkdir.File.FileFields), nil
 
 	case "mkdir.file.inode":
 
@@ -5075,7 +5197,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "open.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Open.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Open.File.FileFields), nil
 
 	case "open.file.inode":
 
@@ -5219,6 +5341,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.Cookie)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.created_at":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 
 			values = append(values, result)
 
@@ -5395,6 +5539,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.FileFields)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.in_upper_layer":
+
+		var values []bool
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &model.ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*model.ProcessCacheEntry)(ptr)
+
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.FileFields)
 
 			values = append(values, result)
 
@@ -5863,6 +6029,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.ProcessContext.Process.Cookie), nil
 
+	case "process.created_at":
+
+		return int(e.ResolveProcessCreatedAt(&e.ProcessContext.Process)), nil
+
 	case "process.egid":
 
 		return int(e.ProcessContext.Process.Credentials.EGID), nil
@@ -5894,6 +6064,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.file.group":
 
 		return e.ResolveFileFieldsGroup(&e.ProcessContext.Process.FileFields), nil
+
+	case "process.file.in_upper_layer":
+
+		return e.ResolveFileFieldsInUpperLayer(&e.ProcessContext.Process.FileFields), nil
 
 	case "process.file.inode":
 
@@ -6001,7 +6175,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "removexattr.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.RemoveXAttr.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.RemoveXAttr.File.FileFields), nil
 
 	case "removexattr.file.inode":
 
@@ -6061,7 +6235,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.destination.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Rename.New), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Rename.New.FileFields), nil
 
 	case "rename.file.destination.inode":
 
@@ -6109,7 +6283,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rename.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Rename.Old), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Rename.Old.FileFields), nil
 
 	case "rename.file.inode":
 
@@ -6165,7 +6339,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "rmdir.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Rmdir.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Rmdir.File.FileFields), nil
 
 	case "rmdir.file.inode":
 
@@ -6277,7 +6451,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "setxattr.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.SetXAttr.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.SetXAttr.File.FileFields), nil
 
 	case "setxattr.file.inode":
 
@@ -6333,7 +6507,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "unlink.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Unlink.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Unlink.File.FileFields), nil
 
 	case "unlink.file.inode":
 
@@ -6389,7 +6563,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "utimes.file.in_upper_layer":
 
-		return e.ResolveFileInUpperLayer(&e.Utimes.File), nil
+		return e.ResolveFileFieldsInUpperLayer(&e.Utimes.File.FileFields), nil
 
 	case "utimes.file.inode":
 
@@ -6579,6 +6753,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.cookie":
 		return "exec", nil
 
+	case "exec.created_at":
+		return "exec", nil
+
 	case "exec.egid":
 		return "exec", nil
 
@@ -6607,6 +6784,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.file.group":
+		return "exec", nil
+
+	case "exec.file.in_upper_layer":
 		return "exec", nil
 
 	case "exec.file.inode":
@@ -6861,6 +7041,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.cookie":
 		return "*", nil
 
+	case "process.ancestors.created_at":
+		return "*", nil
+
 	case "process.ancestors.egid":
 		return "*", nil
 
@@ -6883,6 +7066,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.file.group":
+		return "*", nil
+
+	case "process.ancestors.file.in_upper_layer":
 		return "*", nil
 
 	case "process.ancestors.file.inode":
@@ -6960,6 +7146,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.cookie":
 		return "*", nil
 
+	case "process.created_at":
+		return "*", nil
+
 	case "process.egid":
 		return "*", nil
 
@@ -6982,6 +7171,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.file.group":
+		return "*", nil
+
+	case "process.file.in_upper_layer":
 		return "*", nil
 
 	case "process.file.inode":
@@ -7583,6 +7775,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "exec.created_at":
+
+		return reflect.Int, nil
+
 	case "exec.egid":
 
 		return reflect.Int, nil
@@ -7622,6 +7818,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.file.group":
 
 		return reflect.String, nil
+
+	case "exec.file.in_upper_layer":
+
+		return reflect.Bool, nil
 
 	case "exec.file.inode":
 
@@ -7959,6 +8159,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "process.ancestors.created_at":
+
+		return reflect.Int, nil
+
 	case "process.ancestors.egid":
 
 		return reflect.Int, nil
@@ -7990,6 +8194,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.file.group":
 
 		return reflect.String, nil
+
+	case "process.ancestors.file.in_upper_layer":
+
+		return reflect.Bool, nil
 
 	case "process.ancestors.file.inode":
 
@@ -8091,6 +8299,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "process.created_at":
+
+		return reflect.Int, nil
+
 	case "process.egid":
 
 		return reflect.Int, nil
@@ -8122,6 +8334,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.file.group":
 
 		return reflect.String, nil
+
+	case "process.file.in_upper_layer":
+
+		return reflect.Bool, nil
 
 	case "process.file.inode":
 
@@ -8749,8 +8965,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chmod.file.in_upper_layer":
 
 		var ok bool
-		if e.Chmod.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.InUpperLayer"}
+		if e.Chmod.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -8935,8 +9151,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chown.file.in_upper_layer":
 
 		var ok bool
-		if e.Chown.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.File.InUpperLayer"}
+		if e.Chown.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -9159,6 +9375,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Exec.Process.Cookie = uint32(v)
 		return nil
 
+	case "exec.created_at":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CreatedAt"}
+		}
+		e.Exec.Process.CreatedAt = uint64(v)
+		return nil
+
 	case "exec.egid":
 
 		var ok bool
@@ -9261,6 +9487,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileFields.Group = str
 
+		return nil
+
+	case "exec.file.in_upper_layer":
+
+		var ok bool
+		if e.Exec.Process.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileFields.InUpperLayer"}
+		}
 		return nil
 
 	case "exec.file.inode":
@@ -9528,8 +9762,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.file.destination.in_upper_layer":
 
 		var ok bool
-		if e.Link.Target.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.InUpperLayer"}
+		if e.Link.Target.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -9651,8 +9885,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.file.in_upper_layer":
 
 		var ok bool
-		if e.Link.Source.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.InUpperLayer"}
+		if e.Link.Source.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -9815,8 +10049,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mkdir.file.in_upper_layer":
 
 		var ok bool
-		if e.Mkdir.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.InUpperLayer"}
+		if e.Mkdir.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -9969,8 +10203,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "open.file.in_upper_layer":
 
 		var ok bool
-		if e.Open.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.File.InUpperLayer"}
+		if e.Open.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -10149,6 +10383,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Ancestor.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 
+	case "process.ancestors.created_at":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.CreatedAt"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
+		return nil
+
 	case "process.ancestors.egid":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -10264,6 +10512,18 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.Group = str
 
+		return nil
+
+	case "process.ancestors.file.in_upper_layer":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+		}
+
+		var ok bool
+		if e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.InUpperLayer"}
+		}
 		return nil
 
 	case "process.ancestors.file.inode":
@@ -10606,6 +10866,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.ProcessContext.Process.Cookie = uint32(v)
 		return nil
 
+	case "process.created_at":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.CreatedAt"}
+		}
+		e.ProcessContext.Process.CreatedAt = uint64(v)
+		return nil
+
 	case "process.egid":
 
 		var ok bool
@@ -10689,6 +10959,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileFields.Group = str
 
+		return nil
+
+	case "process.file.in_upper_layer":
+
+		var ok bool
+		if e.ProcessContext.Process.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.InUpperLayer"}
+		}
 		return nil
 
 	case "process.file.inode":
@@ -10967,8 +11245,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "removexattr.file.in_upper_layer":
 
 		var ok bool
-		if e.RemoveXAttr.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.InUpperLayer"}
+		if e.RemoveXAttr.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11122,8 +11400,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.file.destination.in_upper_layer":
 
 		var ok bool
-		if e.Rename.New.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.New.InUpperLayer"}
+		if e.Rename.New.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11245,8 +11523,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.file.in_upper_layer":
 
 		var ok bool
-		if e.Rename.Old.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.InUpperLayer"}
+		if e.Rename.Old.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11389,8 +11667,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rmdir.file.in_upper_layer":
 
 		var ok bool
-		if e.Rmdir.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.InUpperLayer"}
+		if e.Rmdir.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11681,8 +11959,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "setxattr.file.in_upper_layer":
 
 		var ok bool
-		if e.SetXAttr.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.InUpperLayer"}
+		if e.SetXAttr.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11825,8 +12103,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "unlink.file.in_upper_layer":
 
 		var ok bool
-		if e.Unlink.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.InUpperLayer"}
+		if e.Unlink.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.InUpperLayer"}
 		}
 		return nil
 
@@ -11969,8 +12247,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "utimes.file.in_upper_layer":
 
 		var ok bool
-		if e.Utimes.File.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.InUpperLayer"}
+		if e.Utimes.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.InUpperLayer"}
 		}
 		return nil
 

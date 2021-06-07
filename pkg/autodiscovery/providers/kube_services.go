@@ -171,3 +171,8 @@ func parseServiceAnnotations(services []*v1.Service) ([]integration.Config, erro
 func init() {
 	RegisterProvider("kube_services", NewKubeServiceConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the KubeServiceConfigProvider
+func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

@@ -5,6 +5,7 @@ package checks
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -74,7 +75,7 @@ func TestWindowsStringConversion(t *testing.T) {
 			expected: ".NET CLR-säkerhet ! Microsoft.Exchange.UM.CallRouter ! Tid för körningskontroller i procent",
 		},
 	} {
-		assert.Equal(t, tc.expected, convertWindowsString(tc.input))
+		assert.Equal(t, tc.expected, winutil.ConvertWindowsString16(tc.input))
 	}
 
 }

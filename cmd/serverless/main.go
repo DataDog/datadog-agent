@@ -17,8 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -62,8 +60,8 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
+			fmt.Printf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
+				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
 		},
 	}
 
@@ -78,8 +76,7 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath     = "/var/task/datadog.yaml"
-	fetchAccountIDTimeout = 500.0 * time.Millisecond
+	datadogConfigPath = "/var/task/datadog.yaml"
 )
 
 const (
@@ -216,29 +213,13 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// read configuration from both the environment vars and the config file
 	// if one is provided
 	// --------------------------
-	svc := sts.New(session.New())
-	ctx, cancel := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
-	defer cancel()
 
-	accountID, _ := aws.FetchAccountID(ctx, svc)
-	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
-	if err == nil {
-		log.Debugf("Extension found function ARN: %s", functionARN)
-		aws.SetARN(functionARN)
-	} else {
-		log.Debugf("Extension couldn't find function ARN")
-	}
 	aws.SetColdStart(true)
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
 		log.Info("A configuration file has been found and read.")
 	}
-
-	// extra tags to append to all logs / metrics
-	extraTags := config.GetConfiguredTags(true)
-	extraTags = append(extraTags, aws.GetARNTags()...)
-	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
@@ -303,7 +284,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 			// a logs agent to collect/process/flush the logs.
 			if err := logs.StartServerless(
 				func() *autodiscovery.AutoConfig { return common.AC },
-				logsChan, extraTags,
+				logsChan, nil,
 			); err != nil {
 				log.Error("Could not start an instance of the Logs Agent:", err)
 			}
@@ -329,10 +310,14 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
+	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
+	// by setting this option to 1ms, all packets received will directly be sent to the parser
+	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+
 	// initializes the DogStatsD server
 	// --------------------------------
 
-	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, extraTags)
+	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, nil)
 	if err != nil {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
@@ -348,10 +333,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
 		tc.Hostname = ""
-		globalTags := aws.BuildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
-		for key, value := range globalTags {
-			tc.GlobalTags[key] = value
-		}
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
