@@ -3317,6 +3317,136 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "selinux.file.container_path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).SELinux.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFilesystem(&(*Event)(ctx.Object).SELinux.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsGroup(&(*Event)(ctx.Object).SELinux.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&(*Event)(ctx.Object).SELinux.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.File.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.File.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileBasename(&(*Event)(ctx.Object).SELinux.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).SELinux.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ResolveRights(&(*Event)(ctx.Object).SELinux.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SELinux.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveFileFieldsUser(&(*Event)(ctx.Object).SELinux.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "selinux.magic":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4370,6 +4500,32 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.user",
 
 		"rmdir.retval",
+
+		"selinux.file.container_path",
+
+		"selinux.file.filesystem",
+
+		"selinux.file.gid",
+
+		"selinux.file.group",
+
+		"selinux.file.in_upper_layer",
+
+		"selinux.file.inode",
+
+		"selinux.file.mode",
+
+		"selinux.file.mount_id",
+
+		"selinux.file.name",
+
+		"selinux.file.path",
+
+		"selinux.file.rights",
+
+		"selinux.file.uid",
+
+		"selinux.file.user",
 
 		"selinux.magic",
 
@@ -6108,6 +6264,58 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "selinux.file.container_path":
+
+		return e.ResolveFileContainerPath(&e.SELinux.File), nil
+
+	case "selinux.file.filesystem":
+
+		return e.ResolveFileFilesystem(&e.SELinux.File), nil
+
+	case "selinux.file.gid":
+
+		return int(e.SELinux.File.FileFields.GID), nil
+
+	case "selinux.file.group":
+
+		return e.ResolveFileFieldsGroup(&e.SELinux.File.FileFields), nil
+
+	case "selinux.file.in_upper_layer":
+
+		return e.ResolveFileFieldsInUpperLayer(&e.SELinux.File.FileFields), nil
+
+	case "selinux.file.inode":
+
+		return int(e.SELinux.File.FileFields.Inode), nil
+
+	case "selinux.file.mode":
+
+		return int(e.SELinux.File.FileFields.Mode), nil
+
+	case "selinux.file.mount_id":
+
+		return int(e.SELinux.File.FileFields.MountID), nil
+
+	case "selinux.file.name":
+
+		return e.ResolveFileBasename(&e.SELinux.File), nil
+
+	case "selinux.file.path":
+
+		return e.ResolveFilePath(&e.SELinux.File), nil
+
+	case "selinux.file.rights":
+
+		return int(e.ResolveRights(&e.SELinux.File.FileFields)), nil
+
+	case "selinux.file.uid":
+
+		return int(e.SELinux.File.FileFields.UID), nil
+
+	case "selinux.file.user":
+
+		return e.ResolveFileFieldsUser(&e.SELinux.File.FileFields), nil
+
 	case "selinux.magic":
 
 		return int(e.SELinux.Magic), nil
@@ -7090,6 +7298,45 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "selinux.file.container_path":
+		return "selinux", nil
+
+	case "selinux.file.filesystem":
+		return "selinux", nil
+
+	case "selinux.file.gid":
+		return "selinux", nil
+
+	case "selinux.file.group":
+		return "selinux", nil
+
+	case "selinux.file.in_upper_layer":
+		return "selinux", nil
+
+	case "selinux.file.inode":
+		return "selinux", nil
+
+	case "selinux.file.mode":
+		return "selinux", nil
+
+	case "selinux.file.mount_id":
+		return "selinux", nil
+
+	case "selinux.file.name":
+		return "selinux", nil
+
+	case "selinux.file.path":
+		return "selinux", nil
+
+	case "selinux.file.rights":
+		return "selinux", nil
+
+	case "selinux.file.uid":
+		return "selinux", nil
+
+	case "selinux.file.user":
+		return "selinux", nil
 
 	case "selinux.magic":
 		return "selinux", nil
@@ -8272,6 +8519,58 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.retval":
 
 		return reflect.Int, nil
+
+	case "selinux.file.container_path":
+
+		return reflect.String, nil
+
+	case "selinux.file.filesystem":
+
+		return reflect.String, nil
+
+	case "selinux.file.gid":
+
+		return reflect.Int, nil
+
+	case "selinux.file.group":
+
+		return reflect.String, nil
+
+	case "selinux.file.in_upper_layer":
+
+		return reflect.Bool, nil
+
+	case "selinux.file.inode":
+
+		return reflect.Int, nil
+
+	case "selinux.file.mode":
+
+		return reflect.Int, nil
+
+	case "selinux.file.mount_id":
+
+		return reflect.Int, nil
+
+	case "selinux.file.name":
+
+		return reflect.String, nil
+
+	case "selinux.file.path":
+
+		return reflect.String, nil
+
+	case "selinux.file.rights":
+
+		return reflect.Int, nil
+
+	case "selinux.file.uid":
+
+		return reflect.Int, nil
+
+	case "selinux.file.user":
+
+		return reflect.String, nil
 
 	case "selinux.magic":
 
@@ -11234,6 +11533,140 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "selinux.file.container_path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.ContainerPath"}
+		}
+		e.SELinux.File.ContainerPath = str
+
+		return nil
+
+	case "selinux.file.filesystem":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.Filesytem"}
+		}
+		e.SELinux.File.Filesytem = str
+
+		return nil
+
+	case "selinux.file.gid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.GID"}
+		}
+		e.SELinux.File.FileFields.GID = uint32(v)
+		return nil
+
+	case "selinux.file.group":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.Group"}
+		}
+		e.SELinux.File.FileFields.Group = str
+
+		return nil
+
+	case "selinux.file.in_upper_layer":
+
+		var ok bool
+		if e.SELinux.File.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.InUpperLayer"}
+		}
+		return nil
+
+	case "selinux.file.inode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.Inode"}
+		}
+		e.SELinux.File.FileFields.Inode = uint64(v)
+		return nil
+
+	case "selinux.file.mode":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.Mode"}
+		}
+		e.SELinux.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "selinux.file.mount_id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.MountID"}
+		}
+		e.SELinux.File.FileFields.MountID = uint32(v)
+		return nil
+
+	case "selinux.file.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.BasenameStr"}
+		}
+		e.SELinux.File.BasenameStr = str
+
+		return nil
+
+	case "selinux.file.path":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.PathnameStr"}
+		}
+		e.SELinux.File.PathnameStr = str
+
+		return nil
+
+	case "selinux.file.rights":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.Mode"}
+		}
+		e.SELinux.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "selinux.file.uid":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.UID"}
+		}
+		e.SELinux.File.FileFields.UID = uint32(v)
+		return nil
+
+	case "selinux.file.user":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.File.FileFields.User"}
+		}
+		e.SELinux.File.FileFields.User = str
+
 		return nil
 
 	case "selinux.magic":

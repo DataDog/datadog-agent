@@ -317,12 +317,18 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
 	if len(data) < 4 {
-		return 0, ErrNotEnoughData
+		return n, ErrNotEnoughData
 	}
 
 	e.Magic = ByteOrder.Uint32(data[0:4])
-	return 4, nil
+	return n + 4, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

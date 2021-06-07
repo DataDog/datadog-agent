@@ -410,7 +410,8 @@ type OpenEvent struct {
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	Magic uint32 `field:"magic"`
+	File  FileEvent `field:"file"`
+	Magic uint32    `field:"magic"`
 }
 
 var zeroProcessContext ProcessContext
