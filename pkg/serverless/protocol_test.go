@@ -100,23 +100,3 @@ func TestProcessMessage(t *testing.T) {
 		//nothing to do here
 	}
 }
-
-func TestDetectTimeoutValidTimeout(t *testing.T) {
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	//deadline = current time + 50 ms
-	d.detectTimeout((time.Now().UnixNano())/1000000+100, 0, handleTimeout)
-
-	assert.False(t, isTimeout)
-	time.Sleep(200 * time.Millisecond)
-	assert.True(t, isTimeout)
-}
-
-func handleTimeout() {
-	isTimeout = true
-}

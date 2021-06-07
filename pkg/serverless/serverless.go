@@ -57,7 +57,18 @@ const (
 	// FatalConnectFailed is the error reported to the AWS Extension environment when
 	// a connection failed.
 	FatalConnectFailed ErrorEnum = "Fatal.ConnectFailed"
+
+	Invoke   RuntimeEvent = "INVOKE"
+	Shutdown RuntimeEvent = "SHUTDOWN"
+
+	Timeout ShutdownReason = "timeout"
 )
+
+// ShutdownReason is an AWS Shutdown reason
+type ShutdownReason string
+
+// RuntimeEvent is an AWS Runtime event
+type RuntimeEvent string
 
 // ID is the extension ID within the AWS Extension environment.
 type ID string
@@ -75,13 +86,20 @@ func (e ErrorEnum) String() string {
 	return string(e)
 }
 
+// String returns the string value for this ShutdownReason.
+func (s ShutdownReason) String() string {
+	return string(s)
+}
+
+type InvocationHandler func(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool)
+
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
 type Payload struct {
-	EventType          string `json:"eventType"`
-	DeadlineMs         int64  `json:"deadlineMs"`
-	InvokedFunctionArn string `json:"invokedFunctionArn"`
-	ShutdownReason     string `json:"shutdownReason"`
+	EventType          RuntimeEvent   `json:"eventType"`
+	DeadlineMs         int64          `json:"deadlineMs"`
+	InvokedFunctionArn string         `json:"invokedFunctionArn"`
+	ShutdownReason     ShutdownReason `json:"shutdownReason"`
 	//    RequestId string `json:"requestId"` // unused
 }
 
@@ -268,53 +286,73 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		return fmt.Errorf("WaitForNextInvocation: can't unmarshal the payload: %v", err)
 	}
 
-	if payload.EventType == "INVOKE" {
-		log.Debug("Received invocation event")
-		daemon.ComputeGlobalTags(payload.InvokedFunctionArn, config.GetConfiguredTags(true))
-		aws.SetARN(payload.InvokedFunctionArn)
-		daemon.StartInvocation()
-		daemon.detectTimeout(payload.DeadlineMs, safetyBufferTimout, daemon.handleTimeout)
-		if coldstart {
-			ready := daemon.WaitUntilClientReady(clientReadyTimeout)
-			if ready {
-				log.Debug("Client library registered with extension")
-			} else {
-				log.Debug("Timed out waiting for client library to register with extension.")
-			}
-			daemon.UpdateStrategy()
-		}
-
-		// immediately check if we should flush data
-		// note that since we're flushing synchronously here, there is a scenario
-		// where this could be blocking the function if the flush is slow (if the
-		// extension is not quickly going back to listen on the "wait next event"
-		// route). That's why we use a context.Context with a timeout `flushTimeout``
-		// to avoid blocking for too long.
-		// This flushTimeout is re-using the forwarder_timeout value.
-		if daemon.flushStrategy.ShouldFlush(flush.Starting, time.Now()) {
-			log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
-			flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-			ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-			daemon.TriggerFlush(ctx, false)
-			cancel() // free the resource of the context
-		} else {
-			log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
-		}
-		daemon.WaitForDaemon()
+	if payload.EventType == Invoke {
+		invoke(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimout, coldstart, handleInvocation)
 	}
-	if payload.EventType == "SHUTDOWN" {
+	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
-		isTimeout := strings.ToLower(payload.ShutdownReason) == "timeout"
+		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := addColdStartTag(daemon.extraTags)
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
-
 		daemon.Stop(isTimeout)
 		stopCh <- struct{}{}
 	}
 
 	return nil
+}
+
+func invoke(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
+	timeout := computeTimeout(deadlineMs, safetyBufferTimout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	doneChanel := make(chan bool)
+	go invocationHandler(doneChanel, daemon, arn, coldstart)
+	select {
+	case <-ctx.Done():
+		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
+		daemon.flushing.Lock()
+		daemon.FinishInvocation()
+		return
+	case <-doneChanel:
+		return
+	}
+}
+
+func handleInvocation(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool) {
+	log.Debug("Received invocation event...")
+	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
+	aws.SetARN(arn)
+	daemon.StartInvocation()
+	if coldstart {
+		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
+		if ready {
+			log.Debug("Client library registered with extension")
+		} else {
+			log.Debug("Timed out waiting for client library to register with extension.")
+		}
+		daemon.UpdateStrategy()
+	}
+
+	// immediately check if we should flush data
+	// note that since we're flushing synchronously here, there is a scenario
+	// where this could be blocking the function if the flush is slow (if the
+	// extension is not quickly going back to listen on the "wait next event"
+	// route). That's why we use a context.Context with a timeout `flushTimeout``
+	// to avoid blocking for too long.
+	// This flushTimeout is re-using the forwarder_timeout value.
+	if daemon.flushStrategy.ShouldFlush(flush.Starting, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
+		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		daemon.TriggerFlush(ctx, false)
+		cancel() // free the resource of the context
+	} else {
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
+	}
+	daemon.WaitForDaemon()
+	doneChanel <- true
 }
 
 func buildURL(route string) string {
@@ -323,4 +361,9 @@ func buildURL(route string) string {
 		return fmt.Sprintf("http://localhost:9001%s", route)
 	}
 	return fmt.Sprintf("http://%s%s", prefix, route)
+}
+
+func computeTimeout(deadlineMs int64, safetyBuffer time.Duration) time.Duration {
+	currentTime := time.Now().UnixNano()
+	return time.Duration(deadlineMs*int64(time.Millisecond) - int64(safetyBuffer) - currentTime)
 }

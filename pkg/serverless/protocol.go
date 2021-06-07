@@ -83,13 +83,9 @@ type Daemon struct {
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
 
-	// Wait on this WaitGroup to be sure that the daemon isn't shutting down
-	// to avoid double flushing in case a the flush is received between a timeout and the actual shutdown
-	TimeoutWg *sync.WaitGroup
-
 	extraTags []string
 
-	timeoutChan chan bool
+	flushing sync.Mutex
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -225,7 +221,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
-		TimeoutWg:        &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
@@ -273,7 +268,6 @@ func (d *Daemon) StartInvocation() {
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
 	d.InvcWg.Done()
-	d.timeoutChan <- true
 }
 
 // WaitForDaemon waits until invocation finished any pending work
@@ -315,29 +309,6 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 		}
 		d.ReadyWg.Done()
 	}
-}
-
-func (d *Daemon) handleTimeout() {
-	d.TimeoutWg.Add(1)
-	log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-	d.FinishInvocation()
-}
-
-func (d *Daemon) detectTimeout(deadlineMs int64, safetyBuffer time.Duration, action afterTimoutFunction) {
-	d.timeoutChan = make(chan bool)
-	currentTime := time.Now().UnixNano()
-	ticker := time.NewTicker(time.Duration(deadlineMs*int64(time.Millisecond) - int64(safetyBuffer) - currentTime))
-	go func() {
-		for {
-			select {
-			case <-d.timeoutChan:
-				return
-			case <-ticker.C:
-				action()
-			}
-		}
-	}()
-
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -435,8 +406,8 @@ type Flush struct {
 
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// prevent double flushing in case of a race condition between timeout handling + flushing
-	f.daemon.TimeoutWg.Wait()
+	f.daemon.flushing.Lock()
+	defer f.daemon.flushing.Unlock()
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
