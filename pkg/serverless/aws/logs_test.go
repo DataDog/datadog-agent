@@ -145,22 +145,22 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestGetLambaSourceNilScheduler(t *testing.T) {
-	assert.Nil(t, GetLambaSource(nil))
+func TestGetLambdaSourceNilScheduler(t *testing.T) {
+	assert.Nil(t, GetLambdaSource(nil))
 }
 
 type mockedServerlessScheduler struct {
 	validLogSource bool
 }
 
-func TestGetLambaSourceNilSource(t *testing.T) {
+func TestGetLambdaSourceNilSource(t *testing.T) {
 	serverlessScheduler := mockedServerlessScheduler{false}
-	assert.Nil(t, GetLambaSource(&serverlessScheduler))
+	assert.Nil(t, GetLambdaSource(&serverlessScheduler))
 }
 
-func TestGetLambaSourceValidSource(t *testing.T) {
+func TestGetLambdaSourceValidSource(t *testing.T) {
 	serverlessScheduler := mockedServerlessScheduler{true}
-	assert.NotNil(t, GetLambaSource(&serverlessScheduler))
+	assert.NotNil(t, GetLambdaSource(&serverlessScheduler))
 }
 
 func (m *mockedServerlessScheduler) GetSourceFromName(name string) *logConfig.LogSource {
@@ -169,7 +169,6 @@ func (m *mockedServerlessScheduler) GetSourceFromName(name string) *logConfig.Lo
 			"test",
 			&config.LogsConfig{},
 		)
-	} else {
-		return nil
 	}
+	return nil
 }

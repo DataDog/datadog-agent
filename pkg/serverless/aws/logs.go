@@ -206,7 +206,7 @@ func removeInvalidTracingItem(data []byte) []byte {
 }
 
 // GetLambdaSource returns the LogSource used by the extension
-func GetLambaSource(scheduler serverlessScheduler) *logConfig.LogSource {
+func GetLambdaSource(scheduler serverlessScheduler) *logConfig.LogSource {
 	if scheduler != nil {
 		source := scheduler.GetSourceFromName("lambda")
 		if source != nil {

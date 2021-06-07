@@ -273,7 +273,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		daemon.ComputeGlobalTags(payload.InvokedFunctionArn, config.GetConfiguredTags(true))
 		aws.SetARN(payload.InvokedFunctionArn)
 		daemon.StartInvocation()
-		daemon.DetectTimeout(payload.DeadlineMs, safetyBufferTimout, daemon.handleTimeout)
+		daemon.detectTimeout(payload.DeadlineMs, safetyBufferTimout, daemon.handleTimeout)
 		if coldstart {
 			ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 			if ready {

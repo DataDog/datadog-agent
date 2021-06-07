@@ -110,7 +110,7 @@ func TestDetectTimeoutValidTimeout(t *testing.T) {
 	defer d.Stop(false)
 
 	//deadline = current time + 50 ms
-	d.DetectTimeout((time.Now().UnixNano())/1000000+100, 0, handleTimeout)
+	d.detectTimeout((time.Now().UnixNano())/1000000+100, 0, handleTimeout)
 
 	assert.False(t, isTimeout)
 	time.Sleep(200 * time.Millisecond)

@@ -309,7 +309,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
 		}
 		d.extraTags = tagArray
-		source := aws.GetLambaSource(scheduler.GetScheduler())
+		source := aws.GetLambdaSource(scheduler.GetScheduler())
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
@@ -323,7 +323,7 @@ func (d *Daemon) handleTimeout() {
 	d.FinishInvocation()
 }
 
-func (d *Daemon) DetectTimeout(deadlineMs int64, safetyBuffer time.Duration, action afterTimoutFunction) {
+func (d *Daemon) detectTimeout(deadlineMs int64, safetyBuffer time.Duration, action afterTimoutFunction) {
 	d.timeoutChan = make(chan bool)
 	currentTime := time.Now().UnixNano()
 	ticker := time.NewTicker(time.Duration(deadlineMs*int64(time.Millisecond) - int64(safetyBuffer) - currentTime))
