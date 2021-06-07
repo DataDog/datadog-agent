@@ -319,7 +319,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 
 func (d *Daemon) handleTimeout() {
 	d.TimeoutWg.Add(1)
-	log.Debug("Timeout detected, finishing the current invocation now to allow receving the SHUTDOWN event")
+	log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 	d.FinishInvocation()
 }
 
