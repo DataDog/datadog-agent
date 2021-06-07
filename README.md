@@ -87,17 +87,17 @@ You'll find information and help on how to contribute code to this project under
 
 To install the official release:
 
-    $ curl -o- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+    $ curl -o- https://stackstate-agent-3.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
      or
-    $ wget -qO- https://stackstate-agent-2.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
+    $ wget -qO- https://stackstate-agent-3.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" bash
 
 ##### Test
 
 If you wanna install a branch version use the test repository:
 
-    $ curl -o- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+    $ curl -o- https://stackstate-agent-3-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
      or
-    $ wget -qO- https://stackstate-agent-2-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
+    $ wget -qO- https://stackstate-agent-3-test.s3.amazonaws.com/install.sh | STS_API_KEY="xxx" STS_URL="yyy" CODE_NAME="PR_NAME" bash
 
 and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`).
 
@@ -117,13 +117,13 @@ and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`).
 
 To install the official release:
 
-    $ . { iwr -useb https://stackstate-agent-2.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy"
+    $ . { iwr -useb https://stackstate-agent-3.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy"
 
 ##### Test
 
 If you wanna install a branch version use the test repository:
 
-    $ . { iwr -useb https://stackstate-agent-2-test.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy" -codeName "PR_NAME"
+    $ . { iwr -useb https://stackstate-agent-3-test.s3.amazonaws.com/install.ps1 } | iex; install -stsApiKey "xxx" -stsUrl "yyy" -codeName "PR_NAME"
 
 and replace `PR_NAME` with the branch name (e.g. `master`, `STAC-xxxx`).
 

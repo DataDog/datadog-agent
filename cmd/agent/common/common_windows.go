@@ -291,6 +291,13 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting hostname_fqdn to %s", val)
 	}
 
+	// [sts]
+	if val, _, err = k.GetStringValue("skip_ssl_validation"); err == nil && val != "" {
+		config.Datadog.Set("skip_ssl_validation", val)
+		log.Debugf("Setting skip_ssl_validation to %s", val)
+	}
+
+
 	// apply overrides to the config
 	config.AddOverrides(overrides)
 

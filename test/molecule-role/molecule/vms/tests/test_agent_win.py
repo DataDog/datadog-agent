@@ -27,7 +27,7 @@ def test_stackstate_agent_running_and_enabled(host):
         assert service["dependencies"] == deps
         assert service["depended_by"] == depended_by
 
-    check("stackstateagent", ["winmgmt"], ["stackstate-process-agent", "stackstate-trace-agent"])
+    check("stackstateagent", [], ["stackstate-process-agent", "stackstate-trace-agent"])
     check("stackstate-trace-agent", ["stackstateagent"], [])
     check("stackstate-process-agent", ["stackstateagent"], [])
 
@@ -83,7 +83,9 @@ def test_stackstate_trace_agent_log(host, hostname):
     def wait_for_check_successes():
         agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
         print(agent_log)
-        assert re.search("listening for traces", agent_log)
+        assert re.search("Trace agent running on host", agent_log)
+        assert re.search("Listening for traces at", agent_log)
+        assert re.search("No data received", agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
