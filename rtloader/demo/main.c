@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     char *init_error = NULL;
     // Embed Python2
     if (strcmp(argv[1], "2") == 0) {
-        rtloader = make2(python_home, &init_error);
+        rtloader = make2(python_home, "", &init_error);
         if (!rtloader) {
             printf("Unable to init Python2: %s\n", init_error);
             return 1;
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     }
     // Embed Python3
     else if (strcmp(argv[1], "3") == 0) {
-        rtloader = make3(python_home, &init_error);
+        rtloader = make3(python_home, "", &init_error);
         if (!rtloader) {
             printf("Unable to init Python3: %s\n", init_error);
             return 1;

@@ -21,9 +21,10 @@
 #include <algorithm>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
+                                                       cb_memory_tracker_t memtrack_cb)
 {
-    return new Three(pythonHome, memtrack_cb);
+    return new Three(python_home, python_exe, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -31,13 +32,19 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home, cb_memory_tracker_t memtrack_cb)
+Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
     initPythonHome(python_home);
+
+    // If not empty, set our Python interpreter path
+    if (python_exe && strlen(python_exe) > 0) {
+        initPythonExe(python_exe);
+    }
 }
 
 Three::~Three()
@@ -50,6 +57,7 @@ Three::~Three()
 
 void Three::initPythonHome(const char *pythonHome)
 {
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     wchar_t *oldPythonHome = _pythonHome;
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = Py_DecodeLocale(_defaultPythonHome, NULL);
@@ -57,9 +65,18 @@ void Three::initPythonHome(const char *pythonHome)
         _pythonHome = Py_DecodeLocale(pythonHome, NULL);
     }
 
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
     PyMem_RawFree((void *)oldPythonHome);
+}
+
+void Three::initPythonExe(const char *python_exe)
+{
+    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
+    wchar_t *oldPythonExe = _pythonExe;
+    _pythonExe = Py_DecodeLocale(python_exe, NULL);
+
+    Py_SetProgramName(_pythonExe);
+    PyMem_RawFree((void *)oldPythonExe);
 }
 
 bool Three::init()

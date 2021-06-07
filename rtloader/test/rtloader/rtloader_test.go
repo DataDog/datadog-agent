@@ -69,6 +69,28 @@ with open(r'%s', 'w') as f:
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSysExecutableValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(sys.executable)`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_executable` error: %v", err)
+	}
+
+	if output != "/folder/mock_python_interpeter_bin_path" {
+		t.Errorf("Unexpected sys.executable value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestGetError(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
