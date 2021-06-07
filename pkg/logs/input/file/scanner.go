@@ -58,10 +58,6 @@ type Scanner struct {
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
-	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
-	if validatePodContainerID {
-		log.Debug("Logs Agent file.Scanner will try to use /var/log/containers to validate container ID while parsing pod logs.")
-	}
 	return &Scanner{
 		pipelineProvider:       pipelineProvider,
 		tailingLimit:           tailingLimit,
@@ -72,7 +68,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 		registry:               registry,
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
-		validatePodContainerID: validatePodContainerID,
+		validatePodContainerID: coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id"),
 	}
 }
 
