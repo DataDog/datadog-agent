@@ -324,7 +324,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogMessages(l, messages, os.Getenv(functionNameEnvVar))
+		processLogMessages(l, messages, os.Getenv(FunctionNameEnvVar))
 		w.WriteHeader(200)
 	}
 }
