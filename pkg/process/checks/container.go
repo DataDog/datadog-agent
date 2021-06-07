@@ -128,13 +128,29 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
+		// If ctr.CPU is nil, then return -1 for the CPU metric values.
+		// This is handled on the backend to skip reporting, rather than report an
+		// errant value due to the expectation that CPU is reported cumulatively
+		var cpuUserPct float32
+		var cpuSystemPct float32
+		var cpuTotalPct float32
+		if ctr.CPU == nil {
+			cpuUserPct = -1
+			cpuSystemPct = -1
+			cpuTotalPct = -1
+		} else {
+			cpus := system.HostCPUCount()
+			sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+			cpuUserPct = calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
+			cpuSystemPct = calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+			cpuTotalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		}
+
 		// Just in case the container is found, but refs are nil
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
 		ifStats := ctr.Network.SumInterfaces()
-		cpus := system.HostCPUCount()
-		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
 		// Retrieves metadata tags
 		tags, err := tagger.Tag(ctr.EntityID, collectors.HighCardinality)
@@ -154,9 +170,9 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     cpuUserPct,
+			SystemPct:   cpuSystemPct,
+			TotalPct:    cpuTotalPct,
 			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
