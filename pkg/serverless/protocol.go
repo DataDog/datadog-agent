@@ -41,8 +41,6 @@ const httpLogsCollectionRoute string = "/lambda/logs"
 // to arrive from the Logs API.
 const shutdownDelay time.Duration = 1 * time.Second
 
-type afterTimoutFunction func()
-
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
 type Daemon struct {

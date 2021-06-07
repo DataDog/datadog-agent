@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var isTimeout = false
-
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	_, cancel := context.WithCancel(context.Background())
