@@ -170,11 +170,13 @@ func (f *domainForwarder) scheduleConnectionResets() {
 }
 
 func (f *domainForwarder) init() {
-	chanBufferSize := config.Datadog.GetInt("forwarder_chan_buffer_size")
+	highPrioBuffSize := config.Datadog.GetInt("forwarder_high_prio_buff_size")
+	lowPrioBuffSize := config.Datadog.GetInt("forwarder_low_prio_buff_size")
+	requeuedTransactionBuffSize := config.Datadog.GetInt("forwarder_requeued_tx_buff_size")
 
-	f.highPrio = make(chan transaction.Transaction, chanBufferSize)
-	f.lowPrio = make(chan transaction.Transaction, chanBufferSize)
-	f.requeuedTransaction = make(chan transaction.Transaction, chanBufferSize)
+	f.highPrio = make(chan transaction.Transaction, highPrioBuffSize)
+	f.lowPrio = make(chan transaction.Transaction, lowPrioBuffSize)
+	f.requeuedTransaction = make(chan transaction.Transaction, requeuedTransactionBuffSize)
 	f.stopRetry = make(chan bool)
 	f.stopConnectionReset = make(chan bool)
 	f.workers = []*Worker{}

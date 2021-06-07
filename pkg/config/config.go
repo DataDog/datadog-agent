@@ -171,7 +171,9 @@ func init() {
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(config Config) {
-	config.BindEnvAndSetDefault("forwarder_chan_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_high_prio_buff_size", 100)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buff_size", 100)
+	config.BindEnvAndSetDefault("forwarder_requeued_tx_buff_size", 100)
 
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config

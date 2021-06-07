@@ -396,6 +396,10 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.keysPerDomains))
 	allowArbitraryTags := config.Datadog.GetBool("allow_arbitrary_tags")
 
+	highPrioBuffSize := config.Datadog.GetInt("forwarder_high_prio_buff_size")
+	lowPrioBuffSize := config.Datadog.GetInt("forwarder_low_prio_buff_size")
+	requeuedTransactionBuffSize := config.Datadog.GetInt("forwarder_requeued_tx_buff_size")
+
 	for _, payload := range payloads {
 		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
@@ -419,7 +423,10 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 					t.CompletionHandler = f.completionHandler
 				}
 
-				tlmTxChanBufferSize.Set(float64(chanBufferSize), domain)
+				tlmTxHighPrioBufferSize.Set(float64(highPrioBuffSize), domain)
+				tlmTxLowPrioBufferSize.Set(float64(lowPrioBuffSize), domain)
+				tlmTxRequeuedBufferSize.Set(float64(requeuedTransactionBuffSize), domain)
+
 				tlmTxInputCount.Inc(domain, endpoint.Name)
 				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
 				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)

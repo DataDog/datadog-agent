@@ -64,7 +64,12 @@ var (
 		[]string{"domain", "endpoint"}, "Transaction retry count")
 	tlmTxRetryQueueSize = telemetry.NewGauge("transactions", "retry_queue_size",
 		[]string{"domain"}, "Retry queue size")
-	tlmTxChanBufferSize = telemetry.NewGauge("transactions", "chan_buffer_size",
+
+	tlmTxHighPrioBufferSize = telemetry.NewGauge("transactions", "forwarder_high_prio_buff_size",
+		[]string{"domain"}, "forwarder_high_prio_buff_size")
+	tlmTxLowPrioBufferSize = telemetry.NewGauge("transactions", "forwarder_low_prio_buff_size",
+		[]string{"domain"}, "Chan Buffer Size")
+	tlmTxRequeuedBufferSize = telemetry.NewGauge("transactions", "forwarder_requeued_tx_buff_size",
 		[]string{"domain"}, "Chan Buffer Size")
 )
 
