@@ -26,7 +26,7 @@ const (
 	persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 	// RegionEnvVar is used to represent the AWS region environment variable name
 	RegionEnvVar       = "AWS_REGION"
-	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+	FunctionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 	qualifierEnvVar    = "AWS_LAMBDA_FUNCTION_VERSION"
 
 	traceOriginMetadataKey   = "_dd.origin"

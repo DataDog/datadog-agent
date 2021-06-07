@@ -199,7 +199,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
-		log.Debug(apiKey)
 		os.Setenv(apiKeyEnvVar, apiKey)
 	}
 

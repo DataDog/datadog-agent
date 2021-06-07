@@ -10,15 +10,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 )
-
-// functionNameEnvVar is the environment variable that stores the Lambda function name
-const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // encryptionContextKey is the key added to the encryption context by the Lambda console UI
 const encryptionContextKey = "LambdaFunctionName"
@@ -37,7 +35,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	// We need to try both, as supplying the incorrect encryption context will cause decryption to fail.
 
 	// Try with encryption context
-	functionName := os.Getenv(functionNameEnvVar)
+	functionName := os.Getenv(aws.FunctionNameEnvVar)
 	params := &kms.DecryptInput{
 		CiphertextBlob: decodedBytes,
 		EncryptionContext: map[string]*string{
@@ -69,7 +67,7 @@ func readAPIKeyFromKMS() (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
-	log.Debug("Found DD_KMS_API_KEY value, trying to decipher it.")
+	log.Debugf("Found %s, trying to decipher it.", kmsAPIKeyEnvVar)
 	kmsClient := kms.New(session.New(nil))
 	plaintext, err := decryptKMS(kmsClient, cipherText)
 	if err != nil {
@@ -85,7 +83,7 @@ func readAPIKeyFromSecretsManager() (string, error) {
 	if arn == "" {
 		return "", nil
 	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
+	log.Debugf("Found %s value, trying to use it.", secretsManagerAPIKeyEnvVar)
 	secretsManagerClient := secretsmanager.New(session.New(nil))
 	secret := &secretsmanager.GetSecretValueInput{}
 	secret.SetSecretId(arn)
