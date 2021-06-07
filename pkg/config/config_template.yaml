@@ -816,6 +816,8 @@ network_tracer_config:
 #   network_tracer_retry_init_amount: 3
 #   # Whenever debugging statements of eBPF code of network tracer should be redirected to the agent log
 #   ebpf_debuglog_enabled: "false"
+#   # A boolean indicating the enabled state of the protocol inspection.
+#   protocol_inspection_enabled: "true"
 #   http_metrics:
 #     # Specifies which algorithm to use to collapse measurements: collapsing_lowest_dense, collapsing_highest_dense, unbounded
 #     sketch_type: collapsing_lowest_dense
