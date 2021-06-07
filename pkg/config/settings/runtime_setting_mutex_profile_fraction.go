@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
@@ -35,6 +36,7 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 	}
 
 	profiling.SetMutexProfileFraction(rate)
+	config.Datadog.Set("internal_profiling.mutex_profile_fraction", rate)
 
 	return nil
 }

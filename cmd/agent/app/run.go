@@ -253,6 +253,16 @@ func StartAgent() error {
 	}
 
 	// Setup Internal Profiling
+	if v := config.Datadog.GetInt("internal_profiling.block_profile_rate"); v > 0 {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v); err != nil {
+			log.Errorf("Error setting block profile rate: %v", err)
+		}
+	}
+	if v := config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"); v > 0 {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v); err != nil {
+			log.Errorf("Error mutex profile fraction: %v", err)
+		}
+	}
 	if config.Datadog.GetBool("internal_profiling.enabled") {
 		err := settings.SetRuntimeSetting("internal_profiling", true)
 		if err != nil {

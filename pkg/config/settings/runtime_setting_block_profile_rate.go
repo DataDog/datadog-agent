@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
@@ -35,6 +36,7 @@ func (r RuntimeBlockProfileRate) Set(value interface{}) error {
 	}
 
 	profiling.SetBlockProfileRate(rate)
+	config.Datadog.Set("internal_profiling.block_profile_rate", rate)
 
 	return nil
 }
