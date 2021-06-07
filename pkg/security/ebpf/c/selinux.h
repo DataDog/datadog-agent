@@ -14,15 +14,11 @@ struct selinux_event_t {
     u32 magic;
 };
 
-SEC("kprobe/sel_write_enforce")
-int kprobe__sel_write_enforce(struct pt_regs *ctx) {
-    bpf_printk("sel_write_enforce hit\n");
-
+int __attribute__((always_inline)) trace__selinux(struct pt_regs *ctx, struct file *file) {
     struct selinux_event_t event = {
         .magic = 42,
     };
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     struct dentry *dentry = get_file_dentry(file);
 
     fill_file_metadata(dentry, &event.file.metadata);
@@ -34,5 +30,16 @@ int kprobe__sel_write_enforce(struct pt_regs *ctx) {
     send_event(ctx, EVENT_SELINUX, event);
     return 0;
 }
+
+#define PROBE_SEL_WRITE_FUNC(func_name)                        \
+    SEC("kprobe/" #func_name)                                  \
+    int kprobe__##func_name(struct pt_regs *ctx) {             \
+        bpf_printk(#func_name " hit\n");                       \
+        struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
+        return trace__selinux(ctx, file);                      \
+    }
+
+PROBE_SEL_WRITE_FUNC(sel_write_enforce)
+PROBE_SEL_WRITE_FUNC(sel_write_bool)
 
 #endif

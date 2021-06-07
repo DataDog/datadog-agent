@@ -369,5 +369,6 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
 	"selinux": {
 		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/sel_write_enforce"}},
+		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/sel_write_bool"}},
 	},
 }

@@ -35,7 +35,7 @@ func TestSELinux(t *testing.T) {
 
 	t.Run("setenforce", func(t *testing.T) {
 		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
-			t.Errorf("Failted to run setenforce")
+			t.Errorf("Failed to run setenforce")
 		}
 
 		event, rule, err := test.GetEvent()
@@ -44,6 +44,25 @@ func TestSELinux(t *testing.T) {
 		} else {
 			assertTriggeredRule(t, rule, "test_selinux")
 			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
+		}
+	})
+
+	t.Run("setsebool", func(t *testing.T) {
+		if cmd := exec.Command("sudo", "-n", "setsebool", "selinuxuser_ping", "off"); cmd.Run() != nil {
+			t.Errorf("Failed to run setsebool")
+		}
+
+		event, rule, err := test.GetEvent()
+		t.Log(ppJSON(event))
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux")
+			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
+		}
+
+		if cmd := exec.Command("sudo", "-n", "setsebool", "selinuxuser_ping", "on"); cmd.Run() != nil {
+			t.Errorf("Failed to reset setsebool value")
 		}
 	})
 }

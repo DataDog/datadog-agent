@@ -17,6 +17,10 @@ var selinuxProbes = []*manager.Probe{
 		UID:     SecurityAgentUID,
 		Section: "kprobe/sel_write_enforce",
 	},
+	{
+		UID:     SecurityAgentUID,
+		Section: "kprobe/sel_write_bool",
+	},
 }
 
 func getSelinuxProbes() []*manager.Probe {
