@@ -225,6 +225,8 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	name := spanKindName(in.Kind)
 	if lib.Name != "" {
 		name = lib.Name + "." + name
+	} else {
+		name = "opentelemetry." + name
 	}
 	span := &pb.Span{
 		Name:     name,
@@ -283,8 +285,8 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	if lib.Version != "" {
 		span.Meta["instrumentation_library.version"] = lib.Version
 	}
-	if span.Service == "" && span.Meta["peer.service"] != "" {
-		span.Service = span.Meta["peer.service"]
+	if svc := span.Meta["peer.service"]; svc != "" {
+		span.Service = svc
 	}
 	if r := resourceFromTags(span.Meta); r != "" {
 		span.Resource = r
@@ -331,7 +333,7 @@ func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.S
 				span.Meta["error.msg"] = anyValueString(attr.Value)
 			case "exception.type":
 				span.Meta["error.type"] = anyValueString(attr.Value)
-			case "exception.stack":
+			case "exception.stacktrace":
 				span.Meta["error.stack"] = anyValueString(attr.Value)
 			}
 		}
