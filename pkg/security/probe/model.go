@@ -378,8 +378,16 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 
 // ResolveSELinuxBooleanValue resolves the boolean value of the SELinux event
 func (ev *Event) ResolveSELinuxBooleanValue(e *model.SELinuxEvent) bool {
-	booleanStr := string(e.RawBuf[:e.RawBufSize])
-	booleanInt, err := strconv.Atoi(booleanStr)
+	var builder strings.Builder
+	builder.Grow(int(e.RawBufSize))
+	for _, b := range e.RawBuf[:e.RawBufSize] {
+		if b == 0 {
+			break
+		}
+		builder.WriteByte(b)
+	}
+
+	booleanInt, err := strconv.Atoi(builder.String())
 	if err != nil {
 		return false
 	}
