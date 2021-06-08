@@ -20,8 +20,6 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
 	d.ReadyWg.Done()
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
 	defer d.Stop(false)
 
 	// WaitForDaemon doesn't block if the client library hasn't
@@ -48,8 +46,6 @@ func TestWaitUntilReady(t *testing.T) {
 	assert := assert.New(t)
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
 	d.ReadyWg.Done()
 	defer d.Stop(false)
 
