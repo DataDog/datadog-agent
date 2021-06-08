@@ -258,7 +258,7 @@ def test_host_metrics(host):
         assert_metric("system.uptime", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
 
         assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 2000)
-        assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v > 0.0)
 
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)

@@ -33,7 +33,7 @@ build do
             # load isn't supported by windows
             delete "#{install_dir}/etc/stackstate-agent/conf.d/load.d"
             command "echo post-delete-install-dir"
-            command "dir #{install_dir}/etc/stackstate-agent/conf.d/load.d"
+            command "dir #{install_dir}/etc/stackstate-agent/conf.d"
 
             move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
