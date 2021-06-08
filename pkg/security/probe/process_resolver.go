@@ -14,7 +14,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -126,12 +125,13 @@ type ProcessResolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
 
-	argsEnvsPool *ArgsEnvsPool
+	argsEnvsPool          *ArgsEnvsPool
+	processCacheEntryPool *ProcessCacheEntryPool
 }
 
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
-	pool sync.Pool
+	pool *sync.Pool
 }
 
 // Get returns a cache entry
@@ -142,30 +142,71 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
 	entry := a.Get()
-	*entry = event.ArgsEnvsCacheEntry
+	entry.ArgsEnvs = event.ArgsEnvs
 	return entry
 }
 
 // Put returns a cache entry to the pool
 func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	for entry != nil {
-		// be sure to reset the entry here
-		next := entry.Next
-		entry.Next = nil
-		entry.Last = nil
-
-		a.pool.Put(entry)
-		entry = next
-	}
+	a.pool.Put(entry)
 }
 
 // NewArgsEnvsPool returns a new ArgsEnvEntry pool
 func NewArgsEnvsPool() *ArgsEnvsPool {
-	return &ArgsEnvsPool{
-		pool: sync.Pool{
-			New: func() interface{} { return &model.ArgsEnvsCacheEntry{} },
-		},
+	ap := ArgsEnvsPool{pool: &sync.Pool{}}
+
+	ap.pool.New = func() interface{} {
+		return model.NewArgsEnvsCacheEntry(ap.Put)
 	}
+
+	return &ap
+}
+
+// ProcessCacheEntryPool defines a pool for process entry allocations
+type ProcessCacheEntryPool struct {
+	pool *sync.Pool
+}
+
+// Get returns a cache entry
+func (p *ProcessCacheEntryPool) Get() *model.ProcessCacheEntry {
+	return p.pool.Get().(*model.ProcessCacheEntry)
+}
+
+// Put returns a cache entry
+func (p *ProcessCacheEntryPool) Put(pce *model.ProcessCacheEntry) {
+	pce.Reset()
+	p.pool.Put(pce)
+}
+
+// NewProcessCacheEntryPool returns a new ProcessCacheEntryPool pool
+func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
+	pcep := ProcessCacheEntryPool{pool: &sync.Pool{}}
+
+	pcep.pool.New = func() interface{} {
+		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
+			if pce.Ancestor != nil {
+				pce.Ancestor.Release()
+			}
+
+			if pce.ArgsEntry != nil && pce.ArgsEntry.ArgsEnvsCacheEntry != nil {
+				pce.ArgsEntry.ArgsEnvsCacheEntry.Release()
+			}
+			if pce.EnvsEntry != nil && pce.EnvsEntry.ArgsEnvsCacheEntry != nil {
+				pce.EnvsEntry.ArgsEnvsCacheEntry.Release()
+			}
+
+			atomic.AddInt64(&p.cacheSize, -1)
+
+			pcep.Put(pce)
+		})
+	}
+
+	return &pcep
+}
+
+// NewProcessCacheEntry returns a new process cache entry
+func (p *ProcessResolver) NewProcessCacheEntry() *model.ProcessCacheEntry {
+	return p.processCacheEntryPool.Get()
 }
 
 // SendStats sends process resolver metrics
@@ -186,14 +227,8 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
 		list := e.(*model.ArgsEnvsCacheEntry)
-		if list.Last == nil {
-			list.Last = entry
-		} else {
-			list.Last.Next = entry
-			list.Last = entry
-		}
+		list.Append(entry)
 	} else {
-		entry.Last = entry
 		p.argsEnvsCache.Add(event.ID, entry)
 	}
 }
@@ -202,6 +237,7 @@ func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 func (p *ProcessResolver) AddForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
+
 	return p.insertForkEntry(pid, entry)
 }
 
@@ -328,38 +364,23 @@ func (p *ProcessResolver) retrieveExecFileFields(procExecPath string) (*model.Fi
 	return &fileFields, nil
 }
 
-func (p *ProcessResolver) insertEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCacheEntry) *model.ProcessCacheEntry {
 	p.entryCache[pid] = entry
+	entry.Retain()
+
+	if prev != nil {
+		prev.Release()
+	}
 
 	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
 	atomic.AddInt64(&p.cacheSize, 1)
-
-	var args *model.ArgsEnvsCacheEntry
-	if entry.ArgsEntry != nil {
-		args = entry.ArgsEntry.ArgsEnvsCacheEntry
-	}
-
-	var envs *model.ArgsEnvsCacheEntry
-	if entry.EnvsEntry != nil {
-		envs = entry.EnvsEntry.ArgsEnvsCacheEntry
-	}
-
-	runtime.SetFinalizer(entry, func(obj interface{}) {
-		if args != nil {
-			p.argsEnvsPool.Put(args)
-		}
-		if envs != nil {
-			p.argsEnvsPool.Put(envs)
-		}
-
-		atomic.AddInt64(&p.cacheSize, -1)
-	})
 
 	return entry
 }
 
 func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
-	if prev := p.entryCache[pid]; prev != nil {
+	prev := p.entryCache[pid]
+	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
 		prev.Exit(entry.ForkTime)
 	}
@@ -369,15 +390,16 @@ func (p *ProcessResolver) insertForkEntry(pid uint32, entry *model.ProcessCacheE
 		parent.Fork(entry)
 	}
 
-	return p.insertEntry(pid, entry)
+	return p.insertEntry(pid, entry, prev)
 }
 
 func (p *ProcessResolver) insertExecEntry(pid uint32, entry *model.ProcessCacheEntry) *model.ProcessCacheEntry {
-	if prev := p.entryCache[pid]; prev != nil {
+	prev := p.entryCache[pid]
+	if prev != nil {
 		prev.Exec(entry)
 	}
 
-	return p.insertEntry(pid, entry)
+	return p.insertEntry(pid, entry, prev)
 }
 
 func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
@@ -387,7 +409,9 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		return
 	}
 	entry.Exit(exitTime)
+
 	delete(p.entryCache, entry.Pid)
+	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -499,7 +523,7 @@ func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessC
 		return nil
 	}
 
-	entry := NewProcessCacheEntry()
+	entry := p.NewProcessCacheEntry()
 	data := append(entryb, cookieb...)
 
 	if _, err = p.unmarshalFromKernelMaps(entry, data); err != nil {
@@ -558,6 +582,12 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
 
+		// attach to a process thus retain the head of the chain
+		// note: only the head of the list is retained and when released
+		// the whole list will be released
+		pce.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+
+		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
 }
@@ -580,6 +610,12 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 			ArgsEnvsCacheEntry: e.(*model.ArgsEnvsCacheEntry),
 		}
 
+		// attach to a process thus retain the head of the chain
+		// note: only the head of the list is retained and when released
+		// the whole list will be released
+		pce.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+
+		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
 }
@@ -759,7 +795,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		return nil, false
 	}
 
-	entry = NewProcessCacheEntry()
+	entry = p.NewProcessCacheEntry()
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc); err != nil {
@@ -772,7 +808,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 		entry.Ancestor = parent
 	}
 
-	if entry = p.insertEntry(pid, entry); entry == nil {
+	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
 		return nil, false
 	}
 
@@ -859,7 +895,7 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		return nil, err
 	}
 
-	return &ProcessResolver{
+	p := &ProcessResolver{
 		probe:         probe,
 		resolvers:     resolvers,
 		client:        client,
@@ -868,7 +904,10 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		argsEnvsCache: argsEnvsCache,
 		state:         snapshotting,
 		argsEnvsPool:  NewArgsEnvsPool(),
-	}, nil
+	}
+	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
+
+	return p, nil
 }
 
 // NewProcessResolverOpts returns a new set of process resolver options
