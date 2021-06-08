@@ -231,11 +231,8 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until
-	// 1 - the DogStatsD server has been instantiated
-	// 2 - extra tags have been set
-	// 3 - at least one event (INVOKE or SHUTDOWN) has been received
-	daemon.ReadyWg.Add(3)
+	// this wait group will be blocking until the DogStatsD server has been instantiated
+	daemon.ReadyWg.Add(1)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -305,7 +302,6 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
-		d.ReadyWg.Done()
 	}
 }
 

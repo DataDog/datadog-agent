@@ -274,9 +274,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 	// we received an INVOKE or SHUTDOWN event
-	if len(daemon.lastInvocations) == 0 {
-		daemon.ReadyWg.Done()
-	}
 	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
@@ -291,6 +288,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	}
 
 	if payload.EventType == Invoke {
+		//mbda:sa-east-1:601427279990:function:integration-tests-lambda-extension-python37-mdv-dev-hello37"
 		invoke(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimout, coldstart, handleInvocation)
 	}
 	if payload.EventType == Shutdown {

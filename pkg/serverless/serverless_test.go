@@ -35,8 +35,6 @@ func TestInvokeMutexShouldBeLocked(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
 	d.ReadyWg.Done()
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
 	defer d.Stop(false)
 
 	d.clientLibReady = false
@@ -54,8 +52,6 @@ func TestInvokeMutexShouldBeLocked(t *testing.T) {
 func TestInvokeMutexShouldBeUnLocked(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	d.ReadyWg.Done()
 	d.ReadyWg.Done()
 	defer d.Stop(false)
 
