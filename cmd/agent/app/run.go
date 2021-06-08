@@ -309,8 +309,6 @@ func StartAgent() error {
 	common.StartAutoConfig()
 
 	// setup the metadata collector
-	log.Infof("enable_gohai: %s", config.Datadog.GetBool("enable_gohai"))
-	log.Infof("enable_metadata_collection : %s", config.Datadog.GetBool("enable_metadata_collection"))
 	common.MetadataScheduler = metadata.NewScheduler(s)
 	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
 		return err

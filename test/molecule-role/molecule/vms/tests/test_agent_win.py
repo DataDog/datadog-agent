@@ -44,7 +44,7 @@ def test_stackstate_agent_log(host, hostname):
     util.wait_until(wait_for_check_successes, 30, 3)
 
     agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
-    with open("./{}.log".format(hostname), 'wb') as f:
+    with open("./{}-agent.log".format(hostname), 'wb') as f:
         f.write(agent_log.encode('utf-8'))
 
     # Check for errors
@@ -77,20 +77,20 @@ def test_stackstate_process_agent_no_log_errors(host, hostname):
 
 
 def test_stackstate_trace_agent_log(host, hostname):
-    agent_log_path = "c:\\programdata\\stackstate\\logs\\trace-agent.log"
+    trace_agent_log_path = "c:\\programdata\\stackstate\\logs\\trace-agent.log"
 
     # Check for presence of success
     def wait_for_check_successes():
-        agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
-        print(agent_log)
-        assert re.search("Trace agent running on host", agent_log)
-        assert re.search("Listening for traces at", agent_log)
-        assert re.search("No data received", agent_log)
+        trace_agent_log = host.ansible("win_shell", "cat \"{}\"".format(trace_agent_log_path), check=False)["stdout"]
+        print(trace_agent_log)
+        assert re.search("Trace agent running on host", trace_agent_log)
+        assert re.search("Listening for traces at", trace_agent_log)
+        assert re.search("No data received", trace_agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
-    agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
-    with open("./{}.log".format(hostname), 'wb') as f:
+    agent_log = host.ansible("win_shell", "cat \"{}\"".format(trace_agent_log_path), check=False)["stdout"]
+    with open("./{}-trace.log".format(hostname), 'wb') as f:
         f.write(agent_log.encode('utf-8'))
 
     # Check for errors
