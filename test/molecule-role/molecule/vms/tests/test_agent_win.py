@@ -39,7 +39,7 @@ def test_stackstate_agent_log(host, hostname):
     def wait_for_check_successes():
         agent_log = host.ansible("win_shell", "cat \"{}\"".format(agent_log_path), check=False)["stdout"]
         print(agent_log)
-        assert re.search("Sent host metadata payload", agent_log)
+        assert re.search("Successfully posted payload to.*stsAgent/intake", agent_log)
 
     util.wait_until(wait_for_check_successes, 30, 3)
 
