@@ -18,8 +18,12 @@ import (
 func TestSELinux(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
-			ID:         "test_selinux",
-			Expression: `selinux.magic == 42`,
+			ID:         "test_selinux_enforce",
+			Expression: `selinux.file.name == "enforce"`,
+		},
+		{
+			ID:         "test_selinux_write_bool",
+			Expression: `selinux.file.name == "selinuxuser_ping"`,
 		},
 	}
 
@@ -42,8 +46,19 @@ func TestSELinux(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assertTriggeredRule(t, rule, "test_selinux")
+			assertTriggeredRule(t, rule, "test_selinux_enforce")
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
+
+			fileName := "/sys/fs/selinux/enforce"
+			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
+			assertFieldEqual(t, event, "selinux.file.name", "enforce", "wrong file name")
+			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
 		}
 	})
 
@@ -57,8 +72,21 @@ func TestSELinux(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assertTriggeredRule(t, rule, "test_selinux")
+			assertTriggeredRule(t, rule, "test_selinux_write_bool")
+			assert.Equal(t, event.SELinux.File.BasenameStr, "selinuxuser_ping", "wrong bool name")
+
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
+
+			fileName := "/sys/fs/selinux/booleans/selinuxuser_ping"
+			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
+			assertFieldEqual(t, event, "selinux.file.name", "selinuxuser_ping", "wrong file name")
+			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
 		}
 
 		if cmd := exec.Command("sudo", "-n", "setsebool", "selinuxuser_ping", "on"); cmd.Run() != nil {
