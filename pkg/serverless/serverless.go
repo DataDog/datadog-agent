@@ -288,7 +288,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	}
 
 	if payload.EventType == Invoke {
-		//mbda:sa-east-1:601427279990:function:integration-tests-lambda-extension-python37-mdv-dev-hello37"
 		invoke(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimout, coldstart, handleInvocation)
 	}
 	if payload.EventType == Shutdown {

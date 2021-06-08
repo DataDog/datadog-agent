@@ -317,8 +317,6 @@ type LogsCollection struct {
 // ServeHTTP - see type LogsCollection comment.
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the DogStatsD daemon isn't ready, wait for it.
-	// If the extra tag are not set, wait for it.
-	// If the extension has just restart, wait for an event before processing the log (this prevent logs from being parsed but not actually sent)
 	l.daemon.ReadyWg.Wait()
 
 	data, _ := ioutil.ReadAll(r.Body)
