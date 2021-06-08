@@ -210,7 +210,7 @@ build do
     end
 
     # Install shared libraries
-    File.open("#{shared_libraries_in_file}", 'r+').readlines().each do |shared_lib|
+    File.open("#{shared_libraries_in_file}", 'r+').readlines().map(&:chomp).each do |shared_lib|
         blacklist_folders.push(shared_lib)
         if windows?
             command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{shared_lib}"
