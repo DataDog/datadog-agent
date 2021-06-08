@@ -163,3 +163,6 @@
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Pause for 2 minutes to perform some http requests
+      pause:
+        minutes: 2
