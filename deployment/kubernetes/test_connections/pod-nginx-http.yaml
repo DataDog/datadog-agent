@@ -35,11 +35,8 @@ metadata:
     test: pod-nginx-http
 spec:
   containers:
-    - name: ngnix-client
-      image: plavignotte/continuous-curl:latest
-      args: ["my-nginx"]
-      env:
-        - name: METHOD
-          value: "GET"
-        - name: LOOP
-          value: "2"
+  - name: nginx-client
+    image: radial/busyboxplus:curl
+    # Just spin & wait forever
+    command: [ "/bin/sh", "-c", "--" ]
+    args: [ "while sleep 2; do curl my-nginx; done;" ]
