@@ -23,19 +23,16 @@ build do
             mkdir conf_dir
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
 
-            # delete unused config
-            # remove the config files for the subservices; they'll be started
-            # based on the config file
-            command "echo pre-delete-install-dir"
-            command "dir #{install_dir}/etc/stackstate-agent/conf.d"
+            command "echo pre-copy-conf-dir"
+            command "dir #{conf_dir}"
             delete "#{install_dir}/etc/stackstate-agent/conf.d/apm.yaml.default"
             delete "#{install_dir}/etc/stackstate-agent/conf.d/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{install_dir}/etc/stackstate-agent/conf.d/load.d"
-            command "echo post-delete-install-dir"
-            command "dir #{install_dir}/etc/stackstate-agent/conf.d"
-
+            command "dir #{install_dir}/etc/stackstate-agent/conf.d/*"
             move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
+            command "echo post-copy-conf-dir"
+            command "dir #{conf_dir}"
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
