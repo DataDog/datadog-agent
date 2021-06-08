@@ -274,12 +274,14 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 }
 
 func TestDomainForwarderInitConfigs(t *testing.T) {
+	// Test default values
 	forwarder := newDomainForwarderForTest(0)
 	forwarder.init()
 	assert.Equal(t, 100, cap(forwarder.highPrio))
 	assert.Equal(t, 100, cap(forwarder.lowPrio))
 	assert.Equal(t, 100, cap(forwarder.requeuedTransaction))
 
+	// Test custom values
 	datadogYaml := `
 forwarder_high_prio_buffer_size: 500
 forwarder_low_prio_buffer_size: 400
