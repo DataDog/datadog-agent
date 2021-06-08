@@ -8,9 +8,11 @@
 package forwarder
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
@@ -269,6 +271,29 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	require.Len(t, trs, 2)
 	require.Equal(t, 1, trs[0].GetPayloadSize())
 	require.Equal(t, 2, trs[1].GetPayloadSize())
+}
+
+func TestDomainForwarderInitConfigs(t *testing.T) {
+	forwarder := newDomainForwarderForTest(0)
+	forwarder.init()
+	assert.Equal(t, 100, cap(forwarder.highPrio))
+	assert.Equal(t, 100, cap(forwarder.lowPrio))
+	assert.Equal(t, 100, cap(forwarder.requeuedTransaction))
+
+	datadogYaml := `
+forwarder_high_prio_buffer_size: 500
+forwarder_low_prio_buffer_size: 400
+forwarder_requeue_buffer_size: 300
+`
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+	assert.NoError(t, err)
+
+	forwarder = newDomainForwarderForTest(0)
+	forwarder.init()
+	assert.Equal(t, 500, cap(forwarder.highPrio))
+	assert.Equal(t, 400, cap(forwarder.lowPrio))
+	assert.Equal(t, 300, cap(forwarder.requeuedTransaction))
 }
 
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {

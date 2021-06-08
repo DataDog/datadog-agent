@@ -370,6 +370,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
 	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
 
+	// Forwarder chan buffer size
+	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
+
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
