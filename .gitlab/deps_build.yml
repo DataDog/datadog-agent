@@ -100,8 +100,7 @@ build_clang_arm64:
 
 .build_windows_python_common:
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
