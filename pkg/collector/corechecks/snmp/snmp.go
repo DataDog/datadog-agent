@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -90,23 +91,30 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 	tags = append(tags, c.config.profileTags...)
 
 	// Fetch and report metrics
-	if c.config.oidConfig.hasOids() {
-		collectionTime := timeNow()
-		valuesStore, err := fetchValues(c.session, c.config)
-		if err != nil {
-			return tags, fmt.Errorf("failed to fetch values: %s", err)
-		}
-		log.Debugf("fetched valuesStore: %v", valuesStore)
+	collectionTime := timeNow()
+	valuesStore, fetchError := fetchValues(c.session, c.config)
+	log.Debugf("fetched values: %v", valuesStore)
+
+	if fetchError != nil {
+		valuesStore = &resultValueStore{}
+	} else {
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+	}
 
-		if c.config.collectDeviceMetadata {
-			// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
-			// `checkSender.checkTags` are added for metrics, service checks, events only.
-			// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-			deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
-			c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime)
+	if c.config.collectDeviceMetadata {
+		status := metadata.DeviceStatusReachable
+		if fetchError != nil {
+			status = metadata.DeviceStatusUnreachable
 		}
+		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
+		// `checkSender.checkTags` are added for metrics, service checks, events only.
+		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
+		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
+		c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime, status)
+	}
+	if fetchError != nil {
+		return tags, fmt.Errorf("failed to fetch values: %s", fetchError)
 	}
 	return tags, nil
 }

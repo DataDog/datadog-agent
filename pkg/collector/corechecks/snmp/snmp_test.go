@@ -558,7 +558,8 @@ profiles:
         "snmp_profile:f5-big-ip",
         "some_tag:some_tag_value",
         "suffix:oo_sys_name"
-      ]
+      ],
+      "status": 1
     }
   ],
   "interfaces": [
