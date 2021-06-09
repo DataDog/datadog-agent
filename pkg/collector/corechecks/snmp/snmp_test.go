@@ -736,7 +736,7 @@ profiles:
 
 	assert.Equal(t, false, check.config.autodetectProfile)
 
-	// Make sure we don't auto detect and add metrics twice if we also did that previously
+	// Make sure we don't auto detect and add metrics twice if we already did that previously
 	firstRunMetrics := check.config.metrics
 	firstRunMetricsTags := check.config.metricTags
 	err = check.Run()
