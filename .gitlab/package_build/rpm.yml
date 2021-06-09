@@ -1,21 +1,8 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
-.if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
-
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p /gomodcache && tar xzf modcache.tar.gz -C /gomodcache
-  rm -f modcache.tar.gz
-
 .agent_build_common_rpm:
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -41,7 +28,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - chmod 755 /tmp/system-probe/system-probe
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-${PACKAGE_ARCH}-${BCC_VERSION}.tar.xz /tmp/libbcc.tar.xz
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache=/gomodcache --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
@@ -52,7 +39,7 @@
 agent_rpm-x64-a6:
   extends: .agent_build_common_rpm
   rules:
-    - <<: *if_version_6
+    !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
@@ -70,7 +57,7 @@ agent_rpm-x64-a6:
 agent_rpm-x64-a7:
   extends: .agent_build_common_rpm
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
@@ -88,9 +75,7 @@ agent_rpm-x64-a7:
 agent_rpm-arm64-a6:
   extends: .agent_build_common_rpm
   rules:
-    - <<: *if_not_run_all_builds
-      when: never
-    - <<: *if_version_6
+    !reference [.on_all_builds_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -107,9 +92,7 @@ agent_rpm-arm64-a6:
 agent_rpm-arm64-a7:
   extends: .agent_build_common_rpm
   rules:
-    - <<: *if_not_run_all_builds
-      when: never
-    - <<: *if_version_7
+    !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -125,7 +108,7 @@ agent_rpm-arm64-a7:
 .iot_agent_build_common_rpm:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -139,7 +122,7 @@ agent_rpm-arm64-a7:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache=/gomodcache
+    - inv -e agent.omnibus-build --iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks
@@ -148,6 +131,8 @@ agent_rpm-arm64-a7:
 
 iot_agent_rpm-x64:
   extends: .iot_agent_build_common_rpm
+  rules:
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
@@ -156,9 +141,7 @@ iot_agent_rpm-x64:
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
   rules:
-    - <<: *if_not_run_all_builds
-      when: never
-    - <<: *if_version_7
+    !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
@@ -167,9 +150,7 @@ iot_agent_rpm-arm64:
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
   rules:
-    - <<: *if_not_run_all_builds
-      when: never
-    - <<: *if_version_7
+    !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
@@ -181,7 +162,7 @@ iot_agent_rpm-armhf:
 
 dogstatsd_rpm-x64:
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:large"]
@@ -189,7 +170,7 @@ dogstatsd_rpm-x64:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -203,7 +184,7 @@ dogstatsd_rpm-x64:
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
-    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache=/gomodcache
+    - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
     expire_in: 2 weeks

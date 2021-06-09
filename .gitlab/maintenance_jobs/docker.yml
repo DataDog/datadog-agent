@@ -5,9 +5,18 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
+# These definitions are copied from the .gitlab/docker_common/tag_job_templates.yml
+# The !reference keyword is limited when used with hashes, and cannot
+# be used in conjunction with manually defined keys in the same hash. Eg.:
+# variables:
+#   !reference [.docker_hub_variables]
+#   OTHER_VARIABLE: "value"
+# is not valid, only:
+# variables:
+#   !reference [.docker_hub_variables]
+# is.
+# The jobs in this stage need to add more variables on top of the default variables, which
+# is why we can't use !reference here.
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -33,9 +42,7 @@
 revert_latest_6_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -50,9 +57,7 @@ revert_latest_6_docker_hub:
 revert_latest_7_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -105,9 +110,7 @@ revert_latest_7_docker_hub:
 revert_latest_6_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -122,9 +125,7 @@ revert_latest_6_google_container_registry:
 revert_latest_7_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -181,9 +182,7 @@ revert_latest_7_google_container_registry:
 # - in the gitlab pipeline view, trigger the step (in the first column)
 delete_docker_tag:
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   tags: ["runner:docker", "size:large"]
