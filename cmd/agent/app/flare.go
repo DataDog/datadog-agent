@@ -97,10 +97,10 @@ func readProfileData(pdata *flare.ProfileData) error {
 		return fmt.Errorf("failed to initialize settings client: %v", err)
 	}
 	prevSettings := make(map[string]interface{})
-	if err := setRuntimeProfilingSettings(c, &prevSettings); err != nil {
+	if err := setRuntimeProfilingSettings(c, prevSettings); err != nil {
 		return err
 	}
-	defer resetRuntimeProfilingSettings(c, &prevSettings)
+	defer resetRuntimeProfilingSettings(c, prevSettings)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
 	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
@@ -231,7 +231,7 @@ func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 	return filePath, nil
 }
 
-func setRuntimeProfilingSettings(c settings.Client, prev *map[string]interface{}) error {
+func setRuntimeProfilingSettings(c settings.Client, prev map[string]interface{}) error {
 	if profileMutex && profileMutexFraction > 0 {
 		if err := getSetRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction, prev); err != nil {
 			return err
@@ -245,14 +245,14 @@ func setRuntimeProfilingSettings(c settings.Client, prev *map[string]interface{}
 	return nil
 }
 
-func getSetRuntimeSetting(c settings.Client, name string, new int, prev *map[string]interface{}) error {
+func getSetRuntimeSetting(c settings.Client, name string, new int, prev map[string]interface{}) error {
 	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, new))
 
 	oldVal, err := c.Get(name)
 	if err != nil {
 		return fmt.Errorf("failed to get current value of %s: %v", name, err)
 	}
-	(*prev)[name] = oldVal
+	prev[name] = oldVal
 
 	if _, err := c.Set(name, fmt.Sprint(new)); err != nil {
 		return fmt.Errorf("failed to set %s to %v: %v", name, new, err)
@@ -261,8 +261,8 @@ func getSetRuntimeSetting(c settings.Client, name string, new int, prev *map[str
 	return nil
 }
 
-func resetRuntimeProfilingSettings(c settings.Client, prev *map[string]interface{}) {
-	for name, value := range *prev {
+func resetRuntimeProfilingSettings(c settings.Client, prev map[string]interface{}) {
+	for name, value := range prev {
 		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
 		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
 			fmt.Fprintln(color.Output, color.RedString("Failed restore previous value of %s: %v", name, err))
