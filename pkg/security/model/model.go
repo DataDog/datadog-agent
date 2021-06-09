@@ -408,6 +408,7 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
+// SELinuxRawBufCapacity represents the capacity of the byte array in a SELinuxEvent
 const SELinuxRawBufCapacity = 32
 
 // SELinuxEvent represents a selinux event
