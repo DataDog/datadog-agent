@@ -148,7 +148,7 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
-		t.recordBytes(n)
+		t.recordBytes(int64(n))
 
 		select {
 		case <-t.stop:
@@ -281,10 +281,10 @@ func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
 }
 
-func (t *Tailer) recordBytes(n int) {
-	t.bytesRead += int64(n)
-	t.file.Source.BytesRead.Add(int64(n))
+func (t *Tailer) recordBytes(n int64) {
+	t.bytesRead += n
+	t.file.Source.BytesRead.Add(n)
 	if t.file.Source.ParentSource != nil {
-		t.file.Source.ParentSource.BytesRead.Add(int64(n))
+		t.file.Source.ParentSource.BytesRead.Add(n)
 	}
 }
