@@ -35,6 +35,7 @@ const DefaultSleepDuration = 1 * time.Second
 type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
+	bytesRead     int64
 
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
@@ -147,10 +148,7 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
-		t.file.Source.BytesRead.Add(int64(n))
-		if t.file.Source.ParentSource != nil {
-			t.file.Source.ParentSource.BytesRead.Add(int64(n))
-		}
+		t.recordBytes(n)
 
 		select {
 		case <-t.stop:
@@ -210,7 +208,7 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing", t.file.Path, "for tailer key", t.file.GetScanKey())
+	log.Info("Closing", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 	t.osFile.Close()
 	t.decoder.Stop()
 }
@@ -281,4 +279,12 @@ func (t *Tailer) shouldTrackOffset() bool {
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
+}
+
+func (t *Tailer) recordBytes(n int) {
+	t.bytesRead += int64(n)
+	t.file.Source.BytesRead.Add(int64(n))
+	if t.file.Source.ParentSource != nil {
+		t.file.Source.ParentSource.BytesRead.Add(int64(n))
+	}
 }
