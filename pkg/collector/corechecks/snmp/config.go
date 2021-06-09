@@ -273,17 +273,17 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
+	if profile != "" || len(c.metrics) > 0 {
+		c.autodetectProfile = false
+	} else {
+		c.autodetectProfile = true
+	}
+
 	if profile != "" {
 		err = c.refreshWithProfile(profile)
 		if err != nil {
 			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
-	}
-
-	if len(c.metrics) > 0 {
-		c.autodetectProfile = false
-	} else {
-		c.autodetectProfile = true
 	}
 
 	c.deviceID, c.deviceIDTags = buildDeviceID(c.getDeviceIDTags())
