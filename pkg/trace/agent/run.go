@@ -14,6 +14,8 @@ import (
 	"runtime/pprof"
 	"time"
 
+	appsecagent "github.com/DataDog/datadog-agent/pkg/appsec/agent"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/appsec/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -149,6 +151,14 @@ func Run(ctx context.Context) {
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
+	// Start the appsec agent
+	appsecagent, err := appsecagent.NewAgent(appsecconfig.FromAgentConfig())
+	if err != nil {
+		log.Error("appsec agent: ", err)
+	} else {
+		appsecagent.Start(ctx)
+	}
+	// Run the tracer agent
 	agnt.Run()
 
 	// collect memory profile

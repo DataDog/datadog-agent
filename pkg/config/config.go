@@ -21,6 +21,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -842,6 +843,7 @@ func InitConfig(config Config) {
 
 	setAssetFs(config)
 	setupAPM(config)
+	appsecconfig.InitConfig(config)
 }
 
 var (
