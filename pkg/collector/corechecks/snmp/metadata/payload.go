@@ -4,12 +4,13 @@ package metadata
 // Resources are devices, interfaces, etc
 var PayloadMetadataBatchSize = 100
 
+// DeviceStatus enum type
 type DeviceStatus int32
 
 const (
 	// DeviceStatusReachable means the device can be reached by snmp integration
 	DeviceStatusReachable = DeviceStatus(1)
-	// DeviceStatusReachable means the device cannot be reached by snmp integration
+	// DeviceStatusUnreachable means the device cannot be reached by snmp integration
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
