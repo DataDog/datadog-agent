@@ -69,8 +69,8 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 		}
 	}()
 
-	// If no OIDs, try to detect profile using device sysobjectid
-	if !c.config.oidConfig.hasOids() {
+	// Try to detect profile using device sysobjectid
+	if c.config.autodetectProfile {
 		sysObjectID, err := fetchSysObjectID(c.session)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetching sysobjectid: %s", err)
@@ -89,8 +89,6 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 
 	// Fetch and report metrics
 	if c.config.oidConfig.hasOids() {
-		c.config.addUptimeMetric()
-
 		collectionTime := timeNow()
 		valuesStore, err := fetchValues(c.session, c.config)
 		if err != nil {
