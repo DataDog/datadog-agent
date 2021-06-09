@@ -109,7 +109,9 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
         return handle_selinux_ret_event(ctx, retval);          \
     }
 
+PROBE_SEL_WRITE_FUNC(sel_write_disable)
 PROBE_SEL_WRITE_FUNC(sel_write_enforce)
 PROBE_SEL_WRITE_FUNC(sel_write_bool)
+PROBE_SEL_WRITE_FUNC(sel_commit_bools_write)
 
 #endif
