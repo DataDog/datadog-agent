@@ -105,8 +105,8 @@ func TestRun(t *testing.T) {
 				eventMatch{
 					ruleID:       "cis-docker-1",
 					frameworkID:  "cis-docker",
-					resourceID:   "the-host",
-					resourceType: "docker",
+					resourceID:   "the-host_daemon",
+					resourceType: "docker_daemon",
 					result:       "passed",
 					path:         "/files/daemon.json",
 					permissions:  0644,
@@ -122,8 +122,8 @@ func TestRun(t *testing.T) {
 				eventMatch{
 					ruleID:       "cis-kubernetes-1",
 					frameworkID:  "cis-kubernetes",
-					resourceID:   "the-host",
-					resourceType: "kubernetesNode",
+					resourceID:   "kube_system_uuid_kubernetes_node",
+					resourceType: "kubernetes_node",
 					result:       "failed",
 					path:         "/files/kube-apiserver.yaml",
 					permissions:  0644,
@@ -149,6 +149,9 @@ func TestRun(t *testing.T) {
 	dockerClient.On("Close").Return(nil).Once()
 	defer dockerClient.AssertExpectations(t)
 
+	kubeClient := &mocks.KubeClient{}
+	kubeClient.On("Resource", mock.Anything).Return(nil)
+
 	nodeLabels := map[string]string{
 		"node-role.kubernetes.io/worker": "",
 	}
@@ -161,6 +164,7 @@ func TestRun(t *testing.T) {
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
 		checks.WithNodeLabels(nodeLabels),
+		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)
 
@@ -200,8 +204,8 @@ func TestRunChecks(t *testing.T) {
 				eventMatch{
 					ruleID:       "cis-docker-1",
 					frameworkID:  "cis-docker",
-					resourceID:   "the-host",
-					resourceType: "docker",
+					resourceID:   "the-host_daemon",
+					resourceType: "docker_daemon",
 					result:       "passed",
 					path:         "/files/daemon.json",
 					permissions:  0644,
@@ -242,8 +246,8 @@ func TestRunChecksFromFile(t *testing.T) {
 				eventMatch{
 					ruleID:       "cis-kubernetes-1",
 					frameworkID:  "cis-kubernetes",
-					resourceID:   "the-host",
-					resourceType: "kubernetesNode",
+					resourceID:   "kube_system_uuid_kubernetes_node",
+					resourceType: "kubernetes_node",
 					result:       "failed",
 					path:         "/files/kube-apiserver.yaml",
 					permissions:  0644,
@@ -258,6 +262,8 @@ func TestRunChecksFromFile(t *testing.T) {
 	dockerClient.On("Close").Return(nil).Once()
 	defer dockerClient.AssertExpectations(t)
 
+	kubeClient := &mocks.KubeClient{}
+
 	nodeLabels := map[string]string{
 		"node-role.kubernetes.io/worker": "",
 	}
@@ -269,6 +275,7 @@ func TestRunChecksFromFile(t *testing.T) {
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
 		checks.WithNodeLabels(nodeLabels),
+		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)
 }

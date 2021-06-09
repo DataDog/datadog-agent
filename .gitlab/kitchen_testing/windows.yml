@@ -5,21 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-.if_deploy_6: &if_deploy_6
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_7: &if_deploy_7
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
-
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
-.if_default_kitchen: &if_default_kitchen
-  if: $RUN_KITCHEN_TESTS != "false"
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
 # Kitchen: OSes
 # -------------
 
@@ -27,6 +12,7 @@
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2008r2,win2012,win2012r2,win2016,win2019"
+    DEFAULT_KITCHEN_OSVERS: "win2019"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
@@ -56,6 +42,7 @@
   variables:
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2012r2,win2016,win2019,win1903,win1909,win2004,win20h2"
+    DEFAULT_KITCHEN_OSVERS: "win20h2"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - rsync -azr --delete ./ $SRC_PATH
@@ -123,12 +110,7 @@ kitchen_windows_installer_npm_install_scenarios-a7:
 kitchen_windows_installer_npm_driver-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
-      variables:
-        KITCHEN_OSVERS: "win20h2"
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_driver
@@ -151,12 +133,7 @@ kitchen_windows_chef_agent-a6:
 kitchen_windows_chef_agent-a7:
   # Run chef test on branches, on a reduced number of platforms
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
-      variables:
-        KITCHEN_OSVERS: "win2019"
+    !reference [.on_default_kitchen_tests_a7]
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_chef_agent

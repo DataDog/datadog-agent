@@ -300,16 +300,27 @@ func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) 
 }
 
 // lookupStandard returns the standard tags recorded for a given entity
-func (s *tagStore) lookupStandard(entity string) ([]string, error) {
+func (s *tagStore) lookupStandard(entityID string) ([]string, error) {
+
+	storedTags, err := s.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	return storedTags.getStandard(), nil
+}
+
+// getEntityTags returns the standard tags recorded for a given entity
+func (s *tagStore) getEntityTags(entityID string) (*entityTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	storedTags, present := s.store[entity]
+	storedTags, present := s.store[entityID]
 	if present == false {
 		return nil, errNotFound
 	}
 
-	return storedTags.getStandard(), nil
+	return storedTags, nil
 }
 
 func (e *entityTags) getStandard() []string {

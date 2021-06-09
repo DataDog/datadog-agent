@@ -104,27 +104,34 @@ func GlobalProcessingRules() ([]*ProcessingRule, error) {
 // BuildEndpoints returns the endpoints to send logs.
 func BuildEndpoints(httpConnectivity HTTPConnectivity) (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
-	if coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl") {
-		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, please use 'logs_config.logs_dd_url' and 'logs_config.logs_no_ssl' instead")
+	return BuildEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix, httpConnectivity)
+}
+
+// BuildEndpointsWithConfig returns the endpoints to send logs.
+func BuildEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity) (*Endpoints, error) {
+	if logsConfig.devModeNoSSL() {
+		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
+			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
-	if isForceHTTPUse() || (bool(httpConnectivity) && !(isForceTCPUse() || isSocks5ProxySet() || hasAdditionalEndpoints())) {
-		return BuildHTTPEndpoints()
+	if logsConfig.isForceHTTPUse() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+		return BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
 	}
-	log.Warn("You are currently sending Logs to Datadog through TCP (either because logs_config.use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed) " +
-		"To benefit from increased reliability and better network performances, " +
-		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.")
-	return buildTCPEndpoints()
+	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
+		"To benefit from increased reliability and better network performances, "+
+		"we strongly encourage switching over to compressed HTTPS which is now the default protocol.",
+		logsConfig.getConfigKey("use_tcp"), logsConfig.getConfigKey("socks5_proxy_address"))
+	return buildTCPEndpoints(logsConfig)
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints() (*Endpoints, error) {
 	coreConfig.SanitizeAPIKeyConfig(coreConfig.Datadog, "logs_config.api_key")
-	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, serverlessHTTPEndpointPrefix)
+	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), serverlessHTTPEndpointPrefix)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
 func ExpectedTagsDuration() time.Duration {
-	return coreConfig.Datadog.GetDuration("logs_config.expected_tags_duration")
+	return defaultLogsConfigKeys().expectedTagsDuration()
 }
 
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
@@ -132,59 +139,43 @@ func IsExpectedTagsSet() bool {
 	return ExpectedTagsDuration() > 0
 }
 
-func isSocks5ProxySet() bool {
-	return len(coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")) > 0
-}
-
-func isForceTCPUse() bool {
-	return coreConfig.Datadog.GetBool("logs_config.use_tcp")
-}
-
-func isForceHTTPUse() bool {
-	return coreConfig.Datadog.GetBool("logs_config.use_http")
-}
-
-func hasAdditionalEndpoints() bool {
-	return len(getAdditionalEndpoints()) > 0
-}
-
-func buildTCPEndpoints() (*Endpoints, error) {
-	useProto := coreConfig.Datadog.GetBool("logs_config.dev_mode_use_proto")
-	proxyAddress := coreConfig.Datadog.GetString("logs_config.socks5_proxy_address")
+func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
+	useProto := logsConfig.devModeUseProto()
+	proxyAddress := logsConfig.socks5ProxyAddress()
 	main := Endpoint{
-		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
+		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
-		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt("logs_config.connection_reset_interval")) * time.Second,
+		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 	}
-	switch {
-	case isSetAndNotEmpty(coreConfig.Datadog, "logs_config.logs_dd_url"):
+
+	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
-		host, port, err := parseAddress(coreConfig.Datadog.GetString("logs_config.logs_dd_url"))
+		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.logs_no_ssl")
-	case coreConfig.Datadog.GetBool("logs_config.use_port_443"):
-		main.Host = coreConfig.Datadog.GetString("logs_config.dd_url_443")
+		main.UseSSL = !logsConfig.logsNoSSL()
+	} else if logsConfig.usePort443() {
+		main.Host = logsConfig.ddURL443()
 		main.Port = 443
 		main.UseSSL = true
-	default:
+	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url")
+		main.Host = coreConfig.GetMainEndpoint(tcpEndpointPrefix, logsConfig.getConfigKey("dd_url"))
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
-			main.Port = coreConfig.Datadog.GetInt("logs_config.dd_port")
+			main.Port = logsConfig.ddPort()
 		}
-		main.UseSSL = !coreConfig.Datadog.GetBool("logs_config.dev_mode_no_ssl")
+		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	additionals := getAdditionalEndpoints()
+	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
@@ -193,189 +184,53 @@ func buildTCPEndpoints() (*Endpoints, error) {
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
-// LogsConfigKeys stores logs configuration keys stored in YAML configuration files
-type LogsConfigKeys struct {
-	UseCompression          string
-	CompressionLevel        string
-	ConnectionResetInterval string
-	LogsDDURL               string
-	LogsNoSSL               string
-	DDURL                   string
-	DevModeNoSSL            string
-	AdditionalEndpoints     string
-	BatchWait               string
-	BatchMaxConcurrentSend  string
-	BatchMaxSize            string
-	BatchMaxContentSize     string
-	BackoffMinFactor        string
-	BackoffBaseTime         string
-	BackoffMaxTime          string
-	BackoffRecoveryInterval string
-	BackoffRecoveryReset    string
-}
-
-// logsConfigDefaultKeys defines the default YAML keys used to retrieve logs configuration
-var logsConfigDefaultKeys = NewLogsConfigKeys("logs_config.")
-
-// NewLogsConfigKeys returns a new logs configuration keys set
-func NewLogsConfigKeys(configPrefix string) LogsConfigKeys {
-	return LogsConfigKeys{
-		UseCompression:          configPrefix + "use_compression",
-		CompressionLevel:        configPrefix + "compression_level",
-		ConnectionResetInterval: configPrefix + "connection_reset_interval",
-		LogsDDURL:               configPrefix + "logs_dd_url",
-		LogsNoSSL:               configPrefix + "logs_no_ssl",
-		DDURL:                   configPrefix + "dd_url",
-		DevModeNoSSL:            configPrefix + "dev_mode_no_ssl",
-		AdditionalEndpoints:     configPrefix + "additional_endpoints",
-		BatchWait:               configPrefix + "batch_wait",
-		BatchMaxConcurrentSend:  configPrefix + "batch_max_concurrent_send",
-		BatchMaxSize:            configPrefix + "batch_max_size",
-		BatchMaxContentSize:     configPrefix + "batch_max_content_size",
-		BackoffMinFactor:        configPrefix + "sender_backoff_factor",
-		BackoffBaseTime:         configPrefix + "sender_backoff_base",
-		BackoffMaxTime:          configPrefix + "sender_backoff_max",
-		BackoffRecoveryInterval: configPrefix + "sender_recovery_interval",
-		BackoffRecoveryReset:    configPrefix + "sender_recovery_reset",
-	}
-}
-
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpoints() (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(logsConfigDefaultKeys, httpEndpointPrefix)
+	return BuildHTTPEndpointsWithConfig(defaultLogsConfigKeys(), httpEndpointPrefix)
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
-func BuildHTTPEndpointsWithConfig(logsConfig LogsConfigKeys, endpointPrefix string) (*Endpoints, error) {
+func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix string) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
-	defaultUseSSL := false
-	if len(logsConfig.LogsNoSSL) != 0 {
-		defaultUseSSL = coreConfig.Datadog.GetBool(logsConfig.LogsNoSSL)
-	}
-
-	defaultUseCompression := true
-	if len(logsConfig.UseCompression) != 0 {
-		defaultUseCompression = coreConfig.Datadog.GetBool(logsConfig.UseCompression)
-	}
-
-	backoffFactor := coreConfig.DefaultLogsSenderBackoffFactor
-	if name := logsConfig.BackoffMinFactor; name != "" && coreConfig.Datadog.IsSet(name) {
-		backoffFactor = coreConfig.Datadog.GetFloat64(name)
-	}
-
-	backoffBase := coreConfig.DefaultLogsSenderBackoffBase
-	if name := logsConfig.BackoffBaseTime; name != "" && coreConfig.Datadog.IsSet(name) {
-		backoffBase = coreConfig.Datadog.GetFloat64(name)
-	}
-
-	backoffMax := coreConfig.DefaultLogsSenderBackoffMax
-	if name := logsConfig.BackoffMaxTime; name != "" && coreConfig.Datadog.IsSet(name) {
-		backoffMax = coreConfig.Datadog.GetFloat64(name)
-	}
-
-	recoveryInterval := coreConfig.DefaultLogsSenderBackoffRecoveryInterval
-	if name := logsConfig.BackoffRecoveryInterval; name != "" && coreConfig.Datadog.IsSet(name) {
-		recoveryInterval = coreConfig.Datadog.GetInt(name)
-	}
-
-	recoveryReset := false
-	if name := logsConfig.BackoffRecoveryReset; name != "" && coreConfig.Datadog.IsSet(name) {
-		recoveryReset = coreConfig.Datadog.GetBool(name)
-	}
+	defaultNoSSL := logsConfig.logsNoSSL()
 
 	main := Endpoint{
-		APIKey:                  getLogsAPIKey(coreConfig.Datadog),
-		UseCompression:          defaultUseCompression,
-		CompressionLevel:        coreConfig.Datadog.GetInt(logsConfig.CompressionLevel),
-		ConnectionResetInterval: time.Duration(coreConfig.Datadog.GetInt(logsConfig.ConnectionResetInterval)) * time.Second,
-		BackoffFactor:           backoffFactor,
-		BackoffBase:             backoffBase,
-		BackoffMax:              backoffMax,
-		RecoveryInterval:        recoveryInterval,
-		RecoveryReset:           recoveryReset,
+		APIKey:                  logsConfig.getLogsAPIKey(),
+		UseCompression:          logsConfig.useCompression(),
+		CompressionLevel:        logsConfig.compressionLevel(),
+		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		BackoffBase:             logsConfig.senderBackoffBase(),
+		BackoffMax:              logsConfig.senderBackoffMax(),
+		BackoffFactor:           logsConfig.senderBackoffFactor(),
+		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
+		RecoveryReset:           logsConfig.senderRecoveryReset(),
 	}
 
-	validateBackoffSettings(&main)
-
-	switch {
-	case isSetAndNotEmpty(coreConfig.Datadog, logsConfig.LogsDDURL):
-		host, port, err := parseAddress(coreConfig.Datadog.GetString(logsConfig.LogsDDURL))
+	if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
+		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse logs_dd_url: %v", err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsConfig.getConfigKey("logs_dd_url"), err)
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !defaultUseSSL
-	default:
-		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, logsConfig.DDURL)
-		main.UseSSL = !coreConfig.Datadog.GetBool(logsConfig.DevModeNoSSL)
+		main.UseSSL = !defaultNoSSL
+	} else {
+		main.Host = coreConfig.GetMainEndpoint(endpointPrefix, logsConfig.getConfigKey("dd_url"))
+		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	additionals := getAdditionalEndpointsFromKey(logsConfig.AdditionalEndpoints)
+	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
 
-	batchWait := batchWaitFromKey(coreConfig.Datadog, logsConfig.BatchWait)
-	batchMaxConcurrentSend := batchMaxConcurrentSendFromKey(logsConfig.BatchMaxConcurrentSend)
-	batchMaxSize := batchMaxSizeFromKey(logsConfig.BatchMaxSize)
-	batchMaxContentSize := batchMaxContentSizeFromKey(logsConfig.BatchMaxContentSize)
+	batchWait := logsConfig.batchWait()
+	batchMaxConcurrentSend := logsConfig.batchMaxConcurrentSend()
+	batchMaxSize := logsConfig.batchMaxSize()
+	batchMaxContentSize := logsConfig.batchMaxContentSize()
 
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
-}
-
-func validateBackoffSettings(e *Endpoint) {
-	if e.BackoffFactor < 2 {
-		e.BackoffFactor = coreConfig.DefaultLogsSenderBackoffFactor
-		log.Warnf("configured sender backoff factor is less than 2; %v will be used", e.BackoffFactor)
-	}
-	if e.BackoffBase <= 0 {
-		e.BackoffBase = coreConfig.DefaultLogsSenderBackoffBase
-		log.Warnf("configured sender base backoff time is not positive; %v will be used", e.BackoffBase)
-	}
-	if e.BackoffMax <= 0 {
-		e.BackoffFactor = coreConfig.DefaultLogsSenderBackoffMax
-		log.Warnf("configured sender base backoff time is not positive; %v will be used", e.BackoffMax)
-	}
-	if e.RecoveryInterval <= 0 {
-		e.RecoveryInterval = coreConfig.DefaultForwarderRecoveryInterval
-		log.Warnf("configured senderrecovery interval is not positive; %v will be used", e.RecoveryInterval)
-	}
-}
-
-func getAdditionalEndpoints() []Endpoint {
-	return getAdditionalEndpointsFromKey("logs_config.additional_endpoints")
-}
-
-func getAdditionalEndpointsFromKey(additionalEndpointsParameter string) []Endpoint {
-	var endpoints []Endpoint
-	var err error
-	raw := coreConfig.Datadog.Get(additionalEndpointsParameter)
-	if raw == nil {
-		return endpoints
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = coreConfig.Datadog.UnmarshalKey(additionalEndpointsParameter, &endpoints)
-	}
-	if err != nil {
-		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
-	}
-	return endpoints
-}
-
-func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
-	return config.IsSet(key) && len(config.GetString(key)) > 0
-}
-
-// getLogsAPIKey provides the dd api key used by the main logs agent sender.
-func getLogsAPIKey(config coreConfig.Config) string {
-	if isSetAndNotEmpty(config, "logs_config.api_key") {
-		return coreConfig.SanitizeAPIKey(config.GetString("logs_config.api_key"))
-	}
-	return coreConfig.SanitizeAPIKey(config.GetString("api_key"))
 }
 
 // parseAddress returns the host and the port of the address.
@@ -391,48 +246,12 @@ func parseAddress(address string) (string, int, error) {
 	return host, port, nil
 }
 
-func batchWaitFromKey(config coreConfig.Config, batchWaitKey string) time.Duration {
-	batchWait := coreConfig.Datadog.GetInt(batchWaitKey)
-	if batchWait < 1 || 10 < batchWait {
-		log.Warnf("Invalid batch_wait: %v should be in [1, 10], fallback on %v", batchWait, coreConfig.DefaultBatchWait)
-		return coreConfig.DefaultBatchWait * time.Second
-	}
-	return (time.Duration(batchWait) * time.Second)
-}
-
-func batchMaxConcurrentSendFromKey(key string) int {
-	batchMaxConcurrentSend := coreConfig.Datadog.GetInt(key)
-	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, coreConfig.DefaultBatchMaxConcurrentSend)
-		return coreConfig.DefaultBatchMaxConcurrentSend
-	}
-	return batchMaxConcurrentSend
-}
-
-func batchMaxSizeFromKey(key string) int {
-	batchMaxSize := coreConfig.Datadog.GetInt(key)
-	if batchMaxSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, coreConfig.DefaultBatchMaxSize)
-		return coreConfig.DefaultBatchMaxSize
-	}
-	return batchMaxSize
-}
-
-func batchMaxContentSizeFromKey(key string) int {
-	batchMaxContentSize := coreConfig.Datadog.GetInt(key)
-	if batchMaxContentSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, coreConfig.DefaultBatchMaxContentSize)
-		return coreConfig.DefaultBatchMaxContentSize
-	}
-	return batchMaxContentSize
-}
-
 // TaggerWarmupDuration is used to configure the tag providers
 func TaggerWarmupDuration() time.Duration {
-	return coreConfig.Datadog.GetDuration("logs_config.tagger_warmup_duration") * time.Second
+	return defaultLogsConfigKeys().taggerWarmupDuration()
 }
 
 // AggregationTimeout is used when performing aggregation operations
 func AggregationTimeout() time.Duration {
-	return coreConfig.Datadog.GetDuration("logs_config.aggregation_timeout") * time.Millisecond
+	return defaultLogsConfigKeys().aggregationTimeout()
 }

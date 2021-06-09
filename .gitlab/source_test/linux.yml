@@ -1,15 +1,8 @@
 ---
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 .rtloader_tests:
   stage: source_test
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate $CONDA_ENV
     - python3 -m pip install wheel
     - python3 -m pip install -r requirements.txt
@@ -33,9 +26,11 @@
 
 tests_deb-x64-py2:
   extends: .rtloader_tests
-  needs: ["linux_x64_go_deps"]
+  rules:
+    !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
+  needs: ["linux_x64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -44,9 +39,9 @@ tests_deb-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  needs: ["linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
+  needs: ["linux_x64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -56,9 +51,11 @@ tests_deb-x64-py3:
 # This is OK because the test on systemd still runs on the debian image above
 tests_rpm-x64-py2:
   extends: .rtloader_tests
-  needs: ["linux_x64_go_deps"]
+  rules:
+    !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
+  needs: ["linux_x64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -68,9 +65,9 @@ tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  needs: ["linux_x64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
+  needs: ["linux_x64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -78,9 +75,11 @@ tests_rpm-x64-py3:
 
 tests_deb-arm64-py2:
   extends: .rtloader_tests
-  needs: ["linux_arm64_go_deps"]
+  rules:
+    !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["linux_arm64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -98,9 +97,11 @@ tests_deb-arm64-py3:
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
-  needs: ["linux_arm64_go_deps"]
+  rules:
+    !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["linux_arm64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -109,9 +110,9 @@ tests_rpm-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  needs: ["linux_arm64_go_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["linux_arm64_go_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -123,7 +124,7 @@ go_mod_tidy_check:
   tags: ["runner:main", "size:large"]
   needs: ["linux_x64_go_deps"]
   before_script:
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - python3 -m pip install --upgrade --ignore-installed pip setuptools
     - python3 -m pip install -r requirements.txt
   script:

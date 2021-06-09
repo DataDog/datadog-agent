@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/http/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -60,7 +60,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // Register all networkTracer endpoints
-func (nt *networkTracer) Register(httpMux *mux.Router) error {
+func (nt *networkTracer) Register(httpMux *module.Router) error {
 	var runCounter uint64
 
 	httpMux.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
@@ -105,6 +105,18 @@ func (nt *networkTracer) Register(httpMux *mux.Router) error {
 		}
 
 		utils.WriteAsJSON(w, stats)
+	})
+
+	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
 	})
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.

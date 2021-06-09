@@ -46,6 +46,13 @@ const (
 
 const procResolveMaxDepth = 16
 
+func getAttr2(probe *Probe) uint64 {
+	if probe.kernelVersion.IsRH7Kernel() {
+		return 1
+	}
+	return 0
+}
+
 // getDoForkInput returns the expected input type of _do_fork, do_fork and kernel_clone
 func getDoForkInput(probe *Probe) uint64 {
 	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= kernel.Kernel5_3 {
@@ -398,7 +405,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 	entry, exists := p.entryCache[pid]
 	if exists {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:cache"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.CacheTag}, 1.0)
 		return entry
 	}
 
@@ -408,13 +415,13 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
 	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:kernel_maps"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.KernelMapsTag}, 1.0)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
 	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
-		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{"type:procfs"}, 1.0)
+		_ = p.client.Count(metrics.MetricProcessResolverCacheHits, 1, []string{metrics.ProcFSTag}, 1.0)
 		return entry
 	}
 
@@ -452,6 +459,13 @@ func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry
 	return entry.ContainerPath
 }
 
+// ApplyBootTime realign timestamp from the boot time
+func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
+	entry.ExecTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExecTime)
+	entry.ForkTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ForkTime)
+	entry.ExitTime = p.resolvers.TimeResolver.ApplyBootTime(entry.ExitTime)
+}
+
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
 	id, err := model.UnmarshalString(data, 64)
@@ -465,9 +479,7 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 		return read + 64, err
 	}
 
-	entry.ExecTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExecTimestamp)
-	entry.ForkTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ForkTimestamp)
-	entry.ExitTime = p.resolvers.TimeResolver.ResolveMonotonicTimestamp(entry.ExitTimestamp)
+	p.ApplyBootTime(entry)
 
 	return read + 64, err
 }

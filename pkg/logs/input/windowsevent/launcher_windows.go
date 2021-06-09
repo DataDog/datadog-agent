@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -81,6 +82,9 @@ func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 	}
 	err = nil
 	// Call will set error anyway.  Clear it so we don't return an error
-	ch = ConvertWindowsString(buf)
+
+	// make sure size of buffer is set
+	buf = buf[:(bufUsed * 2)]
+	ch = winutil.ConvertWindowsString(buf)
 	return
 }

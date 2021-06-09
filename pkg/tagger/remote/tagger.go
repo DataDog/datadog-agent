@@ -165,6 +165,16 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 	return entity.StandardTags, nil
 }
 
+// GetEntity returns the entity corresponding to the specified id and an error
+func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
+	entity := t.store.getEntity(entityID)
+	if entity == nil {
+		return nil, fmt.Errorf("Entity not found for entityID")
+	}
+
+	return entity, nil
+}
+
 // List returns all the entities currently stored by the tagger.
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	entities := t.store.listEntities()

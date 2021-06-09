@@ -137,7 +137,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTimestamp = ByteOrder.Uint64(data[read : read+8])
+	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
 	read += 8
 
 	var ttyRaw [64]byte
@@ -157,8 +157,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.Cookie = ByteOrder.Uint32(data[read : read+4])
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
-	e.ForkTimestamp = ByteOrder.Uint64(data[read+8 : read+16])
-	e.ExitTimestamp = ByteOrder.Uint64(data[read+16 : read+24])
+	e.ForkTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+8:read+16])))
+	e.ExitTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+16:read+24])))
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t

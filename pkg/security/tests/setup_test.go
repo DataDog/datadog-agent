@@ -52,7 +52,10 @@ var (
 	logger              seelog.LoggerInterface
 )
 
-const grpcAddr = "127.0.0.1:18787"
+const (
+	grpcAddr        = "127.0.0.1:18787"
+	getEventTimeout = 3 * time.Second
+)
 
 const testConfig = `---
 log_level: DEBUG
@@ -508,7 +511,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {
@@ -894,7 +897,7 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
 func waitForProbeEvent(test *testModule, key string, value interface{}, eventType model.EventType) (*sprobe.Event, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {

@@ -23,7 +23,7 @@ type SerieSignature struct {
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
-	contextResolver             *timestampContextResolver
+	contextResolver             *ContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
@@ -37,7 +37,7 @@ func NewTimeSampler(interval int64) *TimeSampler {
 	}
 	return &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(),
+		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
