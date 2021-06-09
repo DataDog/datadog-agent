@@ -336,17 +336,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		}
 	}
 
-	// restore the current function ARN and request ID from the cache in case the extension was restarted
-	// ---------------------------
-
-	errRestore := aws.RestoreCurrentStateFromFile()
-	if errRestore != nil {
-		log.Debug("Did not restore current state from file")
-	} else {
-		log.Debug("Restored from previous state")
-		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
-	}
-
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
@@ -364,6 +353,18 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	daemon.SetStatsdServer(statsdServer)
 	daemon.SetTraceAgent(ta)
 	daemon.SetAggregator(aggregatorInstance)
+
+	// restore the current function ARN and request ID from the cache in case the extension was restarted
+	// ---------------------------
+
+	errRestore := aws.RestoreCurrentStateFromFile()
+	if errRestore != nil {
+		log.Debug("Did not restore current state from file")
+	} else {
+		log.Debug("Restored from previous state")
+		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
+	}
+
 	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
