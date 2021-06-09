@@ -803,9 +803,16 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		statsdClient:   client,
 		erpc:           erpc,
 	}
+
 	if err = p.detectKernelVersion(); err != nil {
 		return nil, err
 	}
+
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse CPU count")
+	}
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")

@@ -11,11 +11,8 @@ import (
 	"C"
 	"fmt"
 	"os"
-	"runtime"
 	"sync/atomic"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -23,8 +20,10 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -45,6 +44,8 @@ type DentryResolver struct {
 	erpcSegmentSize       int
 	erpcRequest           ERPCRequest
 	erpcEnabled           bool
+	erpcStatsZero         []eRPCStats
+	numCPU                int
 	mapEnabled            bool
 
 	hitsCounters map[string]map[string]*int64
@@ -171,12 +172,10 @@ func (dr *DentryResolver) SendStats() error {
 	return dr.sendERPCStats()
 }
 
-var eRPCStatsZero = make([]eRPCStats, runtime.NumCPU())
-
 func (dr *DentryResolver) sendERPCStats() error {
 	buffer := dr.erpcStats[1-dr.activeERPCStatsBuffer]
 	iterator := buffer.Iterate()
-	stats := make([]eRPCStats, runtime.NumCPU())
+	stats := make([]eRPCStats, dr.numCPU)
 	counters := map[eRPCRet]int64{}
 	var ret eRPCRet
 
@@ -197,7 +196,7 @@ func (dr *DentryResolver) sendERPCStats() error {
 		}
 	}
 	for _, r := range allERPCRet() {
-		_ = buffer.Put(r, eRPCStatsZero)
+		_ = buffer.Put(r, dr.erpcStatsZero)
 	}
 
 	dr.activeERPCStatsBuffer = 1 - dr.activeERPCStatsBuffer
@@ -685,6 +684,11 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		}
 	}
 
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+	}
+
 	return &DentryResolver{
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
@@ -693,8 +697,10 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		erpcStatsZero:   make([]eRPCStats, numCPU),
 		mapEnabled:      probe.config.MapDentryResolutionEnabled,
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
+		numCPU:          numCPU,
 	}, nil
 }
