@@ -106,7 +106,7 @@ func GetInt(v interface{}) (int, error) {
 	case int:
 		return v, nil
 	case string:
-		i, err := strconv.ParseInt(v, 10, 32)
+		i, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return 0, fmt.Errorf("GetInt: %s", err)
 		}
