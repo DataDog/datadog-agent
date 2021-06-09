@@ -23,6 +23,7 @@ build do
             if Dir.exists(conf_dir)?
                 command "dir #{conf_dir}"
                 delete "#{conf_dir}"
+            end
             mkdir conf_dir
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
             move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
