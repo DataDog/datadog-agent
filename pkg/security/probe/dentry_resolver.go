@@ -11,8 +11,11 @@ import (
 	"C"
 	"fmt"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -31,15 +34,18 @@ const (
 
 // DentryResolver resolves inode/mountID to full paths
 type DentryResolver struct {
-	client          *statsd.Client
-	pathnames       *lib.Map
-	cache           map[uint32]*lru.Cache
-	erpc            *ERPC
-	erpcSegment     []byte
-	erpcSegmentSize int
-	erpcRequest     ERPCRequest
-	erpcEnabled     bool
-	mapEnabled      bool
+	client                *statsd.Client
+	pathnames             *lib.Map
+	erpcStats             [2]*lib.Map
+	bufferSelector        *lib.Map
+	activeERPCStatsBuffer uint32
+	cache                 map[uint32]*lru.Cache
+	erpc                  *ERPC
+	erpcSegment           []byte
+	erpcSegmentSize       int
+	erpcRequest           ERPCRequest
+	erpcEnabled           bool
+	mapEnabled            bool
 
 	hitsCounters map[string]map[string]*int64
 	missCounters map[string]map[string]*int64
@@ -104,6 +110,44 @@ func (pv *PathValue) GetName() string {
 	return C.GoString((*C.char)(unsafe.Pointer(&pv.Name)))
 }
 
+// eRPCStats is used to collect kernel space metrics about the eRPC resolution
+type eRPCStats struct {
+	Count uint64
+}
+
+// eRPCRet is the type used to parse the eRPC return value
+type eRPCRet uint32
+
+func (ret eRPCRet) String() string {
+	switch ret {
+	case eRPCok:
+		return "ok"
+	case eRPCCacheMiss:
+		return "cache_miss"
+	case eRPCBufferSize:
+		return "buffer_size"
+	case eRPCMajorPageFault:
+		return "major_page_fault"
+	case eRPCTailCallError:
+		return "tail_call_error"
+	default:
+		return "unknown"
+	}
+}
+
+const (
+	eRPCok eRPCRet = iota
+	eRPCCacheMiss
+	eRPCBufferSize
+	eRPCMajorPageFault
+	eRPCTailCallError
+	eRPCUnknownError
+)
+
+func allERPCRet() []eRPCRet {
+	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCMajorPageFault, eRPCTailCallError, eRPCUnknownError}
+}
+
 // SendStats sends the dentry resolver metrics
 func (dr *DentryResolver) SendStats() error {
 	for resolution, hitsCounters := range dr.hitsCounters {
@@ -123,7 +167,41 @@ func (dr *DentryResolver) SendStats() error {
 			}
 		}
 	}
-	return nil
+
+	return dr.sendERPCStats()
+}
+
+var eRPCStatsZero = make([]eRPCStats, runtime.NumCPU())
+
+func (dr *DentryResolver) sendERPCStats() error {
+	buffer := dr.erpcStats[1-dr.activeERPCStatsBuffer]
+	iterator := buffer.Iterate()
+	stats := make([]eRPCStats, runtime.NumCPU())
+	counters := map[eRPCRet]int64{}
+	var ret eRPCRet
+
+	for iterator.Next(&ret, &stats) {
+		if ret == eRPCok {
+			continue
+		}
+		for _, count := range stats {
+			if _, ok := counters[ret]; !ok {
+				counters[ret] = 0
+			}
+			counters[ret] += int64(count.Count)
+		}
+	}
+	for r, count := range counters {
+		if count > 0 {
+			_ = dr.client.Count(metrics.MetricDentryERPC, count, []string{fmt.Sprintf("ret:%s", r)}, 1.0)
+		}
+	}
+	for _, r := range allERPCRet() {
+		_ = buffer.Put(r, eRPCStatsZero)
+	}
+
+	dr.activeERPCStatsBuffer = 1 - dr.activeERPCStatsBuffer
+	return dr.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, dr.activeERPCStatsBuffer)
 }
 
 // DelCacheEntry removes an entry from the cache
@@ -414,7 +492,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var keys []PathKey
 	var segments []string
 
-	if dr.erpcSegment[0] == 0 {
+	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
@@ -427,7 +505,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		// parse the path_key_t structure
 		key.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
 		key.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
-		// skip pathID
+		// skip PathID
 		i += 16
 
 		if dr.erpcSegment[i] == 0 {
@@ -473,10 +551,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 			_ = dr.cacheInode(k.MountID, k.Inode, val)
 		}
-	}
 
-	if depth > 0 {
-		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
+		if depth > 0 {
+			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
+		}
+	} else {
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 	}
 
 	return filename, resolutionErr
@@ -527,14 +607,29 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 
 // Start the dentry resolver
 func (dr *DentryResolver) Start(probe *Probe) error {
-	pathnames, ok, err := probe.manager.GetMap("pathnames")
+	pathnames, err := probe.Map("pathnames")
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return errors.New("map pathnames not found")
-	}
 	dr.pathnames = pathnames
+
+	erpcStatsFB, err := probe.Map("dr_erpc_stats_fb")
+	if err != nil {
+		return err
+	}
+	dr.erpcStats[0] = erpcStatsFB
+
+	erpcStatsBB, err := probe.Map("dr_erpc_stats_bb")
+	if err != nil {
+		return err
+	}
+	dr.erpcStats[1] = erpcStatsBB
+
+	bufferSelector, err := probe.Map("buffer_selector")
+	if err != nil {
+		return err
+	}
+	dr.bufferSelector = bufferSelector
 
 	return nil
 }

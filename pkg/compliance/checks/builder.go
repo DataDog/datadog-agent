@@ -382,7 +382,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	resourceReporter := b.getRuleResourceReporter(ruleScope, rule)
+	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
 	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
@@ -399,11 +399,19 @@ func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance
 	}
 }
 
-func (b *builder) kubeResourceReporter(rule *compliance.Rule, resourceType string) resourceReporter {
+func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string) resourceReporter {
 	return func(report *compliance.Report) compliance.ReportResource {
-		clusterID, err := b.kubeClient.ClusterID()
-		if err != nil {
-			log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+		var clusterID string
+		var err error
+
+		if b.kubeClient != nil {
+			clusterID, err = b.kubeClient.ClusterID()
+			if err != nil {
+				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+			}
+		}
+
+		if clusterID == "" {
 			clusterID = b.Hostname()
 		}
 
@@ -425,7 +433,7 @@ func (b *builder) kubeResourceReporter(rule *compliance.Rule, resourceType strin
 	}
 }
 
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule *compliance.Rule) resourceReporter {
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.Rule) resourceReporter {
 	switch scope {
 	case compliance.DockerScope:
 		return func(report *compliance.Report) compliance.ReportResource {
@@ -451,7 +459,7 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule *comp
 		return b.kubeResourceReporter(rule, "kubernetes_node")
 
 	case compliance.KubernetesClusterScope:
-		return b.kubeResourceReporter(rule, "kubernetes_controller")
+		return b.kubeResourceReporter(rule, "kubernetes_cluster")
 
 	default:
 		return func(report *compliance.Report) compliance.ReportResource {

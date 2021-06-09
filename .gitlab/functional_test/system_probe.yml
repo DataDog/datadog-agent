@@ -10,12 +10,7 @@
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
   rules:
-    - changes:
-        - pkg/ebpf/**/*
-        - pkg/network/**/*
-      when: on_success
-    - when: manual
-      allow_failure: true
+    !reference [.on_system_probe_changes_or_manual]
   stage: functional_test
   variables:
     AGENT_MAJOR_VERSION: 7

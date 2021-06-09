@@ -1,13 +1,4 @@
 ---
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
 .kitchen_common:
   stage: kitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
@@ -37,9 +28,7 @@
 .kitchen_agent_a6:
   extends: .kitchen_common
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a6]
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -47,9 +36,7 @@
 .kitchen_agent_a7:
   extends: .kitchen_common
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a7]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

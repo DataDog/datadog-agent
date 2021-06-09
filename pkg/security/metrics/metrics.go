@@ -60,6 +60,9 @@ var (
 	// MetricDentryResolverMiss is the counter of unsuccessful dentry resolution
 	// Tags: cache, kernel_maps
 	MetricDentryResolverMiss = newRuntimeMetric(".dentry_resolver.miss")
+	// MetricDentryERPC is the counter of eRPC dentry resolution errors by error type
+	// Tags: ret
+	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 
 	// Perf buffer metrics
 

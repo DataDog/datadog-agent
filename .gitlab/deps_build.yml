@@ -4,8 +4,7 @@
 
 .build_libbcc_common:
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: deps_build
   script:
     - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
@@ -47,8 +46,7 @@ build_libbcc_arm64:
 
 .build_clang_common:
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: deps_build
   script:
     # use tmpdir to prevent git remote capture by clang build

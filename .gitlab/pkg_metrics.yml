@@ -2,21 +2,10 @@
 # pkg_metrics stage
 # Contains jobs which send metrics (package size) about the Linus Agent packages to our backend.
 
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 send_pkg_size-a6:
   allow_failure: true
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:large"]
@@ -61,9 +50,7 @@ send_pkg_size-a6:
 send_pkg_size-a7:
   allow_failure: true
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:large"]

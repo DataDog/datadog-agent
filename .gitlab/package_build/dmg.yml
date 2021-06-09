@@ -1,16 +1,4 @@
 ---
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
-.if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
-
 .agent_build_common_dmg:
   script:
     - echo "About to build for $RELEASE_VERSION"
@@ -32,10 +20,7 @@
 agent_dmg-x64-a6:
   extends: .agent_build_common_dmg
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_run_all_builds
-    - <<: *if_deploy
+    !reference [.on_all_builds_a6]
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -51,9 +36,7 @@ agent_dmg-x64-a6:
 agent_dmg-x64-a7:
   extends: .agent_build_common_dmg
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a7]
   allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES

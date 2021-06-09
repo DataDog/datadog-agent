@@ -39,14 +39,15 @@ type pendingMsg struct {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	sync.RWMutex
-	msgs          chan *api.SecurityEventMessage
-	expiredEvents map[rules.RuleID]*int64
-	rate          *Limiter
-	statsdClient  *statsd.Client
-	probe         *sprobe.Probe
-	queue         []*pendingMsg
-	retention     time.Duration
-	cfg           *config.Config
+	msgs              chan *api.SecurityEventMessage
+	expiredEventsLock sync.RWMutex
+	expiredEvents     map[rules.RuleID]*int64
+	rate              *Limiter
+	statsdClient      *statsd.Client
+	probe             *sprobe.Probe
+	queue             []*pendingMsg
+	retention         time.Duration
+	cfg               *config.Config
 }
 
 // GetEvents waits for security events
@@ -257,8 +258,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 // expireEvent updates the count of expired messages for the appropriate rule
 func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
-	a.RLock()
-	defer a.RUnlock()
+	a.expiredEventsLock.RLock()
+	defer a.expiredEventsLock.RUnlock()
 
 	// Update metric
 	count, ok := a.expiredEvents[msg.RuleID]
@@ -296,8 +297,8 @@ func (a *APIServer) SendStats() error {
 
 // Apply a rule set
 func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
-	a.Lock()
-	defer a.Unlock()
+	a.expiredEventsLock.Lock()
+	defer a.expiredEventsLock.Unlock()
 
 	a.expiredEvents = make(map[rules.RuleID]*int64)
 	for _, id := range ruleIDs {

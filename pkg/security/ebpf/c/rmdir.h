@@ -130,7 +130,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .file = syscall->rmdir.file,
-            .discarder_revision = bump_discarder_revision(syscall->rmdir.file.path_key.mount_id),
+            .discarder_revision = get_discarder_revision(syscall->rmdir.file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);

@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+other:
   - |
-    Fix handling of CPU metric collected from cgroups when the cgroup file is missing.
+    JMXFetch upgraded to `0.44.1 <https://github.com/DataDog/jmxfetch/releases/0.44.1>`_

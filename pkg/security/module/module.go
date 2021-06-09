@@ -19,7 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -57,7 +56,7 @@ type Module struct {
 }
 
 // Register the runtime security agent module
-func (m *Module) Register(_ *mux.Router) error {
+func (m *Module) Register(_ *module.Router) error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
