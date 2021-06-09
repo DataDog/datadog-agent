@@ -1,6 +1,6 @@
 ---
 
-# These varaible definitions are copied in other files because we can't use the
+# These variable definitions are copied in other files because we can't use the
 # !reference keyword for them.
 # The !reference keyword is limited when used with hashes, and cannot
 # be used in conjunction with manually defined keys in the same hash. Eg.:
