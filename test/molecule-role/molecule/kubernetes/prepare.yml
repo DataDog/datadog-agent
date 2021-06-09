@@ -35,7 +35,7 @@
     - name: Run Docker compose pull
       command: docker-compose pull
       args:
-        chdir: /home/ubuntu/
+        chdir: /home/ubuntu/receiver
       environment:
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
     - name: Run Docker compose
