@@ -235,18 +235,18 @@ func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 func setRuntimeProfilingSettings(c settings.Client) (map[string]interface{}, error) {
 	prev := make(map[string]interface{})
 	if profileMutex && profileMutexFraction > 0 {
-		if old, err := setRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction); err != nil {
+		old, err := setRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction)
+		if err != nil {
 			return nil, err
-		} else {
-			prev["runtime_mutex_profile_fraction"] = old
 		}
+		prev["runtime_mutex_profile_fraction"] = old
 	}
 	if profileBlocking && profileBlockingRate > 0 {
-		if old, err := setRuntimeSetting(c, "runtime_block_profile_rate", profileBlockingRate); err != nil {
+		old, err := setRuntimeSetting(c, "runtime_block_profile_rate", profileBlockingRate)
+		if err != nil {
 			return nil, err
-		} else {
-			prev["runtime_block_profile_rate"] = old
 		}
+		prev["runtime_block_profile_rate"] = old
 	}
 	return prev, nil
 }
