@@ -368,7 +368,8 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 	},
 
 	"selinux": {
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
+		// This needs to be best effort, as sel_write_disable is in the process to be removed
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/sel_write_disable"}},
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kretprobe/sel_write_disable"}},
 		}},
