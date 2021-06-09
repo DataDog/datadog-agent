@@ -165,6 +165,8 @@ void initkubeutilModule(rtloader_t *rtloader) {
 */
 import "C"
 
+const PythonWinExeBasename = "python.exe"
+
 var (
 	// PythonVersion contains the interpreter version string provided by
 	// `sys.version`. It's empty if the interpreter was not initialized.
@@ -296,7 +298,20 @@ func resolvePythonExecPath(pythonVersion string) string {
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
-		return filepath.Join(PythonHome, "python.exe")
+		// If we are in a development environment, PythonHome will not be set so we
+		// use the absolute path to the python.exe in our path.
+		if PythonHome == "" {
+			log.Warnf("Python home is empty. Inferring interpreter path from binary in path.")
+			interpreterAbsPath, err := resolveExecPath(PythonWinExeBasename)
+			if err != nil {
+				log.Warnf("Error trying to resolve interpreter path for executable: '%v'."+
+					" Python's 'multiprocessing' library may fail to work.", err)
+			}
+
+			return interpreterAbsPath
+		}
+
+		return filepath.Join(PythonHome, PythonWinExeBasename)
 	}
 
 	// On *nix both Python versions are installed in the same embedded directory. We
@@ -309,13 +324,14 @@ func resolvePythonExecPath(pythonVersion string) string {
 	// variable won't be set so what we do here is to just find out where our current
 	// default in-path "python2"/"python3" command is located and get its absolute path.
 	if PythonHome == "" {
-		interpreterPath, err := resolveExecPath(interpreterBasename)
+		interpreterAbsPath, err := resolveExecPath(interpreterBasename)
 		if err != nil {
-			log.Warnf("Error trying to resolve interpreter path for executable '%v'", err)
+			log.Warnf("Error trying to resolve interpreter path for executable: '%v'."+
+				" Python's 'multiprocessing' library may fail to work.", err)
 			return interpreterBasename
 		}
 
-		return interpreterPath
+		return interpreterAbsPath
 	}
 
 	// If we're here, the ldflags have been used so we key off of those to get the

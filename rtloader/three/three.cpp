@@ -76,6 +76,14 @@ void Three::initPythonExe(const char *python_exe)
     _pythonExe = Py_DecodeLocale(python_exe, NULL);
 
     Py_SetProgramName(_pythonExe);
+
+    // HACK: This extra internal API invocation is due to the workaround for an upstream bug on
+    // Windows (https://bugs.python.org/issue34725) where just using `Py_SetProgramName` is
+    // ineffective. The workaround API call will be removed at some point in the future (Python
+    // 3.12+) so we should convert this initialization to the new`PyConfig API`
+    // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
+    _Py_SetProgramFullPath(_pythonExe);
+
     PyMem_RawFree((void *)oldPythonExe);
 }
 
