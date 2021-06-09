@@ -96,8 +96,9 @@ func readProfileData(pdata *flare.ProfileData) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize settings client: %v", err)
 	}
-	prevSettings := make(map[string]interface{})
-	if err := setRuntimeProfilingSettings(c, prevSettings); err != nil {
+
+	prevSettings, err := setRuntimeProfilingSettings(c)
+	if err != nil {
 		return err
 	}
 	defer resetRuntimeProfilingSettings(c, prevSettings)
@@ -231,34 +232,38 @@ func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 	return filePath, nil
 }
 
-func setRuntimeProfilingSettings(c settings.Client, prev map[string]interface{}) error {
+func setRuntimeProfilingSettings(c settings.Client) (map[string]interface{}, error) {
+	prev := make(map[string]interface{})
 	if profileMutex && profileMutexFraction > 0 {
-		if err := getSetRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction, prev); err != nil {
-			return err
+		if old, err := setRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction); err != nil {
+			return nil, err
+		} else {
+			prev["runtime_mutex_profile_fraction"] = old
 		}
 	}
 	if profileBlocking && profileBlockingRate > 0 {
-		if err := getSetRuntimeSetting(c, "runtime_block_profile_rate", profileBlockingRate, prev); err != nil {
-			return err
+		if old, err := setRuntimeSetting(c, "runtime_block_profile_rate", profileBlockingRate); err != nil {
+			return nil, err
+		} else {
+			prev["runtime_block_profile_rate"] = old
 		}
 	}
-	return nil
+	return prev, nil
 }
 
-func getSetRuntimeSetting(c settings.Client, name string, new int, prev map[string]interface{}) error {
+func setRuntimeSetting(c settings.Client, name string, new int) (interface{}, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, new))
 
 	oldVal, err := c.Get(name)
 	if err != nil {
-		return fmt.Errorf("failed to get current value of %s: %v", name, err)
+		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
 	}
-	prev[name] = oldVal
 
 	if _, err := c.Set(name, fmt.Sprint(new)); err != nil {
-		return fmt.Errorf("failed to set %s to %v: %v", name, new, err)
+		return nil, fmt.Errorf("failed to set %s to %v: %v", name, new, err)
 	}
 
-	return nil
+	return oldVal, nil
 }
 
 func resetRuntimeProfilingSettings(c settings.Client, prev map[string]interface{}) {
