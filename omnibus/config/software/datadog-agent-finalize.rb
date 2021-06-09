@@ -20,7 +20,9 @@ build do
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            delete "#{conf_dir}/*"
             mkdir conf_dir
+            command "dir #{conf_dir}"
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
             move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
@@ -40,10 +42,10 @@ build do
             # based on the config file
             command "echo pre-delete-conf-dir"
             command "dir #{conf_dir}"
-            command "del #{conf_dir}/apm.yaml.default"
-            command "del #{conf_dir}/process_agent.yaml.default"
+            delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
-            command "rmdir /s /q #{conf_dir}/load.d"
+            delete "#{conf_dir}/load.d"
             command "echo post-delete-conf-dir"
             command "dir #{conf_dir}"
 
