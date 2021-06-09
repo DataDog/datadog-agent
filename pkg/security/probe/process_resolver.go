@@ -127,6 +127,8 @@ type ProcessResolver struct {
 
 	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
+
+	exitedQueue []uint32
 }
 
 // ArgsEnvsPool defines a pool for args/envs allocations
@@ -202,6 +204,35 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 	}
 
 	return &pcep
+}
+
+// DequeueExited dequeue exited process
+func (p *ProcessResolver) DequeueExited() {
+	p.Lock()
+	defer p.Unlock()
+
+	delEntry := func(pid uint32, exitTime time.Time) {
+		p.deleteEntry(pid, exitTime)
+		_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
+	}
+
+	now := time.Now()
+	for _, pid := range p.exitedQueue {
+		entry := p.entryCache[pid]
+		if entry == nil {
+			continue
+		}
+
+		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+		} else if tm := entry.ForkTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+		} else if entry.ForkTime.IsZero() && entry.ExecTime.IsZero() {
+			delEntry(pid, now)
+		}
+	}
+
+	p.exitedQueue = p.exitedQueue[0:0]
 }
 
 // NewProcessCacheEntry returns a new process cache entry
@@ -732,12 +763,12 @@ func (p *ProcessResolver) Start(ctx context.Context) error {
 }
 
 func (p *ProcessResolver) cacheFlush(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case now := <-ticker.C:
+		case _ = <-ticker.C:
 			var pids []uint32
 
 			p.RLock()
@@ -746,24 +777,13 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 			}
 			p.RUnlock()
 
-			delEntry := func(pid uint32, exitTime time.Time) {
-				p.deleteEntry(pid, exitTime)
-				_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
-			}
-
-			// flush slowly
+			// iterating slowly
 			for _, pid := range pids {
 				if _, err := process.NewProcess(int32(pid)); err != nil {
 					// check start time to ensure to not delete a recent pid
 					p.Lock()
 					if entry := p.entryCache[pid]; entry != nil {
-						if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-							delEntry(pid, now)
-						} else if tm := entry.ForkTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-							delEntry(pid, now)
-						} else if entry.ForkTime.IsZero() && entry.ExecTime.IsZero() {
-							delEntry(pid, now)
-						}
+						p.exitedQueue = append(p.exitedQueue, pid)
 					}
 					p.Unlock()
 				}

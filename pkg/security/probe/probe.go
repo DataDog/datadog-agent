@@ -512,6 +512,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
 }
 
 // OnRuleMatch is called when a rule matches just before sending
