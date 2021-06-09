@@ -16,7 +16,6 @@ require (
 	github.com/vektra/mockery/v2 v2.8.0
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
-	golang.org/x/tools v0.1.2
 	gotest.tools/gotestsum v1.6.4
 	honnef.co/go/tools v0.1.4
 )
