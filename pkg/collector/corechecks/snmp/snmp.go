@@ -75,6 +75,8 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 		if err != nil {
 			return tags, fmt.Errorf("failed to fetching sysobjectid: %s", err)
 		}
+		c.config.autodetectProfile = false // do not try to auto detect profile next time
+
 		profile, err := getProfileForSysObjectID(c.config.profiles, sysObjectID)
 		if err != nil {
 			return tags, fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)

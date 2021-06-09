@@ -733,6 +733,17 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
+
+	assert.Equal(t, false, check.config.autodetectProfile)
+
+	// Make sure we don't auto detect and add metrics twice if we also did that previously
+	firstRunMetrics := check.config.metrics
+	firstRunMetricsTags := check.config.metricTags
+	err = check.Run()
+	assert.Nil(t, err)
+
+	assert.Len(t, check.config.metrics, len(firstRunMetrics))
+	assert.Len(t, check.config.metricTags, len(firstRunMetricsTags))
 }
 
 func TestServiceCheckFailures(t *testing.T) {
