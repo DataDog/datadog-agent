@@ -7,6 +7,8 @@ from collections import defaultdict
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.utils import DEFAULT_BRANCH
+
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
 from .libs.pipeline_notifications import (
@@ -81,7 +83,7 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
 
 
 @task
-def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=False, sha=None):
+def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
     """
     Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
     should be cancelled.
@@ -113,7 +115,9 @@ def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=Fa
 
 
 @task
-def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+def trigger(
+    ctx, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+):
     """
     DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
 
@@ -147,7 +151,7 @@ def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_
 @task
 def run(
     ctx,
-    git_ref="master",
+    git_ref=DEFAULT_BRANCH,
     here=False,
     release_version_6="nightly",
     release_version_7="nightly-a7",
@@ -160,7 +164,7 @@ def run(
     Run a pipeline on the given git ref, or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
-    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
 
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
