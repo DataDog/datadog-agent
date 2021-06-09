@@ -1018,10 +1018,9 @@ func TestConvertStats(t *testing.T) {
 	}{
 		{
 			in: pb.ClientStatsPayload{
-				Hostname:    "tracer_hots",
-				Env:         "tracer_env",
-				Version:     "code_version",
-				ContainerID: "id-123",
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1061,8 +1060,6 @@ func TestConvertStats(t *testing.T) {
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				ContainerID:   "id-123",
-				Tags:          []string{},
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1095,7 +1092,7 @@ func TestConvertStats(t *testing.T) {
 		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
 	}
 	for _, testCase := range testCases {
-		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, "")
 		assert.Equal(t, testCase.out, out)
 	}
 }

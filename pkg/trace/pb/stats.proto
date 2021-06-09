@@ -34,10 +34,8 @@ message ClientStatsPayload {
 	// Service is the main service of the tracer.
 	// It is part of unified tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging
 	string service = 10;
-	// ContainerID specifies the ID of the container (k8s, ECS, etc)
-	string containerID = 11;
-	// Tags specifies additional host and/or container tags relevant to this payload. It will be filled in by the agent
-	// and can be left empty by the client.
+	// Tags specifies additional host and/or container tags relevant to this payload. They are filled in automatically by
+	// the agent in Fargate environments. For any other environments they are blanked.
 	repeated string tags = 12;
 }
 

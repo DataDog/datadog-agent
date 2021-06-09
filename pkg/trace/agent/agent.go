@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -297,18 +297,24 @@ func (a *Agent) Process(p *api.Payload) {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
+func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion, containerID string) pb.ClientStatsPayload {
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
 	in.TracerVersion = tracerVersion
 	in.Lang = lang
-	ctags, err := tagger.Tag("container_id://"+in.ContainerID, collectors.HighCardinality)
-	if err != nil {
-		log.Tracef("Getting container tags for ID %q: %v", in.ContainerID, err)
+	if config.HasFeature("fargate_stats") && fargate.IsFargateInstance() {
+		// populate tags for fargate instances
+		ctags, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
+		if err != nil {
+			log.Tracef("Getting container tags for ID %q: %v", containerID, err)
+		}
+		in.Tags = ctags
+	} else {
+		// otherwise disallow it
+		in.Tags = nil
 	}
-	in.Tags = append(mainconfig.GetConfiguredTags(false), ctags...)
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
@@ -345,8 +351,8 @@ func mergeDuplicates(s pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
+func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID)
 }
 
 // sample decides whether the trace will be kept and extracts any APM events

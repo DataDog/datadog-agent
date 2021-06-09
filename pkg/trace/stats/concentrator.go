@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -132,6 +132,11 @@ type Input struct {
 
 // Add applies the given input to the concentrator.
 func (c *Concentrator) Add(in Input) {
+	if !config.HasFeature("fargate_stats") || !fargate.IsFargateInstance() {
+		// Aggregation by ContainerID is only enabed in Fargate with the
+		// fargate_stats feature flag.
+		in.ContainerID = ""
+	}
 	c.mu.Lock()
 	for i := range in.Traces {
 		c.addNow(&in.Traces[i], in.ContainerID)
@@ -204,12 +209,11 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 			log.Tracef("Getting container tags for ID %q: %v", k.containerID, err)
 		}
 		sb = append(sb, pb.ClientStatsPayload{
-			Env:         k.env,
-			Hostname:    k.hostname,
-			Version:     k.version,
-			ContainerID: k.containerID,
-			Tags:        append(mainconfig.GetConfiguredTags(false), ctags...),
-			Stats:       s,
+			Env:      k.env,
+			Hostname: k.hostname,
+			Version:  k.version,
+			Tags:     ctags,
+			Stats:    s,
 		})
 	}
 	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}

@@ -128,6 +128,9 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
 // type while ClientStatsBucket is the public, shared one.
+//
+// It exports them as a map, split by payload, since each individual payload can only
+// have buckets for one individual PayloadKey (hostname, version, containerID, env).
 func (sb *RawBucket) Export() map[PayloadKey]pb.ClientStatsBucket {
 	m := make(map[PayloadKey]pb.ClientStatsBucket)
 	for k, v := range sb.data {

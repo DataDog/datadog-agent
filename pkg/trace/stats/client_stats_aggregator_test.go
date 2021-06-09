@@ -108,7 +108,6 @@ func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStats
 	p.Sequence = 0
 	p.AgentAggregation = "counts"
 	p.Service = ""
-	p.ContainerID = ""
 	p.Tags = nil
 	for i, s := range p.Stats {
 		p.Stats[i].Start = uint64(alignAggTs(insertionTime).UnixNano())

@@ -45,7 +45,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
@@ -550,20 +550,22 @@ type mockStatsProcessor struct {
 	lastP             pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
+	lastCID           string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
+	m.lastCID = containerID
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang, m.lastTracerVersion
+	return m.lastP, m.lastLang, m.lastTracerVersion, m.lastCID
 }
 
 func TestHandleStats(t *testing.T) {
@@ -609,6 +611,7 @@ func TestHandleStats(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
 		req.Header.Set(headerTracerVersion, "0.1.0")
+		req.Header.Set(headerContainerID, "cid-123")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -618,8 +621,8 @@ func TestHandleStats(t *testing.T) {
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
 
-		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
-		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
+		gotp, gotlang, gotTracerVersion, gotContainerID := mockProcessor.Got()
+		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" || gotContainerID != "cid-123" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
 	})
