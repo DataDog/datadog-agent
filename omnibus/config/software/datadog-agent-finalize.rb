@@ -20,6 +20,15 @@ build do
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+
+            command "dir /q /s /t:c #{conf_dir}"
+            target_test_a = "c:/omnibus-ruby/src/etc/stackstate-agent/extra_package_files/EXAMPLECONFSLOCATION"
+            delete "#{target_test_a}"
+            command "dir /q /s /t:c #{target_test_a}"
+            target_test_b = "c:\\omnibus-ruby\\src\\etc\\stackstate-agent\\extra_package_files\\EXAMPLECONFSLOCATION"
+            delete "#{target_test_b}"
+            command "dir /q /s /t:c #{target_test_b}"
+
             if Dir.exists?(conf_dir)
                 command "dir /q /s /t:c #{conf_dir}"
                 delete "#{conf_dir}"
