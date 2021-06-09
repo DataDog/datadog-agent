@@ -18,43 +18,11 @@ build do
     block do
         # Conf files
         if windows?
-            command "echo start-datadog-agent-finalize"
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
-
-
-            command "echo start-target_test_a"
-            target_test_a = "c:/omnibus-ruby/src/etc/stackstate-agent/extra_package_files/EXAMPLECONFSLOCATION"
-            command "echo listing-a"
-            command "dir #{target_test_a} 2> nul"
-            command "rmdir /Q /S #{target_test_a} 2> nul"
-            command "echo listing-b"
-            command "dir #{target_test_a} 2> nul"
-            command "echo end-target_test_a"
-
-            command "echo start-target_test_b"
-            target_test_b = "c:\\omnibus-ruby\\src\\etc\\stackstate-agent\\extra_package_files\\EXAMPLECONFSLOCATION"
-            command "echo listing-a"
-            command "dir #{target_test_b} 2> nul"
-            command "rmdir /Q /S #{target_test_b} 2> nul"
-            command "echo listing-b"
-            command "dir #{target_test_b} 2> nul"
-            command "echo end-target_test_b"
-
-            # command "dir #{conf_dir}"
-            # delete "#{target_test_a}"
-            # command "dir #{target_test_a}"
-            # delete "#{target_test_b}"
-            # command "dir #{target_test_b}"
-
-            # if Dir.exists?(conf_dir)
-            #     command "dir #{conf_dir}"
-            #     delete "#{conf_dir}"
-            #     command "dir #{conf_dir_root}/extra_package_files"
-            # end
             mkdir conf_dir
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
-            move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir#, :force=>true
+            move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
@@ -70,14 +38,10 @@ build do
 
             # remove the config files for the subservices; they'll be started
             # based on the config file
-            command "echo pre-delete-conf-dir"
-            # command "dir #{conf_dir}"
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
-            command "echo post-delete-conf-dir"
-            # command "dir #{conf_dir}"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -85,17 +49,16 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
-            command "echo end-datadog-agent-finalize"
         elsif linux?
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
-              unless arm?
-                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
-                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
-                # replace paths with expected target toolchain location
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
-              end
+                unless arm?
+                    rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                    # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
+                    command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
+                    # replace paths with expected target toolchain location
+                    command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
+                end
             end
 
             # Move system service files
@@ -140,7 +103,7 @@ build do
 
             # Move SELinux policy
             if debian? || redhat?
-              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+                move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
             end
 
             # Create empty directories so that they're owned by the package
@@ -188,9 +151,9 @@ build do
 
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
-            # Caution: we don't want to do this for Agent 6.x
+                # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+                # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
+                # Caution: we don't want to do this for Agent 6.x
             elsif with_python_runtime? "3"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
