@@ -1,14 +1,13 @@
 package http
 
 import (
-	"fmt"
 	stdlog "log"
 	"net/http"
 	"time"
 
 	agenttypes "github.com/DataDog/datadog-agent/pkg/appsec/agent/types"
 	"github.com/DataDog/datadog-agent/pkg/appsec/api/http/v0_1_0"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -19,16 +18,14 @@ type Server struct {
 	server *http.Server
 }
 
-func NewServer(conf *config.AgentConfig, c agenttypes.EventsChan) Server {
+// NewServer creates a new HTTP server serving the AppSec HTTP API.
+func NewServer(cfg *config.Config, c agenttypes.RawJSONEventsChan) Server {
 	// HTTP server read/write timeouts
 	timeout := 5 * time.Second
-	if conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
-	}
 	// HTTP server address
-	addr := fmt.Sprintf("%s:%d", conf.ReceiverHost, conf.ReceiverPort)
+	addr := cfg.HTTPAPIListenAddr
 	// Error logger limited to 5 messages every 10 seconds
-	errorLogger := stdlog.New(logutil.NewThrottled(5, 10*time.Second), "http.Server: ", 0)
+	errorLogger := stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec http server: ", 0)
 
 	srv := &http.Server{
 		Addr:         addr,
