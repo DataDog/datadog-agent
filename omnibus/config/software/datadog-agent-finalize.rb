@@ -20,9 +20,10 @@ build do
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
-            if Dir.exists(conf_dir)?
+            if Dir.exists?(conf_dir)
                 command "dir #{conf_dir}"
                 delete "#{conf_dir}"
+                command "dir #{conf_dir_root}/extra_package_files/"
             end
             mkdir conf_dir
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
