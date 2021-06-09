@@ -18,22 +18,40 @@ build do
     block do
         # Conf files
         if windows?
+            command "echo start-datadog-agent-finalize"
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
 
-            command "dir #{conf_dir}"
-            target_test_a = "c:/omnibus-ruby/src/etc/stackstate-agent/extra_package_files/EXAMPLECONFSLOCATION"
-            delete "#{target_test_a}"
-            command "dir #{target_test_a}"
-            target_test_b = "c:\\omnibus-ruby\\src\\etc\\stackstate-agent\\extra_package_files\\EXAMPLECONFSLOCATION"
-            delete "#{target_test_b}"
-            command "dir #{target_test_b}"
 
-            if Dir.exists?(conf_dir)
-                command "dir #{conf_dir}"
-                delete "#{conf_dir}"
-                command "dir #{conf_dir_root}/extra_package_files"
-            end
+            command "echo start-target_test_a"
+            target_test_a = "c:/omnibus-ruby/src/etc/stackstate-agent/extra_package_files/EXAMPLECONFSLOCATION"
+            command "echo listing-a"
+            command "dir #{target_test_a} 2> nul"
+            command "rmdir /Q /S #{target_test_a} 2> nul"
+            command "echo listing-b"
+            command "dir #{target_test_a} 2> nul"
+            command "echo end-target_test_a"
+
+            command "echo start-target_test_b"
+            target_test_b = "c:\\omnibus-ruby\\src\\etc\\stackstate-agent\\extra_package_files\\EXAMPLECONFSLOCATION"
+            command "echo listing-a"
+            command "dir #{target_test_b} 2> nul"
+            command "rmdir /Q /S #{target_test_b} 2> nul"
+            command "echo listing-b"
+            command "dir #{target_test_b} 2> nul"
+            command "echo end-target_test_b"
+
+            # command "dir #{conf_dir}"
+            # delete "#{target_test_a}"
+            # command "dir #{target_test_a}"
+            # delete "#{target_test_b}"
+            # command "dir #{target_test_b}"
+
+            # if Dir.exists?(conf_dir)
+            #     command "dir #{conf_dir}"
+            #     delete "#{conf_dir}"
+            #     command "dir #{conf_dir_root}/extra_package_files"
+            # end
             mkdir conf_dir
             move "#{install_dir}/etc/stackstate-agent/stackstate.yaml.example", conf_dir_root, :force=>true
             move "#{install_dir}/etc/stackstate-agent/conf.d/*", conf_dir#, :force=>true
@@ -53,13 +71,13 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             command "echo pre-delete-conf-dir"
-            command "dir #{conf_dir}"
+            # command "dir #{conf_dir}"
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
             command "echo post-delete-conf-dir"
-            command "dir #{conf_dir}"
+            # command "dir #{conf_dir}"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -67,6 +85,7 @@ build do
             delete "#{install_dir}/bin/agent/dist/*.conf*"
             delete "#{install_dir}/bin/agent/dist/*.yaml"
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
+            command "echo end-datadog-agent-finalize"
         elsif linux?
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
