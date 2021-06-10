@@ -152,7 +152,7 @@ func Run(ctx context.Context) {
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	// Start the appsec agent
-	appsecagent, err := appsecagent.NewAgent(appsecconfig.FromAgentConfig())
+	appsecagent, err := appsecagent.NewAgent(appsecconfig.FromAgentConfig(coreconfig.Datadog))
 	if err != nil {
 		log.Error("appsec agent: ", err)
 	} else {

@@ -51,7 +51,7 @@ func (s *Server) Start() {
 	}()
 }
 
-func NewServeMux(c agenttypes.EventsChan) *http.ServeMux {
+func NewServeMux(c agenttypes.RawJSONEventsChan) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/", newAPIVersionHandler(v0_1_0.NewServeMux(c)))
 	return mux
