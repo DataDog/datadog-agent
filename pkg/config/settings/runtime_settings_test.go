@@ -136,7 +136,6 @@ func TestGetInt(t *testing.T) {
 		{"1", 1, false},
 		{"-1", -1, false},
 		{"2147483647", 2147483647, false},
-		{"2147483648", 0, true},
 		{"-2147483648", -2147483648, false},
 		{"0x1", 0, true},
 		{"aaa", 0, true},
