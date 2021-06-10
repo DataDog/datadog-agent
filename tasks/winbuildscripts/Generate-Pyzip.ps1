@@ -29,7 +29,7 @@ function Get-Installer-Url {
         Write-Host -ForegroundColor Red "Unknown major version $Maj.  I don't know how to do this"
         exit 1
     }
-    
+
     if ($x86 -eq $true) {
         if ($maj -eq "2") {
             $url = "https://www.python.org/ftp/python/$Version/python-$Version.msi"
@@ -72,6 +72,22 @@ function Get-Installer {
     }
 }
 
+function Uninstall-Python {
+    param  (
+        [string]$installedPythonVersion,
+        [string]$dlfullpath,
+        [string]$md5sum
+    )
+    Get-Installer -url (Get-Installer-Url -version $installedPythonVersion) -dlfullpath $dlfullpath -md5sum $md5sum
+    Write-Host -ForegroundColor Yellow "Uninstalling Python $installedPythonVersion"
+    $p = Start-Process $dlfullpath -ArgumentList "/quiet /uninstall" -Wait -Passthru
+    if ($p.ExitCode -ne 0) {
+        Write-Host -ForegroundColor Red ("Failed to uninstall Python, exit code 0x{0:X}" -f $p.ExitCode)
+        exit 1
+    }
+    Remove-Item $dlfullpath
+}
+
 # Where to install the target python
 $pythonRoot = "c:\pythonroot"
 
@@ -92,23 +108,15 @@ elseif ($maj -eq "3") {
         $installedPythonVersion = python --version
         $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d.\d.\d)').Groups[1].Value
         $installedMaj, $installedMin, $installedPatch = $installedPythonVersion.Split(".")
-    
+
         Write-Host -ForegroundColor Green "Detected installed Python $installedMaj $installedMin $installedPatch"
 
         if ($installedMaj -ne "3") {
             Write-Host -ForegroundColor Red "Invalid Python $installedPythonVersion installation detected"
-            exit 1   
-        }
-
-        # Python is already installed in the buildimage, but is the wrong version uninstall it
-        Get-Installer -url (Get-Installer-Url -version $installedPythonVersion) -dlfullpath $dlfullpath -md5sum $null
-        Write-Host -ForegroundColor Yellow "Uninstalling Python $installedPythonVersion"
-        $p = Start-Process $dlfullpath -ArgumentList "/quiet /uninstall" -Wait -Passthru
-        if ($p.ExitCode -ne 0) {
-            Write-Host -ForegroundColor Red ("Failed to uninstall Python, exit code 0x{0:X}" -f $p.ExitCode)
             exit 1
         }
-        Remove-Item $dlfullpath
+        # Python is already installed in the buildimage, but is the wrong version uninstall it
+        Uninstall-Python -installedPythonVersion $installedPythonVersion -dlfullpath $dlfullpath -md5sum $null
     }
     catch {
         # Python command not found
