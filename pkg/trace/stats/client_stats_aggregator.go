@@ -116,6 +116,7 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (tim
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
+	resolveContainerTags(&p)
 	for _, clientBucket := range p.Stats {
 		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
 		ts, shifted := a.getAggregationBucketTime(now, clientBucketStart)
@@ -187,7 +188,7 @@ func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
 }
 
 func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version)
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
 		var size int
@@ -253,8 +254,8 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 	return res
 }
 
-func newPayloadAggregationKey(env, hostname, version string) PayloadAggregationKey {
-	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version}
+func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggregationKey {
+	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
 }
 
 func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
