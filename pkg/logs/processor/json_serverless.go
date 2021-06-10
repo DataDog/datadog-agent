@@ -26,7 +26,7 @@ type jsonServerlessPayload struct {
 	Status    string                `json:"status"`
 	Timestamp int64                 `json:"timestamp"`
 	Hostname  string                `json:"hostname"`
-	Service   string                `json:"service"`
+	Service   string                `json:"service,omitempty"`
 	Source    string                `json:"ddsource"`
 	Tags      string                `json:"ddtags"`
 }

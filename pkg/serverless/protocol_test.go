@@ -71,12 +71,11 @@ func TestProcessMessage(t *testing.T) {
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	functionName := "test-function"
 	metricTags := []string{"functionname:test-function"}
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case received := <-metricsChan:
@@ -87,7 +86,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case <-metricsChan:
