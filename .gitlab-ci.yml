@@ -133,7 +133,7 @@ clear_deps_win_cache:
     - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
     - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
   tags:
-    - sts_windows
+    - windows_agent7_ps1
 
 deps_deb:
   stage: prepare
@@ -224,7 +224,7 @@ deps_win:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
   tags:
-    - windows_agent7_ps1 #sts_windows
+    - windows_agent7_ps1
 
 
 ## build_and_test stage
@@ -683,8 +683,8 @@ molecule_tests_local_install:
   script:
    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
   only:
-    - master
     - tags
+#    - master
 
 molecule_tests_kubernetes:
   <<: *molecule_base
@@ -706,14 +706,14 @@ molecule_tests_secrets:
     - pre_release_deb
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s secrets
-  only:
-    - master
-    - tags
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
+  only:
+    - tags
+#    - master
 
 molecule_tests_integrations:
   <<: *molecule_base
@@ -786,7 +786,7 @@ release_win:
     - tags
     - triggers
   tags:
-    - sts_windows
+    - windows_agent7_ps1
 
 release_main_agent_image: &release_image
   stage: release
