@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	snmpCheckName = "snmp"
-	snmpLoaderTag = "loader:core"
+	snmpCheckName    = "snmp"
+	snmpLoaderTag    = "loader:core"
+	serviceCheckName = "snmp.can_check"
 )
 
 var timeNow = time.Now
@@ -40,12 +41,26 @@ func (c *Check) Run() error {
 
 	staticTags := c.config.getStaticTags()
 
+	// Fetch and report metrics
 	var checkErr error
-	tags, checkErr := c.processMetricsAndMetadata(staticTags)
+	var deviceStatus metadata.DeviceStatus
+	collectionTime := timeNow()
+	tags, values, checkErr := c.getValuesAndTags(staticTags)
 	if checkErr != nil {
-		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		deviceStatus = metadata.DeviceStatusUnreachable
+		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
-		c.sender.serviceCheck("snmp.can_check", metrics.ServiceCheckOK, "", tags, "")
+		deviceStatus = metadata.DeviceStatusReachable
+		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
+		c.sender.reportMetrics(c.config.metrics, values, tags)
+	}
+
+	if c.config.collectDeviceMetadata {
+		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
+		// `checkSender.checkTags` are added for metrics, service checks, events only.
+		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
+		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
+		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	c.submitTelemetryMetrics(startTime, tags)
@@ -55,13 +70,13 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error) {
+func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueStore, error) {
 	tags := copyStrings(staticTags)
 
 	// Create connection
 	connErr := c.session.Connect()
 	if connErr != nil {
-		return tags, fmt.Errorf("snmp connection error: %s", connErr)
+		return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
 		err := c.session.Close()
@@ -74,49 +89,30 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 	if c.config.autodetectProfile {
 		sysObjectID, err := fetchSysObjectID(c.session)
 		if err != nil {
-			return tags, fmt.Errorf("failed to fetching sysobjectid: %s", err)
+			return tags, nil, fmt.Errorf("failed to fetching sysobjectid: %s", err)
 		}
 		c.config.autodetectProfile = false // do not try to auto detect profile next time
 
 		profile, err := getProfileForSysObjectID(c.config.profiles, sysObjectID)
 		if err != nil {
-			return tags, fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
+			return tags, nil, fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
 		err = c.config.refreshWithProfile(profile)
 		if err != nil {
 			// Should not happen since the profile is one of those we matched in getProfileForSysObjectID
-			return tags, fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+			return tags, nil, fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 		}
 	}
 	tags = append(tags, c.config.profileTags...)
 
-	// Fetch and report metrics
-	collectionTime := timeNow()
-	valuesStore, fetchError := fetchValues(c.session, c.config)
+	valuesStore, err := fetchValues(c.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
-	if fetchError != nil {
-		valuesStore = newEmptyResultValueStore()
-	} else {
-		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
-		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
+	if err != nil {
+		return tags, nil, fmt.Errorf("failed to fetch values: %s", err)
 	}
-
-	if c.config.collectDeviceMetadata {
-		status := metadata.DeviceStatusReachable
-		if fetchError != nil {
-			status = metadata.DeviceStatusUnreachable
-		}
-		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
-		// `checkSender.checkTags` are added for metrics, service checks, events only.
-		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
-		c.sender.reportNetworkDeviceMetadata(c.config, valuesStore, deviceMetadataTags, collectionTime, status)
-	}
-	if fetchError != nil {
-		return tags, fmt.Errorf("failed to fetch values: %s", fetchError)
-	}
-	return tags, nil
+	tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
+	return tags, valuesStore, nil
 }
 
 func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {

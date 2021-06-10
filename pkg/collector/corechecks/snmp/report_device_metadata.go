@@ -21,7 +21,6 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	interfaces, err := buildNetworkInterfacesMetadata(config.deviceID, store)
 	if err != nil {
 		log.Debugf("Unable to build interfaces metadata: %s", err)
-		interfaces = nil
 	}
 
 	metadataPayloads := batchPayloads(config.subnet, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
@@ -37,10 +36,12 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 }
 
 func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
-	var vendor string
-	sysName := store.getScalarValueAsString(metadata.SysNameOID)
-	sysDescr := store.getScalarValueAsString(metadata.SysDescrOID)
-	sysObjectID := store.getScalarValueAsString(metadata.SysObjectIDOID)
+	var vendor, sysName, sysDescr, sysObjectID string
+	if store != nil {
+		sysName = store.getScalarValueAsString(metadata.SysNameOID)
+		sysDescr = store.getScalarValueAsString(metadata.SysDescrOID)
+		sysObjectID = store.getScalarValueAsString(metadata.SysObjectIDOID)
+	}
 
 	if config.profileDef != nil {
 		vendor = config.profileDef.Device.Vendor
@@ -62,11 +63,13 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpCon
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([]metadata.InterfaceMetadata, error) {
+	if store == nil {
+		return nil, nil
+	}
 	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
 	if err != nil {
 		return nil, fmt.Errorf("no interface indexes found: %s", err)
 	}
-
 	var interfaces []metadata.InterfaceMetadata
 	for _, strIndex := range indexes {
 		index, err := strconv.Atoi(strIndex)
