@@ -99,6 +99,7 @@ final_constraints_file = 'final_constraints-py2.txt'
 agent_requirements_file = 'agent_requirements-py2.txt'
 filtered_agent_requirements_in = 'agent_requirements-py2.in'
 agent_requirements_in = 'agent_requirements.in'
+shared_libraries_in = 'shared_libraries.in'
 
 build do
   # The dir for confs
@@ -145,10 +146,12 @@ build do
       command "#{pip} install pip-tools==5.4.0"
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\stackstate_checks_base\\stackstate_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
+      shared_libraries_in_file = "#{windows_safe_path(project_dir)}\\#{shared_libraries_in}"
     else
       command "#{pip} install pip-tools==4.2.0"
       static_reqs_in_file = "#{project_dir}/stackstate_checks_base/stackstate_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
+      shared_libraries_in_file = "#{project_dir}/#{shared_libraries_in}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -204,6 +207,16 @@ build do
       command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+    end
+
+    # Install shared libraries
+    File.open("#{shared_libraries_in_file}", 'r+').readlines().map(&:chomp).each do |shared_lib|
+        blacklist_folders.push(shared_lib)
+        if windows?
+            command "#{python} -m pip install --no-deps #{windows_safe_path(project_dir)}\\#{shared_lib}"
+        else
+            command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{shared_lib}"
+        end
     end
 
     #

@@ -172,9 +172,9 @@ func TestBatchMultipleTopologiesAndHealthStreams(t *testing.T) {
 	batcher.SubmitHealthCheckData(testID2, testStream2, testCheckData)
 	batcher.SubmitStopSnapshot(testID, testInstance)
 
-	message := serializer.GetJSONToV1IntakeMessage()
+	message := serializer.GetJSONToV1IntakeMessage().(map[string]interface{})
 
-	assert.EqualValues(t, message, map[string]interface{}{
+	assert.Equal(t, message, map[string]interface{}{
 		"internalHostname": "myhost",
 		"topologies": []topology.Topology{
 			{
@@ -377,17 +377,22 @@ func TestBatchMultipleHealthStreams(t *testing.T) {
 
 	message := serializer.GetJSONToV1IntakeMessage().(map[string]interface{})
 
-	assert.Contains(t, message["health"], health.Health{
-		StartSnapshot: &testStartSnapshot,
-		Stream:        testStream,
-		CheckStates:   []health.CheckData{},
-	})
-
-	assert.Contains(t, message["health"], health.Health{
-		StartSnapshot: &testStartSnapshot,
-		Stream:        testStream2,
-		CheckStates:   []health.CheckData{},
-	})
+	assert.EqualValues(t, message, map[string]interface{}{
+		"internalHostname": "myhost",
+		"topologies":       []topology.Topology{},
+		"health": []health.Health{
+			{
+				StartSnapshot: &testStartSnapshot,
+				Stream:        testStream,
+				CheckStates:   []health.CheckData{},
+			},
+			{
+				StartSnapshot: &testStartSnapshot,
+				Stream:        testStream2,
+				CheckStates:   []health.CheckData{},
+			},
+		},
+	}, message)
 
 	batcher.Shutdown()
 }
