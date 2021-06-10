@@ -84,7 +84,7 @@ func (b *EventBatch) append(events types.RawJSONEventSlice) {
 	b.newBatch()
 }
 
-// newBatch recreates a batch slice out of the batch pool
+// newBatch creates a new batch slice out of the batch pool.
 func (b *EventBatch) newBatch() {
 	b.batch = b.pool.New().(agenttypes.RawJSONEventsBatchSlice)
 }
@@ -99,4 +99,16 @@ func (b *EventBatch) Put(batch agenttypes.RawJSONEventsBatchSlice) {
 // Chan returns the channel of batches ready to be sent to the backend.
 func (b *EventBatch) Chan() agenttypes.RawJSONEventsBatchChan {
 	return b.readyChan
+}
+
+// Flush makes the current batch immediately available and replaces it with a
+// new empty one.
+func (b *EventBatch) Flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.batch) == 0 {
+		return
+	}
+	b.readyChan <- b.batch
+	b.newBatch()
 }

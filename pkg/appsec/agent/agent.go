@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"time"
 
 	agenttypes "github.com/DataDog/datadog-agent/pkg/appsec/agent/types"
 	"github.com/DataDog/datadog-agent/pkg/appsec/api/http"
@@ -61,4 +62,17 @@ func (a *Agent) startEventPipeline(ctx context.Context) {
 	go a.backendClient.EventService().SendBatchesFrom(ctx, a.eventBatch.Chan(), a.eventBatch.Put)
 	// Batch the events sent to the agent API
 	go a.eventBatch.AppendFrom(ctx, a.eventsChan)
+	// Periodically flush the batch, no matter the amount of events
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				a.eventBatch.Flush()
+			}
+		}
+	}()
 }
