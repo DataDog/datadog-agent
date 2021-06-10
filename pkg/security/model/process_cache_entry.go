@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+// SetAncestor set the ancestor
+func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+	pc.Ancestor = parent
+	parent.Retain()
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
@@ -32,8 +38,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
-	entry.Ancestor = pc
-	pc.Retain()
+	entry.SetAncestor(pc)
 
 	// empty and mark as exit previous entry
 	pc.ExitTime = entry.ExecTime
@@ -44,8 +49,7 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.Ancestor = pc
-	pc.Retain()
+	childEntry.SetAncestor(pc)
 
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName

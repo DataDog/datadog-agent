@@ -600,7 +600,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
 	entry, inserted := p.syncCache(proc)
 	if inserted && entry != nil {
-		entry.Ancestor = parent
+		entry.SetAncestor(parent)
 	}
 
 	return entry
@@ -825,7 +825,7 @@ func (p *ProcessResolver) syncCache(proc *process.Process) (*model.ProcessCacheE
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
-		entry.Ancestor = parent
+		entry.SetAncestor(parent)
 	}
 
 	if entry = p.insertEntry(pid, entry, p.entryCache[pid]); entry == nil {
