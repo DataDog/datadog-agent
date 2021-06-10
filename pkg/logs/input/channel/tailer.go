@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)
+const serviceEnvVar = "DD_SERVICE"
+
 // Tailer consumes and processes a channel of strings, and sends them to a stream of log messages.
 type Tailer struct {
 	source     *config.LogSource
@@ -53,7 +56,7 @@ func (t *Tailer) run() {
 		origin := message.NewOrigin(t.source)
 		tags := origin.Tags()
 
-		origin.SetService(computeServiceName(logline.Lambda, os.Getenv("DD_SERVICE")))
+		origin.SetService(computeServiceName(logline.Lambda, os.Getenv(serviceEnvVar)))
 
 		if len(t.source.Config.Tags) > 0 {
 			tags = append(tags, t.source.Config.Tags...)
