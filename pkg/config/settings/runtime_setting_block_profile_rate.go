@@ -15,7 +15,7 @@ func (r RuntimeBlockProfileRate) Name() string {
 
 // Description returns the runtime setting's description
 func (r RuntimeBlockProfileRate) Description() string {
-	return "This setting controls the fraction of goroutine blocking events that are reported in the blocking profile"
+	return "This setting controls the fraction of goroutine blocking events that are reported in the internal blocking profile"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
