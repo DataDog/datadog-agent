@@ -13,8 +13,7 @@ import (
 // aggregate metrics from a same context together.
 //
 // This implementation has been designed to remove all heap
-// allocations from the intake to reduce GC pressure on high
-// volumes.
+// allocations from the intake in order to reduce GC pressure on high volumes.
 //
 // Having int64/uint64 context keys mean that we will get better performances
 // from the Go runtime while using them as map keys. This is thanks to the fast-path
@@ -24,9 +23,6 @@ import (
 // Note that Agent <= 6.19.0 were using a 128 bits hash, we've switched
 // to 64 bits for better performances (map access) and because 128 bits were overkill
 // in the first place.
-// Note that we've benchmarked against xxhash64 which should be slightly faster,
-// but the Go compiler is not inlining xxhash sum methods whereas it is inlining
-// the murmur3 implementation, providing better performances overall.
 // Note that benchmarks against fnv1a did not provide better performances (no inlining).
 type ContextKey uint64
 
@@ -34,18 +30,12 @@ type ContextKey uint64
 // Not safe for concurrent usage
 type KeyGenerator struct {
 	intb uint64
-	//	h    hash.Hash64
-	//	buf  []byte
 	//	hashCache *hashCache
 }
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	return &KeyGenerator{
-		//		h:         murmur3.New64(),
-		//		buf:       make([]byte, binary.MaxVarintLen64),
-		//		hashCache: newHashCache(1024),
-	}
+	return &KeyGenerator{}
 }
 
 //type hashCache struct {
@@ -77,22 +67,11 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	g.intb = 0xc6a4a7935bd1e995
 	g.intb = g.intb ^ xxhash.Sum64String(name)
 	g.intb = g.intb ^ xxhash.Sum64String(hostname)
-
-	// no tags, avoid doing any math if there is no tags
-	//	if len(tags) > 0 {
-	//		for i := range g.buf { // reset every byte of this buffer
-	//			g.buf[i] = 0
-	//		}
 	for i := range tags {
 		//			intb = intb ^ g.hashCache.LoadOrStore(tags[i]) // NOTE(remy): we can maybe use a faster hash here (even if it has more collisions than murmur3)
 		//                                                         // XXX(remy): it seems that using a cache, which itself uses some hashing for its map, is not making things better
 		g.intb = g.intb ^ xxhash.Sum64String(tags[i])
 	}
-	//	}
-	//
-	//	binary.PutUvarint(g.buf, g.intb)
-	//	g.h.Write([]byte(g.buf))
-	//
 	return ContextKey(g.intb)
 }
 
