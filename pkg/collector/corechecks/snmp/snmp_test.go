@@ -715,7 +715,7 @@ profiles:
 	}
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&packet, nil)
 	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
 
 	err = check.Run()
@@ -733,6 +733,17 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
+
+	assert.Equal(t, false, check.config.autodetectProfile)
+
+	// Make sure we don't auto detect and add metrics twice if we already did that previously
+	firstRunMetrics := check.config.metrics
+	firstRunMetricsTags := check.config.metricTags
+	err = check.Run()
+	assert.Nil(t, err)
+
+	assert.Len(t, check.config.metrics, len(firstRunMetrics))
+	assert.Len(t, check.config.metricTags, len(firstRunMetricsTags))
 }
 
 func TestServiceCheckFailures(t *testing.T) {
@@ -902,7 +913,7 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket: sysObjectIDPacketOkMock,
 			valuesPacket:      valuesPacketErrMock,
 			valuesError:       fmt.Errorf("no value"),
-			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -929,7 +940,7 @@ ip_address: 1.2.3.4
 			mocksender.SetSender(sender, check.ID())
 
 			session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			session.On("Get", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0", "1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

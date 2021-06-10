@@ -5,18 +5,6 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-# These definitions are copied from the .gitlab/docker_common/tag_job_templates.yml
-# The !reference keyword is limited when used with hashes, and cannot
-# be used in conjunction with manually defined keys in the same hash. Eg.:
-# variables:
-#   !reference [.docker_hub_variables]
-#   OTHER_VARIABLE: "value"
-# is not valid, only:
-# variables:
-#   !reference [.docker_hub_variables]
-# is.
-# The jobs in this stage need to add more variables on top of the default variables, which
-# is why we can't use !reference here.
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd

@@ -3,12 +3,22 @@
 # Contains jobs to deploy Docker images of the Agent to specific Dockerhub repos
 # (datadog/agent-scan and datadog/dogstatsd-scan) to be scanned.
 
+.docker_hub_variables: &docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DELEGATION_KEY_SSM_KEY: docker_hub_signing_key
+  DELEGATION_PASS_SSM_KEY: docker_hub_signing_pass
+  DOCKER_REGISTRY_URL: docker.io
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+
 .docker_scan_job_definition:
   stage: image_scan
   tags: ["runner:docker", "size:large"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   variables:
-    !reference [.docker_hub_variables]
+    <<: *docker_hub_variables
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)

@@ -11,6 +11,7 @@ experimental:
     branches:
       only:
         - master
+        - main
 
 templates:
   job_template: &job_template
@@ -24,13 +25,14 @@ templates:
     - restore_cache: &restore_deps
         keys:
           # The first match will be used. Doing that so new branches
-          # use master's cache but don't pollute it back.
+          # use the default branch's cache but don't pollute it back.
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
           - gen18-godeps-{{ .Branch }}-{{ .Revision }}
           - gen18-godeps-{{ .Branch }}-
+          - gen18-godeps-main-
           - gen18-godeps-master-
     - save_cache: &save_deps
         key: gen18-godeps-{{ .Branch }}-{{ .Revision }}
@@ -254,6 +256,7 @@ jobs:
             # See https://github.com/DataDog/datadog-agent/pull/2384
             - v5-macosdeps-{{ .Branch }}-{{ .Revision }}
             - v5-macosdeps-{{ .Branch }}-
+            - v5-macosdeps-main-
             - v5-macosdeps-master-
       - run:
           name: Setup runner
@@ -317,19 +320,25 @@ workflows:
       - release_note:
           filters:
             branches:
-              ignore: master
+              ignore: 
+                - master
+                - main
           requires:
             - dependencies
       - team_label:
           filters:
             branches:
-              ignore: master
+              ignore: 
+                - master
+                - main
           requires:
             - dependencies
       - milestone:
           filters:
             branches:
-              ignore: master
+              ignore: 
+                - master
+                - main
           requires:
             - dependencies
       - licenses_linting:

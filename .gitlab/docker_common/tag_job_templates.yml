@@ -1,4 +1,25 @@
 ---
+
+# These variable definitions are copied in other files because we can't use the
+# !reference keyword for them.
+# The !reference keyword is limited when used with hashes, and cannot
+# be used in conjunction with manually defined keys in the same hash. Eg.:
+# variables:
+#   !reference [.docker_hub_variables]
+#   OTHER_VARIABLE: "value"
+# is not valid, only:
+# variables:
+#   !reference [.docker_hub_variables]
+# is.
+# The same is also true when extending jobs: if you define a job with
+# variables:
+#   !reference [.docker_hub_variables]
+# then you create a second job that extends this first job, with:
+# variables:
+#   OTHER_VARIABLE: this
+# then the variables defined in !reference [.docker_hub_variables] are not present
+# in the second job.
+
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -9,7 +30,7 @@
   SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
   SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
 
-.google_container_registry_variables:
+.google_container_registry_variables: &google_container_registry_variables
   <<: *docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: gcr_login
   DOCKER_REGISTRY_PWD_SSM_KEY: gcr_pwd
@@ -20,7 +41,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   tags: ["runner:docker", "size:large"]
   variables:
-    !reference [.docker_hub_variables]
+    <<: *docker_hub_variables
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -37,7 +58,7 @@
 .docker_tag_windows_job_definition:
   stage: image_deploy
   variables:
-    !reference [.docker_hub_variables]
+    <<: *docker_hub_variables
   before_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
@@ -78,7 +99,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-push:1.5.1
   tags: ["runner:docker", "size:large"]
   variables:
-    !reference [.google_container_registry_variables]
+    <<: *google_container_registry_variables
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -91,7 +112,7 @@
 .google_container_registry_tag_windows_job_definition:
   stage: image_deploy
   variables:
-    !reference [.google_container_registry_variables]
+    <<: *google_container_registry_variables
   before_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
