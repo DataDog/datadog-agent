@@ -36,7 +36,7 @@ metadata:
 spec:
   containers:
     - name: http-client
-      image: julianosk/continuous-requests-py:1.1
+      image: julianosk/continuous-requests-py:1.2
       env:
         - name: URL
           value: "http://shipping/health/"
