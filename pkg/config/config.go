@@ -218,7 +218,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 1) // The number of commits before expiring a context
+
+	// The number of commits before expiring a context. The value is 2 to handle
+	// the case where a check miss to send a metric.
+	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
