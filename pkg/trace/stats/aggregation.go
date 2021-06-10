@@ -23,6 +23,7 @@ type Aggregation struct {
 	PayloadAggregationKey
 }
 
+// BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
 	Service    string
 	Name       string
@@ -32,6 +33,7 @@ type BucketsAggregationKey struct {
 	Synthetics bool
 }
 
+// PayloadAggregationKey specifies the key by which a payload is aggregated.
 type PayloadAggregationKey struct {
 	Env      string
 	Hostname string
