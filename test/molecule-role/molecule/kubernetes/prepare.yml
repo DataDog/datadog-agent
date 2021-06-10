@@ -136,12 +136,6 @@
         chdir: /home/ubuntu/deployment/test_connections
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Apply the pod-nginx-http scenario
-      command: kubectl -n={{ namespace }} apply -f pod-nginx-http.yaml
-      args:
-        chdir: /home/ubuntu/deployment/test_connections
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Wait for the pod-to-service-cluster-ip scenario to become ready
       command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-service-cluster-ip pod
       args:
@@ -156,12 +150,6 @@
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Wait for the pod-to-pod-headless scenario to become ready
       command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-pod-headless pod
-      args:
-        chdir: /home/ubuntu/deployment/agents
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Wait for the pod-nginx-http scenario to become ready
-      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-nginx-http pod
       args:
         chdir: /home/ubuntu/deployment/agents
       environment:
