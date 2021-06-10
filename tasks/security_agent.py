@@ -1,4 +1,5 @@
 import datetime
+import glob
 import os
 import shutil
 import sys
@@ -10,6 +11,7 @@ from .go import generate
 from .utils import (
     REPO_PATH,
     bin_name,
+    bundle_files,
     generate_config,
     get_build_flags,
     get_git_branch_name,
@@ -141,11 +143,6 @@ def gen_mocks(ctx):
     Generate mocks.
     """
 
-    gopath = get_gopath(ctx)
-    if not os.path.exists(os.path.join(gopath, "bin/mockery")):
-        with ctx.cd(gopath):
-            ctx.run("go get -u github.com/vektra/mockery/cmd/mockery", env={'GO111MODULE': 'on'})
-
     with ctx.cd("./pkg/compliance"):
         ctx.run("./gen_mocks.sh")
 
@@ -195,6 +192,17 @@ def build_functional_tests(
     if static:
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
+
+    bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
+    bundle_files(
+        ctx,
+        bindata_files,
+        "pkg/security/tests/schemas",
+        "pkg/security/tests/schemas/schemas.go",
+        "schemas",
+        "functionaltests",
+        False,
+    )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{repo_path}/pkg/security/tests'
@@ -314,7 +322,7 @@ def docker_functional_tests(
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
 

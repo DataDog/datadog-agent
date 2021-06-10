@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "file.json",
+    "type": "object",
+    "properties": {
+        "usr": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "group"
+            ]
+        }
+    }
+}

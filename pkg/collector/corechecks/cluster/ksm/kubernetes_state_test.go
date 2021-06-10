@@ -16,8 +16,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/kube-state-metrics/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 type metricsExpected struct {

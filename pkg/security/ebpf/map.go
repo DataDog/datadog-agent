@@ -10,6 +10,7 @@ package ebpf
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
 
@@ -86,4 +87,6 @@ var (
 var (
 	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
 	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
+	// BufferSelectorERPCMonitorKey is the key used to select the active eRPC monitor buffer key
+	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 )

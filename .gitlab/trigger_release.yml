@@ -2,21 +2,12 @@
 # trigger_release stage
 # Contains jobs which trigger release pipelines in the datadog/agent-release-management repository.
 
-.if_deploy_on_tag_6: &if_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
 # The trigger jobs are always run (even on failing pipelines)
 # because there's no way to retry a trigger job once it gets skipped
 # because of a pipeline failure, even when retrying the pipeline.
 trigger_release_6:
   rules:
-    - <<: *if_deploy_on_tag_6
-      when: always
+    !reference [.on_deploy_stable_or_beta_repo_branch_a6_always]
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_6-1
@@ -26,8 +17,7 @@ trigger_release_6:
 
 trigger_release_7:
   rules:
-    - <<: *if_deploy_on_tag_7
-      when: always
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7_always]
   stage: trigger_release
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7-1

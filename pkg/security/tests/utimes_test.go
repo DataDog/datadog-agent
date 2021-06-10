@@ -14,8 +14,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestUtime(t *testing.T) {
@@ -62,7 +63,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	}))
 
@@ -104,7 +107,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	}))
 
@@ -149,7 +154,9 @@ func TestUtime(t *testing.T) {
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 
-			testContainerPath(t, event, "utimes.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "utimes.file.container_path")
+			}
 		}
 	})
 }

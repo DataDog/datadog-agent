@@ -151,7 +151,7 @@ func TestIsParentDiscarder(t *testing.T) {
 	}
 }
 
-func TestApproverAncestors(t *testing.T) {
+func TestApproverAncestors1(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 	m := &model.Model{}
 	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, log.DatadogAgentLogger{}))

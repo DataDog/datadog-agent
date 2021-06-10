@@ -19,9 +19,3 @@ func (cr *ContainerResolver) GetContainerID(pid uint32) (utils.ContainerID, erro
 	// Parse /proc/[pid]/moutinfo
 	return utils.GetProcContainerID(pid, pid)
 }
-
-// ResolveLabels resolves the label of a container from its container ID
-func (cr *ContainerResolver) ResolveLabels(containerID string) ([]string, error) {
-	// Do not use the tagger for now
-	return []string{}, nil
-}

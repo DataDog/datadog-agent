@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb/mocks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,6 +108,14 @@ func TestOnlyEnvConfig(t *testing.T) {
 	agentConfig, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
+
+	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, 99, agentConfig.MaxPerMessage)
+
+	os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {

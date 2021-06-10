@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -23,9 +22,9 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
@@ -42,7 +41,7 @@ import (
 type Module struct {
 	sync.RWMutex
 	probe          *sprobe.Probe
-	config         *config.Config
+	config         *sconfig.Config
 	ruleSets       [2]*rules.RuleSet
 	currentRuleSet uint64
 	reloading      uint64
@@ -57,7 +56,7 @@ type Module struct {
 }
 
 // Register the runtime security agent module
-func (m *Module) Register(httpMux *http.ServeMux) error {
+func (m *Module) Register(_ *module.Router) error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -76,6 +75,9 @@ func (m *Module) Register(httpMux *http.ServeMux) error {
 			log.Error(err)
 		}
 	}()
+
+	// start api server
+	m.apiServer.Start(m.ctx)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -185,6 +187,9 @@ func (m *Module) Reload() error {
 		return err
 	}
 
+	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
+	m.ruleSets[m.currentRuleSet] = ruleSet
+
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
@@ -200,9 +205,6 @@ func (m *Module) Reload() error {
 
 	m.apiServer.Apply(ruleIDs)
 	m.rateLimiter.Apply(ruleIDs)
-
-	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
-	m.ruleSets[m.currentRuleSet] = ruleSet
 
 	m.displayReport(report)
 
@@ -250,18 +252,45 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event)
+	m.SendEvent(rule, event, func() []string { return nil })
 }
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	m.SendEvent(rule, event)
+	// prepare the event
+	m.probe.OnRuleMatch(rule, event.(*probe.Event))
+
+	// needs to be resolved here, outside of the callback as using process tree
+	// which can be modified during queuing
+	service := event.(*probe.Event).GetProcessServiceTag()
+
+	id := event.(*probe.Event).ContainerContext.ID
+
+	extTagsCb := func() []string {
+		var tags []string
+
+		// check from tagger
+		if service == "" {
+			service = m.probe.GetResolvers().TagsResolver.GetValue(id, "service")
+		}
+
+		if service == "" {
+			service = m.config.HostServiceName
+		}
+
+		if service != "" {
+			tags = append(tags, "service:"+service)
+		}
+		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
+	}
+
+	m.SendEvent(rule, event, extTagsCb)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (m *Module) SendEvent(rule *rules.Rule, event Event) {
+func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event)
+		m.apiServer.SendEvent(rule, event, extTagsCb)
 	} else {
 		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
@@ -323,7 +352,7 @@ func (m *Module) GetRuleSet() *rules.RuleSet {
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *config.Config) (api.Module, error) {
+func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	var statsdClient *statsd.Client
 	var err error
 	if cfg != nil {
@@ -336,7 +365,7 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 			return nil, err
 		}
 	} else {
-		log.Warn("Logs won't be send to DataDog")
+		log.Warn("metrics won't be sent to DataDog")
 	}
 
 	probe, err := sprobe.NewProbe(cfg, statsdClient)
@@ -348,7 +377,6 @@ func NewModule(cfg *config.Config) (api.Module, error) {
 
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
-	limits[sprobe.AbnormalPathRuleID] = Limit{Limit: 0, Burst: 0}
 
 	m := &Module{
 		config:         cfg,

@@ -7,10 +7,19 @@ package replay
 
 import (
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
+const (
+	// GUID will be used as the GUID during capture replays
+	// This is a magic number chosen for no particular reason other than the fact its
+	// quite large an improbable to match an actual Group ID on any given box. We
+	// need this number to identify replayed Unix socket ancillary credentials.
+	GUID = 999888777
 )
 
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
@@ -22,8 +31,11 @@ type TrafficCapture struct {
 
 // NewTrafficCapture creates a TrafficCapture instance.
 func NewTrafficCapture() (*TrafficCapture, error) {
-	location := config.Datadog.GetString("dogstatsd_uds_capture_path")
-	writer := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_uds_capture_depth"))
+	location := config.Datadog.GetString("dogstatsd_capture_path")
+	if location == "" {
+		location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
+	}
+	writer := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return nil, fmt.Errorf("unable to instantiate capture writer")
 	}
@@ -59,17 +71,12 @@ func (tc *TrafficCapture) Start(d time.Duration) error {
 
 }
 
-// Stop stops an ongoing TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Stop() error {
+// Stop stops an ongoing TrafficCapture.
+func (tc *TrafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 
-	err := tc.Writer.StopCapture()
-	if err != nil {
-		return nil
-	}
-
-	return nil
+	tc.Writer.StopCapture()
 }
 
 // Path returns the path to the underlying TrafficCapture file, and an error if any.

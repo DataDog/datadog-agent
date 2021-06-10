@@ -47,11 +47,9 @@ func NewPacketSource(filter *manager.Probe) (*AFPacketSource, error) {
 	// The underlying socket file descriptor is private, hence the use of reflection
 	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
 
-	// Attaches DNS socket filter to the RAW_SOCKET
+	// Point socket filter program to the RAW_SOCKET file descriptor
+	// Note the filter attachment itself is triggered by the ebpf.Manager
 	filter.SocketFD = socketFD
-	if err := filter.Attach(); err != nil {
-		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
-	}
 
 	ps := &AFPacketSource{
 		TPacket:      rawSocket,
@@ -109,10 +107,6 @@ func (p *AFPacketSource) PacketType() gopacket.LayerType {
 
 func (p *AFPacketSource) Close() {
 	close(p.exit)
-	if err := p.socketFilter.Detach(); err != nil {
-		log.Errorf("error detaching socket filter: %s", err)
-	}
-
 	p.TPacket.Close()
 }
 

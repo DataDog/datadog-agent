@@ -45,10 +45,7 @@ func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) err
 	if err := p.statFiles(); err != nil {
 		return err
 	}
-	if err := p.write(tempDir, hostname, mode); err != nil {
-		return err
-	}
-	return nil
+	return p.write(tempDir, hostname, mode)
 }
 
 func (p permissionsInfos) statFiles() error {

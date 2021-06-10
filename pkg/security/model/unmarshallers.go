@@ -12,15 +12,23 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
-
-// ErrNotEnoughData is returned when the buffer is too small to unmarshal the event
-var ErrNotEnoughData = errors.New("not enough data")
 
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte) (int, error)
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
+	id, err := UnmarshalString(data, 64)
+	if err != nil {
+		return 0, err
+	}
+	e.ID = utils.FindContainerID(id)
+
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -54,22 +62,6 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.UID = ByteOrder.Uint32(data[0:4])
 	e.GID = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
-		return 0, ErrNotEnoughData
-	}
-
-	idRaw := [64]byte{}
-	SliceToArray(data[0:64], unsafe.Pointer(&idRaw))
-	e.ID = string(bytes.Trim(idRaw[:], "\x00"))
-	if len(e.ID) > 1 && len(e.ID) < 64 {
-		e.ID = ""
-	}
-
-	return 64, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -145,13 +137,13 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTimestamp = ByteOrder.Uint64(data[read : read+8])
+	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
 	read += 8
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
 	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
-	if IsPrintable(ttyName) {
+	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
 	read += 64
@@ -165,8 +157,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.Cookie = ByteOrder.Uint32(data[read : read+4])
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
-	e.ForkTimestamp = ByteOrder.Uint64(data[read+8 : read+16])
-	e.ExitTimestamp = ByteOrder.Uint64(data[read+16 : read+24])
+	e.ForkTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+8:read+16])))
+	e.ExitTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+16:read+24])))
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t
@@ -214,14 +206,6 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ID = ByteOrder.Uint32(data[0:4])
 	e.Size = ByteOrder.Uint32(data[4:8])
 	SliceToArray(data[8:136], unsafe.Pointer(&e.ValuesRaw))
-	values, err := UnmarshalStringArray(e.ValuesRaw[:e.Size])
-	if err != nil || e.Size == 128 {
-		if len(values) > 0 {
-			values[len(values)-1] = values[len(values)-1] + "..."
-		}
-		e.IsTruncated = true
-	}
-	e.Values = values
 
 	return 136, nil
 }

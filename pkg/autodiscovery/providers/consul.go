@@ -285,3 +285,8 @@ func isTemplateField(key string) bool {
 func init() {
 	RegisterProvider("consul", NewConsulConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the ConsulConfigProvider
+func (p *ConsulConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

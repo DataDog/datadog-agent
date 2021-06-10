@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -43,7 +43,7 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 func TestOverlayFS(t *testing.T) {
 	var sles12 bool
 
-	kv, err := probe.NewKernelVersion()
+	kv, err := kernel.NewKernelVersion()
 	if err == nil {
 		sles12 = kv.IsSLES12Kernel()
 	}
@@ -621,6 +621,9 @@ func TestOverlayFS(t *testing.T) {
 	})
 
 	t.Run("invalidate-discarder", func(t *testing.T) {
+		// ensure that all the previous discarder are removed
+		test.probe.FlushDiscarders()
+
 		testFile, _, err := test.Path("bind/discarded.txt")
 		if err != nil {
 			t.Fatal(err)

@@ -33,7 +33,7 @@ type Sender interface {
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string)
+	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e metrics.Event)
 	EventPlatformEvent(rawEvent string, eventType string)
 	GetSenderStats() check.SenderStats
@@ -291,7 +291,7 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
-func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
+func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	tags = append(tags, s.checkTags...)
 
 	log.Tracef(
@@ -306,14 +306,15 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 	)
 
 	histogramBucket := &metrics.HistogramBucket{
-		Name:       metric,
-		Value:      value,
-		LowerBound: lowerBound,
-		UpperBound: upperBound,
-		Monotonic:  monotonic,
-		Host:       hostname,
-		Tags:       tags,
-		Timestamp:  timeNowNano(),
+		Name:            metric,
+		Value:           value,
+		LowerBound:      lowerBound,
+		UpperBound:      upperBound,
+		Monotonic:       monotonic,
+		Host:            hostname,
+		Tags:            tags,
+		Timestamp:       timeNowNano(),
+		FlushFirstValue: flushFirstValue,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {

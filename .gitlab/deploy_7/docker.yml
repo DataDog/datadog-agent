@@ -5,16 +5,6 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
-.if_deploy_7: &if_deploy_7
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
-
-.if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
-
 #
 # Image tagging
 #
@@ -24,8 +14,8 @@
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
     - echo "Working on repsoitory ${REPOSITORY}"
@@ -37,20 +27,7 @@ deploy_docker_hub_linux-a7:
     - .docker_tag_job_definition
     - .deploy_docker_linux-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -60,20 +37,7 @@ deploy_google_container_registry_linux-a7:
     - .google_container_registry_tag_job_definition
     - .deploy_docker_linux-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""
@@ -89,8 +53,8 @@ deploy_google_container_registry_linux-a7:
     VARIANT: 2004
   script:
     - $ErrorActionPreference = "Stop"
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if (("$DEPLOY_AGENT" -ne "true") -or ("$RELEASE_VERSION_7" -eq "nightly-a7") -or ("$RELEASE_VERSION_7" -eq "")) {
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if (("$DEPLOY_AGENT" -ne "true") -or ("$DEB_RPM_BUCKET_BRANCH" -eq "nightly")) {
         $REPOSITORY = "${REPOSITORY}-dev"
       }
     - Write-Host "Working on repository ${REPOSITORY}"
@@ -131,20 +95,7 @@ deploy_docker_hub_windows-a7:
     - .docker_tag_windows_job_definition
     - .deploy_docker_windows-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -154,20 +105,7 @@ deploy_google_container_registry_windows-a7:
     - .google_container_registry_tag_windows_job_definition
     - .deploy_docker_windows-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""
@@ -177,8 +115,8 @@ deploy_google_container_registry_windows-a7:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
     - echo "Working on repsoitory ${REPOSITORY}"
@@ -189,20 +127,7 @@ deploy_docker_hub-dogstatsd:
     - .docker_tag_job_definition
     - .deploy_docker-dogstatsd
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/dogstatsd
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/dogstatsd-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/dogstatsd
     SIGNING_ARGS: --signed-push
@@ -212,20 +137,7 @@ deploy_google_container_registry-dogstatsd:
     - .google_container_registry_tag_job_definition
     - .deploy_docker-dogstatsd
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/dogstatsd
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/dogstatsd-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/dogstatsd
     SIGNING_ARGS: ""
@@ -239,8 +151,8 @@ deploy_google_container_registry-dogstatsd:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
     - echo "Working on repsoitory ${REPOSITORY}"
@@ -270,20 +182,7 @@ deploy_docker_hub_manifests-a7:
     - .docker_tag_job_definition
     - .deploy_manifests-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -302,20 +201,7 @@ deploy_google_container_registry_manifests-a7:
     - .google_container_registry_tag_job_definition
     - .deploy_manifests-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent-dev
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""
@@ -338,8 +224,8 @@ deploy_google_container_registry_manifests-a7:
   dependencies: []
   script:
     - VERSION=$(inv -e agent.version --major-version 7 --url-safe)
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
     - echo "Working on repsoitory ${REPOSITORY}"
@@ -390,29 +276,7 @@ deploy_latest_manifests_docker_hub-a7:
     - .docker_tag_job_definition
     - .deploy_latest_manifests-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent
-    # - <<: *if_not_master_branch
-    #   when: never
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/agent-dev
-    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
-    # if they run on master
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/agent
     SIGNING_ARGS: --signed-push
@@ -422,29 +286,7 @@ deploy_latest_manifests_google_container_registry-a7:
     - .google_container_registry_tag_job_definition
     - .deploy_latest_manifests-a7
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent
-    # - <<: *if_not_master_branch
-    #   when: never
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/agent-dev
-    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
-    # if they run on master
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/agent
     SIGNING_ARGS: ""
@@ -453,8 +295,8 @@ deploy_latest_manifests_google_container_registry-a7:
   stage: deploy7
   dependencies: []
   script:
-    - | # If we're not deploying on tag 7, target the dev repo instead
-      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$RELEASE_VERSION_7" == "nightly-a7" ]] || [[ "$RELEASE_VERSION_7" == "" ]]; then
+    - | # If we're deploying on nightly (ie. not an RC / release build), target the dev repo
+      if [[ "$DEPLOY_AGENT" != "true" ]] || [[ "$DEB_RPM_BUCKET_BRANCH" == "nightly" ]]; then
         REPOSITORY="${REPOSITORY}-dev"
       fi
     - echo "Working on repsoitory ${REPOSITORY}"
@@ -466,29 +308,7 @@ deploy_latest_docker_hub-dogstatsd:
     - .docker_tag_job_definition
     - .deploy_latest-dogstatsd
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/dogstatsd
-    # - <<: *if_not_master_branch
-    #   when: never
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: datadog/dogstatsd-dev
-    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
-    # if they run on master
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: datadog/dogstatsd
     SIGNING_ARGS: --signed-push
@@ -498,29 +318,7 @@ deploy_latest_google_container_registry-dogstatsd:
     - .google_container_registry_tag_job_definition
     - .deploy_latest-dogstatsd
   rules:
-    # TODO: Use in-rule variables instead of a condition in script once we reach Gitlab 13.8
-    # - <<: *if_deploy_on_tag_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/dogstatsd
-    # - <<: *if_not_master_branch
-    #   when: never
-    # - <<: *if_deploy_7
-    #   when: manual
-    #   allow_failure: true
-    #   variables:
-    #     REPOSITORY: gcr.io/datadoghq/dogstatsd-dev
-    # Allow running the latest job on tagged deploys (RCs, final artifacts) and on other deploy pipelines
-    # if they run on master
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
-    - <<: *if_not_master_branch
-      when: never
-    - <<: *if_deploy_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_a7_manual]
   variables:
     REPOSITORY: gcr.io/datadoghq/dogstatsd
     SIGNING_ARGS: ""

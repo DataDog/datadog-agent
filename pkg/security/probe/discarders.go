@@ -34,6 +34,10 @@ const (
 	DiscardInodeOp = iota + 1
 	// DiscardPidOp discards a pid
 	DiscardPidOp
+	// ResolveSegmentOp resolves the requested segment
+	ResolveSegmentOp
+	// ResolvePathOp resolves the requested path
+	ResolvePathOp
 )
 
 const (
@@ -139,9 +143,9 @@ func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
 }
 
 type inodeDiscarder struct {
-	PathKey  PathKey
-	Revision uint32
-	Padding  uint32
+	PathKey PathKey
+	IsLeaf  uint32
+	Padding uint32
 }
 
 type inodeDiscarders struct {
@@ -206,6 +210,10 @@ func (id *inodeDiscarders) initRevision(mountEvent *model.MountEvent) {
 	}
 }
 
+var (
+	discarderEvent = NewEvent(nil, nil)
+)
+
 // Important should always be called after having checked that the file is not a discarder itself otherwise it can report incorrect
 // parent discarder
 func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventType model.EventType, filenameField eval.Field, filename string) (bool, error) {
@@ -218,7 +226,11 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 
 	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 
-	event := NewEvent(nil, nil)
+	event := discarderEvent
+	defer func() {
+		*discarderEvent = eventZero
+	}()
+
 	if _, err := event.GetFieldType(filenameField); err != nil {
 		return false, nil
 	}
@@ -342,13 +354,13 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(rs, eventType, field, filename, mountID, inode, pathID)
 			if !isDiscarded && !isDeleted {
 				if _, ok := err.(*ErrInvalidKeyPath); !ok {
-					log.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d", eventType, eventType, inode)
+					log.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
 					// not able to discard the parent then only discard the filename
 					err = probe.inodeDiscarders.discardInode(eventType, mountID, inode, true)
 				}
 			} else {
-				log.Tracef("Apply `%s.file.path` parent inode discarder for event `%s` with value `%s`", eventType, eventType, filename)
+				log.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
 			}
 
 			if err != nil {

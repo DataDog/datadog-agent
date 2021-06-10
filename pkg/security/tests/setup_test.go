@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -26,17 +27,17 @@ import (
 	"time"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
-
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
+	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -51,7 +52,10 @@ var (
 	logger              seelog.LoggerInterface
 )
 
-const grpcAddr = "127.0.0.1:18787"
+const (
+	grpcAddr        = "127.0.0.1:18787"
+	getEventTimeout = 3 * time.Second
+)
 
 const testConfig = `---
 log_level: DEBUG
@@ -62,6 +66,7 @@ system_probe_config:
 runtime_security_config:
   enabled: true
   fim_enabled: true
+  remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
   socket: /tmp/test-security-probe.sock
@@ -77,6 +82,8 @@ runtime_security_config:
 {{if .DisableDiscarders}}
   enable_discarders: false
 {{end}}
+  erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
+  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -99,9 +106,10 @@ rules:
 `
 
 var (
-	testEnvironment string
-	useReload       bool
-	logLevelStr     string
+	disableERPCDentryResolution bool
+	testEnvironment             string
+	useReload                   bool
+	logLevelStr                 string
 )
 
 const (
@@ -115,13 +123,15 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir              string
-	disableFilters       bool
-	disableApprovers     bool
-	disableDiscarders    bool
-	wantProbeEvents      bool
-	eventsCountThreshold int
-	reuseProbeHandler    bool
+	testDir                     string
+	disableFilters              bool
+	disableApprovers            bool
+	disableDiscarders           bool
+	wantProbeEvents             bool
+	eventsCountThreshold        int
+	reuseProbeHandler           bool
+	disableERPCDentryResolution bool
+	disableMapDentryResolution  bool
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
@@ -130,7 +140,9 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
-		to.reuseProbeHandler == opts.reuseProbeHandler
+		to.reuseProbeHandler == opts.reuseProbeHandler &&
+		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
+		to.disableMapDentryResolution == opts.disableMapDentryResolution
 }
 
 type testModule struct {
@@ -143,6 +155,7 @@ type testModule struct {
 	listener     net.Listener
 	events       chan testEvent
 	discarders   chan *testDiscarder
+	cmdWrapper   cmdWrapper
 }
 
 var testMod *testModule
@@ -251,13 +264,23 @@ func assertReturnValue(t *testing.T, retval, expected int64) {
 	assert.Equal(t, retval, expected, "wrong return value")
 }
 
-func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 	} else {
 		assert.Equal(t, fieldValue, value, msgAndArgs...)
+	}
+}
+
+func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+	t.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		t.Errorf("failed to get field '%s': %s", field, err)
+	} else {
+		assert.Assert(t, is.Contains(values, fieldValue))
 	}
 }
 
@@ -271,12 +294,24 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 		opts.eventsCountThreshold = 100000000
 	}
 
+	erpcDentryResolutionEnabled := true
+	if opts.disableERPCDentryResolution {
+		erpcDentryResolutionEnabled = false
+	}
+
+	mapDentryResolutionEnabled := true
+	if opts.disableMapDentryResolution {
+		mapDentryResolutionEnabled = false
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":      dir,
-		"DisableApprovers":     opts.disableApprovers,
-		"DisableDiscarders":    opts.disableDiscarders,
-		"EventsCountThreshold": opts.eventsCountThreshold,
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"DisableDiscarders":           opts.disableDiscarders,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 	}); err != nil {
 		return "", err
 	}
@@ -349,10 +384,24 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	}
 	defer os.Remove(cfgFilename)
 
+	var cmdWrapper cmdWrapper
+	if testEnvironment == DockerEnvironment {
+		cmdWrapper = newStdCmdWrapper()
+	} else {
+		wrapper, err := newDockerCmdWrapper(st.Root())
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
+		} else {
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
+		}
+	}
+
 	if useReload && testMod != nil {
 		if opts.Equal(testMod.opts) {
 			testMod.reset()
 			testMod.st = st
+			testMod.cmdWrapper = cmdWrapper
 			return testMod, testMod.reloadConfiguration()
 		}
 		testMod.cleanup()
@@ -366,6 +415,9 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create config")
 	}
+
+	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
+	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
 	mod, err := module.NewModule(config)
 	if err != nil {
@@ -392,6 +444,7 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 			events:       [2]chan *sprobe.Event{make(chan *sprobe.Event, handlerChanLength), make(chan *sprobe.Event, handlerChanLength)},
 			customEvents: [2]chan *module.RuleEvent{make(chan *module.RuleEvent, handlerChanLength), make(chan *module.RuleEvent, handlerChanLength)},
 		},
+		cmdWrapper: cmdWrapper,
 	}
 
 	if err := mod.Register(nil); err != nil {
@@ -404,6 +457,10 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 	testMod.probe.SetEventHandler(testMod.probeHandler)
 
 	return testMod, nil
+}
+
+func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	tm.cmdWrapper.Run(t, name, fnc)
 }
 
 func (tm *testModule) reset() {
@@ -454,7 +511,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {
@@ -760,21 +817,34 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
-func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string, expected string) {
 	t.Helper()
 
-	if testEnvironment != DockerEnvironment {
-		return
-	}
-
-	path, err := event.GetFieldValue(fieldPath)
+	// check container path
+	value, err := event.GetFieldValue(fieldPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(path.(string), "docker") {
-		t.Errorf("incorrect container_path, should contain `docker`: %s \n %v", path, event)
+	switch value.(type) {
+	case string:
+		if !strings.Contains(value.(string), expected) {
+			t.Errorf("expected value `%s` for `%s` not found: %+v", expected, fieldPath, event)
+		}
+	case []string:
+		for _, v := range value.([]string) {
+			if strings.Contains(v, expected) {
+				return
+			}
+		}
+		t.Errorf("expected value `%s` for `%s` not found in for `%+v`: %+v", expected, fieldPath, value, event)
 	}
+}
+
+func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
+	t.Helper()
+
+	testStringFieldContains(t, event, fieldPath, "docker")
 }
 
 func (tm *testModule) flushChannels(duration time.Duration) {
@@ -789,16 +859,20 @@ func (tm *testModule) flushChannels(duration time.Duration) {
 	}
 }
 
-func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.Event, error) {
+func waitForDiscarder(test *testModule, key string, value interface{}, eventType model.EventType) (*sprobe.Event, error) {
 	timeout := time.After(5 * time.Second)
 
 	for {
 		select {
 		case discarder := <-test.discarders:
-			v, _ := discarder.event.GetFieldValue(key)
+			e := discarder.event.(*sprobe.Event)
+			if e == nil || (e != nil && e.GetEventType() != eventType) {
+				continue
+			}
+			v, _ := e.GetFieldValue(key)
 			if v == value {
 				test.flushChannels(time.Second)
-				return discarder.event.(*sprobe.Event), nil
+				return e, nil
 			}
 		case <-timeout:
 			return nil, errors.New("timeout")
@@ -821,13 +895,16 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
-// contain a rule on "open.filename"
-func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
+// contain a rule on "open.file.path"
+func waitForProbeEvent(test *testModule, key string, value interface{}, eventType model.EventType) (*sprobe.Event, error) {
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {
 		case e := <-test.probeHandler.GetActiveEventsChan():
+			if e.GetEventType() != eventType {
+				continue
+			}
 			if v, _ := e.GetFieldValue(key); v == value {
 				test.flushChannels(time.Second)
 				return e, nil
@@ -838,12 +915,12 @@ func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.
 	}
 }
 
-func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	return waitForDiscarder(test, "open.file.path", filename)
+func waitForOpenDiscarder(test *testModule, filename string) (*sprobe.Event, error) {
+	return waitForDiscarder(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
-func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	return waitForProbeEvent(test, "open.file.path", filename)
+func waitForOpenProbeEvent(test *testModule, filename string) (*sprobe.Event, error) {
+	return waitForProbeEvent(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
 func TestEnv(t *testing.T) {

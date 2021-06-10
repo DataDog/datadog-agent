@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -95,7 +96,10 @@ func StartServer() error {
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig: &tlsConfig,
+		TLSConfig:    &tlsConfig,
+		ReadTimeout:  config.Datadog.GetDuration("cluster_agent.server.read_timeout_seconds") * time.Second,
+		WriteTimeout: config.Datadog.GetDuration("cluster_agent.server.write_timeout_seconds") * time.Second,
+		IdleTimeout:  config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second,
 	}
 
 	tlsListener := tls.NewListener(listener, &tlsConfig)

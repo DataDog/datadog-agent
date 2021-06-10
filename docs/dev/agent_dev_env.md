@@ -93,7 +93,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.14`. Make
+You must [install Golang](https://golang.org/doc/install) version `1.15`. Make
 sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any
 additional tool it might need.
 
@@ -145,11 +145,6 @@ Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download
 and build dependencies, so you need a recent `ruby` environment with `bundler`
 installed. See [how to build Agent packages with Omnibus][agent-omnibus] for more
 details.
-
-If you want to perform an Embedded build, you need to set the `use_system_libs`
-boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
-changing the `invoke.yaml` file or passing the corresponding arg to the build and
-test tasks, like `invoke build --use-system-libs=false`.
 
 ### Systemd
 

@@ -30,7 +30,7 @@ type CheckSampler struct {
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler() *CheckSampler {
+func newCheckSampler(bucketExpiry time.Duration) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
@@ -39,7 +39,7 @@ func newCheckSampler() *CheckSampler {
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
 		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:    1 * time.Minute,
+		bucketExpiry:    bucketExpiry,
 	}
 }
 
@@ -90,12 +90,15 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 	if bucket.Monotonic {
 		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
 		rawValue := bucket.Value
-		if bucketFound {
-			cs.lastSeenBucket[contextKey] = time.Now()
-			bucket.Value = rawValue - lastBucketValue
-		}
-		cs.lastBucketValue[contextKey] = rawValue
+
 		cs.lastSeenBucket[contextKey] = time.Now()
+		cs.lastBucketValue[contextKey] = rawValue
+		// Return early so we don't report the first raw value instead of the delta which will cause spikes
+		if !bucketFound && !bucket.FlushFirstValue {
+			return
+		}
+
+		bucket.Value = rawValue - lastBucketValue
 	}
 
 	if bucket.Value < 0 {
@@ -164,6 +167,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.commitSeries(timestamp)
 	cs.commitSketches(timestamp)
 	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
+
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {

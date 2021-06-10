@@ -12,8 +12,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestChmod(t *testing.T) {
@@ -61,7 +62,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	})
 
@@ -83,7 +86,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	})
 
@@ -104,7 +109,9 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			testContainerPath(t, event, "chmod.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "chmod.file.container_path")
+			}
 		}
 	}))
 

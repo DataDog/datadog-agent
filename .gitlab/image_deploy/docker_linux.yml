@@ -5,33 +5,10 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
-
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
 dev_branch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_version_6
-      when: manual
-      allow_failure: true
+    !reference [.on_a6_manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -46,8 +23,7 @@ dev_branch_docker_hub-a6:
 dev_branch_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.on_a7_manual]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64                 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
@@ -55,9 +31,7 @@ dev_branch_docker_hub-dogstatsd:
 dev_branch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_version_7
-      when: manual
-      allow_failure: true
+    !reference [.on_a7_manual]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64             datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -66,9 +40,7 @@ dev_branch_docker_hub-a7:
 dev_branch_google_container_registry-a7:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_version_7
-      when: manual
-      allow_failure: true
+    !reference [.on_a7_manual]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish ${SRC_AGENT}:${SRC_TAG}-7-amd64             gcr.io/datadoghq/agent-dev:${CI_COMMIT_REF_SLUG}-py3
@@ -77,9 +49,7 @@ dev_branch_google_container_registry-a7:
 dev_branch_multiarch_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_version_6
-      when: manual
-      allow_failure: true
+    !reference [.on_all_builds_a6_manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -103,9 +73,7 @@ dev_branch_multiarch_docker_hub-a6:
 dev_branch_multiarch_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_version_7
-      when: manual
-      allow_failure: true
+    !reference [.on_all_builds_a7_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -122,36 +90,48 @@ dev_branch_multiarch_docker_hub-a7:
 dev_branch_multiarch_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_version_7
-      when: manual
-      allow_failure: true
+    !reference [.on_a7_manual]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     # Platform-specific agent images
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64 datadog/dogstatsd-dev:${CI_COMMIT_REF_SLUG}
 
+dca_dev_branch_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    !reference [.on_a7_manual]
+  needs: ["docker_build_cluster_agent_amd64"]
+  script:
+    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+dca_dev_branch_multiarch_docker_hub:
+  extends: .docker_tag_job_definition
+  rules:
+    !reference [.on_all_builds_a7_manual]
+  needs: ["docker_build_cluster_agent_amd64", "docker_build_cluster_agent_arm64"]
+  script:
+    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
+    - inv -e docker.publish-manifest --signed-push --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --image datadog/cluster-agent-dev-amd64:${CI_COMMIT_REF_SLUG},linux/amd64 --image datadog/cluster-agent-dev-arm64:${CI_COMMIT_REF_SLUG},linux/arm64
+
 dev_master_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
     - docker_build_agent6_py2py3_jmx
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:master
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:master-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-dev:master-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-dev:master-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:master
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:master-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:master-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:master-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-py2py3-jmx-amd64  datadog/agent-dev:master-py2py3-jmx
 
 dev_master_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:master-py3
@@ -160,38 +140,15 @@ dev_master_docker_hub-a7:
 dev_master_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64           datadog/dogstatsd-dev:master
 
-dca_dev_branch_docker_hub:
-  extends: .docker_tag_job_definition
-  rules:
-    - <<: *if_not_master_branch
-      when: manual
-      allow_failure: true
-  needs: ["docker_build_cluster_agent_amd64"]
-  script:
-    - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-
-dca_dev_branch_multiarch_docker_hub:
-  extends: .docker_tag_job_definition
-  rules:
-    - <<: *if_not_master_branch
-      when: manual
-      allow_failure: true
-  needs: ["docker_build_cluster_agent_amd64", "docker_build_cluster_agent_arm64"]
-  script:
-    - inv -e docker.publish-bulk --signed-push --platform linux/amd64 --platform linux/arm64 --src-template ${SRC_DCA}:${SRC_TAG}-ARCH --dst-template datadog/cluster-agent-dev-ARCH:${CI_COMMIT_REF_SLUG}
-    - inv -e docker.publish-manifest --signed-push --name datadog/cluster-agent-dev --tag ${CI_COMMIT_REF_SLUG} --image datadog/cluster-agent-dev-amd64:${CI_COMMIT_REF_SLUG},linux/amd64 --image datadog/cluster-agent-dev-arm64:${CI_COMMIT_REF_SLUG},linux/arm64
-
 dca_dev_master_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:master
@@ -200,26 +157,23 @@ dca_dev_master_docker_hub:
 dev_nightly_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
     - docker_build_agent6_py2py3_jmx
   script:
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
-    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64   datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-amd64             datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64         datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+    - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-py2py3-jmx-amd64  datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2py3-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
@@ -229,9 +183,7 @@ dev_nightly_docker_hub-a7:
 dev_nightly_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64           datadog/dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}

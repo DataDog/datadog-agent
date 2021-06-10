@@ -20,7 +20,7 @@ int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *sysc
 
 int __attribute__((always_inline)) trace__sys_unlink(int flags) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_UNLINK,
+        .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
         .unlink = {
             .flags = flags,
@@ -42,7 +42,7 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 
 SEC("kprobe/vfs_unlink")
 int kprobe__vfs_unlink(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_UNLINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
 
@@ -65,23 +65,38 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int ret = resolve_dentry(dentry, syscall->unlink.file.path_key, syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0);
-    if (ret < 0) {
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.key = syscall->unlink.file.path_key;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0;
+    syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+SEC("kprobe/dr_unlink_callback")
+int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret < 0) {
         return mark_as_discarded(syscall);
     }
 
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UNLINK);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
+
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
+    if (!syscall)
+        return 0;
 
     // ensure that we invalidate all the layers
     u64 inode = syscall->unlink.file.path_key.ino;
@@ -96,7 +111,7 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
             .syscall.retval = retval,
             .file = syscall->unlink.file,
             .flags = syscall->unlink.flags,
-            .discarder_revision = bump_discarder_revision(syscall->unlink.file.path_key.mount_id),
+            .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -110,12 +125,27 @@ int __attribute__((always_inline)) trace__sys_unlink_ret(struct pt_regs *ctx) {
     return 0;
 }
 
+int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_unlink_ret(ctx, retval);
+}
+
+SEC("tracepoint/syscalls/sys_exit_unlink")
+int tracepoint_syscalls_sys_exit_unlink(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_unlink_ret(args, args->ret);
+}
+
 SYSCALL_KRETPROBE(unlink) {
-    return trace__sys_unlink_ret(ctx);
+    return kprobe_sys_unlink_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_unlinkat")
+int tracepoint_syscalls_sys_exit_unlinkat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_unlink_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(unlinkat) {
-    return trace__sys_unlink_ret(ctx);
+    return kprobe_sys_unlink_ret(ctx);
 }
 
 #endif

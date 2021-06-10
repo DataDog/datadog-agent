@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Policy represents a policy file in the configuration file
@@ -46,6 +47,8 @@ type Config struct {
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
+	// EventServerRetention defines an event retention period so that some fields can be resolved
+	EventServerRetention int
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 	// CookieCacheSize is the size of the cookie cache used to cache process context
@@ -59,6 +62,8 @@ type Config struct {
 	LoadControllerControlPeriod time.Duration
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
+	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
+	StatsTagsCardinality string
 	// StatsdAddr defines the statsd address
 	StatsdAddr string
 	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
@@ -67,6 +72,14 @@ type Config struct {
 	FIMEnabled bool
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
+	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
+	ERPCDentryResolutionEnabled bool
+	// MapDentryResolutionEnabled determines if the map resolution is enabled
+	MapDentryResolutionEnabled bool
+	// RemoteTaggerEnabled defines whether the remote tagger is enabled
+	RemoteTaggerEnabled bool
+	// HostServiceName string
+	HostServiceName string
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -89,15 +102,20 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		PoliciesDir:                        aconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		EventServerBurst:                   aconfig.Datadog.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:                    aconfig.Datadog.GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:               aconfig.Datadog.GetInt("runtime_security_config.event_server.retention"),
 		PIDCacheSize:                       aconfig.Datadog.GetInt("runtime_security_config.pid_cache_size"),
 		CookieCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.cookie_cache_size"),
 		LoadControllerEventsCountThreshold: int64(aconfig.Datadog.GetInt("runtime_security_config.load_controller.events_count_threshold")),
 		LoadControllerDiscarderTimeout:     time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.discarder_timeout")) * time.Second,
 		LoadControllerControlPeriod:        time.Duration(aconfig.Datadog.GetInt("runtime_security_config.load_controller.control_period")) * time.Second,
 		StatsPollingInterval:               time.Duration(aconfig.Datadog.GetInt("runtime_security_config.events_stats.polling_interval")) * time.Second,
+		StatsTagsCardinality:               aconfig.Datadog.GetString("runtime_security_config.events_stats.tags_cardinality"),
 		StatsdAddr:                         fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort),
 		AgentMonitoringEvents:              aconfig.Datadog.GetBool("runtime_security_config.agent_monitoring_events"),
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:        aconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
+		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -119,6 +137,15 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 
 	if !c.EnableApprovers && !c.EnableDiscarders {
 		c.EnableKernelFilters = false
+	}
+
+	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {
+		c.MapDentryResolutionEnabled = true
+	}
+
+	serviceName := utils.GetTagValue("service", aconfig.GetConfiguredTags(true))
+	if len(serviceName) > 0 {
+		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
 
 	return c, nil

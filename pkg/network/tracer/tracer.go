@@ -8,11 +8,11 @@ package tracer
 import "C"
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -36,19 +36,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var (
-	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http", "compiler"}
-)
-
 const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
-
-func init() {
-	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
-	for _, name := range expvarTypes {
-		expvarEndpoints[name] = expvar.NewMap(name)
-	}
-}
 
 type Tracer struct {
 	m *manager.Manager
@@ -63,7 +51,6 @@ type Tracer struct {
 
 	httpMonitor *http.Monitor
 
-	perfMap       *manager.PerfMap
 	perfHandler   *ddebpf.PerfHandler
 	batchManager  *PerfBatchManager
 	flushIdle     chan chan struct{}
@@ -284,20 +271,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		gwLookup:                   newGatewayLookup(config, m),
 	}
 
-	tr.perfMap, tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
+	tr.batchManager, err = tr.initPerfPolling(perfHandlerTCP)
 	if err != nil {
 		return nil, fmt.Errorf("could not start polling bpf events: %s", err)
-	}
-
-	if err := tr.httpMonitor.Start(); err != nil {
-		log.Errorf("failed to initialize http monitor: %s", err)
 	}
 
 	if err = m.Start(); err != nil {
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
-
-	go tr.expvarStats()
 
 	return tr, nil
 }
@@ -443,55 +424,14 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	return editors, nil
 }
 
-func (t *Tracer) expvarStats() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	// trigger first get immediately
-	_ = t.populateExpvarStats()
-	for {
-		select {
-		case <-t.stop:
-			return
-		case <-ticker.C:
-			_ = t.populateExpvarStats()
-		}
-	}
-}
-
-func (t *Tracer) populateExpvarStats() error {
-	stats, err := t.getTelemetry()
-	if err != nil {
-		return err
-	}
-
-	for name, stat := range stats {
-		for metric, val := range stat.(map[string]int64) {
-			currVal := &expvar.Int{}
-			currVal.Set(val)
-			expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
-		}
-	}
-	return nil
-}
-
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
-func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *PerfBatchManager, error) {
-	pm, found := t.m.GetPerfMap(string(probes.ConnCloseEventMap))
-	if !found {
-		return nil, nil, fmt.Errorf("unable to find perf map %s", probes.ConnCloseEventMap)
-	}
-
+func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*PerfBatchManager, error) {
 	connCloseEventMap, _ := t.getMap(probes.ConnCloseEventMap)
 	connCloseMap, _ := t.getMap(probes.ConnCloseBatchMap)
 	numCPUs := int(connCloseEventMap.ABI().MaxEntries)
 	batchManager, err := NewPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := pm.Start(); err != nil {
-		return nil, nil, fmt.Errorf("error starting perf map: %s", err)
+		return nil, err
 	}
 
 	go func() {
@@ -536,7 +476,7 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*manager.PerfMap, *P
 		}
 	}()
 
-	return pm, batchManager, nil
+	return batchManager, nil
 }
 
 // shouldSkipConnection returns whether or not the tracer should ignore a given connection:
@@ -570,7 +510,6 @@ func (t *Tracer) Stop() {
 	close(t.stop)
 	t.reverseDNS.Close()
 	_ = t.m.Stop(manager.CleanAll)
-	_ = t.perfMap.Stop(manager.CleanAll)
 	t.perfHandler.Stop()
 	t.httpMonitor.Stop()
 	close(t.flushIdle)
@@ -636,6 +575,10 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 	dnsStats := t.reverseDNS.GetStats()
 	if pp, ok := dnsStats["packets_processed"]; ok {
 		tm.MonotonicDNSPacketsProcessed = pp
+	}
+
+	if ds, ok := dnsStats["dropped_stats"]; ok {
+		tm.DNSStatsDropped = ds
 	}
 
 	ebpfStats := t.getEbpfTelemetry()
@@ -891,26 +834,6 @@ func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	return defaultUDPConnTimeoutNanoSeconds
 }
 
-// getTelemetry calls GetStats and extract telemetry from the state structure
-func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
-	stats, err := t.GetStats()
-	if err != nil {
-		return nil, err
-	}
-
-	if states, ok := stats["state"]; ok {
-		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-			stats["state"] = telemetry
-		}
-	}
-	if states, ok := stats["http"]; ok {
-		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-			stats["http"] = telemetry
-		}
-	}
-	return stats, nil
-}
-
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	if t.state == nil {
@@ -941,7 +864,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
-		"state":     stateStats,
+		"state":     stateStats["telemetry"],
 		"tracer":    tracerStats,
 		"ebpf":      t.getEbpfTelemetry(),
 		"kprobes":   ddebpf.GetProbeStats(),
@@ -1005,12 +928,18 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 		return true
 	}
 
-	ok, err := ctr.Exists(conn)
+	exists, err := ctr.Exists(conn)
 	if err != nil {
-		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", conn, err)
+	}
+	if !exists {
+		exists, err = ctr.ExistsInRootNS(conn)
+		if err != nil {
+			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn, err)
+		}
 	}
 
-	return !ok
+	return !exists
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {
@@ -1032,6 +961,18 @@ func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
 	}
 
 	monitor, err := http.NewMonitor(c)
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return nil
+	}
+
+	err = monitor.Start()
+
+	if errors.Is(err, syscall.ENOMEM) {
+		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+		return nil
+	}
+
 	if err != nil {
 		log.Errorf("could not enable http monitoring: %s", err)
 		return nil

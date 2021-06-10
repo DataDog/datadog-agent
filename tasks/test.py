@@ -8,6 +8,7 @@ import operator
 import os
 import re
 import sys
+from contextlib import contextmanager
 
 import yaml
 from invoke import task
@@ -20,10 +21,9 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
-from .utils import get_build_flags
+from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
-DEFAULT_GIT_BRANCH = 'master'
 
 
 def ensure_bytes(s):
@@ -31,6 +31,18 @@ def ensure_bytes(s):
         return s.encode('utf-8')
 
     return s
+
+
+@contextmanager
+def environ(env):
+    original_environ = os.environ.copy()
+    os.environ.update(env)
+    yield
+    for var in env.keys():
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)
 
 
 TOOL_LIST = [
@@ -41,18 +53,33 @@ TOOL_LIST = [
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/gordonklaus/ineffassign',
     'github.com/goware/modvendor',
-    'golang.org/x/lint/golint',
+    'github.com/mgechev/revive',
+    'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'honnef.co/go/tools/cmd/staticcheck',
+    'github.com/vektra/mockery/v2',
 ]
+
+TOOL_LIST_PROTO = [
+    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
+    'github.com/golang/protobuf/protoc-gen-go',
+    'github.com/golang/mock/mockgen',
+]
+
+TOOLS = {
+    'internal/tools': TOOL_LIST,
+    'internal/tools/proto': TOOL_LIST_PROTO,
+}
 
 
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    with ctx.cd("internal/tools"):
-        for tool in TOOL_LIST:
-            ctx.run("go install {}".format(tool))
+    with environ({'GO111MODULE': 'on'}):
+        for path, tools in TOOLS.items():
+            with ctx.cd(path):
+                for tool in tools:
+                    ctx.run("go install {}".format(tool))
 
 
 @task()
@@ -286,8 +313,8 @@ def lint_teamassignment(_):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping check for team assignment.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for team assignment.".format(DEFAULT_BRANCH))
     elif pr_url:
         import requests
 
@@ -318,8 +345,8 @@ def lint_milestone(_):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping check for milestone.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for milestone.".format(DEFAULT_BRANCH))
     elif pr_url:
         import requests
 
@@ -349,8 +376,8 @@ def lint_releasenote(ctx):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping release note check.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping release note check.".format(DEFAULT_BRANCH))
     # Check if a releasenote has been added/changed
     elif pr_url:
         import requests
@@ -645,7 +672,7 @@ def lint_python(ctx):
     print(
         """Remember to set up pre-commit to lint your files before committing:
     https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
-            DEFAULT_GIT_BRANCH
+            DEFAULT_BRANCH
         )
     )
 

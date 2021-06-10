@@ -49,6 +49,7 @@ func FormatStatus(data []byte) (string, error) {
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
+	autodiscoveryErrors := stats["autodiscoveryErrors"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -68,6 +69,9 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	if traps.IsEnabled() {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	}
+	if config.IsContainerized() {
+		renderStatusTemplate(b, "/autodiscovery.tmpl", autodiscoveryErrors)
 	}
 
 	return b.String(), nil

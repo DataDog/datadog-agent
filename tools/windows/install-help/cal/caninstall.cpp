@@ -1,5 +1,5 @@
-#include "TargetMachine.h"
 #include "stdafx.h"
+#include "TargetMachine.h"
 
 /**
  *  canInstall determines if the install can proceed based on the current
@@ -58,7 +58,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     }
     if (isDC)
     {
-        if (!ddUserExists && data.GetTargetMachine().IsReadOnlyDomainController())
+        if (!ddUserExists && data.GetTargetMachine()->IsReadOnlyDomainController())
         {
             WcaLog(LOGMSG_STANDARD,
                    "(Configuration Error) Can't create user on RODC; install on a writable domain controller first");
@@ -84,8 +84,8 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
             }
         }
 
-        if (!ddUserExists && data.GetTargetMachine().IsDomainController() &&
-            _wcsicmp(data.Domain().c_str(), data.GetTargetMachine().JoinedDomainName().c_str()) != 0)
+        if (!ddUserExists && data.GetTargetMachine()->IsDomainController() &&
+            _wcsicmp(data.Domain().c_str(), data.GetTargetMachine()->JoinedDomainName().c_str()) != 0)
         {
             // on a domain controller, we can only create a user in this controller's domain.
             // check and reject an attempt to create a user not in this domain

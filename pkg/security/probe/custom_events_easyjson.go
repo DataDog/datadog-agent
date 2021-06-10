@@ -551,8 +551,6 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Timestamp).UnmarshalJSON(data))
 			}
-		case "event_type":
-			out.Event = string(in.String())
 		case "pid_count":
 			out.Count = uint64(in.Uint64())
 		case "threshold":
@@ -591,11 +589,6 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		const prefix string = ",\"date\":"
 		out.RawString(prefix[1:])
 		out.Raw((in.Timestamp).MarshalJSON())
-	}
-	{
-		const prefix string = ",\"event_type\":"
-		out.RawString(prefix)
-		out.String(string(in.Event))
 	}
 	{
 		const prefix string = ",\"pid_count\":"
@@ -790,7 +783,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 		case "map":
 			out.Name = string(in.String())
 		case "lost":
-			out.Lost = int64(in.Int64())
+			out.Lost = float64(in.Float64())
 		default:
 			in.SkipRecursive()
 		}
@@ -818,7 +811,7 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 	{
 		const prefix string = ",\"lost\":"
 		out.RawString(prefix)
-		out.Int64(int64(in.Lost))
+		out.Float64(float64(in.Lost))
 	}
 	out.RawByte('}')
 }

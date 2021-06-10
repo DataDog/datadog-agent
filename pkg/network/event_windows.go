@@ -86,7 +86,7 @@ func convertV4Addr(addr [16]C.uint8_t) util.Address {
 
 func convertV6Addr(addr [16]C.uint8_t) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V4AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
+	return util.V6AddressFromBytes((*[16]byte)(unsafe.Pointer(&addr))[:net.IPv6len])
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport
@@ -126,6 +126,8 @@ func FlowToConnStat(cs *ConnectionStats, flow *C.struct__perFlowData, enableMono
 	// the linux probe only reports the raw transport data.  So do that by default.
 	cs.MonotonicSentBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicSentBytes, flow.transportBytesOut)
 	cs.MonotonicRecvBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.monotonicRecvBytes, flow.transportBytesIn)
+	cs.MonotonicSentPackets = uint64(flow.packetsOut)
+	cs.MonotonicRecvPackets = uint64(flow.packetsIn)
 	cs.LastUpdateEpoch = uint64(flow.timestamp)
 	cs.Pid = uint32(flow.processId)
 	cs.SPort = uint16(flow.localPort)

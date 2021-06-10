@@ -1,0 +1,13 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "container_context.json",
+    "type": "object",
+    "properties": {
+        "container": {
+            "$ref": "file:///container.json"
+        }
+    },
+    "required": [
+        "container"
+    ]
+}

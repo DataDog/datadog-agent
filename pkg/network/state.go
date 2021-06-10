@@ -77,6 +77,8 @@ type telemetry struct {
 type stats struct {
 	totalSent           uint64
 	totalRecv           uint64
+	totalSentPackets    uint64
+	totalRecvPackets    uint64
 	totalRetransmits    uint32
 	totalTCPEstablished uint32
 	totalTCPClosed      uint32
@@ -469,6 +471,9 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 
 		closed.LastSentBytes = closed.MonotonicSentBytes - st.totalSent
 		closed.LastRecvBytes = closed.MonotonicRecvBytes - st.totalRecv
+		closed.LastSentPackets = closed.MonotonicSentPackets - st.totalSentPackets
+		closed.LastRecvPackets = closed.MonotonicRecvPackets - st.totalRecvPackets
+
 		closed.LastRetransmits = closed.MonotonicRetransmits - st.totalRetransmits
 		closed.LastTCPEstablished = closed.LastTCPEstablished - st.totalTCPEstablished
 		closed.LastTCPClosed = closed.LastTCPClosed - st.totalTCPClosed
@@ -476,12 +481,17 @@ func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key str
 		// Update stats object with latest values
 		st.totalSent = active.MonotonicSentBytes
 		st.totalRecv = active.MonotonicRecvBytes
+		st.totalRecvPackets = active.MonotonicRecvPackets
+		st.totalSentPackets = active.MonotonicSentBytes
 		st.totalRetransmits = active.MonotonicRetransmits
 		st.totalTCPEstablished = active.MonotonicTCPEstablished
 		st.totalTCPClosed = active.MonotonicTCPClosed
 	} else {
 		closed.LastSentBytes = closed.MonotonicSentBytes
 		closed.LastRecvBytes = closed.MonotonicRecvBytes
+		closed.LastRecvPackets = closed.MonotonicRecvPackets
+		closed.LastSentPackets = closed.MonotonicSentPackets
+
 		closed.LastRetransmits = closed.MonotonicRetransmits
 		closed.LastTCPEstablished = closed.MonotonicTCPEstablished
 		closed.LastTCPClosed = closed.MonotonicTCPClosed
@@ -495,6 +505,8 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 
 		c.LastSentBytes = c.MonotonicSentBytes - st.totalSent
 		c.LastRecvBytes = c.MonotonicRecvBytes - st.totalRecv
+		c.LastSentPackets = c.MonotonicSentPackets - st.totalSentPackets
+		c.LastRecvPackets = c.MonotonicRecvPackets - st.totalRecvPackets
 		c.LastRetransmits = c.MonotonicRetransmits - st.totalRetransmits
 		c.LastTCPEstablished = c.MonotonicTCPEstablished - st.totalTCPEstablished
 		c.LastTCPClosed = c.MonotonicTCPClosed - st.totalTCPClosed
@@ -502,12 +514,16 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 		// Update stats object with latest values
 		st.totalSent = c.MonotonicSentBytes
 		st.totalRecv = c.MonotonicRecvBytes
+		st.totalSentPackets = c.MonotonicSentPackets
+		st.totalRecvPackets = c.MonotonicRecvPackets
 		st.totalRetransmits = c.MonotonicRetransmits
 		st.totalTCPEstablished = c.MonotonicTCPEstablished
 		st.totalTCPClosed = c.MonotonicTCPClosed
 	} else {
 		c.LastSentBytes = c.MonotonicSentBytes
 		c.LastRecvBytes = c.MonotonicRecvBytes
+		c.LastRecvPackets = c.MonotonicRecvPackets
+		c.LastSentPackets = c.MonotonicSentPackets
 		c.LastRetransmits = c.MonotonicRetransmits
 		c.LastTCPEstablished = c.MonotonicTCPEstablished
 		c.LastTCPClosed = c.MonotonicTCPClosed
@@ -663,21 +679,34 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 
 	lAddrs := make(map[connKey]struct{}, len(connections))
 	for _, conn := range connections {
-		lAddrs[newConnKey(&conn, false)] = struct{}{}
+		k := newConnKey(&conn, false)
+		lAddrs[k] = struct{}{}
 	}
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
 	for i := range connections {
 		conn := &connections[i]
-		if conn.Source == conn.Dest || (conn.Source.IsLoopback() && conn.Dest.IsLoopback()) {
+		if conn.Source == conn.Dest ||
+			(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
+			(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
 			conn.IntraHost = true
-			continue
+		} else {
+			keyWithRAddr := newConnKey(conn, true)
+			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		keyWithRAddr := newConnKey(conn, true)
-		_, ok := lAddrs[keyWithRAddr]
-		if ok {
-			conn.IntraHost = true
+		if conn.IntraHost && conn.Direction == INCOMING {
+			// Remove ip translation from incoming local connections
+			// this is necessary for local connections because of
+			// the way we store conntrack entries in the conntrack
+			// cache in the system-probe. For local connections
+			// that are DNAT'ed, system-probe will tack on the
+			// translation on the incoming source side as well,
+			// even though there is no SNAT on the incoming side.
+			// This is because we store both the origin and reply
+			// (and map them to each other) in the conntrack cache
+			// in system-probe.
+			conn.IPTranslation = nil
 		}
 	}
 }

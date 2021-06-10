@@ -34,6 +34,9 @@ var (
 	serviceCacheHits    = expvar.Int{}
 	podCacheHits        = expvar.Int{}
 	clusterCacheHits    = expvar.Int{}
+	jobCacheHits        = expvar.Int{}
+	cronJobCacheHits    = expvar.Int{}
+	daemonSetCacheHits  = expvar.Int{}
 
 	sendExpVars    = expvar.NewMap("orchestrator-sends")
 	deploymentHits = expvar.Int{}
@@ -42,6 +45,9 @@ var (
 	serviceHits    = expvar.Int{}
 	podHits        = expvar.Int{}
 	clusterHits    = expvar.Int{}
+	jobHits        = expvar.Int{}
+	cronJobHits    = expvar.Int{}
+	daemonSetHits  = expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
@@ -58,6 +64,9 @@ func init() {
 	cacheExpVars.Set("Nodes", &nodeCacheHits)
 	cacheExpVars.Set("Services", &serviceCacheHits)
 	cacheExpVars.Set("Clusters", &clusterCacheHits)
+	cacheExpVars.Set("Jobs", &jobCacheHits)
+	cacheExpVars.Set("CronJobs", &cronJobCacheHits)
+	cacheExpVars.Set("DaemonSets", &daemonSetCacheHits)
 
 	sendExpVars.Set("Pods", &podHits)
 	sendExpVars.Set("Deployments", &deploymentHits)
@@ -65,6 +74,9 @@ func init() {
 	sendExpVars.Set("Nodes", &nodeHits)
 	sendExpVars.Set("Services", &serviceHits)
 	sendExpVars.Set("Clusters", &clusterHits)
+	sendExpVars.Set("Jobs", &jobHits)
+	sendExpVars.Set("CronJobs", &cronJobHits)
+	sendExpVars.Set("DaemonSets", &daemonSetHits)
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
@@ -103,6 +115,12 @@ func incCacheHit(nodeType NodeType) {
 		podCacheHits.Add(1)
 	case K8sCluster:
 		clusterCacheHits.Add(1)
+	case K8sJob:
+		jobCacheHits.Add(1)
+	case K8sCronJob:
+		cronJobCacheHits.Add(1)
+	case K8sDaemonSet:
+		daemonSetCacheHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
 		return
@@ -124,6 +142,12 @@ func incCacheMiss(nodeType NodeType) {
 		podHits.Add(1)
 	case K8sCluster:
 		clusterHits.Add(1)
+	case K8sJob:
+		jobHits.Add(1)
+	case K8sCronJob:
+		cronJobHits.Add(1)
+	case K8sDaemonSet:
+		daemonSetHits.Add(1)
 	default:
 		log.Errorf("Cannot increment unknown nodeType, iota: %v", nodeType)
 		return

@@ -39,7 +39,7 @@ func TestSerialization(t *testing.T) {
 					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
 					ReplDstIP:   util.AddressFromString("20.1.1.1"),
 					ReplSrcPort: 40,
-					ReplDstPort: 70,
+					ReplDstPort: 80,
 				},
 
 				Type:      network.UDP,
@@ -67,18 +67,21 @@ func TestSerialization(t *testing.T) {
 		},
 		HTTP: map[http.Key]http.RequestStats{
 			http.NewKey(
-				util.AddressFromString("10.1.1.1"),
-				util.AddressFromString("10.2.2.2"),
-				1000,
-				9000,
+				util.AddressFromString("20.1.1.1"),
+				util.AddressFromString("20.1.1.1"),
+				40,
+				80,
 				"/testpath",
+				http.MethodGet,
 			): httpReqStats,
 		},
 	}
 
 	httpOut := &model.HTTPAggregations{
-		ByPath: map[string]*model.HTTPStats{
-			"/testpath": {
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
 				StatsByResponseStatus: []*model.HTTPStats_Data{
 					{
 						Count:     0,
@@ -124,7 +127,7 @@ func TestSerialization(t *testing.T) {
 					ReplSrcIP:   "20.1.1.1",
 					ReplDstIP:   "20.1.1.1",
 					ReplSrcPort: int32(40),
-					ReplDstPort: int32(70),
+					ReplDstPort: int32(80),
 				},
 
 				Type:      model.ConnectionType_udp,
@@ -268,6 +271,7 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 		1000,
 		9000,
 		"/testpath",
+		http.MethodGet,
 	)
 	statsByKey := map[http.Key]http.RequestStats{
 		key: httpReqStats,
@@ -276,8 +280,15 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 
 	// Now path will be nested in the map
 	key.Path = ""
+	key.Method = http.MethodUnknown
+
+	endpointAggregations := formattedStats[key].EndpointAggregations
+	require.Len(t, endpointAggregations, 1)
+	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
+	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
+
 	// Deserialize the encoded latency information & confirm it is correct
-	statsByResponseStatus := formattedStats[key].ByPath["/testpath"].StatsByResponseStatus
+	statsByResponseStatus := endpointAggregations[0].StatsByResponseStatus
 	assert.Len(t, statsByResponseStatus, 5)
 
 	serializedLatencies := statsByResponseStatus[model.HTTPResponseStatus_Info].Latencies
@@ -292,6 +303,88 @@ func TestFormatHTTPStatsByPath(t *testing.T) {
 
 	serializedLatencies = statsByResponseStatus[model.HTTPResponseStatus_Success].Latencies
 	assert.Nil(t, serializedLatencies)
+}
+
+func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	var httpReqStats http.RequestStats
+	in := &network.Connections{
+		Conns: []network.ConnectionStats{
+			{
+				Source: localhost,
+				Dest:   localhost,
+				SPort:  clientPort,
+				DPort:  serverPort,
+			},
+			{
+				Source: localhost,
+				Dest:   localhost,
+				SPort:  serverPort,
+				DPort:  clientPort,
+			},
+		},
+		HTTP: map[http.Key]http.RequestStats{
+			http.NewKey(
+				localhost,
+				localhost,
+				clientPort,
+				serverPort,
+				"/testpath",
+				http.MethodGet,
+			): httpReqStats,
+		},
+	}
+
+	httpOut := &model.HTTPAggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:   "/testpath",
+				Method: model.HTTPMethod_Get,
+				StatsByResponseStatus: []*model.HTTPStats_Data{
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+					{Count: 0, Latencies: nil},
+				},
+			},
+		},
+	}
+
+	httpOutBlob, err := proto.Marshal(httpOut)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+			{
+				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				HttpAggregations: httpOutBlob,
+				RouteIdx:         -1,
+			},
+		},
+	}
+
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	assert.Equal(t, out, result)
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {

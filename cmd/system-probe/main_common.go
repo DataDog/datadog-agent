@@ -3,7 +3,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/app"
 )
@@ -31,4 +33,16 @@ func setDefaultCommandIfNonePresent() {
 		args = append(args, os.Args[1:]...)
 	}
 	os.Args = args
+}
+
+func checkForDeprecatedFlags() {
+	for i, a := range os.Args {
+		if strings.HasPrefix(a, "-config") {
+			fmt.Println("WARNING: `-config` argument is deprecated and will be removed in a future version. Please use `--config` instead.")
+			os.Args[i] = "-" + os.Args[i]
+		} else if strings.HasPrefix(a, "-pid") {
+			fmt.Println("WARNING: `-pid` argument is deprecated and will be removed in a future version. Please use `--pid` instead.")
+			os.Args[i] = "-" + os.Args[i]
+		}
+	}
 }

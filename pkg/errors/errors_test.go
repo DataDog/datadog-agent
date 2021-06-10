@@ -32,7 +32,7 @@ func TestRetriable(t *testing.T) {
 	require.Equal(t, `couldn't fetch "foo": bar`, err.Error())
 
 	// Is
-	var errFunc func() error = func() error { return NewRetriable("foo", errors.New("bar")) }
+	var errFunc = func() error { return NewRetriable("foo", errors.New("bar")) }
 	require.True(t, IsRetriable(errFunc()))
 	require.False(t, IsRetriable(fmt.Errorf("fake")))
 	require.False(t, IsRetriable(fmt.Errorf(`couldn't fetch "foo": bar`)))
