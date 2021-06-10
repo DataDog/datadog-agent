@@ -684,7 +684,7 @@ molecule_tests_local_install:
    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
   only:
     - tags
-#    - master
+    - master
 
 molecule_tests_kubernetes:
   <<: *molecule_base
@@ -713,7 +713,7 @@ molecule_tests_secrets:
     expire_in: 1 week
   only:
     - tags
-#    - master
+    - master
 
 molecule_tests_integrations:
   <<: *molecule_base
