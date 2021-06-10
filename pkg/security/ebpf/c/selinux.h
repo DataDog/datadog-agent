@@ -31,39 +31,27 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
         buf_size = count;
     }
 
-    bpf_probe_read(syscall.selinux.buf, buf_size, (void*)buf);
+    bpf_probe_read(syscall.selinux.buf, buf_size, (void *)buf);
     syscall.selinux.buf_size = buf_size;
 
+    fill_file_metadata(syscall.selinux.dentry, &syscall.selinux.file.metadata);
+    set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, 0);
+
+    syscall.resolver.key = syscall.selinux.file.path_key;
+    syscall.resolver.dentry = syscall.selinux.dentry;
+    syscall.resolver.discarder_type = syscall.policy.mode != NO_FILTER ? EVENT_SELINUX : 0;
+    syscall.resolver.callback = DR_SELINUX_CALLBACK_KPROBE_KEY;
+    syscall.resolver.iteration = 0;
+    syscall.resolver.ret = 0;
+
     cache_syscall(&syscall);
-    return 0;
-}
-
-int __attribute__((always_inline)) handle_selinux_ret_event(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_SELINUX);
-    if (!syscall)
-        return 0;
-
-    if (syscall->discarded)
-        return 0;
-
-    fill_file_metadata(syscall->selinux.dentry, &syscall->selinux.file.metadata);
-    set_file_inode(syscall->selinux.dentry, &syscall->selinux.file, 0);
-
-    syscall->resolver.key = syscall->selinux.file.path_key;
-    syscall->resolver.dentry = syscall->selinux.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_SELINUX : 0;
-    syscall->resolver.callback = DR_SELINUX_CALLBACK_KPROBE_KEY;
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
 
     // tail call
     resolve_dentry(ctx, DR_KPROBE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_SELINUX);
+
     return 0;
 }
 
@@ -97,16 +85,10 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
     SEC("kprobe/" #func_name)                                  \
     int kprobe__##func_name(struct pt_regs *ctx) {             \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
-        const char *buf = (const char*)PT_REGS_PARM2(ctx);     \
+        const char *buf = (const char *)PT_REGS_PARM2(ctx);    \
         size_t count = (size_t)PT_REGS_PARM3(ctx);             \
         /* selinux only supports ppos = 0 */                   \
         return handle_selinux_event(ctx, file, buf, count);    \
-    }                                                          \
-                                                               \
-    SEC("kretprobe/" #func_name)                               \
-    int kretprobe__##func_name(struct pt_regs *ctx) {          \
-        int retval = PT_REGS_RC(ctx);                          \
-        return handle_selinux_ret_event(ctx, retval);          \
     }
 
 PROBE_SEL_WRITE_FUNC(sel_write_disable)

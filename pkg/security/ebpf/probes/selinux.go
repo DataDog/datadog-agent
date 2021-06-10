@@ -19,15 +19,7 @@ var selinuxProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kretprobe/sel_write_disable",
-	},
-	{
-		UID:     SecurityAgentUID,
 		Section: "kprobe/sel_write_enforce",
-	},
-	{
-		UID:     SecurityAgentUID,
-		Section: "kretprobe/sel_write_enforce",
 	},
 	{
 		UID:     SecurityAgentUID,
@@ -35,15 +27,7 @@ var selinuxProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
-		Section: "kretprobe/sel_write_bool",
-	},
-	{
-		UID:     SecurityAgentUID,
 		Section: "kprobe/sel_commit_bools_write",
-	},
-	{
-		UID:     SecurityAgentUID,
-		Section: "kretprobe/sel_commit_bools_write",
 	},
 }
 
