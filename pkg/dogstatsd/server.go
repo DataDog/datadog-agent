@@ -696,7 +696,6 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	defer s.Debug.Unlock()
 
 	// key
-	//	util.SortUniqInPlace(sample.Tags)
 	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
 
 	// store

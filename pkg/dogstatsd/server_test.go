@@ -613,6 +613,7 @@ func TestDebugStats(t *testing.T) {
 	hash3 := keygen.Generate(sample3.Name, "", sample3.Tags)
 	hash4 := keygen.Generate(sample4.Name, "", sample4.Tags)
 	hash5 := keygen.Generate(sample5.Name, "", sample5.Tags)
+	// hash4 and hash5 will be equals since tags order doesn't have any effect on the hash
 
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
@@ -659,8 +660,8 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric3.Count, uint64(1))
 
 	// test context correctness
-	require.Equal(t, metric4.Tags, "b c")
-	require.Equal(t, metric5.Tags, "b c")
+	require.Equal(t, metric4.Tags, "c b")
+	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
 }
 
