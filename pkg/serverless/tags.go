@@ -27,8 +27,12 @@ const (
 	executedVersionKey       = "executedversion"
 )
 
-func buildTagMapFromArn(arn string) map[string]string {
+func buildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
+
+	for _, tag := range configTags {
+		tags = addTag(tags, tag)
+	}
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
@@ -56,7 +60,7 @@ func buildTagMapFromArn(arn string) map[string]string {
 	return tags
 }
 
-func buildTagsFromMap(configTags []string, tags map[string]string) []string {
+func buildTagsFromMap(tags map[string]string) []string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
 	for k, v := range tags {
@@ -65,8 +69,7 @@ func buildTagsFromMap(configTags []string, tags map[string]string) []string {
 	for _, blackListKey := range tagBlackList {
 		delete(tagsMap, blackListKey)
 	}
-	tagsArray := make([]string, 0, len(configTags)+len(tagsMap))
-	tagsArray = append(tagsArray, configTags...)
+	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
 	}
@@ -88,6 +91,14 @@ func buildTracerTags(tags map[string]string) map[string]string {
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {
 	if key != "" {
 		tagMap[key] = strings.ToLower(value)
+	}
+	return tagMap
+}
+
+func addTag(tagMap map[string]string, tag string) map[string]string {
+	extract := strings.Split(tag, ":")
+	if len(extract) == 2 {
+		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
 }

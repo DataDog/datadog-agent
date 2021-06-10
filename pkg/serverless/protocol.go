@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
@@ -285,8 +284,8 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
-		tagMap := buildTagMapFromArn(arn)
-		tagArray := buildTagsFromMap(configTags, tagMap)
+		tagMap := buildTagMap(arn, configTags)
+		tagArray := buildTagsFromMap(tagMap)
 		if d.statsdServer != nil {
 			d.statsdServer.SetExtraTags(tagArray)
 		}
@@ -294,7 +293,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
 		}
 		d.extraTags = tagArray
-		source := scheduler.GetScheduler().GetSourceFromName("lambda")
+		source := aws.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
 		} else {
