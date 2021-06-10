@@ -4,7 +4,7 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
 
 
-def test_stackstate_agent_secret_output_no_datadog(host, common_vars):
+def test_stackstate_agent_secret_output_no_datadog(host):
     secret_cmd = host.run("sudo -u stackstate-agent -- stackstate-agent secret")
     print(secret_cmd)
     # assert that the status command ran successfully and that datadog is not contained in the output
