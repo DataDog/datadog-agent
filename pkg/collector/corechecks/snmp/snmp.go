@@ -96,7 +96,7 @@ func (c *Check) processMetricsAndMetadata(staticTags []string) ([]string, error)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if fetchError != nil {
-		valuesStore = &resultValueStore{}
+		valuesStore = newEmptyResultValueStore()
 	} else {
 		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
 		c.sender.reportMetrics(c.config.metrics, valuesStore, tags)
