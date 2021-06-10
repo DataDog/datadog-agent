@@ -4,6 +4,8 @@
 
 dogstatsd_x64_size_test:
   stage: integration_test
+  rules:
+    !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:large"]
   needs: ["build_dogstatsd_static-deb_x64"]

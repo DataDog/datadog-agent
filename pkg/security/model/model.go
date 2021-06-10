@@ -257,9 +257,9 @@ type Process struct {
 	EnvsID uint32 `field:"-"`
 
 	ArgsEntry     *ArgsEntry `field:"-"`
-	ArgsTruncated bool       `field:"-"`
 	EnvsEntry     *EnvsEntry `field:"-"`
 	EnvsTruncated bool       `field:"-"`
+	ArgsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -349,7 +349,7 @@ type MkdirEvent struct {
 
 // ArgsEnvsEvent defines a args/envs event
 type ArgsEnvsEvent struct {
-	ArgsEnvsCacheEntry
+	ArgsEnvs
 }
 
 // MountEvent represents a mount event
@@ -408,9 +408,44 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
+var zeroProcessContext ProcessContext
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+
+	refCount  uint64
+	onRelease func(_ *ProcessCacheEntry)
+}
+
+// Reset the entry
+func (e *ProcessCacheEntry) Reset() {
+	e.ProcessContext = zeroProcessContext
+	e.refCount = 0
+}
+
+// Retain increment ref counter
+func (e *ProcessCacheEntry) Retain() {
+	e.refCount++
+}
+
+// Release decrement and eventually release the entry
+func (e *ProcessCacheEntry) Release() {
+	e.refCount--
+	if e.refCount > 0 {
+		return
+	}
+
+	if e.onRelease != nil {
+		e.onRelease(e)
+	}
+}
+
+// NewProcessCacheEntry returns a new process cache entry
+func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		onRelease: onRelease,
+	}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

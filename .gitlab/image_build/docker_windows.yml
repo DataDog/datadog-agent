@@ -1,10 +1,4 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -41,8 +35,7 @@
 
 .docker_build_agent7_windows_common:
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_a7]
   stage: image_build
   needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:

@@ -205,6 +205,10 @@ process:
 			}
 		case <-tc.shutdown:
 			log.Debug("Capture shutting down")
+			tc.Lock()
+			tc.shutdown = nil
+			tc.Unlock()
+
 			break process
 		}
 	}
@@ -231,12 +235,16 @@ cleanup:
 		log.Warnf("Wrote %d bytes for capture tagger state", n)
 	}
 
+	tc.Lock()
+	defer tc.Unlock()
 	err = tc.writer.Flush()
 	if err != nil {
 		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
 	}
 
 	tc.File.Close()
+	tc.ongoing = false
+
 }
 
 // StopCapture stops the ongoing capture if in process.
@@ -255,8 +263,9 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 		tc.oobPacketPoolManager.SetPassthru(true)
 	}
 
-	close(tc.shutdown)
-	tc.ongoing = false
+	if tc.shutdown != nil {
+		close(tc.shutdown)
+	}
 
 	log.Debug("Capture was stopped")
 }
@@ -265,12 +274,10 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 func (tc *TrafficCaptureWriter) Enqueue(msg *CaptureBuffer) bool {
 	qd := false
 
-	tc.RLock()
-	if tc.ongoing {
+	if tc.IsOngoing() {
 		tc.Traffic <- msg
 		qd = true
 	}
-	tc.RUnlock()
 
 	return qd
 }

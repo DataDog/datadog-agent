@@ -83,19 +83,20 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		ns = ns - msg.Time*1e9
 	}
 
-	// Not filtered, return event
+	action := msg.Action
+
+	// Fix the "exec_start: /bin/sh -c true" case
+	if strings.Contains(action, ":") {
+		action = strings.SplitN(action, ":", 2)[0]
+	}
+
 	event := &ContainerEvent{
 		ContainerID:   msg.Actor.ID,
 		ContainerName: containerName,
 		ImageName:     imageName,
-		Action:        msg.Action,
+		Action:        action,
 		Timestamp:     time.Unix(msg.Time, ns),
 		Attributes:    msg.Actor.Attributes,
-	}
-
-	// Fix the "exec_start: /bin/sh -c true" case
-	if strings.Contains(event.Action, ":") {
-		event.Action = strings.SplitN(event.Action, ":", 2)[0]
 	}
 
 	return event, nil

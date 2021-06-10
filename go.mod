@@ -2,12 +2,9 @@ module github.com/DataDog/datadog-agent
 
 go 1.15
 
-// NOTE: Dependencies on the left-hand side of `replace` directives are not
-// automatically updated with Dependabot, since the version stated in the associated
-// `require` directive is ignored.
-//
-// Prefer using simple `require` directives instead of using `replace` if possible.
-// If you need to `replace` a dependency, add it to the ignore list on .github/dependabot.yaml
+// NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
+// See https://github.com/DataDog/datadog-agent/blob/master/docs/dev/gomodreplace.md
+// for more details.
 
 // Internal deps fix version
 replace (
@@ -50,8 +47,8 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.72.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.6
 	github.com/DataDog/datadog-go v4.5.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
@@ -113,7 +110,7 @@ require (
 	github.com/google/pprof v0.0.0-20210125172800-10e9aeb4a998
 	github.com/gorilla/mux v1.8.0
 	github.com/gosnmp/gosnmp v1.31.0
-	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.1
 	github.com/h2non/filetype v1.1.1
 	github.com/hashicorp/consul/api v1.8.1

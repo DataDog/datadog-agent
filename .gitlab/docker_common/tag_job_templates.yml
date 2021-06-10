@@ -1,4 +1,25 @@
 ---
+
+# These variable definitions are copied in other files because we can't use the
+# !reference keyword for them.
+# The !reference keyword is limited when used with hashes, and cannot
+# be used in conjunction with manually defined keys in the same hash. Eg.:
+# variables:
+#   !reference [.docker_hub_variables]
+#   OTHER_VARIABLE: "value"
+# is not valid, only:
+# variables:
+#   !reference [.docker_hub_variables]
+# is.
+# The same is also true when extending jobs: if you define a job with
+# variables:
+#   !reference [.docker_hub_variables]
+# then you create a second job that extends this first job, with:
+# variables:
+#   OTHER_VARIABLE: this
+# then the variables defined in !reference [.docker_hub_variables] are not present
+# in the second job.
+
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd

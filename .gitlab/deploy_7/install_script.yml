@@ -1,17 +1,7 @@
 ---
-.if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
-
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
 promote_install_script:
   rules:
-    - <<: *if_not_master_branch
-      when: never
-    - <<: *if_kitchen
-      when: manual
-      allow_failure: true
+    !reference [.on_install_script_release_manual]
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
