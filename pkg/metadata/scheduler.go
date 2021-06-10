@@ -48,7 +48,6 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 	}
 
 	if enableFirstRunCollection {
-		log.Info("metadata scheduler first run")
 		err := scheduler.firstRun()
 		if err != nil {
 			log.Errorf("Unable to send host metadata at first run: %v", err)
