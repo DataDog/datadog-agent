@@ -12,12 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-<<<<<<< HEAD
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-=======
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
->>>>>>> release/lambda-extension-v9
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -151,33 +147,6 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 }
 
 func TestGetLambdaSourceNilScheduler(t *testing.T) {
-<<<<<<< HEAD
-	assert.Nil(t, GetLambdaSource(nil))
-}
-
-type mockedServerlessScheduler struct {
-	validLogSource bool
-}
-
-func TestGetLambdaSourceNilSource(t *testing.T) {
-	serverlessScheduler := mockedServerlessScheduler{false}
-	assert.Nil(t, GetLambdaSource(&serverlessScheduler))
-}
-
-func TestGetLambdaSourceValidSource(t *testing.T) {
-	serverlessScheduler := mockedServerlessScheduler{true}
-	assert.NotNil(t, GetLambdaSource(&serverlessScheduler))
-}
-
-func (m *mockedServerlessScheduler) GetSourceFromName(name string) *logConfig.LogSource {
-	if m.validLogSource {
-		return config.NewLogSource(
-			"test",
-			&config.LogsConfig{},
-		)
-	}
-	return nil
-=======
 	assert.Nil(t, GetLambdaSource())
 }
 
@@ -200,5 +169,4 @@ func TestGetLambdaSourceValidSource(t *testing.T) {
 	services := service.NewServices()
 	scheduler.CreateScheduler(logSources, services)
 	assert.NotNil(t, GetLambdaSource())
->>>>>>> release/lambda-extension-v9
 }

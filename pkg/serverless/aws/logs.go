@@ -67,10 +67,6 @@ type ReportLogMetrics struct {
 	InitDurationMs   float64
 }
 
-type serverlessScheduler interface {
-	GetSourceFromName(name string) *logConfig.LogSource
-}
-
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
 func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	var j map[string]interface{}
