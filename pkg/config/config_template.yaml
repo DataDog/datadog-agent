@@ -999,8 +999,8 @@ api_key:
   # check_interval: 20m
 
   ## @param check_max_events_per_run - integer
-  ## - optional - default: 30
-  # check_max_events_per_run: 30
+  ## - optional - default: 100
+  # check_max_events_per_run: 100
 {{ end -}}
 {{- if .SystemProbe }}
 
