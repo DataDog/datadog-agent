@@ -7,7 +7,7 @@ metadata:
     test: pod-http-metrics
 spec:
   containers:
-    - name: my-nginx
+    - name: shipping
       image: weaveworksdemos/shipping:0.4.8
       ports:
         - containerPort: 80
@@ -15,7 +15,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-nginx
+  name: shipping
   labels:
     name: shipping
     test: pod-http-metrics
@@ -36,9 +36,9 @@ metadata:
 spec:
   containers:
     - name: http-client
-      image: julianosk/continuous-requests-py:latest
+      image: julianosk/continuous-requests-py:1.1
       env:
         - name: URL
-          value: "http://shipping/health"
+          value: "http://shipping/health/"
         - name: INTERVAL
           value: "2"

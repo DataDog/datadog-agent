@@ -39,9 +39,6 @@
       environment:
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
         CLUSTER_NAME: "{{ cluster_name }}"
-      register: dc_up_out
-    - name: Debug 'docker-compose up'
-      debug: var=dc_up_out.stdout_lines
     - name: Removing existing config files if exists
       file:
         path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
