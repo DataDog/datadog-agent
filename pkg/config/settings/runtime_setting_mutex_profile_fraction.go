@@ -15,7 +15,7 @@ func (r RuntimeMutexProfileFraction) Name() string {
 
 // Description returns the runtime setting's description
 func (r RuntimeMutexProfileFraction) Description() string {
-	return "This setting controls the fraction of mutex contention events that are reported in the mutex profile"
+	return "This setting controls the fraction of mutex contention events that are reported in the internal mutex profile"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
