@@ -22,7 +22,13 @@ notify-on-success:
       MESSAGE_TEXT=":host-green: :merged: datadog-agent merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
       $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
     fi
-    postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+    # Do not send notifications if this is a child pipeline of another repo
+    # The triggering repo should already have its own notification system
+    if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
+      postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
+    else
+      echo "This pipeline was triggered by another repository, skipping notification."
+    fi
 
 notify-on-tagged-success:
   extends: .slack-notifier-base
@@ -44,8 +50,14 @@ notify-on-failure:
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - |
-      if [ "$DEPLOY_AGENT" = "true" ]; then
-        invoke -e pipeline.notify-failure --notification-type "deploy"
+      # Do not send notifications if this is a child pipeline of another repo
+      # The triggering repo should already have its own notification system
+      if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
+        if [ "$DEPLOY_AGENT" = "true" ]; then
+          invoke -e pipeline.notify-failure --notification-type "deploy"
+        else
+          invoke -e pipeline.notify-failure --notification-type "merge"
+        fi
       else
-        invoke -e pipeline.notify-failure --notification-type "merge"
+        echo "This pipeline was triggered by another repository, skipping notification."
       fi
