@@ -22,9 +22,9 @@ type Agent struct {
 	backendClient *backend.Client
 }
 
-var ErrAgentDisabled = errors.New(`AppSec agent disabled. Set the environment variable
-DD_APPSEC_ENABLED=true or add "appsec_config.enabled: true" entry
-to your datadog.yaml.`)
+var ErrAgentDisabled = errors.New("AppSec agent disabled. Set the " +
+	"environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
+	"`appsec_config.enabled: true` to your datadog.yaml file")
 
 func NewAgent(cfg *appsecconfig.Config) (*Agent, error) {
 	if !cfg.Enabled {

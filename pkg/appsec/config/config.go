@@ -40,7 +40,7 @@ type Config struct {
 
 func FromAgentConfig(cfg AgentConfig) *Config {
 	return &Config{
-		Enabled:           cfg.GetBool("apm_config.enabled"),
+		Enabled:           cfg.GetBool("appsec_config.enabled"),
 		HTTPAPIListenAddr: cfg.GetString("appsec_config.api.http.listen_addr"),
 		BackendAPIKey:     cfg.GetString("appsec_config.api_key"),
 		BackendAPIBaseURL: cfg.GetString("appsec_config.backend.base_url"),
