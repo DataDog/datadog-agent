@@ -36,7 +36,7 @@ func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
 	}
 }
 
-func payloadWithCounts(ts time.Time, k bucketAggregationKey, hits, errors, duration uint64) pb.ClientStatsPayload {
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) pb.ClientStatsPayload {
 	return pb.ClientStatsPayload{
 		Env:     "test-env",
 		Version: "test-version",
@@ -45,12 +45,12 @@ func payloadWithCounts(ts time.Time, k bucketAggregationKey, hits, errors, durat
 				Start: uint64(ts.UnixNano()),
 				Stats: []pb.ClientGroupedStats{
 					{
-						Service:        k.service,
-						Name:           k.name,
-						Resource:       k.resource,
-						HTTPStatusCode: k.statusCode,
-						Type:           k.typ,
-						Synthetics:     k.synthetics,
+						Service:        k.Service,
+						Name:           k.Name,
+						Resource:       k.Resource,
+						HTTPStatusCode: k.StatusCode,
+						Type:           k.Type,
+						Synthetics:     k.Synthetics,
 						Hits:           hits,
 						Errors:         errors,
 						Duration:       duration,
@@ -247,38 +247,38 @@ func TestFuzzCountFields(t *testing.T) {
 func TestCountAggregation(t *testing.T) {
 	assert := assert.New(t)
 	type tt struct {
-		k    bucketAggregationKey
+		k    BucketsAggregationKey
 		res  pb.ClientGroupedStats
 		name string
 	}
 	tts := []tt{
 		{
-			bucketAggregationKey{service: "s"},
+			BucketsAggregationKey{Service: "s"},
 			pb.ClientGroupedStats{Service: "s"},
 			"service",
 		},
 		{
-			bucketAggregationKey{name: "n"},
+			BucketsAggregationKey{Name: "n"},
 			pb.ClientGroupedStats{Name: "n"},
 			"name",
 		},
 		{
-			bucketAggregationKey{resource: "r"},
+			BucketsAggregationKey{Resource: "r"},
 			pb.ClientGroupedStats{Resource: "r"},
 			"resource",
 		},
 		{
-			bucketAggregationKey{typ: "t"},
+			BucketsAggregationKey{Type: "t"},
 			pb.ClientGroupedStats{Type: "t"},
 			"resource",
 		},
 		{
-			bucketAggregationKey{synthetics: true},
+			BucketsAggregationKey{Synthetics: true},
 			pb.ClientGroupedStats{Synthetics: true},
 			"synthetics",
 		},
 		{
-			bucketAggregationKey{statusCode: 10},
+			BucketsAggregationKey{StatusCode: 10},
 			pb.ClientGroupedStats{HTTPStatusCode: 10},
 			"status",
 		},
@@ -291,7 +291,7 @@ func TestCountAggregation(t *testing.T) {
 			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
 			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
 			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
-			keyDefault := bucketAggregationKey{}
+			keyDefault := BucketsAggregationKey{}
 			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
 
 			assert.Len(a.out, 0)
