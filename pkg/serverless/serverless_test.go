@@ -7,31 +7,15 @@ package serverless
 
 import (
 	"context"
-	"reflect"
-	"sync"
+	"os"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-const mutexLocked = 1
-
-func longInvocationHandler(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool) {
-	time.Sleep(50 * time.Millisecond)
-	doneChanel <- true
-}
-
-func shortInvocationHandler(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool) {
-	doneChanel <- true
-}
-
-func MutexLocked(m *sync.Mutex) bool {
-	state := reflect.ValueOf(m).Elem().FieldByName("state")
-	return state.Int()&mutexLocked == mutexLocked
-}
-
-func TestInvokeMutexShouldBeLocked(t *testing.T) {
+func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
 	d.ReadyWg.Done()
@@ -44,25 +28,27 @@ func TestInvokeMutexShouldBeLocked(t *testing.T) {
 
 	//deadline = current time + 20 ms
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
-	invoke(d, "fakeArn", deadlineMs, 0, true, longInvocationHandler)
 
-	assert.True(t, MutexLocked(&d.flushing))
-}
+	//setting DD_TAGS and DD_EXTRA_TAGS
+	os.Setenv("DD_TAGS", "a1:valueA1 a2:valueA2 A_MAJ:valueAMaj")
+	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
-func TestInvokeMutexShouldBeUnLocked(t *testing.T) {
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
+	invoke(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
 
-	d.clientLibReady = false
-	d.WaitForDaemon()
+	expectedTagArray := []string{
+		"a1:valuea1",
+		"a2:valuea2",
+		"a3:valuea3",
+		"a4:valuea4",
+		"a_maj:valueamaj",
+		"account_id:123456789012",
+		"aws_account:123456789012",
+		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		"functionname:my-function",
+		"region:us-east-1",
+		"resource:my-function",
+	}
 
-	d.StartInvocation()
-
-	//deadline = current time + 20 ms
-	deadlineMs := (time.Now().UnixNano())/1000000 + 20
-	invoke(d, "fakeArn", deadlineMs, 0, true, shortInvocationHandler)
-
-	assert.False(t, MutexLocked(&d.flushing))
+	sort.Strings(d.extraTags)
+	assert.Equal(t, expectedTagArray, d.extraTags)
 }

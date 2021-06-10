@@ -84,7 +84,7 @@ type Daemon struct {
 
 	extraTags []string
 
-	flushing sync.Mutex
+	finishInvocationOnce sync.Once
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -263,7 +263,9 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.InvcWg.Done()
+	d.finishInvocationOnce.Do(func() {
+		d.InvcWg.Done()
+	})
 }
 
 // WaitForDaemon waits until invocation finished any pending work
@@ -399,8 +401,6 @@ type Flush struct {
 
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.daemon.flushing.Lock()
-	defer f.daemon.flushing.Unlock()
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,7 +41,7 @@ const (
 	requestTimeout     time.Duration = 5 * time.Second
 	clientReadyTimeout time.Duration = 2 * time.Second
 
-	safetyBufferTimout time.Duration = 100 * time.Millisecond
+	safetyBufferTimout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
@@ -273,6 +274,9 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
+
+	daemon.finishInvocationOnce = sync.Once{}
+
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
@@ -313,7 +317,6 @@ func invoke(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimout tim
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		daemon.flushing.Lock()
 		daemon.FinishInvocation()
 		return
 	case <-doneChanel:
@@ -322,10 +325,10 @@ func invoke(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimout tim
 }
 
 func handleInvocation(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool) {
+	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
 	aws.SetARN(arn)
-	daemon.StartInvocation()
 	if coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {
