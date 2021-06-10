@@ -68,7 +68,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 
 	// setup the server config
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(); err == nil && !serverless {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
 	endpoints, err := config.BuildEndpoints(httpConnectivity)
