@@ -178,7 +178,7 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
         assert incoming_conn["bytesSentPerSecond"] == 0.0
         assert incoming_conn["bytesReceivedPerSecond"] == 0.0   # We don't send data from Windows
 
-    util.wait_until(wait_for_connection, 30, 3)
+    util.wait_until(wait_for_connection, 120, 3)
 
 
 def test_created_connection_before_start(host, common_vars):
