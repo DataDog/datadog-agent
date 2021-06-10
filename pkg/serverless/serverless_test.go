@@ -41,7 +41,6 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"a3:valuea3",
 		"a4:valuea4",
 		"a_maj:valueamaj",
-		"account_id:123456789012",
 		"aws_account:123456789012",
 		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		"functionname:my-function",
