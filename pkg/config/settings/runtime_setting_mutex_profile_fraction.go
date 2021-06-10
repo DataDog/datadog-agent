@@ -20,7 +20,10 @@ func (r RuntimeMutexProfileFraction) Description() string {
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
 func (r RuntimeMutexProfileFraction) Hidden() bool {
-	return false
+	// Go runtime will start accumulating profile data as soon as this option is set to a
+	// non-zero value. There is a risk that left on over a prolonged period of time, it
+	// may negatively impact agent performance.
+	return true
 }
 
 // Get returns the current value of the runtime setting
