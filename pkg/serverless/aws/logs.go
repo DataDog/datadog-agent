@@ -13,6 +13,7 @@ import (
 	"time"
 
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -206,9 +207,10 @@ func removeInvalidTracingItem(data []byte) []byte {
 }
 
 // GetLambdaSource returns the LogSource used by the extension
-func GetLambdaSource(scheduler serverlessScheduler) *logConfig.LogSource {
-	if scheduler != nil {
-		source := scheduler.GetSourceFromName("lambda")
+func GetLambdaSource() *logConfig.LogSource {
+	currentScheduler := scheduler.GetScheduler()
+	if currentScheduler != nil {
+		source := currentScheduler.GetSourceFromName("lambda")
 		if source != nil {
 			return source
 		}

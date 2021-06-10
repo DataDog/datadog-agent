@@ -12,7 +12,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+<<<<<<< HEAD
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+=======
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+>>>>>>> release/lambda-extension-v9
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -146,6 +151,7 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 }
 
 func TestGetLambdaSourceNilScheduler(t *testing.T) {
+<<<<<<< HEAD
 	assert.Nil(t, GetLambdaSource(nil))
 }
 
@@ -171,4 +177,28 @@ func (m *mockedServerlessScheduler) GetSourceFromName(name string) *logConfig.Lo
 		)
 	}
 	return nil
+=======
+	assert.Nil(t, GetLambdaSource())
+}
+
+func TestGetLambdaSourceNilSource(t *testing.T) {
+	logSources := config.NewLogSources()
+	services := service.NewServices()
+	scheduler.CreateScheduler(logSources, services)
+	assert.Nil(t, GetLambdaSource())
+}
+
+func TestGetLambdaSourceValidSource(t *testing.T) {
+	logSources := config.NewLogSources()
+	chanSource := config.NewLogSource("TestLog", &config.LogsConfig{
+		Type:    config.StringChannelType,
+		Source:  "lambda",
+		Tags:    nil,
+		Channel: nil,
+	})
+	logSources.AddSource(chanSource)
+	services := service.NewServices()
+	scheduler.CreateScheduler(logSources, services)
+	assert.NotNil(t, GetLambdaSource())
+>>>>>>> release/lambda-extension-v9
 }
