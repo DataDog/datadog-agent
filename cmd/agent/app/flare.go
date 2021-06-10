@@ -270,7 +270,7 @@ func resetRuntimeProfilingSettings(c settings.Client, prev map[string]interface{
 	for name, value := range prev {
 		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
 		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
-			fmt.Fprintln(color.Output, color.RedString("Failed restore previous value of %s: %v", name, err))
+			fmt.Fprintln(color.Output, color.RedString("Failed to restore previous value of %s: %v", name, err))
 		}
 	}
 }
