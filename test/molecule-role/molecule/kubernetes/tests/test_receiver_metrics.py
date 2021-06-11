@@ -45,8 +45,6 @@ def test_connection_network_namespaces_relations(host):
         with open("./topic-correlate-endpoints.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        assert True
-
     util.wait_until(wait_for_connection, 30, 3)
 
 
