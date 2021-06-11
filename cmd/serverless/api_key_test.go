@@ -11,7 +11,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/stretchr/testify/assert"
@@ -62,8 +61,8 @@ func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.
 }
 
 func TestDecryptKMSWithEncryptionContext(t *testing.T) {
-	os.Setenv(serverless.FunctionNameEnvVar, mockFunctionName)
-	defer os.Setenv(serverless.FunctionNameEnvVar, "")
+	os.Setenv(functionNameEnvVar, mockFunctionName)
+	defer os.Setenv(functionNameEnvVar, "")
 
 	client := mockKMSClientWithEncryptionContext{}
 	result, _ := decryptKMS(client, mockEncryptedAPIKeyBase64)

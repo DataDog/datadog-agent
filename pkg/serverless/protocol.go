@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,9 +24,6 @@ import (
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// FunctionNameEnvVar is the environment variable that stores the function name.
-const FunctionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
@@ -323,32 +318,31 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		processLogMessages(l, messages, os.Getenv(FunctionNameEnvVar))
+		processLogMessages(l, messages)
 		w.WriteHeader(200)
 	}
 }
 
-func processLogMessages(l *LogsCollection, messages []aws.LogMessage, functionName string) {
+func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
 	metricTags := addColdStartTag(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
-	functionName = strings.ToLower(functionName)
 	arn := aws.GetARN()
 	lastRequestID := aws.GetRequestID()
 	for _, message := range messages {
-		processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
+		processMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, metricsChan)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if logsEnabled {
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID)
 			l.ch <- logMessage
 		}
 	}
 }
 
 // processMessage performs logic about metrics and tags on the message
-func processMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	// First, if the log has a Request ID, set the global Request ID variable
 	if message.Type == aws.LogTypePlatformStart {

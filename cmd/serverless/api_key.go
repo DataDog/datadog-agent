@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -20,6 +19,9 @@ import (
 
 // encryptionContextKey is the key added to the encryption context by the Lambda console UI
 const encryptionContextKey = "LambdaFunctionName"
+
+// functionNameEnvVar is the environment variable that stores the function name.
+const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // decryptKMS decodes and deciphers the base64-encoded ciphertext given as a parameter using KMS.
 // For this to work properly, the Lambda function must have the appropriate IAM permissions.
@@ -35,7 +37,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	// We need to try both, as supplying the incorrect encryption context will cause decryption to fail.
 
 	// Try with encryption context
-	functionName := os.Getenv(serverless.FunctionNameEnvVar)
+	functionName := os.Getenv(functionNameEnvVar)
 	params := &kms.DecryptInput{
 		CiphertextBlob: decodedBytes,
 		EncryptionContext: map[string]*string{
