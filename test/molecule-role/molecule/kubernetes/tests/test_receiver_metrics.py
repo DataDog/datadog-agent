@@ -37,18 +37,6 @@ def test_agents_running(host):
     util.wait_until(wait_for_metrics, 60, 3)
 
 
-def test_connection_network_namespaces_relations(host):
-    url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1500"
-
-    def wait_for_connection():
-        data = host.check_output("curl \"%s\"" % url)
-        json_data = json.loads(data)
-        with open("./topic-correlate-endpoints.json", 'w') as f:
-            json.dump(json_data, f, indent=4)
-
-    util.wait_until(wait_for_connection, 30, 3)
-
-
 def test_agent_http_metrics(host):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
@@ -69,6 +57,5 @@ def test_agent_http_metrics(host):
         expected = {"http_requests_per_second", "http_response_time_seconds"}
 
         assert get_keys().pop() in expected
-        assert get_keys() == expected
 
     util.wait_until(wait_for_metrics, 30, 3)
