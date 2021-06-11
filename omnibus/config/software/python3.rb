@@ -69,13 +69,13 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86-test.zip",
-            :sha256 => "606b1157151547dcae0d2eef906cea6267d3b4f6aa786a4af08c7c29720a731e"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x86.zip",
+            :sha256 => "f7d66f0a07623119887325be749af124069af548d02a08ec34eefdbcf35ff670"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64-test.zip",
-         :sha256 => "cd8a4cb02af78a761967c229c65bd71f33689b75335e1311559acb00de06e1ce"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-amd64.zip",
+         :sha256 => "1e9f694975f3a07969139f5c4907df2fe9b6e46fba5b3cbe09bec9888aef939b"
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
