@@ -44,13 +44,15 @@ func (c *Check) Run() error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
+	var deviceStatusMessage string
 	collectionTime := timeNow()
 	tags, values, checkErr := c.getValuesAndTags(staticTags)
 	if checkErr != nil {
 		deviceStatus = metadata.DeviceStatusUnreachable
-		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		deviceStatusMessage = checkErr.Error()
+		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, deviceStatusMessage)
 	} else {
-		deviceStatus = metadata.DeviceStatusReachable
+		deviceStatus = metadata.DeviceStatusOk
 		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 		c.sender.reportMetrics(c.config.metrics, values, tags)
 	}
@@ -60,7 +62,7 @@ func (c *Check) Run() error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
-		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus, deviceStatusMessage)
 	}
 
 	c.submitTelemetryMetrics(startTime, tags)
