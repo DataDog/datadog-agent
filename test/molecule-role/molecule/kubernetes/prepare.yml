@@ -133,6 +133,12 @@
         chdir: /home/ubuntu/deployment/test_connections
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Apply the pod-http-metrics scenario
+      command: kubectl -n={{ namespace }} apply -f pod-http-metrics.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Wait for the pod-to-service-cluster-ip scenario to become ready
       command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-service-cluster-ip pod
       args:
@@ -151,3 +157,12 @@
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Wait for the pod-http-metrics scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-http-metrics pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Pause for 2 minutes to perform some http requests
+      pause:
+        minutes: 2
