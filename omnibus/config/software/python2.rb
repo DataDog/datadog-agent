@@ -87,11 +87,11 @@ else
 
   if windows_arch_i386?
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x86.zip",
-           :sha256 => "4bf21403978e530938daff264cf928e12b71885fa1e811d26faf12ec9c8c7b48",
+           :sha256 => "17ca93803fe6d940d36ef1e23ea4d0d9ac063de53a5ba5e9de3fc3b07cfef084",
            :extract => :seven_zip
   else
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-amd64.zip",
-         :sha256 => "ce04365e35deb125c54b8e067a0c636e63bf4f25fb617ddfe28a693c2af8a549",
+         :sha256 => "dc381b5c0ac28e0edce0cfcb96a1d698b7771f775d17122ee3c5922ee9bea98f",
          :extract => :seven_zip
   end
   build do
