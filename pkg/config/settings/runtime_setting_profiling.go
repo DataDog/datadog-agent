@@ -69,6 +69,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			profiling.ProfileCoreService,
 			profiling.DefaultProfilingPeriod,
 			15*time.Second,
+			false,
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {

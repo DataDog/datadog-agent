@@ -33,11 +33,16 @@ const (
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, tags ...string) error {
+func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, withGoroutine bool, tags ...string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if running {
 		return nil
+	}
+
+	types := []profiler.ProfileType{profiler.CPUProfile, profiler.HeapProfile, profiler.MutexProfile}
+	if withGoroutine {
+		types = append(types, profiler.GoroutineProfile)
 	}
 
 	options := []profiler.Option{
@@ -46,7 +51,7 @@ func Start(apiKey, site, env, service string, period time.Duration, cpuDuration 
 		profiler.WithService(service),
 		profiler.WithURL(site),
 		profiler.WithPeriod(period),
-		profiler.WithProfileTypes(profiler.CPUProfile, profiler.HeapProfile, profiler.MutexProfile),
+		profiler.WithProfileTypes(types...),
 		profiler.CPUDuration(cpuDuration),
 		profiler.WithTags(tags...),
 	}
