@@ -284,7 +284,7 @@ def wait_for_pipeline_from_ref(gitlab, project_name, ref):
 
 GITHUB_SLACK_MAP = {
     "@DataDog/agent-platform": "#agent-platform",
-    "@DataDog/container-integrations": "#container-integration",
+    "@DataDog/container-integrations": "#container-integrations",
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
     "@DataDog/agent-network": "#network-agent",
     "@DataDog/agent-security": "#security-and-compliance-agent",
