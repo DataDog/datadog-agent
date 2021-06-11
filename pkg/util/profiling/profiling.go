@@ -46,7 +46,6 @@ func Start(apiKey, site, env, service string, period time.Duration, cpuDuration 
 	}
 
 	options := []profiler.Option{
-		profiler.WithAPIKey(apiKey),
 		profiler.WithEnv(env),
 		profiler.WithService(service),
 		profiler.WithURL(site),
