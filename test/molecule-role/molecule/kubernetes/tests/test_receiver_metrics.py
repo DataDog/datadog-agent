@@ -36,6 +36,7 @@ def test_agents_running(host):
 
     util.wait_until(wait_for_metrics, 60, 3)
 
+
 def test_connection_network_namespaces_relations(host):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1500"
 
