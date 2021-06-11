@@ -105,6 +105,7 @@ type AgentConfig struct {
 	ProfilingEnvironment      string
 	ProfilingPeriod           time.Duration
 	ProfilingCPUDuration      time.Duration
+	ProfilingWithGoroutines   bool
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 

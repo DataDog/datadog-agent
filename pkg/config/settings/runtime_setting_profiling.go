@@ -69,7 +69,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			profiling.ProfileCoreService,
 			profiling.DefaultProfilingPeriod,
 			15*time.Second,
-			false,
+			config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {
