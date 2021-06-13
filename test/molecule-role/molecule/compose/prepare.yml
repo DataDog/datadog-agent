@@ -52,42 +52,25 @@
       args:
         chdir: /home/ubuntu/
 
-    - name: Wait for receiver http://localhost:7077/health
+    - name: Wait for receiver port
+      wait_for:
+        port: 1618
+        delay: 10
+        timeout: 300
+        state: started
+
+    - name: Wait for receiver to be ready
       uri:
-        url: http://localhost:7077/health
+        url: http://localhost:1618/readiness
         return_content: true
       register: response
-      failed_when: "'OKAY' not in response.content"
-      retries: 20
-      delay: 5
-      ignore_errors: true
-
-    - name: Wait for accessible receiver
-      uri:
-        url: "http://localhost:7077/health"
-        follow_redirects: none
-        method: GET
-      register: result
-      until: result.status == 200
-      retries: 30
-      delay: 5
-      changed_when: false
-      ignore_errors: true
-
-    - name: Check/Wait for OKAY from receiver
-      uri:
-        url: http://localhost:7077/health
-        return_content: true
-        status_code: 200
-      register: response
-      until: ('OKAY' in response.content)
+      until: "'OK' in response.content"
       retries: 20
       delay: 5
       changed_when: false
-      ignore_errors: true
 
-    - name: Wait for agent
-      shell: docker inspect ubuntu_stackstate-agent_1 |  jq -r '.[0].State.Health.Status' | grep  healthy
+    - name: Wait for agent to be healthy
+      shell: docker inspect ubuntu_stackstate-agent_1 |  jq -r '.[0].State.Health.Status' | grep healthy
       args:
         chdir: /home/ubuntu
       become: yes
@@ -96,4 +79,3 @@
       retries: 20
       delay: 5
       changed_when: false
-      ignore_errors: true
