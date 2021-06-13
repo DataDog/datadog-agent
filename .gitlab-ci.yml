@@ -675,16 +675,18 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
 
-molecule_tests_local_install:
+molecule_tests_integrations:
   <<: *molecule_base
   needs:
-    - pre_release_deb
-    - pre_release_rpm
+    - pre_release_main_agent_image
   script:
-   - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
-  only:
-    - tags
-    - master
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+    expire_in: 1 week
 
 molecule_tests_kubernetes:
   <<: *molecule_base
@@ -700,6 +702,17 @@ molecule_tests_kubernetes:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
     expire_in: 1 week
 
+molecule_tests_local_install:
+  <<: *molecule_base
+  needs:
+    - pre_release_deb
+    - pre_release_rpm
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
+#  only:
+#    - tags
+#    - master
+
 molecule_tests_secrets:
   <<: *molecule_base
   needs:
@@ -711,22 +724,9 @@ molecule_tests_secrets:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
-  only:
-    - tags
-    - master
-
-molecule_tests_integrations:
-  <<: *molecule_base
-  needs:
-    - pre_release_main_agent_image
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s integrations
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
-    expire_in: 1 week
+#  only:
+#    - tags
+#    - master
 
 
 ## release stage
