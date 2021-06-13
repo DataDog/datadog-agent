@@ -7,15 +7,6 @@
       shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
       become: yes
 
-    - name: Inject current user pub key, if exists
-      authorized_key:
-        user: ubuntu
-        state: present
-        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
-      ignore_errors: true
-      become: true
-      when: ansible_distribution == "Ubuntu"
-
     - name: Ubuntu18 automatic updates (wait for lock) (2/2)
       shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
       become: yes

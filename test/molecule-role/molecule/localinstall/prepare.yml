@@ -10,14 +10,6 @@
     - name: Gather facts
       setup:
     # - debug: msg={{ ansible_facts }}
-    - name: Inject current user pub key, if exists
-      authorized_key:
-        user: ubuntu
-        state: present
-        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
-      ignore_errors: true
-      become: true
-      when: ansible_distribution == "Ubuntu"
     - name: Prepare installation script
       copy:
         src: files/agent/install_script.sh
