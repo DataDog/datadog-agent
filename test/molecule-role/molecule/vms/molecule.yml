@@ -71,8 +71,8 @@ provisioner:
       any_errors_fatal: true
   playbooks:
     create: create.yml
-    prepare: prepare.yml
     destroy: destroy.yml
+    prepare: prepare.yml
   inventory:
     host_vars:
       agent-win:

@@ -18,10 +18,10 @@ platforms:
 provisioner:
   name: ansible
   playbooks:
-    create: create.yml
-    prepare: prepare.yml
     cleanup: cleanup.yml
+    create: create.yml
     destroy: destroy.yml
+    prepare: prepare.yml
   lint:
     name: ansible-lint
   inventory:
