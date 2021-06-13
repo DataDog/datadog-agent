@@ -52,30 +52,5 @@
       args:
         chdir: /home/ubuntu/
 
-    - name: Wait for receiver port
-      wait_for:
-        port: 1618
-        delay: 10
-        timeout: 300
-        state: started
-
-    - name: Wait for receiver to be ready
-      uri:
-        url: http://localhost:1618/readiness
-        return_content: true
-      register: response
-      until: "'OK' in response.content"
-      retries: 20
-      delay: 5
-      changed_when: false
-
-    - name: Wait for agent to be healthy
-      shell: docker inspect ubuntu_stackstate-agent_1 |  jq -r '.[0].State.Health.Status' | grep healthy
-      args:
-        chdir: /home/ubuntu
-      become: yes
-      register: agent_healthy
-      until: agent_healthy.rc == 0
-      retries: 20
-      delay: 5
-      changed_when: false
+    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../wait-for-agent.yml

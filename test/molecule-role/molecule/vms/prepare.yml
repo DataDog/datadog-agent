@@ -54,6 +54,8 @@
       args:
         chdir: /home/ubuntu/
 
+    - import_tasks: ../wait-for-receiver.yml
+
 - name: Prepare Linux Agents (pre)
   hosts: agent_linux_vm
   gather_facts: false

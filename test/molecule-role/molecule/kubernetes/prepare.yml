@@ -65,6 +65,9 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/receiver
+
+    - import_tasks: ../wait-for-receiver.yml
+
     - name: Removing existing config files if exists
       file:
         path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"

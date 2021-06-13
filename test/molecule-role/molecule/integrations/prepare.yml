@@ -59,3 +59,6 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
+
+    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../wait-for-agent.yml

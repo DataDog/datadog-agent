@@ -8,21 +8,6 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('receiver_vm')
 
 
-def test_etc_docker_directory(host):
-    f = host.file('/etc/docker/')
-    assert f.is_directory
-
-
-def test_docker_compose_file(host):
-    f = host.file('/home/ubuntu/docker-compose.yml')
-    assert f.is_file
-
-
-def test_receiver_healthy(host):
-    c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1618/readiness"
-    assert host.check_output(c) == "200"
-
-
 def test_generic_events(host):
     url = "http://localhost:7070/api/topic/sts_generic_events?offset=0&limit=80"
 
