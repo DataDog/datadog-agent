@@ -40,15 +40,10 @@
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
-    - name: Copy Configuration files
+    - name: Copy Receiver files
       copy:
-        src: "files/receiver/{{ item }}"
-        dest: "/home/ubuntu/{{ item }}"
-      with_items:
-        - docker.nginx
-        - nginx-signed.crt
-        - nginx-signed.key
-        - docker-compose.yml
+        src: "files/receiver/"
+        dest: "/home/ubuntu/"
     - name: Configure .env file used by docker-compose
       copy:
         content: |
