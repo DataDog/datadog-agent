@@ -1,6 +1,6 @@
 ---
 - name: Prepare Integrations and Dependencies
-  hosts: agent-integrations-mysql
+  hosts: agent-integrations
   gather_facts: false
   tasks:
     - name: Install provisioning dependencies (1/2)

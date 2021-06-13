@@ -5,7 +5,7 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 
 import util
 
-testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-integrations-mysql')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-integrations')
 
 
 def _get_key_value(tag_list):
@@ -25,8 +25,7 @@ def _component_data(json_data, type_name, external_id_assert_fn, data_assert_fn)
     return None
 
 
-def test_agent_integration_sample_metrics(host):
-    hostname = host.ansible.get_variables()["inventory_hostname"]
+def test_agent_integration_sample_metrics(host, hostname):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
     def wait_for_metrics():
@@ -49,9 +48,7 @@ def test_agent_integration_sample_metrics(host):
     util.wait_until(wait_for_metrics, 180, 3)
 
 
-def test_agent_integration_sample_topology(host):
-    hostname = host.ansible.get_variables()["inventory_hostname"]
-
+def test_agent_integration_sample_topology(host, hostname):
     def assert_topology():
         topo_url = "http://localhost:7070/api/topic/sts_topo_agent_integrations?limit=1500"
         data = host.check_output('curl "{}"'.format(topo_url))
@@ -263,13 +260,13 @@ def test_agent_integration_sample_topology(host):
                 "type": "stackstate-agent",
                 "external_id": lambda e_id: ("urn:stackstate-agent:/%s" % hostname) == e_id,
                 "data": lambda d: d == {
-                    "hostname": "agent-integrations-mysql",
+                    "hostname": "agent-integrations",
                     "identifiers": [
                         "urn:process:/%s:%s" % (hostname, d["identifiers"][0][len("urn:process:/%s:" % hostname):])
                     ],
-                    "name": "StackState Agent:agent-integrations-mysql",
+                    "name": "StackState Agent:agent-integrations",
                     "tags": [
-                        "hostname:agent-integrations-mysql",
+                        "hostname:agent-integrations",
                         "stackstate-agent"
                     ]
                 }
@@ -367,8 +364,7 @@ def test_agent_integration_sample_topology(host):
     util.wait_until(assert_topology, 30, 3)
 
 
-def test_agent_integration_sample_events(host):
-    hostname = host.ansible.get_variables()["inventory_hostname"]
+def test_agent_integration_sample_events(host, hostname):
     url = "http://localhost:7070/api/topic/sts_generic_events?limit=1000"
 
     def wait_for_events():
@@ -408,7 +404,7 @@ def test_agent_integration_sample_events(host):
                 "tags": {
                     "source_type_name": "HTTP_TIMEOUT"
                 },
-                "host": "agent-integrations-mysql",
+                "host": "agent-integrations",
                 "message": "Http request to http://localhost timed out after 5.0 seconds."
             }
         ) is not None
