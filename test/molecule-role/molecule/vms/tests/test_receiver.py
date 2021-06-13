@@ -123,11 +123,11 @@ def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest)
                 )
 
 
-def test_created_connection_after_start_with_metrics(host, common_vars):
+def test_created_connection_after_start_with_metrics(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    fedora_conn_port = int(common_vars["connection_port_after_start_fedora"])
-    windows_conn_port = int(common_vars["connection_port_after_start_windows"])
+    fedora_conn_port = int(ansible_var("connection_port_after_start_fedora"))
+    windows_conn_port = int(ansible_var("connection_port_after_start_windows"))
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))
@@ -173,11 +173,11 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
     util.wait_until(wait_for_connection, 30, 3)
 
 
-def test_created_connection_before_start(host, common_vars):
+def test_created_connection_before_start(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    fedora_conn_port = int(common_vars["connection_port_before_start_fedora"])
-    windows_conn_port = int(common_vars["connection_port_before_start_windows"])
+    fedora_conn_port = int(ansible_var("connection_port_before_start_fedora"))
+    windows_conn_port = int(ansible_var("connection_port_before_start_windows"))
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))

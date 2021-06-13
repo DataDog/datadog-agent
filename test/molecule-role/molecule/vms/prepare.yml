@@ -2,10 +2,7 @@
 - name: Prepare Receiver
   hosts: receiver_vm
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
-
     - name: Ubuntu18 automatic updates (wait for lock) (1/2)
       shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
       become: yes
@@ -62,8 +59,6 @@
 - name: Prepare Linux Agents (pre)
   hosts: agent_linux_vm
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Install python for Ansible
       raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
@@ -104,8 +99,6 @@
 - name: Prepare Network Connection Namespaces VM (pre)
   hosts: agent-connection-namespaces
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Ubuntu18 automatic updates (wait for lock) (1/2)
       shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
@@ -171,8 +164,6 @@
 - name: Prepare Windows Agent (pre)
   hosts: agent_win_vm
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     # Temporary - override netcat installation issues
     - name: install chocolatey 0.10.13
@@ -202,8 +193,6 @@
 - name: Prepare Ubuntu Agent listening before start
   hosts: agent-ubuntu
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     # We use ncat to keep a listening port open and get a direction
     - debug: msg="Starting listening for fedora and windows"
@@ -217,8 +206,6 @@
 - name: Prepare Fedora Agent connecting before start
   hosts: agent-fedora
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Connect to Ubuntu Agent
       shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_before_start_fedora }}
@@ -228,8 +215,6 @@
 - name: Prepare Windows Agent connecting before start
   hosts: agent-win
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Connect to Ubuntu Agent async (prepare agent-win connecting before start)
       win_command: nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_before_start_windows }}
@@ -239,8 +224,6 @@
 - name: Prepare Windows Agents (post)
   hosts: agent_win_vm
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Add test-stackstate-agent.sts to /etc/hosts
       win_lineinfile:
@@ -256,8 +239,6 @@
 - name: Prepare Linux Agents (post)
   hosts: agent_linux_vm
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Add test-stackstate-agent.sts to /etc/hosts
       become: true
@@ -276,8 +257,6 @@
 - name: Prepare Ubuntu Agent for Short-Lived tests (post installation configuration)
   hosts: agent-ubuntu
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: "Set process_config.filters.short_lived_processes and process_config.filters.short_lived_network_relations to get deterministic behaviour in the short-lived filtering tests"
       become: true
@@ -299,8 +278,6 @@
 - name: Prepare Ubuntu Agent listening after start
   hosts: agent-ubuntu
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Wait a bit for the process agent to start
       pause:
@@ -330,8 +307,6 @@
 - name: Prepare Fedora Agent connecting after start
   hosts: agent-fedora
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Connect to Ubuntu agent P2P
       shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_fedora }}
@@ -345,8 +320,6 @@
 - name: Prepare Windows Agent connecting after start
   hosts: agent-win
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Wait a bit for the ubuntu machine to start
       pause:
@@ -377,8 +350,6 @@
 - name: Prepare Agent for blacklist inclusion test
   hosts: agent-ubuntu, agent-fedora, agent-centos
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Wait a bit for the process agent to start
       pause:
@@ -391,8 +362,6 @@
 - name: Prepare Agent for short-lived filtering test
   hosts: agent-ubuntu
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Wait a bit for the process agent to start
       pause:
@@ -405,8 +374,6 @@
 - name: Prepare Agent for short-lived relation test
   hosts: agent-ubuntu
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Wait a bit for the process agent to start
       pause:
@@ -480,8 +447,6 @@
 - name: Prepare Connection Namespace VM with local docker connections
   hosts: agent-connection-namespaces
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Connect to netcat 1 docker container
       shell: "docker exec -itd netcat-1 sh -c 'yes | ncat 127.0.0.1 9091'"
