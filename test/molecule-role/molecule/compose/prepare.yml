@@ -34,21 +34,11 @@
         reauthorize: yes
     - name: Copy Configuration files
       copy:
-        src: "files/{{ item }}"
-        dest: "/home/ubuntu/{{ item }}"
+        src: "files/"
+        dest: "/home/ubuntu"
         mode: preserve
-      with_items:
-        - create-topics.sh
-    - name: Template Configuration files
-      template:
-        src: "files/{{ item }}"
-        dest: "/home/ubuntu/{{ item }}"
-        mode: preserve
-      with_items:
-        - docker-compose.yml
     - name: Gather facts (we need the docker network interface ip)
       setup:
-
     - name: Configure .env file used by docker-compose
       copy:
         content: |
