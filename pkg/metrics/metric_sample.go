@@ -136,7 +136,7 @@ func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardi
 		}
 	}
 
-	tb.SortUniq()
+	//	tb.SortUniq()
 }
 
 // GetTags returns the metric sample tags
