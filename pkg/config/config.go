@@ -74,10 +74,10 @@ const (
 	DefaultLogsSenderBackoffFactor = 2.0
 
 	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 0.05
+	DefaultLogsSenderBackoffBase = 1.0
 
 	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 1.0
+	DefaultLogsSenderBackoffMax = 120.0
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
@@ -218,7 +218,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 1) // The number of commits before expiring a context
+	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -369,6 +369,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
 	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
+
+	// Forwarder channels buffer size
+	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 1000)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 1000)
+	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 1000)
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
@@ -658,6 +663,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
 	// Force tailing from file for all docker container, even the ones with an existing registry entry
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
+	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
+	// the pod container ID is matching.
+	config.BindEnvAndSetDefault("logs_config.validate_pod_container_id", false)
 	// additional config to ensure initial logs are tagged with kubelet tags
 	// wait (seconds) for tagger before start fetching tags of new AD services
 	config.BindEnvAndSetDefault("logs_config.tagger_warmup_duration", 0) // Disabled by default (0 seconds)
@@ -802,6 +810,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
 	config.SetKnown("process_config.max_per_message")
+	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.intervals.process")
 	config.SetKnown("process_config.blacklist_patterns")
 	config.SetKnown("process_config.intervals.container")
@@ -837,7 +846,7 @@ func InitConfig(config Config) {
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
-	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 30)
+	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")

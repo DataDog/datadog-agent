@@ -95,11 +95,9 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	// Comment this out for now, until we fix the cardinality of the perf_buffer.* metrics.
-	//
-	//if err := m.perfBufferMonitor.SendStats(); err != nil {
-	//	return errors.Wrap(err, "failed to send events stats")
-	//}
+	if err := m.perfBufferMonitor.SendStats(); err != nil {
+		return errors.Wrap(err, "failed to send events stats")
+	}
 
 	return nil
 }

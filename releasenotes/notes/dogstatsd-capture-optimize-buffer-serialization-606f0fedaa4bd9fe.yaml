@@ -8,4 +8,5 @@
 ---
 fixes:
   - |
-    Fix handling of CPU metric collected from cgroups when the cgroup file is missing.
+    For dogstatsd captures, Only serialize to disk the portion of buffers
+    actually used by the payloads ingested, not the full buffer.

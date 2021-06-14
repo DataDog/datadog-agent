@@ -90,9 +90,12 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 		containerLaunchables[0], containerLaunchables[1] = containerLaunchables[1], containerLaunchables[0]
 	}
 
+	validatePodContainerID := coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id")
+
 	// setup the inputs
 	inputs := []restart.Restartable{
-		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, file.DefaultSleepDuration),
+		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
+			file.DefaultSleepDuration, validatePodContainerID),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),

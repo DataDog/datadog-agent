@@ -152,7 +152,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "system_probe_pid",
-			Value: uint64(os.Getpid()),
+			Value: uint64(utils.Getpid()),
 		})
 	}
 
@@ -512,6 +512,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
 }
 
 // OnRuleMatch is called when a rule matches just before sending
@@ -757,11 +760,12 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
-	p.cancelFnc()
-
+	// We need to stop the manager first, otherwise there can be a dead lock between the eBPF perf map reader and the
+	// reorderer (at the channel level)
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
 	}
+	p.cancelFnc()
 	return p.resolvers.Close()
 }
 
@@ -803,9 +807,16 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		statsdClient:   client,
 		erpc:           erpc,
 	}
+
 	if err = p.detectKernelVersion(); err != nil {
 		return nil, err
 	}
+
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse CPU count")
+	}
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")

@@ -17,20 +17,27 @@ const (
 	tagSynthetics = "synthetics"
 )
 
-// Aggregation contains all the dimension on which we aggregate statistics
-// when adding or removing fields to Aggregation the methods ToTagSet, KeyLen,
-// WriteKey and the structs payloadAggregationKey, bucketAggregationKey in the ClientStatsAggregator
-// should always be updated accordingly.
+// Aggregation contains all the dimension on which we aggregate statistics.
 type Aggregation struct {
-	Env        string
-	Resource   string
+	BucketsAggregationKey
+	PayloadAggregationKey
+}
+
+// BucketsAggregationKey specifies the key by which a bucket is aggregated.
+type BucketsAggregationKey struct {
 	Service    string
 	Name       string
+	Resource   string
 	Type       string
-	Hostname   string
 	StatusCode uint32
-	Version    string
 	Synthetics bool
+}
+
+// PayloadAggregationKey specifies the key by which a payload is aggregated.
+type PayloadAggregationKey struct {
+	Env      string
+	Hostname string
+	Version  string
 }
 
 func getStatusCode(s *pb.Span) uint32 {
@@ -54,28 +61,31 @@ func NewAggregationFromSpan(s *pb.Span, env string, agentHostname string) Aggreg
 		hostname = agentHostname
 	}
 	return Aggregation{
-		Env:        env,
-		Resource:   s.Resource,
-		Service:    s.Service,
-		Name:       s.Name,
-		Type:       s.Type,
-		Hostname:   hostname,
-		StatusCode: getStatusCode(s),
-		Version:    traceutil.GetMetaDefault(s, tagVersion, ""),
-		Synthetics: synthetics,
+		PayloadAggregationKey: PayloadAggregationKey{
+			Env:      env,
+			Hostname: hostname,
+			Version:  traceutil.GetMetaDefault(s, tagVersion, ""),
+		},
+		BucketsAggregationKey: BucketsAggregationKey{
+			Resource:   s.Resource,
+			Service:    s.Service,
+			Name:       s.Name,
+			Type:       s.Type,
+			StatusCode: getStatusCode(s),
+			Synthetics: synthetics,
+		},
 	}
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
-func NewAggregationFromGroup(env, hostname, version string, g pb.ClientGroupedStats) Aggregation {
+func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
-		Env:        env,
-		Hostname:   hostname,
-		Version:    version,
-		Resource:   g.Resource,
-		Service:    g.Service,
-		Name:       g.Name,
-		StatusCode: g.HTTPStatusCode,
-		Synthetics: g.Synthetics,
+		BucketsAggregationKey: BucketsAggregationKey{
+			Resource:   g.Resource,
+			Service:    g.Service,
+			Name:       g.Name,
+			StatusCode: g.HTTPStatusCode,
+			Synthetics: g.Synthetics,
+		},
 	}
 }

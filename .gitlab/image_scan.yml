@@ -3,18 +3,6 @@
 # Contains jobs to deploy Docker images of the Agent to specific Dockerhub repos
 # (datadog/agent-scan and datadog/dogstatsd-scan) to be scanned.
 
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -48,9 +36,7 @@
 scan_nightly_docker_hub-dogstatsd:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_dogstatsd_amd64
   script:
@@ -60,9 +46,7 @@ scan_nightly_docker_hub-dogstatsd:
 scan_nightly_docker_hub-a6:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -73,9 +57,7 @@ scan_nightly_docker_hub-a6:
 scan_nightly_docker_hub-a7:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -86,7 +68,7 @@ scan_nightly_docker_hub-a7:
 dca_scan_nightly_docker_hub:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-scan:nightly
@@ -96,9 +78,7 @@ dca_scan_nightly_docker_hub:
 scan_master_docker_hub-dogstatsd:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs:
     - docker_build_dogstatsd_amd64
   script:
@@ -108,9 +88,7 @@ scan_master_docker_hub-dogstatsd:
 scan_master_docker_hub-a6:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -121,9 +99,7 @@ scan_master_docker_hub-a6:
 scan_master_docker_hub-a7:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -134,7 +110,7 @@ scan_master_docker_hub-a7:
 dca_scan_master_docker_hub:
   extends: .docker_scan_job_definition
   rules:
-    - <<: *if_master_branch
+    !reference [.on_master_a7]
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-scan:master

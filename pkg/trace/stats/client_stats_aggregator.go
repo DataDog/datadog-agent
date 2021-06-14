@@ -164,7 +164,7 @@ type bucket struct {
 	// n counts the number of payloads matching the bucket
 	n int
 	// agg contains the aggregated Hits/Errors/Duration counts
-	agg map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts
+	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
 func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
@@ -177,7 +177,7 @@ func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
 	if b.n == 2 {
 		first := b.first
 		b.first = pb.ClientStatsPayload{}
-		b.agg = make(map[payloadAggregationKey]map[bucketAggregationKey]*aggregatedCounts, 2)
+		b.agg = make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts, 2)
 		b.aggregateCounts(first)
 		b.aggregateCounts(p)
 		return []pb.ClientStatsPayload{trimCounts(first), trimCounts(p)}
@@ -194,7 +194,7 @@ func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
 		for _, s := range p.Stats {
 			size += len(s.Stats)
 		}
-		payloadAgg = make(map[bucketAggregationKey]*aggregatedCounts, size)
+		payloadAgg = make(map[BucketsAggregationKey]*aggregatedCounts, size)
 		b.agg[payloadAggKey] = payloadAgg
 	}
 	for _, s := range p.Stats {
@@ -225,12 +225,12 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 		stats := make([]pb.ClientGroupedStats, 0, len(aggrCounts))
 		for aggrKey, counts := range aggrCounts {
 			stats = append(stats, pb.ClientGroupedStats{
-				Service:        aggrKey.service,
-				Name:           aggrKey.name,
-				Resource:       aggrKey.resource,
-				HTTPStatusCode: aggrKey.statusCode,
-				Type:           aggrKey.typ,
-				Synthetics:     aggrKey.synthetics,
+				Service:        aggrKey.Service,
+				Name:           aggrKey.Name,
+				Resource:       aggrKey.Resource,
+				HTTPStatusCode: aggrKey.StatusCode,
+				Type:           aggrKey.Type,
+				Synthetics:     aggrKey.Synthetics,
 				Hits:           counts.hits,
 				Errors:         counts.errors,
 				Duration:       counts.duration,
@@ -243,9 +243,9 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 				Stats:    stats,
 			}}
 		res = append(res, pb.ClientStatsPayload{
-			Hostname:         payloadKey.hostname,
-			Env:              payloadKey.env,
-			Version:          payloadKey.version,
+			Hostname:         payloadKey.Hostname,
+			Env:              payloadKey.Env,
+			Version:          payloadKey.Version,
 			Stats:            clientBuckets,
 			AgentAggregation: keyCounts,
 		})
@@ -253,31 +253,18 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 	return res
 }
 
-// payloadAggregationKey and bucketAggregationKey contain dimensions used
-// to aggregate statistics. When adding or removing fields, update accordingly
-// the Aggregation used by the concentrator.
-type payloadAggregationKey struct {
-	env, hostname, version string
+func newPayloadAggregationKey(env, hostname, version string) PayloadAggregationKey {
+	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version}
 }
 
-type bucketAggregationKey struct {
-	service, name, resource, typ string
-	synthetics                   bool
-	statusCode                   uint32
-}
-
-func newPayloadAggregationKey(env, hostname, version string) payloadAggregationKey {
-	return payloadAggregationKey{env: env, hostname: hostname, version: version}
-}
-
-func newBucketAggregationKey(b pb.ClientGroupedStats) bucketAggregationKey {
-	return bucketAggregationKey{
-		service:    b.Service,
-		name:       b.Name,
-		resource:   b.Resource,
-		typ:        b.Type,
-		synthetics: b.Synthetics,
-		statusCode: b.HTTPStatusCode,
+func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
+	return BucketsAggregationKey{
+		Service:    b.Service,
+		Name:       b.Name,
+		Resource:   b.Resource,
+		Type:       b.Type,
+		Synthetics: b.Synthetics,
+		StatusCode: b.HTTPStatusCode,
 	}
 }
 

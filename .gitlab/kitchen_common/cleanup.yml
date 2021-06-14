@@ -1,7 +1,4 @@
 ---
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
 .kitchen_cleanup_s3_common:
   allow_failure: true
   stage: kitchen_cleanup
@@ -18,9 +15,6 @@
 
 .kitchen_cleanup_azure_common:
   allow_failure: true
-  rules:
-    - <<: *if_kitchen
-      when: always
   stage: kitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
