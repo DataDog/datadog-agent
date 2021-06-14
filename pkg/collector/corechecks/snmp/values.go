@@ -12,10 +12,6 @@ type resultValueStore struct {
 	columnValues columnResultValuesType
 }
 
-func newEmptyResultValueStore() *resultValueStore {
-	return &resultValueStore{}
-}
-
 // getScalarValue look for oid in resultValueStore and returns the value and boolean
 // weather valid value has been found
 func (v *resultValueStore) getScalarValue(oid string) (snmpValueType, error) {
