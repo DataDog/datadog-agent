@@ -1204,7 +1204,7 @@ tags:
 	}).Return(&bulkPacket, nil)
 
 	err = check.Run()
-	assert.Error(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
+	assert.EqualError(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 
@@ -1269,4 +1269,87 @@ tags:
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
+}
+
+func TestReportDeviceMetadataWithFetchError(t *testing.T) {
+	timeNow = mockTimeNow
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+	setConfdPathAndCleanProfiles()
+
+	session := createMockSession()
+	check := Check{session: session}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.5
+collect_device_metadata: true
+tags:
+  - "mytag:val1"
+  - "autodiscovery_subnet:127.0.0.0/30"
+`)
+	// language=yaml
+	rawInitConfig := []byte(``)
+
+	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	var nilPacket *gosnmp.SnmpPacket
+	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
+
+	session.On("Get", []string{
+		"1.3.6.1.2.1.1.5.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	}).Return(nilPacket, fmt.Errorf("device failure"))
+
+	err = check.Run()
+	assert.EqualError(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+
+	snmpTags := []string{"snmp_device:1.2.3.5"}
+
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
+
+	// language=json
+	event := []byte(`
+{
+  "subnet": "127.0.0.0/30",
+  "devices": [
+    {
+      "id": "173b2077d0770b9",
+      "id_tags": [
+        "mytag:val1",
+        "snmp_device:1.2.3.5"
+      ],
+      "name": "",
+      "description": "",
+      "ip_address": "1.2.3.5",
+      "sys_object_id": "",
+      "profile": "",
+      "vendor": "",
+      "subnet": "127.0.0.0/30",
+      "tags": [
+        "autodiscovery_subnet:127.0.0.0/30",
+        "mytag:val1",
+        "snmp_device:1.2.3.5"
+      ],
+      "status": 2
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+
+	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
 }
