@@ -88,10 +88,10 @@ else
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x86.zip",
-           :sha256 => "c8309b3351610a7159e91e55f09f7341bc3bbdd67d2a5e3049a9d1157e5a9110",
+           :sha256 => "50B90B8FE406A7F94FF5D6F80023064E76B24609DBF66C3191335FB184CCEB45".downcase,
   else
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x64.zip",
-           :sha256 => "8e9d8f94f42f25aa7c19df4254fc866e18ef98fbd56d5629f364b65567001abb",
+           :sha256 => "9CFD17ADC20DEF691FE4112E774B677EBFD2BFF054F0F906A6ACD66136278A2D".downcase,
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
