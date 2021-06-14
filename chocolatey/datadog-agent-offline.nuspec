@@ -3,7 +3,7 @@
   <metadata>
     <id>datadog-agent-offline</id>
     <version>$package_version$</version>
-    <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/master/chocolatey</packageSourceUrl>
+    <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/main/chocolatey</packageSourceUrl>
     <owners>package@datadoghq.com</owners>
     <title>Datadog Agent Offline Install</title>
     <authors>Datadog</authors>

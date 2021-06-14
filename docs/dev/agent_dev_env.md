@@ -99,7 +99,7 @@ additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
 specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
-may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/master/rtloader)
+may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
 ## Installing dependencies

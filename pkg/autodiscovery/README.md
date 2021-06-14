@@ -1,6 +1,6 @@
 # package `autodiscovery`
 
-This package is a core piece of the agent. It is responsible for collecting check configurations from different sources (see package [config providers](https://github.com/DataDog/datadog-agent/tree/master/pkg/autodiscovery/providers)) and then schedule or unschedule integration configurations with the help of the schedulers.
+This package is a core piece of the agent. It is responsible for collecting check configurations from different sources (see package [config providers](https://github.com/DataDog/datadog-agent/tree/main/pkg/autodiscovery/providers)) and then schedule or unschedule integration configurations with the help of the schedulers.
 
 It is also responsible for listening to container-related events and resolve template configurations that would match them.
 

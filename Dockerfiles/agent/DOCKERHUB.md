@@ -45,8 +45,8 @@ slimmer.
 Please refer to:
 
 - [https://docs.datadoghq.com/](https://docs.datadoghq.com/)
-- [usage instructions](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent) for this image
-- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/master/docs) in our repo
+- [usage instructions](https://github.com/DataDog/datadog-agent/tree/main/Dockerfiles/agent) for this image
+- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/main/docs) in our repo
 
 ## Support
 
