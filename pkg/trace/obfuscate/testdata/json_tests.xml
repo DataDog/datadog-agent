@@ -476,9 +476,7 @@
   "_source": [ "title", "id" ],
   "sort": [ { "_id": { "order": "?" } }
   ]
-}
-
-]]></Out>
+}]]></Out>
 		</Test>
 		<Test>
 			<Tag>elasticsearch.body.14</Tag>
@@ -976,8 +974,6 @@
 				<key>Alias</key>
 				<key>Parent Relationship</key>
 				<key>Sort Key</key>
-				<key>Join Type</key>
-				<key>Inner Unique</key>
 				<key>Plan Rows</key>
 				<key>Plan Width</key>
 				<key>Startup Cost</key>
