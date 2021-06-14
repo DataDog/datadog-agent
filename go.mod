@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent
 go 1.15
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
-// See https://github.com/DataDog/datadog-agent/blob/master/docs/dev/gomodreplace.md
+// See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
 // Internal deps fix version

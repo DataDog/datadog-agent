@@ -23,7 +23,7 @@ currently in Alpha.
 
 ## Getting started
 
-For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/master/README.md)
+For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/main/README.md)
 
 To start working on the Cluster Agent, you can build the `master` branch:
 
