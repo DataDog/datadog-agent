@@ -5,10 +5,6 @@ type oidConfig struct {
 	columnOids []string
 }
 
-func (oc *oidConfig) hasOids() bool {
-	return len(oc.columnOids) != 0 || len(oc.scalarOids) != 0
-}
-
 func (oc *oidConfig) addScalarOids(oidsToAdd []string) {
 	oc.scalarOids = oc.addOidsIfNotPresent(oc.scalarOids, oidsToAdd)
 }
