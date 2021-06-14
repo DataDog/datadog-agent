@@ -260,8 +260,8 @@ void getOsStrings()
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
     // [sts] datadog yaml rename to stackstate yaml
-    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"stackstate.yaml\"" ;
-    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"stackstate.yaml\"" ;
+    process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
+    trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
     embedded3Dir = installdir + L"embedded3";
     datadog_acl_key_datadog = datadog_acl_key_datadog_base + datadog_path;

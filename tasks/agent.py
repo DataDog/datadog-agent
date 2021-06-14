@@ -205,6 +205,8 @@ def apply_branding(ctx):
                   "./pkg/trace/flags/flags_windows.go")
     do_sed_rename(ctx, 's/"Datadog"/"StackState"/g',
                   "./pkg/util/winutil/shutil.go")
+    do_sed_rename(ctx, 's/"Datadog Agent"/"StackState Agent"/g',
+                  "./pkg/util/winutil/shutil.go")
     do_sed_rename(ctx, 's/"SOFTWARE\\\\\\\\Datadog\\\\\\\\"/"SOFTWARE\\\\\\\\StackState\\\\\\\\"/g',
                   "./pkg/util/winutil/shutil.go")
 

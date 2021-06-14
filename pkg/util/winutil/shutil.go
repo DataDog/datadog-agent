@@ -75,7 +75,7 @@ func getDefaultProgramDataDir() (path string, err error) {
 		// go vet: "possible misuse of unsafe.Pointer"
 		path = windows.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(retstr))[:])
 		// [sts] Datadog rename to StackState
-		path = filepath.Join(path, "StackState")
+		path = filepath.Join(path, "Datadog")
 	}
 	return
 }
@@ -84,14 +84,14 @@ func getDefaultProgramDataDir() (path string, err error) {
 // c:\programdata\Datadog
 func GetProgramDataDir() (path string, err error) {
 	// [sts] Datadog rename to StackState
-	return GetProgramDataDirForProduct("StackState Agent")
+	return GetProgramDataDirForProduct("Datadog Agent")
 }
 
 // GetProgramDataDirForProduct returns the current programdatadir, usually
 // c:\programdata\Datadog given a product key name
 func GetProgramDataDirForProduct(product string) (path string, err error) {
 	// [sts] Datadog rename to StackState
-	keyname := "SOFTWARE\\StackState\\" + product
+	keyname := "SOFTWARE\\Datadog\\" + product
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		keyname,
 		registry.ALL_ACCESS)
