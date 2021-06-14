@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"path"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -373,6 +374,17 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
 	}
 	return e.FSGroup
+}
+
+// ResolveSELinuxBooleanValue resolves the boolean value of the SELinux event
+func (ev *Event) ResolveSELinuxBooleanValue(e *model.SELinuxEvent) bool {
+	booleanStr := string(e.RawBuf[:e.RawBufSize])
+	booleanInt, err := strconv.Atoi(booleanStr)
+	if err != nil {
+		return false
+	}
+
+	return booleanInt != 0
 }
 
 func (ev *Event) String() string {

@@ -48,7 +48,6 @@ func TestSELinux(t *testing.T) {
 		} else {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
-			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
 
 			fileName := "/sys/fs/selinux/enforce"
 			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
@@ -76,7 +75,6 @@ func TestSELinux(t *testing.T) {
 			assert.Equal(t, event.SELinux.File.BasenameStr, "selinuxuser_ping", "wrong bool name")
 
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
-			assert.Equal(t, event.SELinux.Magic, uint32(42), "wrong magic")
 
 			fileName := "/sys/fs/selinux/booleans/selinuxuser_ping"
 			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")

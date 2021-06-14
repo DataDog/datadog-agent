@@ -5,6 +5,7 @@
 #include "process.h"
 
 #define FSTYPE_LEN 16
+#define SELINUX_BUF_LEN 32
 
 struct str_array_ref_t {
     u32 id;
@@ -123,6 +124,8 @@ struct syscall_cache_t {
         struct {
             struct dentry *dentry;
             struct file_t file;
+            u32 buf_size;
+            char buf[SELINUX_BUF_LEN];
         } selinux;
     };
 };

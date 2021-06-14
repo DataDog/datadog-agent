@@ -11,10 +11,11 @@ struct selinux_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct file_t file;
-    u32 magic;
+    u32 buf_size;
+    char buf[SELINUX_BUF_LEN];
 };
 
-int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file) {
+int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SELINUX,
         .policy = fetch_policy(EVENT_SELINUX),
@@ -24,6 +25,14 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     struct dentry *dentry = get_file_dentry(file);
     syscall.selinux.dentry = dentry;
     syscall.selinux.file.path_key.mount_id = get_file_mount_id(file);
+
+    size_t buf_size = SELINUX_BUF_LEN;
+    if (count < SELINUX_BUF_LEN) {
+        buf_size = count;
+    }
+
+    bpf_probe_read(syscall.selinux.buf, buf_size, (void*)buf);
+    syscall.selinux.buf_size = buf_size;
 
     cache_syscall(&syscall);
     return 0;
@@ -66,9 +75,9 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID)
         return 0;
 
-    struct selinux_event_t event = {
-        .magic = 42,
-    };
+    struct selinux_event_t event = {};
+    event.buf_size = syscall->selinux.buf_size;
+    memcpy(event.buf, syscall->selinux.buf, SELINUX_BUF_LEN);
     event.file = syscall->selinux.file;
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -88,7 +97,10 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
     SEC("kprobe/" #func_name)                                  \
     int kprobe__##func_name(struct pt_regs *ctx) {             \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
-        return handle_selinux_event(ctx, file);                \
+        const char *buf = (const char*)PT_REGS_PARM2(ctx);     \
+        size_t count = (size_t)PT_REGS_PARM3(ctx);             \
+        /* selinux only supports ppos = 0 */                   \
+        return handle_selinux_event(ctx, file, buf, count);    \
     }                                                          \
                                                                \
     SEC("kretprobe/" #func_name)                               \

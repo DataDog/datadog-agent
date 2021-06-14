@@ -408,10 +408,14 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
+const SELinuxRawBufCapacity = 32
+
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	File  FileEvent `field:"file"`
-	Magic uint32    `field:"magic"`
+	File         FileEvent                   `field:"file"`
+	RawBufSize   uint32                      `field:"-"`
+	RawBuf       [SELinuxRawBufCapacity]byte `field:"-"`
+	BooleanValue bool                        `field:"write.bool_value,ResolveSELinuxBooleanValue"`
 }
 
 var zeroProcessContext ProcessContext

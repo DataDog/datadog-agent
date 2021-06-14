@@ -3242,14 +3242,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "selinux.magic":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
+	case "selinux.write.bool_value":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
 
-				return int((*Event)(ctx.Object).SELinux.Magic)
+				return (*Event)(ctx.Object).SELinux.BooleanValue
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "setgid.egid":
@@ -4322,7 +4322,7 @@ func (e *Event) GetFields() []eval.Field {
 
 		"selinux.file.user",
 
-		"selinux.magic",
+		"selinux.write.bool_value",
 
 		"setgid.egid",
 
@@ -6111,9 +6111,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.SELinux.File.FileFields.User, nil
 
-	case "selinux.magic":
+	case "selinux.write.bool_value":
 
-		return int(e.SELinux.Magic), nil
+		return e.SELinux.BooleanValue, nil
 
 	case "setgid.egid":
 
@@ -7133,7 +7133,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "selinux.file.user":
 		return "selinux", nil
 
-	case "selinux.magic":
+	case "selinux.write.bool_value":
 		return "selinux", nil
 
 	case "setgid.egid":
@@ -8367,9 +8367,9 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "selinux.magic":
+	case "selinux.write.bool_value":
 
-		return reflect.Int, nil
+		return reflect.Bool, nil
 
 	case "setgid.egid":
 
@@ -11464,14 +11464,12 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "selinux.magic":
+	case "selinux.write.bool_value":
 
 		var ok bool
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SELinux.Magic"}
+		if e.SELinux.BooleanValue, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BooleanValue"}
 		}
-		e.SELinux.Magic = uint32(v)
 		return nil
 
 	case "setgid.egid":
