@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockSession struct {
