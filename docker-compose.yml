@@ -26,6 +26,7 @@ services:
       HOST_SYS: "/host/sys"
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
+      STS_LOG_PAYLOADS: "true"
 #    healthcheck:
 #      test: curl --fail -s http://localhost:5000/ || exit 1
 #      interval: 1m30s

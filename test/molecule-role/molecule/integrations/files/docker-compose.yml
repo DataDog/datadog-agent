@@ -114,6 +114,7 @@ services:
       HOST_SYS: "/host/sys"
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
+      STS_LOG_PAYLOADS: "false"
     depends_on:
       - nagios
       - receiver
