@@ -295,6 +295,9 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		"Relation Name",
 		"Scan Direction",
 		"Sort Key",
+		"Join Type",
+		"Strategy",
+		"Workers Planned",
 	},
 }
 

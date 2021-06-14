@@ -477,7 +477,7 @@
   "sort": [ { "_id": { "order": "?" } }
   ]
 }
-			
+
 ]]></Out>
 		</Test>
 		<Test>
@@ -738,6 +738,447 @@
   }
 }]]></Out>
 		</Test>
-
+		<Test>
+			<Tag>normalize.sql.plan.postgres</Tag>
+			<ObfuscateSQLValues>
+				<key>Index Cond</key>
+				<key>Recheck Cond</key>
+				<key>Merge Cond</key>
+				<key>Hash Cond</key>
+				<key>Join Filter</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>Node Type</key>
+				<key>Parallel Aware</key>
+				<key>Scan Direction</key>
+				<key>Index Name</key>
+				<key>Relation Name</key>
+				<key>Alias</key>
+				<key>Parent Relationship</key>
+				<key>Sort Key</key>
+				<key>Join Type</key>
+				<key>Inner Unique</key>
+				<key>Plan Rows</key>
+				<key>Plan Width</key>
+				<key>Startup Cost</key>
+				<key>Total Cost</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+   "Plan": {
+      "Node Type":"Limit",
+      "Parallel Aware":false,
+      "Startup Cost":2.25,
+      "Total Cost":22.56,
+      "Plan Rows":990,
+      "Plan Width":272,
+      "Plans": [
+         {
+            "Node Type":"Hash Join",
+            "Parent Relationship":"Outer",
+            "Parallel Aware":false,
+            "Join Type":"Left",
+            "Startup Cost":2.25,
+            "Total Cost":22.56,
+            "Plan Rows":990,
+            "Plan Width":272,
+            "Inner Unique":true,
+            "Hash Cond":"(pg_stat_statements.dbid = pg_database.)",
+            "Plans": [
+               {
+                  "Node Type":"Hash Join",
+                  "Parent Relationship":"Outer",
+                  "Parallel Aware":false,
+                  "Join Type":"Left",
+                  "Startup Cost":1.21,
+                  "Total Cost":18.86,
+                  "Plan Rows":990,
+                  "Plan Width":212,
+                  "Inner Unique":true,
+                  "Hash Cond":"(pg_stat_statements.userid = pg_authid.oid)",
+                  "Plans": [
+                     {
+                        "Node Type":"Function Scan",
+                        "Parent Relationship":"Outer",
+                        "Parallel Aware":false,
+                        "Function Name":"pg_stat_statements",
+                        "Alias":"pg_stat_statements",
+                        "Startup Cost":0.0,
+                        "Total Cost":15.0,
+                        "Plan Rows":990,
+                        "Plan Width":152,
+                        "Filter":"((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                     },
+                     {
+                        "Node Type":"Hash",
+                        "Parent Relationship":"Inner",
+                        "Parallel Aware":false,
+                        "Startup Cost":1.09,
+                        "Total Cost":1.09,
+                        "Plan Rows":9,
+                        "Plan Width":68,
+                        "Plans": [
+                           {
+                              "Node Type":"Seq Scan",
+                              "Parent Relationship":"Outer",
+                              "Parallel Aware":false,
+                              "Relation Name":"pg_authid",
+                              "Alias":"pg_authid",
+                              "Startup Cost":0.0,
+                              "Total Cost":1.09,
+                              "Plan Rows":9,
+                              "Plan Width":68
+                           }
+                        ]
+                     }
+                  ]
+               },
+               {
+                  "Node Type":"Hash",
+                  "Parent Relationship":"Inner",
+                  "Parallel Aware":false,
+                  "Startup Cost":1.02,
+                  "Total Cost":1.02,
+                  "Plan Rows":2,
+                  "Plan Width":68,
+                  "Plans": [
+                     {
+                        "Node Type":"Seq Scan",
+                        "Parent Relationship":"Outer",
+                        "Parallel Aware":false,
+                        "Relation Name":"pg_database",
+                        "Alias":"pg_database",
+                        "Startup Cost":0.0,
+                        "Total Cost":1.02,
+                        "Plan Rows":2,
+                        "Plan Width":68
+                     }
+                  ]
+               }
+            ]
+         }
+      ]
+   }
+}]]></In>
+			<Out><![CDATA[
+{
+   "Plan": {
+      "Node Type":"Limit",
+      "Parallel Aware":false,
+      "Startup Cost":2.25,
+      "Total Cost":22.56,
+      "Plan Rows":990,
+      "Plan Width":272,
+      "Plans": [
+         {
+            "Node Type":"Hash Join",
+            "Parent Relationship":"Outer",
+            "Parallel Aware":false,
+            "Join Type":"Left",
+            "Startup Cost":2.25,
+            "Total Cost":22.56,
+            "Plan Rows":990,
+            "Plan Width":272,
+            "Inner Unique":true,
+            "Hash Cond":"( pg_stat_statements.dbid = pg_database. )",
+            "Plans": [
+               {
+                  "Node Type":"Hash Join",
+                  "Parent Relationship":"Outer",
+                  "Parallel Aware":false,
+                  "Join Type":"Left",
+                  "Startup Cost":1.21,
+                  "Total Cost":18.86,
+                  "Plan Rows":990,
+                  "Plan Width":212,
+                  "Inner Unique":true,
+                  "Hash Cond":"( pg_stat_statements.userid = pg_authid.oid )",
+                  "Plans": [
+                     {
+                        "Node Type":"Function Scan",
+                        "Parent Relationship":"Outer",
+                        "Parallel Aware":false,
+                        "Function Name":"?",
+                        "Alias":"pg_stat_statements",
+                        "Startup Cost":0.0,
+                        "Total Cost":15.0,
+                        "Plan Rows":990,
+                        "Plan Width":152,
+                        "Filter":"?"
+                     },
+                     {
+                        "Node Type":"Hash",
+                        "Parent Relationship":"Inner",
+                        "Parallel Aware":false,
+                        "Startup Cost":1.09,
+                        "Total Cost":1.09,
+                        "Plan Rows":9,
+                        "Plan Width":68,
+                        "Plans": [
+                           {
+                              "Node Type":"Seq Scan",
+                              "Parent Relationship":"Outer",
+                              "Parallel Aware":false,
+                              "Relation Name":"pg_authid",
+                              "Alias":"pg_authid",
+                              "Startup Cost":0.0,
+                              "Total Cost":1.09,
+                              "Plan Rows":9,
+                              "Plan Width":68
+                           }
+                        ]
+                     }
+                  ]
+               },
+               {
+                  "Node Type":"Hash",
+                  "Parent Relationship":"Inner",
+                  "Parallel Aware":false,
+                  "Startup Cost":1.02,
+                  "Total Cost":1.02,
+                  "Plan Rows":2,
+                  "Plan Width":68,
+                  "Plans": [
+                     {
+                        "Node Type":"Seq Scan",
+                        "Parent Relationship":"Outer",
+                        "Parallel Aware":false,
+                        "Relation Name":"pg_database",
+                        "Alias":"pg_database",
+                        "Startup Cost":0.0,
+                        "Total Cost":1.02,
+                        "Plan Rows":2,
+                        "Plan Width":68
+                     }
+                  ]
+               }
+            ]
+         }
+      ]
+   }
+}]]></Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.postgres</Tag>
+			<ObfuscateSQLValues>
+				<key>Index Cond</key>
+				<key>Recheck Cond</key>
+				<key>Merge Cond</key>
+				<key>Hash Cond</key>
+				<key>Join Filter</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>Node Type</key>
+				<key>Parallel Aware</key>
+				<key>Scan Direction</key>
+				<key>Index Name</key>
+				<key>Relation Name</key>
+				<key>Alias</key>
+				<key>Parent Relationship</key>
+				<key>Sort Key</key>
+				<key>Join Type</key>
+				<key>Inner Unique</key>
+				<key>Plan Rows</key>
+				<key>Plan Width</key>
+				<key>Startup Cost</key>
+				<key>Total Cost</key>
+				<key>Strategy</key>
+				<key>Workers Planned</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "Plan": {
+    "Node Type": "Aggregate",
+    "Strategy": "Hashed",
+    "Parallel Aware": false,
+    "Startup Cost": 428605.09,
+    "Total Cost": 428658.76,
+    "Plan Rows": 200,
+    "Plan Width": 12,
+    "Group Key": [
+      "c"
+    ],
+    "Plans": [
+      {
+        "Node Type": "Gather Merge",
+        "Parent Relationship": "Outer",
+        "Parallel Aware": false,
+        "Startup Cost": 428605.09,
+        "Total Cost": 428651.76,
+        "Plan Rows": 400,
+        "Plan Width": 20,
+        "Workers Planned": 3,
+        "Plans": [
+          {
+            "Node Type": "Sort",
+            "Parent Relationship": "Outer",
+            "Parallel Aware": false,
+            "Startup Cost": 427605.06,
+            "Total Cost": 427605.56,
+            "Plan Rows": 200,
+            "Plan Width": 20,
+            "Sort Key": [
+              "id"
+            ],
+            "Plans": [
+              {
+                "Node Type": "Aggregate",
+                "Strategy": "Hashed",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Startup Cost": 427595.42,
+                "Total Cost": 427597.42,
+                "Plan Rows": 200,
+                "Plan Width": 20,
+                "Group Key": [
+                  "b"
+                ],
+                "Plans": [
+                  {
+                    "Node Type": "Append",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": true,
+                    "Startup Cost": 0.41,
+                    "Total Cost": 425820.88,
+                    "Plan Rows": 236605,
+                    "Plan Width": 20,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Member",
+                        "Parallel Aware": true,
+                        "Scan Direction": "Forward",
+                        "Index Name": "host_agg3_pkey",
+                        "Relation Name": "host_agg3",
+                        "Alias": "host_agg3",
+                        "Startup Cost": 0.41,
+                        "Total Cost": 7034.85,
+                        "Plan Rows": 3863,
+                        "Plan Width": 20,
+                        "Filter": "((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                      },
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Member",
+                        "Parallel Aware": true,
+                        "Scan Direction": "Forward",
+                        "Index Name": "host_agg4_pkey",
+                        "Relation Name": "host_agg4",
+                        "Alias": "host_agg4",
+                        "Startup Cost": 0.41,
+                        "Total Cost": 6990.53,
+                        "Plan Rows": 3798,
+                        "Plan Width": 20,
+                        "Filter": "((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "Plan": {
+    "Node Type": "Aggregate",
+    "Strategy": "Hashed",
+    "Parallel Aware": false,
+    "Startup Cost": 428605.09,
+    "Total Cost": 428658.76,
+    "Plan Rows": 200,
+    "Plan Width": 12,
+    "Group Key": [
+      "?"
+    ],
+    "Plans": [
+      {
+        "Node Type": "Gather Merge",
+        "Parent Relationship": "Outer",
+        "Parallel Aware": false,
+        "Startup Cost": 428605.09,
+        "Total Cost": 428651.76,
+        "Plan Rows": 400,
+        "Plan Width": 20,
+        "Workers Planned": 3,
+        "Plans": [
+          {
+            "Node Type": "Sort",
+            "Parent Relationship": "Outer",
+            "Parallel Aware": false,
+            "Startup Cost": 427605.06,
+            "Total Cost": 427605.56,
+            "Plan Rows": 200,
+            "Plan Width": 20,
+            "Sort Key": [
+              "id"
+            ],
+            "Plans": [
+              {
+                "Node Type": "Aggregate",
+                "Strategy": "Hashed",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Startup Cost": 427595.42,
+                "Total Cost": 427597.42,
+                "Plan Rows": 200,
+                "Plan Width": 20,
+                "Group Key": [
+                  "?"
+                ],
+                "Plans": [
+                  {
+                    "Node Type": "Append",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": true,
+                    "Startup Cost": 0.41,
+                    "Total Cost": 425820.88,
+                    "Plan Rows": 236605,
+                    "Plan Width": 20,
+                    "Plans": [
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Member",
+                        "Parallel Aware": true,
+                        "Scan Direction": "Forward",
+                        "Index Name": "host_agg3_pkey",
+                        "Relation Name": "host_agg3",
+                        "Alias": "host_agg3",
+                        "Startup Cost": 0.41,
+                        "Total Cost": 7034.85,
+                        "Plan Rows": 3863,
+                        "Plan Width": 20,
+                        "Filter": "?"
+                      },
+                      {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Member",
+                        "Parallel Aware": true,
+                        "Scan Direction": "Forward",
+                        "Index Name": "host_agg4_pkey",
+                        "Relation Name": "host_agg4",
+                        "Alias": "host_agg4",
+                        "Startup Cost": 0.41,
+                        "Total Cost": 6990.53,
+                        "Plan Rows": 3798,
+                        "Plan Width": 20,
+                        "Filter": "?"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}]]></Out>
+		</Test>
 	</TestSuite>
 </ObfuscateTests>
