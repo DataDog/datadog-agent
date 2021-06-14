@@ -72,6 +72,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([
 	if err != nil {
 		return nil, fmt.Errorf("no interface indexes found: %s", err)
 	}
+
 	var interfaces []metadata.InterfaceMetadata
 	for _, strIndex := range indexes {
 		index, err := strconv.Atoi(strIndex)
