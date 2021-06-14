@@ -91,7 +91,7 @@ else
            :extract => :seven_zip
   else
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "8E9D8F94F42F25AA7C19DF4254FC866E18EF98FBD56D5629F364B65567001ABB",
+         :sha256 => "8e9d8f94f42f25aa7c19df4254fc866e18ef98fbd56d5629f364b65567001abb",
          :extract => :seven_zip
   end
   build do
