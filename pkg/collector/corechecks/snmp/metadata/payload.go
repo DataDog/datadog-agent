@@ -8,8 +8,8 @@ var PayloadMetadataBatchSize = 100
 type DeviceStatus int32
 
 const (
-	// DeviceStatusOk means the device can be reached by snmp integration
-	DeviceStatusOk = DeviceStatus(1)
+	// DeviceStatusReachable means the device can be reached by snmp integration
+	DeviceStatusReachable = DeviceStatus(1)
 	// DeviceStatusUnreachable means the device cannot be reached by snmp integration
 	DeviceStatusUnreachable = DeviceStatus(2)
 )

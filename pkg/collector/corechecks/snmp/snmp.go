@@ -52,7 +52,7 @@ func (c *Check) Run() error {
 		deviceStatusMessage = checkErr.Error()
 		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, deviceStatusMessage)
 	} else {
-		deviceStatus = metadata.DeviceStatusOk
+		deviceStatus = metadata.DeviceStatusReachable
 		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 		c.sender.reportMetrics(c.config.metrics, values, tags)
 	}
