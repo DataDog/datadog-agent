@@ -33,7 +33,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	os.Setenv("DD_TAGS", "a1:valueA1 a2:valueA2 A_MAJ:valueAMaj")
 	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
-	invoke(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
+	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
 
 	expectedTagArray := []string{
 		"a1:valuea1",
@@ -50,4 +50,12 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 
 	sort.Strings(d.extraTags)
 	assert.Equal(t, expectedTagArray, d.extraTags)
+}
+
+func TestComputeTimeout(t *testing.T) {
+	fakeCurrentTime := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	// add 10ms
+	fakeDeadLineInMs := fakeCurrentTime.UnixNano()/int64(time.Millisecond) + 10
+	safetyBuffer := 3 * time.Millisecond
+	assert.Equal(t, 7*time.Millisecond, computeTimeout(fakeCurrentTime, fakeDeadLineInMs, safetyBuffer))
 }

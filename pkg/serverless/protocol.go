@@ -83,6 +83,8 @@ type Daemon struct {
 
 	extraTags []string
 
+	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
+	// this should be reset before each invocation
 	finishInvocationOnce sync.Once
 }
 

@@ -41,7 +41,7 @@ const (
 	requestTimeout     time.Duration = 5 * time.Second
 	clientReadyTimeout time.Duration = 2 * time.Second
 
-	safetyBufferTimout time.Duration = 20 * time.Millisecond
+	safetyBufferTimeout time.Duration = 20 * time.Millisecond
 
 	// FatalNoAPIKey is the error reported to the AWS Extension environment when
 	// no API key has been set. Unused until we can report error
@@ -96,7 +96,7 @@ func (s ShutdownReason) String() string {
 }
 
 // InvocationHandler is the invocation handler signature
-type InvocationHandler func(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool)
+type InvocationHandler func(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool)
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -292,7 +292,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	}
 
 	if payload.EventType == Invoke {
-		invoke(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimout, coldstart, handleInvocation)
+		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, coldstart, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
@@ -308,23 +308,23 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	return nil
 }
 
-func invoke(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
-	timeout := computeTimeout(deadlineMs, safetyBufferTimout)
+func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
+	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	doneChanel := make(chan bool)
-	go invocationHandler(doneChanel, daemon, arn, coldstart)
+	doneChannel := make(chan bool)
+	go invocationHandler(doneChannel, daemon, arn, coldstart)
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		daemon.FinishInvocation()
 		return
-	case <-doneChanel:
+	case <-doneChannel:
 		return
 	}
 }
 
-func handleInvocation(doneChanel chan bool, daemon *Daemon, arn string, coldstart bool) {
+func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool) {
 	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
@@ -356,7 +356,7 @@ func handleInvocation(doneChanel chan bool, daemon *Daemon, arn string, coldstar
 		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
 	}
 	daemon.WaitForDaemon()
-	doneChanel <- true
+	doneChannel <- true
 }
 
 func buildURL(route string) string {
@@ -367,7 +367,7 @@ func buildURL(route string) string {
 	return fmt.Sprintf("http://%s%s", prefix, route)
 }
 
-func computeTimeout(deadlineMs int64, safetyBuffer time.Duration) time.Duration {
-	currentTime := time.Now().UnixNano()
-	return time.Duration(deadlineMs*int64(time.Millisecond) - int64(safetyBuffer) - currentTime)
+func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration) time.Duration {
+	currentTimeInMs := now.UnixNano() / int64(time.Millisecond)
+	return time.Duration((deadlineMs-currentTimeInMs)*int64(time.Millisecond) - int64(safetyBuffer))
 }
