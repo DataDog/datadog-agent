@@ -222,6 +222,7 @@ func (v *dnsCacheVal) merge(name string, deadline time.Time, maxSize int) (rejec
 	if exp, ok := v.names[name]; ok {
 		if deadline.After(exp) {
 			v.names[name] = deadline
+			v.inUse = true
 		}
 		return false
 	}
@@ -230,6 +231,7 @@ func (v *dnsCacheVal) merge(name string, deadline time.Time, maxSize int) (rejec
 	}
 
 	v.names[name] = deadline
+	v.inUse = true
 	return false
 }
 
