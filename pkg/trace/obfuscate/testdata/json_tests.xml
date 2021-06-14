@@ -744,6 +744,7 @@
 				<key>Merge Cond</key>
 				<key>Hash Cond</key>
 				<key>Join Filter</key>
+				<key>Filter</key>
 			</ObfuscateSQLValues>
 			<KeepValues>
 				<key>Node Type</key>
@@ -805,7 +806,7 @@
                         "Total Cost":15.0,
                         "Plan Rows":990,
                         "Plan Width":152,
-                        "Filter":"((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                        "Filter":"(query <> 'datadog'::text)"
                      },
                      {
                         "Node Type":"Hash",
@@ -902,7 +903,7 @@
                         "Total Cost":15.0,
                         "Plan Rows":990,
                         "Plan Width":152,
-                        "Filter":"?"
+                        "Filter":"( query <> ? :: text )"
                      },
                      {
                         "Node Type":"Hash",
@@ -980,6 +981,7 @@
 				<key>Total Cost</key>
 				<key>Strategy</key>
 				<key>Workers Planned</key>
+				<key>Group Key</key>
 			</KeepValues>
 			<In><![CDATA[
 {
@@ -1050,8 +1052,7 @@
                         "Startup Cost": 0.41,
                         "Total Cost": 7034.85,
                         "Plan Rows": 3863,
-                        "Plan Width": 20,
-                        "Filter": "((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                        "Plan Width": 20
                       },
                       {
                         "Node Type": "Index Scan",
@@ -1064,8 +1065,7 @@
                         "Startup Cost": 0.41,
                         "Total Cost": 6990.53,
                         "Plan Rows": 3798,
-                        "Plan Width": 20,
-                        "Filter": "((query <> '<insufficient privilege>'::text) AND (query !~~ 'EXPLAIN %'::text))"
+                        "Plan Width": 20
                       }
                     ]
                   }
@@ -1089,7 +1089,7 @@
     "Plan Rows": 200,
     "Plan Width": 12,
     "Group Key": [
-      "?"
+      "c"
     ],
     "Plans": [
       {
@@ -1124,7 +1124,7 @@
                 "Plan Rows": 200,
                 "Plan Width": 20,
                 "Group Key": [
-                  "?"
+                  "b"
                 ],
                 "Plans": [
                   {
@@ -1147,8 +1147,7 @@
                         "Startup Cost": 0.41,
                         "Total Cost": 7034.85,
                         "Plan Rows": 3863,
-                        "Plan Width": 20,
-                        "Filter": "?"
+                        "Plan Width": 20
                       },
                       {
                         "Node Type": "Index Scan",
@@ -1161,8 +1160,7 @@
                         "Startup Cost": 0.41,
                         "Total Cost": 6990.53,
                         "Plan Rows": 3798,
-                        "Plan Width": 20,
-                        "Filter": "?"
+                        "Plan Width": 20
                       }
                     ]
                   }
@@ -1173,6 +1171,109 @@
         ]
       }
     ]
+  }
+}]]></Out>
+		</Test>
+		<Test>
+			<Tag>normalize.sql.plan.postgres</Tag>
+			<ObfuscateSQLValues>
+				<key>Index Cond</key>
+				<key>Recheck Cond</key>
+				<key>Merge Cond</key>
+				<key>Hash Cond</key>
+				<key>Join Filter</key>
+				<key>Filter</key>
+			</ObfuscateSQLValues>
+			<KeepValues>
+				<key>Node Type</key>
+				<key>Parallel Aware</key>
+				<key>Alias</key>
+				<key>Parent Relationship</key>
+				<key>Plan Rows</key>
+				<key>Plan Width</key>
+				<key>Startup Cost</key>
+				<key>Total Cost</key>
+				<key>Strategy</key>
+				<key>CTE Name</key>
+				<key>Partial Mode</key>
+				<key>Subplan Name</key>
+			</KeepValues>
+			<In><![CDATA[
+{
+  "Plan": {
+    "Partial Mode": "Partial",
+    "Startup Cost": 74286.07,
+    "Plans": [
+      {
+        "Startup Cost": 73384,
+        "Plans": [
+          {
+            "Startup Cost": 0,
+            "Node Type": "Result",
+            "Plan Rows": 1,
+            "Parallel Aware": false,
+            "Parent Relationship": "InitPlan",
+            "Plan Width": 32,
+            "Subplan Name": "Find dogfood",
+            "Total Cost": 0.04
+          }
+        ],
+        "CTE Name": "datadog_dog_food",
+        "Node Type": "CTE Scan",
+        "Plan Rows": 67,
+        "Filter": "(query <> 'dogfood'::text)",
+        "Alias": "tt",
+        "Parallel Aware": false,
+        "Parent Relationship": "Outer",
+        "Plan Width": 196,
+        "Total Cost": 74285.23
+      }
+    ],
+    "Node Type": "Aggregate",
+    "Strategy": "Sorted",
+    "Plan Rows": 1,
+    "Parallel Aware": false,
+    "Plan Width": 8,
+    "Total Cost": 74286.08
+  }
+}]]></In>
+			<Out><![CDATA[
+{
+  "Plan": {
+    "Partial Mode": "Partial",
+    "Startup Cost": 74286.07,
+    "Plans": [
+      {
+        "Startup Cost": 73384,
+        "Plans": [
+          {
+            "Startup Cost": 0,
+            "Node Type": "Result",
+            "Plan Rows": 1,
+            "Parallel Aware": false,
+            "Parent Relationship": "InitPlan",
+            "Plan Width": 32,
+            "Subplan Name": "Find dogfood",
+            "Total Cost": 0.04
+          }
+        ],
+        "CTE Name": "datadog_dog_food",
+        "Node Type": "CTE Scan",
+        "Plan Rows": 67,
+        "Filter": "( query <> ? :: text )",
+        "Alias": "tt",
+        "Parallel Aware": false,
+        "Parent Relationship": "Outer",
+        "Plan Width": 196,
+        "Total Cost": 74285.23
+      }
+    ],
+    "Node Type": "Aggregate",
+    "Strategy": "Sorted",
+    "Plan Rows": 1,
+    "Parallel Aware": false,
+    "Plan Width": 8,
+    "Total Cost": 74286.08
   }
 }]]></Out>
 		</Test>

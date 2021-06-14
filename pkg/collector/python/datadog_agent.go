@@ -263,6 +263,8 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		"Join Filter",
 		"Merge Cond",
 		"Recheck Cond",
+		"Filter",
+		"Index Cond",
 	},
 	KeepValues: []string{
 		// mysql
@@ -298,6 +300,10 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		"Join Type",
 		"Strategy",
 		"Workers Planned",
+		"Group Key",
+		"CTE Name",
+		"Subplan Name",
+		"Partial Mode",
 	},
 }
 
