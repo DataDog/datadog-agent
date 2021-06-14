@@ -71,22 +71,12 @@ provisioner:
       any_errors_fatal: true
   playbooks:
     create: create.yml
-    prepare: prepare.yml
     destroy: destroy.yml
+    prepare: prepare.yml
   inventory:
-    host_vars:
-      agent-win:
-        ansible_user: test
-        ansible_password: Bionic!
-        ansible_port: 5986
-        ansible_connection: winrm
-    group_vars:
-      agent_win_vm:
-        ansible_become: false
-        ansible_winrm_scheme: https
-        ansible_winrm_server_cert_validation: ignore
-        ansible_port: 5986
-        ansible_connection: winrm
+    links:
+      group_vars: group_vars/
+      host_vars: host_vars/
   lint:
     name: ansible-lint
 scenario:

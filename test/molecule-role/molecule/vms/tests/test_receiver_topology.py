@@ -94,13 +94,13 @@ def _network_relation(json_data, server_port, request_process_cmd):
     )
 
 
-def test_dnat(host, common_vars):
+def test_dnat(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_topo_process_agents?offset=0&limit=1000"
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     fedora_private_ip = _get_instance_config("agent-fedora")["private_address"]
-    dnat_service_port = int(common_vars["dnat_service_port"])
-    dnat_server_port = int(common_vars["dnat_server_port"])
+    dnat_service_port = int(ansible_var("dnat_service_port"))
+    dnat_server_port = int(ansible_var("dnat_server_port"))
 
     def wait_for_components():
         data = host.check_output("curl \"%s\"" % url)
@@ -140,7 +140,7 @@ def test_dnat(host, common_vars):
     util.wait_until(wait_for_components, 600, 3)
 
 
-def test_topology_filtering(host, common_vars):
+def test_topology_filtering(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_topo_process_agents?offset=0&limit=2000"
 
     def wait_for_components():
@@ -171,21 +171,21 @@ def test_topology_filtering(host, common_vars):
         # single requests server + client and no relation
         assert _network_relation(
             json_data=json_data,
-            server_port=common_vars["network_relation_test_server_port_single_request"],
+            server_port=ansible_var("network_relation_test_server_port_single_request"),
             request_process_cmd="python single-request.py"
         ) is None
 
         # multiple requests server + client and their relation
         assert _network_relation(
             json_data=json_data,
-            server_port=common_vars["network_relation_test_server_port_multiple_requests"],
+            server_port=ansible_var("network_relation_test_server_port_multiple_requests"),
             request_process_cmd="python multiple-requests.py"
         ) is not None
 
         # shared connection requests server + client and their relation
         assert _network_relation(
             json_data=json_data,
-            server_port=common_vars["network_relation_test_server_port_shared_connection"],
+            server_port=ansible_var("network_relation_test_server_port_shared_connection"),
             request_process_cmd="python shared-connection-requests.py"
         ) is not None
 

@@ -259,7 +259,6 @@ void getOsStrings()
     logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
-    // [sts] datadog yaml rename to stackstate yaml
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";

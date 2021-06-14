@@ -23,7 +23,7 @@ configMapGenerator:
       - STS_CLUSTER_NAME={{ cluster_name }}
 
 images:
-  - name: docker.io/stackstate/stackstate-agent-2-test
+  - name: docker.io/stackstate/stackstate-agent-test
     newTag: {{ agent_current_branch }}
   - name: docker.io/stackstate/stackstate-cluster-agent-test
     newTag: {{ agent_current_branch }}

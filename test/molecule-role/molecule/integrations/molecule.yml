@@ -7,22 +7,25 @@ lint: |
   set -e
   yamllint -c .yamllint .
 platforms:
-  - name: agent-integrations-mysql
+  - name: agent-integrations
     image: ami-09ae46ee3ab46c423    # Our Packer image based on Ubuntu 18.04 (EBS-Backed x86_64)
     instance_type: t3.xlarge
     vpc_subnet_id: subnet-fa36adb2  # eu-west-1a
     region: eu-west-1
     groups:
-      - compose_linux_vm
+      - integrations_linux_vm
     ssh_user: ubuntu
 provisioner:
   name: ansible
   playbooks:
     create: create.yml
-    prepare: prepare.yml
     destroy: destroy.yml
+    prepare: prepare.yml
   lint:
     name: ansible-lint
+  inventory:
+    links:
+      group_vars: group_vars/
 scenario:
   name: integrations
 verifier:

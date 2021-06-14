@@ -19,6 +19,7 @@
 #include "tagger.h"
 #include "util.h"
 #include "topology.h"
+#include "telemetry.h"
 #include "health.h"
 
 #include <algorithm>
@@ -912,17 +913,17 @@ void Two::setSubmitComponentCb(cb_submit_component_t cb)
 
 void Two::setSubmitRelationCb(cb_submit_relation_t cb)
 {
-    _set_submit_relation(cb);
+    _set_submit_relation_cb(cb);
 }
 
 void Two::setSubmitStartSnapshotCb(cb_submit_start_snapshot_t cb)
 {
-    _set_submit_start_snapshot(cb);
+    _set_submit_start_snapshot_cb(cb);
 }
 
 void Two::setSubmitStopSnapshotCb(cb_submit_stop_snapshot_t cb)
 {
-    _set_submit_stop_snapshot(cb);
+    _set_submit_stop_snapshot_cb(cb);
 }
 
 
@@ -940,12 +941,12 @@ void Two::setSubmitHealthCheckDataCb(cb_submit_health_check_data_t cb)
 
 void Two::setSubmitHealthStartSnapshotCb(cb_submit_health_start_snapshot_t cb)
 {
-    _set_submit_health_start_snapshot(cb);
+    _set_submit_health_start_snapshot_cb(cb);
 }
 
 void Two::setSubmitHealthStopSnapshotCb(cb_submit_health_stop_snapshot_t cb)
 {
-    _set_submit_health_stop_snapshot(cb);
+    _set_submit_health_stop_snapshot_cb(cb);
 }
 
 // Python Helpers

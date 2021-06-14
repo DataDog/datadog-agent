@@ -43,7 +43,7 @@
       copy:
         src: "../../../../deployment/kubernetes/"
         dest: "/home/ubuntu/deployment"
-    - name: Copy Receiver file
+    - name: Copy Receiver files
       copy:
         src: "files/receiver"
         dest: "/home/ubuntu/"
@@ -55,13 +55,19 @@
       template:
         src: files/template/kustomization.yaml
         dest: /home/ubuntu/deployment/agents/overlays
+    - name: Configure .env file used by docker-compose
+      copy:
+        content: |
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+          CLUSTER_NAME={{ cluster_name }}
+        dest: /home/ubuntu/receiver/.env
     - name: Run Docker compose
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/receiver
-      environment:
-        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
-        CLUSTER_NAME: "{{ cluster_name }}"
+
+    - import_tasks: ../wait-for-receiver.yml
+
     - name: Removing existing config files if exists
       file:
         path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"

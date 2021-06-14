@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 require './lib/ostools.rb'
 require 'json'
@@ -31,12 +31,15 @@ if linux?
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
   dependency 'nfsiostat'
-  # need kerberos for hdfs
-  dependency 'libkrb5'
 
-  unless suse? || arm?
-    dependency 'aerospike-py3'
-  end
+  # [sts] we do not use the hdfs check
+  # need kerberos for hdfs
+  # dependency 'libkrb5'
+
+  # [sts] we do not use the aerospike check
+  # unless suse? || arm?
+  #   dependency 'aerospike-py3'
+  # end
 end
 
 relative_path 'integrations-core'

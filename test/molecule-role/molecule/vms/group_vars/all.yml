@@ -2,11 +2,12 @@
 molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
 keypair_name: "molecule_key_{{ molecule_run_id }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
-agent_repo_url: "https://stackstate-agent-3-test.s3.amazonaws.com"
-agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') }}"
-quay_password: "{{ lookup('env', 'quay_password') }}"
-quay_user: "{{ lookup('env', 'quay_user') }}"
-stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') }}"
+
+agent_repo_url: "https://{{ lookup('env', 'STS_AWS_TEST_BUCKET') or STS_AWS_TEST_BUCKET }}.s3.amazonaws.com"
+agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
+quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"
+quay_user: "{{ lookup('env', 'quay_user') or QUAY_USER }}"
+stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }}"
 
 connection_port_before_start_fedora: 125
 connection_port_after_start_fedora: 126

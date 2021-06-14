@@ -1,9 +1,7 @@
 ---
 - name: Prepare Integrations and Dependencies
-  hosts: agent-integrations-mysql
+  hosts: agent-integrations
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Install provisioning dependencies (1/2)
       apt:
@@ -53,11 +51,14 @@
     - name: Configure .env file used by docker-compose
       copy:
         content: |
+          AGENT_DOCKER_REPO={{ agent_docker_repo }}
           AGENT_VERSION={{ agent_current_branch }}
-          DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
     - name: Run Docker compose
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
+
+    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../wait-for-agent.yml

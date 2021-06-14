@@ -3,12 +3,10 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   vars:
     ssh_port: 22
 
-    security_group_name: molecule_compose
+    security_group_name: molecule_integrations
     security_group_description: Agent v2 Molecule testing running on docker compose
     security_group_rules:
       - proto: tcp

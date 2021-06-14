@@ -1,4 +1,13 @@
 #!/usr/bin/execlineb -P
 
-foreground { /initlog.sh "starting security-agent" }
-security-agent start -c=/etc/datadog-agent/datadog.yaml
+define SECURITY_AGENT_ENABLED 0
+
+ifthenelse { s6-test "${SECURITY_AGENT_ENABLED}" = "1" }
+{
+    foreground { /initlog.sh "starting security-agent" }
+    security-agent start -c=/etc/datadog-agent/datadog.yaml
+}
+{
+    foreground { /initlog.sh "security-agent is disabled, disabling the service" }
+    foreground { /bin/s6-svc -d /var/run/s6/services/security/ }
+}

@@ -32,10 +32,13 @@ provisioner:
       any_errors_fatal: true
   playbooks:
     create: create.yml
-    prepare: prepare.yml
     destroy: destroy.yml
+    prepare: prepare.yml
   lint:
     name: ansible-lint
+  inventory:
+    links:
+      group_vars: group_vars/
 scenario:
   name: localinstall
 verifier:

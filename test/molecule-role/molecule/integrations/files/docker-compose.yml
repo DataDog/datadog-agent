@@ -87,7 +87,7 @@ services:
       - mysql
 
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
     pid: "host"
     privileged: true
@@ -104,7 +104,7 @@ services:
     environment:
       STS_API_KEY: "API_KEY"
       STS_STS_URL: "http://localhost:7077/stsAgent"
-      STS_HOSTNAME: "agent-integrations-mysql"
+      STS_HOSTNAME: "agent-integrations"
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "false"
@@ -114,6 +114,7 @@ services:
       HOST_SYS: "/host/sys"
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
+      STS_LOG_PAYLOADS: "false"
     depends_on:
       - nagios
       - receiver

@@ -15,7 +15,7 @@ variables: &globalvariables
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-3
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-3-test
   STS_DOCKER_RELEASE_REPO: stackstate-agent
-  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
+  STS_DOCKER_TEST_REPO: stackstate-agent-test
   STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
   STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test
   STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
@@ -43,7 +43,7 @@ variables: &globalvariables
 
 ######################### pipeline bricks
 
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
+.retrieve_linux_go_deps_script: &retrieve_linux_go_deps_script |
   echo "~~~~~> Trying to retrieve_linux_go_deps"
   ls *.tar.gz || true
   [ -e "go-bin.tar.gz" ] && mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
@@ -52,7 +52,7 @@ variables: &globalvariables
   rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz || true
   echo "~~~~~> /Trying..."
 
-.configure_centos_environment: &configure_centos_environment |
+.configure_centos_env_script: &configure_centos_env_script |
   . /root/.gimme/envs/go1.13.11.env
   . /root/miniconda3/etc/profile.d/conda.sh
   conda activate ddpy3
@@ -63,8 +63,7 @@ variables: &globalvariables
   export PATH=/go/bin:/usr/local/go/bin:$PATH
   eval $(gimme)
 
-
-.configure_debian_environment: &configure_debian_environment |
+.configure_debian_env_script: &configure_debian_env_script |
   . /root/miniconda3/etc/profile.d/conda.sh # TODO: check possibility to use bash from the start
   conda activate ddpy3
   mkdir -p /go/src/github.com/StackVista
@@ -72,22 +71,23 @@ variables: &globalvariables
   . /usr/local/rvm/scripts/rvm
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
 
-.configure_windows_ps1_environment: &configure_windows_ps1_environment |
+.configure_windows_ps1_env_script: &configure_windows_ps1_env_script |
   Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
   conda activate ddpy3
   $current_dir=Get-Location
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir
 
-.configure_windows_cmd_environment: &configure_windows_cmd_environment |
-  c:\tools\miniconda3\condabin\activate
-  conda activate ddpy3
 ######################### /pipeline bricks
 
 
 before_script:
- - *configure_debian_environment
- - *retrieve_linux_go_deps
+ - *configure_debian_env_script
+ - *retrieve_linux_go_deps_script
+
+
+## prepare stage
+
 clear_deps_deb_cache:
   stage: prepare
   before_script: []
@@ -133,7 +133,7 @@ clear_deps_win_cache:
     - "if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
     - "if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
   tags:
-    - sts_windows
+    - windows_agent7_ps1
 
 deps_deb:
   stage: prepare
@@ -151,8 +151,28 @@ deps_deb:
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
   artifacts:
     paths:
-#      - $CI_PROJECT_DIR/vendor
-#      - $CI_PROJECT_DIR/venv
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/go-pkg.tar.gz
+      - $CI_PROJECT_DIR/go-bin.tar.gz
+      - $CI_PROJECT_DIR/vendor.tar.gz
+    expire_in: 1 week
+
+deps_deb_py2:
+  stage: prepare
+  cache:
+    key: "deps-deb-py2-$CI_COMMIT_REF_SLUG"
+    paths:
+      - vendor
+      - venv
+  script:
+    - conda activate ddpy2
+    - inv -e deps --verbose --dep-vendor-only
+    - inv version -u > version.txt
+    - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
+    - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
+    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
+  artifacts:
+    paths:
       - $CI_PROJECT_DIR/version.txt
       - $CI_PROJECT_DIR/go-pkg.tar.gz
       - $CI_PROJECT_DIR/go-bin.tar.gz
@@ -167,7 +187,7 @@ deps_rpm:
     paths:
       - vendor
   before_script:
-    - *configure_centos_environment
+    - *configure_centos_env_script
   script:
     - inv -e deps --verbose --dep-vendor-only
     - inv version -u > version.txt
@@ -185,7 +205,7 @@ deps_rpm:
 deps_win:
   stage: prepare
   before_script:
-    - *configure_windows_ps1_environment
+    - *configure_windows_ps1_env_script
   cache:
     key: "deps-win-$CI_COMMIT_REF_SLUG"
     paths:
@@ -204,7 +224,10 @@ deps_win:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
   tags:
-    - windows_agent7_ps1 #sts_windows
+    - windows_agent7_ps1
+
+
+## build_and_test stage
 
 unit_tests:
   stage: build_and_test
@@ -369,6 +392,56 @@ build_deb:
         - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
 
+build_deb_py2:
+  stage: build_and_test
+  needs:
+    - deps_deb_py2
+  tags:
+    - sts-k8s-xl-no-docker-runner
+  cache:
+    key: "build-deb-py2-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .omnibus
+  script:
+    # We move .omnibus out of the CI root because this seems to cause issues with git
+    # cloning in omnibus and operations on datadog-agent
+  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+
+  - conda activate ddpy2
+  - inv version
+  - cat version.txt || true
+  - source ./.gitlab-scripts/setup_artifactory.sh
+
+  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python-runtimes 2
+
+    # Prepare outputs
+  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
+  - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
+  - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
+  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+
+  - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
+
+    # Prepare cache
+    # Drop packages for cache
+  - rm -rf /omnibus/pkg
+    # Drop agent for cache (will be resynced anyway)
+  - rm -rf /omnibus/src/datadog-agent
+    # Drop symlink because it will fail the build when coming from a cache
+  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+#  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+  artifacts:
+    paths:
+        - $CI_PROJECT_DIR/outcomes/pkg/*.deb
+        - $CI_PROJECT_DIR/outcomes/pkg/*.json
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
+        - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+        - $CI_PROJECT_DIR/version.txt
+        - $CI_PROJECT_DIR/outcomes/binary/trace-agent
+    expire_in: 1 week
+
 build_rpm:
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
@@ -381,8 +454,8 @@ build_rpm:
     paths:
       - .omnibus
   before_script:
-    - *configure_centos_environment
-    - *retrieve_linux_go_deps
+    - *configure_centos_env_script
+    - *retrieve_linux_go_deps_script
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -431,7 +504,7 @@ build_win:
   needs:
     - deps_win
   before_script:
-    - *configure_windows_ps1_environment
+    - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
   script:
@@ -447,6 +520,9 @@ build_win:
   tags:
     - windows_agent7_ps1
 
+
+## pre_release stage
+
 test_deb_renaming:
   stage: pre_release
   needs:
@@ -455,7 +531,6 @@ test_deb_renaming:
   script:
   # test v2 family
     ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_2*.deb
-
 
 test_rpm_renaming:
   stage: pre_release
@@ -493,7 +568,7 @@ pre_release_win:
     <<: *globalvariables
     OMNIBUS_BASE_DIR: c:/omnibus-ruby
   before_script:
-    - *configure_windows_ps1_environment
+    - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
   script:
@@ -522,7 +597,7 @@ pre_release_rpm:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
 
-pre_release_image:
+pre_release_main_agent_image: &pre_release_image
   stage: pre_release
   image: docker:18.06.0
   needs:
@@ -543,47 +618,28 @@ pre_release_image:
     - sts-k8s-m-runner
 
 pre_release_trace_agent_image:
-  stage: pre_release
-  image: docker:18.06.0
-  needs:
-    - build_deb
-  variables:
-    DOCKER_DRIVER: overlay
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  services:
-    - docker:18.09-dind
-  before_script: []
+  <<: *pre_release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
-  tags:
-    - sts-k8s-m-runner
 
 pre_release_cluster_agent_image:
-  stage: pre_release
-  image: docker:18.06.0
+  <<: *pre_release_image
   needs:
     - build_cluster_agent
-  variables:
-    DOCKER_DRIVER: overlay
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  services:
-    - docker:18.09-dind
-  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
-  tags:
-    - sts-k8s-m-runner
 
+
+## acceptance stage
 
 .molecule_base: &molecule_base
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+  stage: acceptance
+  dependencies: []
   before_script:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
     - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
@@ -592,13 +648,11 @@ pre_release_cluster_agent_image:
     - export LANG=en_US.UTF-8
 
 molecule_tests_vms:
-  stage: acceptance
+  <<: *molecule_base
   needs:
     - pre_release_deb
     - pre_release_rpm
     - pre_release_win
-  dependencies: []
-  <<: *molecule_base
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s vms
   artifacts:
@@ -609,12 +663,9 @@ molecule_tests_vms:
     expire_in: 1 week
 
 molecule_tests_compose:
-  stage: acceptance
-  needs:
-    - pre_release_image
-  dependencies: []
-  before_script: []
   <<: *molecule_base
+  needs:
+    - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s compose
   artifacts:
@@ -624,27 +675,24 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
 
-molecule_tests_local_install:
-  stage: acceptance
-  needs:
-    - pre_release_deb
-    - pre_release_rpm
-  dependencies: []
+molecule_tests_integrations:
   <<: *molecule_base
+  needs:
+    - pre_release_main_agent_image
   script:
-   - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
-  only:
-    - master
-    - tags
-    - STAC-10025-local-install-bis
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+    expire_in: 1 week
 
 molecule_tests_kubernetes:
-  stage: acceptance
+  <<: *molecule_base
   needs:
     - pre_release_cluster_agent_image
-    - pre_release_image
-  dependencies: []
-  <<: *molecule_base
+    - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
   artifacts:
@@ -654,37 +702,34 @@ molecule_tests_kubernetes:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
     expire_in: 1 week
 
-molecule_tests_secrets:
-  stage: acceptance
+molecule_tests_local_install:
+  <<: *molecule_base
   needs:
     - pre_release_deb
-  dependencies: []
+    - pre_release_rpm
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
+#  only:
+#    - tags
+#    - master
+
+molecule_tests_secrets:
   <<: *molecule_base
+  needs:
+    - pre_release_deb
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s secrets
-  only:
-    - master
-    - tags
-    - encrypted-secrets
   artifacts:
     when: always
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
+#  only:
+#    - tags
+#    - master
 
-molecule_tests_integrations:
-  stage: acceptance
-  needs:
-    - pre_release_image
-  dependencies: []
-  <<: *molecule_base
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s integrations
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
-    expire_in: 1 week
+
+## release stage
 
 release_deb:
   stage: release
@@ -736,14 +781,14 @@ release_win:
     - inv release.generate-install
     - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
     - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
-  tags:
-    - sts_windows
   when: manual
   only:
     - tags
     - triggers
+  tags:
+    - windows_agent7_ps1
 
-release_image:
+release_main_agent_image: &release_image
   stage: release
   image: docker:18.06.0
   dependencies:
@@ -769,52 +814,21 @@ release_image:
     - sts-k8s-m-runner
 
 release_trace_agent_image:
-  stage: release
-  image: docker:18.06.0
-  dependencies:
-    - build_deb
-  variables:
-    DOCKER_DRIVER: overlay
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  services:
-    - docker:18.09-dind
-  before_script: []
+  <<: *release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $PUSH_LATEST
-  when: manual
-  only:
-    - tags
-    - trigger
-  tags:
-    - sts-k8s-m-runner
 
 release_cluster_agent_image:
-  stage: release
-  image: docker:18.06.0
+  <<: *release_image
   dependencies:
     - build_cluster_agent
-  variables:
-    DOCKER_DRIVER: overlay
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  services:
-    - docker:18.09-dind
-  before_script: []
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
-  when: manual
-  only:
-    - tags
-    - trigger
-  tags:
-    - sts-k8s-m-runner
-
