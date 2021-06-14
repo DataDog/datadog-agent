@@ -19,6 +19,7 @@ func SortUniqInPlace(elements []string) []string {
 	return uniqSorted(elements)
 }
 
+// DedupInPlace deduplicates the string re-using the given slice.
 func DedupInPlace(elements []string) []string {
 	if len(elements) < 2 {
 		return elements
