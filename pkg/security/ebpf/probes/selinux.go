@@ -31,6 +31,6 @@ var selinuxProbes = []*manager.Probe{
 	},
 }
 
-func getSelinuxProbes() []*manager.Probe {
+func getSELinuxProbes() []*manager.Probe {
 	return selinuxProbes
 }
