@@ -595,6 +595,43 @@ func zipDiagnose(tempDir, hostname string) error {
 	return err
 }
 
+func zipFile(originalPath, zippedPath string) error {
+	original, err := os.Open(originalPath)
+	if err != nil {
+		return err
+	}
+	defer original.Close()
+
+	err = ensureParentDirsExist(zippedPath)
+	if err != nil {
+		return err
+	}
+
+	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer zipped.Close()
+
+	// use read/write instead of io.Copy
+	// see: https://github.com/golang/go/issues/44272
+	buf := make([]byte, 256)
+	for {
+		n, err := original.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := zipped.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func zipRegistryJSON(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
 	original, err := os.Open(originalPath)

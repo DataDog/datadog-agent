@@ -83,6 +83,21 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 		return "", err
 	}
 
+	err = zipLinuxKernelSymbols(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxPid1MountInfo(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxKrobeEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
 	if err != nil {
 		log.Infof("Error while creating permissions.log infos file: %s", err)
