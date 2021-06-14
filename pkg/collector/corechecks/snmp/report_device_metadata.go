@@ -12,11 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus, deviceStatusMessage string) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := copyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
-	device := buildNetworkDeviceMetadata(config.deviceID, config.deviceIDTags, config, store, tags, deviceStatus, deviceStatusMessage)
+	device := buildNetworkDeviceMetadata(config.deviceID, config.deviceIDTags, config, store, tags, deviceStatus)
 
 	interfaces, err := buildNetworkInterfacesMetadata(config.deviceID, store)
 	if err != nil {
@@ -35,7 +35,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus, deviceStatusMessage string) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
 		sysName = store.getScalarValueAsString(metadata.SysNameOID)
@@ -48,18 +48,17 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpCon
 	}
 
 	return metadata.DeviceMetadata{
-		ID:            deviceID,
-		IDTags:        idTags,
-		Name:          sysName,
-		Description:   sysDescr,
-		IPAddress:     config.ipAddress,
-		SysObjectID:   sysObjectID,
-		Profile:       config.profile,
-		Vendor:        vendor,
-		Tags:          tags,
-		Subnet:        config.subnet,
-		Status:        deviceStatus,
-		StatusMessage: deviceStatusMessage,
+		ID:          deviceID,
+		IDTags:      idTags,
+		Name:        sysName,
+		Description: sysDescr,
+		IPAddress:   config.ipAddress,
+		SysObjectID: sysObjectID,
+		Profile:     config.profile,
+		Vendor:      vendor,
+		Tags:        tags,
+		Subnet:      config.subnet,
+		Status:      deviceStatus,
 	}
 }
 

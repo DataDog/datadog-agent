@@ -24,18 +24,17 @@ type NetworkDevicesMetadata struct {
 
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
-	ID            string       `json:"id"`
-	IDTags        []string     `json:"id_tags"`
-	Name          string       `json:"name"`
-	Description   string       `json:"description"`
-	IPAddress     string       `json:"ip_address"`
-	SysObjectID   string       `json:"sys_object_id"`
-	Profile       string       `json:"profile"`
-	Vendor        string       `json:"vendor"`
-	Subnet        string       `json:"subnet"`
-	Tags          []string     `json:"tags"`
-	Status        DeviceStatus `json:"status"`
-	StatusMessage string       `json:"status_message"`
+	ID          string       `json:"id"`
+	IDTags      []string     `json:"id_tags"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	IPAddress   string       `json:"ip_address"`
+	SysObjectID string       `json:"sys_object_id"`
+	Profile     string       `json:"profile"`
+	Vendor      string       `json:"vendor"`
+	Subnet      string       `json:"subnet"`
+	Tags        []string     `json:"tags"`
+	Status      DeviceStatus `json:"status"`
 }
 
 // InterfaceMetadata contains interface metadata

@@ -98,11 +98,6 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	c.oidConfig.addScalarOids(parseScalarOids(definition.Metrics, definition.MetricTags))
 	c.oidConfig.addColumnOids(parseColumnOids(definition.Metrics))
 
-	if c.collectDeviceMetadata {
-		c.oidConfig.addScalarOids(metadata.ScalarOIDs)
-		c.oidConfig.addColumnOids(metadata.ColumnOIDs)
-	}
-
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
@@ -241,6 +236,11 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.oidConfig.addScalarOids(parseScalarOids(c.metrics, c.metricTags))
 	c.oidConfig.addColumnOids(parseColumnOids(c.metrics))
+
+	if c.collectDeviceMetadata {
+		c.oidConfig.addScalarOids(metadata.ScalarOIDs)
+		c.oidConfig.addColumnOids(metadata.ColumnOIDs)
+	}
 
 	// Profile Configs
 	var profiles profileDefinitionMap
