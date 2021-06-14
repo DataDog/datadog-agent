@@ -123,20 +123,20 @@ func Test_buildDeviceID(t *testing.T) {
 		{
 			name:             "many tags",
 			tags:             []string{"zoo", "snmp_device:1.2.3.4", "foo"},
-			expectedDeviceID: "e413dc66fbaf23f4",
-			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
+			expectedDeviceID: "1f21f8cf4bda174c",
+			expectedIDTags:   []string{"zoo", "snmp_device:1.2.3.4", "foo"}, // deduped tags
 		},
 		{
 			name:             "many tags with duplicate",
 			tags:             []string{"zoo", "snmp_device:1.2.3.4", "zoo", "foo"},
-			expectedDeviceID: "e413dc66fbaf23f4",
-			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
+			expectedDeviceID: "1f21f8cf4bda174c",
+			expectedIDTags:   []string{"zoo", "snmp_device:1.2.3.4", "foo"}, // deduped tags
 		},
 		{
 			name:             "ignore autodiscovery_subnet prefix",
 			tags:             []string{"zoo", "autodiscovery_subnet:127.0.0.0/29", "snmp_device:1.2.3.4", "zoo", "foo"},
-			expectedDeviceID: "e413dc66fbaf23f4",
-			expectedIDTags:   []string{"foo", "snmp_device:1.2.3.4", "zoo"}, // sorted tags
+			expectedDeviceID: "1f21f8cf4bda174c",
+			expectedIDTags:   []string{"zoo", "snmp_device:1.2.3.4", "foo"}, // deduped tags
 		},
 	}
 	for _, tt := range tests {
