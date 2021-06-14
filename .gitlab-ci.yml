@@ -145,15 +145,16 @@ variables:
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
 
 #
 # Condition mixins for simplification of rules
 #
 .if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
 
 .if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
@@ -190,10 +191,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs 
 # on master and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 # Rule to trigger test kitchen setup, run, and cleanup.
 # By default:
@@ -202,7 +203,7 @@ variables:
 # RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
 # RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on master/deploy pipelines.
 .if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
+  if: ($CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
 # Rules to trigger default kitchen tests.
 # Some of the kitchen tests are run on all pipelines by default. They can only be disabled

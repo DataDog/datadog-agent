@@ -119,5 +119,26 @@ rm -rf cookbooks
 rm -f Berksfile.lock
 berks vendor ./cookbooks
 
-# Test every suite, as we only generate those we want to run
-bundle exec kitchen test ".*" -c -d always
+set +o pipefail
+
+# This for loop retries kitchen tests failing because of infrastructure/networking issues
+for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
+  # Test every suite, as we only generate those we want to run
+  bundle exec kitchen test ".*" -c -d always 2>&1 | tee /tmp/runlog$attempt
+  result=${PIPESTATUS[0]}
+  if [ "$result" -eq 0 ]; then
+      # if kitchen test succeeded, exit with 0
+      exit 0
+  else
+    if ! invoke kitchen.should-rerun-failed /tmp/runlog$attempt; then
+      # if kitchen test failed and shouldn't be rerun, exit with 1
+      exit 1
+    else
+      cp -R ${DD_AGENT_TESTING_DIR}/.kitchen/logs ${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}
+    fi
+  fi
+done
+
+# if we ran out of attempts because of infrastructure/networking issues, exit with 1
+echo "Ran out of retry attempts"
+exit 1

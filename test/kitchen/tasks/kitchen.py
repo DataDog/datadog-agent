@@ -162,6 +162,21 @@ def genconfig(
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
 
+@task
+def should_rerun_failed(_, runlog):
+    """
+    Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
+    """
+    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    with open(runlog, 'r') as f:
+        text = f.read()
+        result = set(test_result_re.findall(text))
+        if result == {'0'} or result == set():
+            print("Seeing no failed tests in log, advising to rerun")
+        else:
+            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
+
+
 def load_targets(_, targethash, selections):
     returnlist = []
     commentpattern = re.compile("^comment")

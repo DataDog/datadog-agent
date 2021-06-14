@@ -178,9 +178,9 @@ func (l *UDSListener) Listen() {
 				capBuff.Oob = oob
 				capBuff.Buff = packet
 				capBuff.Pb.AncillarySize = int32(oobn)
-				capBuff.Pb.Ancillary = oobS[:oobn] // or oob[:oobn] ?
+				capBuff.Pb.Ancillary = oobS[:oobn]
 				capBuff.Pb.PayloadSize = int32(n)
-				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
+				capBuff.Pb.Payload = packet.Buffer[:n]
 				capBuff.Pb.Pid = int32(pid)
 			}
 
@@ -211,7 +211,7 @@ func (l *UDSListener) Listen() {
 				capBuff.Pb.Pid = 0
 				capBuff.Pb.AncillarySize = int32(0)
 				capBuff.Pb.PayloadSize = int32(n)
-				capBuff.Pb.Payload = packet.Buffer // or packet.Buffer[:n] ?
+				capBuff.Pb.Payload = packet.Buffer[:n]
 			}
 		}
 
