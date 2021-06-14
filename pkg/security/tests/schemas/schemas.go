@@ -111,7 +111,7 @@ func bindataChmodSchemaJson() (*asset, error) {
 		name:        "/chmod.schema.json",
 		size:        1666,
 		md5checksum: "",
-		mode:        os.FileMode(420),
+		mode:        os.FileMode(438),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -139,7 +139,7 @@ func bindataChownSchemaJson() (*asset, error) {
 		name:        "/chown.schema.json",
 		size:        1383,
 		md5checksum: "",
-		mode:        os.FileMode(420),
+		mode:        os.FileMode(438),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -419,7 +419,7 @@ func bindataOpenSchemaJson() (*asset, error) {
 		name:        "/open.schema.json",
 		size:        1614,
 		md5checksum: "",
-		mode:        os.FileMode(420),
+		mode:        os.FileMode(438),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -503,7 +503,7 @@ func bindataRenameSchemaJson() (*asset, error) {
 		name:        "/rename.schema.json",
 		size:        1667,
 		md5checksum: "",
-		mode:        os.FileMode(420),
+		mode:        os.FileMode(438),
 		modTime:     time.Unix(1, 0),
 	}
 
