@@ -633,51 +633,15 @@ func zipFile(originalPath, zippedPath string) error {
 }
 
 func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
 	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -781,26 +745,8 @@ func zipHealth(tempDir, hostname string) error {
 
 func zipInstallInfo(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipTelemetry(tempDir, hostname string) error {
