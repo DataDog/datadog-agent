@@ -323,14 +323,15 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	data = data[n:]
-	if len(data) < 4+SELinuxRawBufCapacity {
+	if len(data) < 8+SELinuxRawBufCapacity {
 		return n, ErrNotEnoughData
 	}
 
-	e.RawBufSize = ByteOrder.Uint32(data[0:4])
-	SliceToArray(data[4:4+SELinuxRawBufCapacity], unsafe.Pointer(&e.RawBuf))
+	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
+	e.RawBufSize = ByteOrder.Uint32(data[4:8])
+	SliceToArray(data[8:8+SELinuxRawBufCapacity], unsafe.Pointer(&e.RawBuf))
 
-	return n + 4 + SELinuxRawBufCapacity, nil
+	return n + 8 + SELinuxRawBufCapacity, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

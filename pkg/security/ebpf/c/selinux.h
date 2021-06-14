@@ -6,20 +6,30 @@
 #include "syscalls.h"
 #include "process.h"
 
+enum selinux_event_kind_t {
+    SELINUX_BOOL_CHANGE_EVENT_KIND,
+    SELINUX_ENFORCE_CHANGE_EVENT_KIND,
+    SELINUX_DISABLE_CHANGE_EVENT_KIND,
+    SELINUX_BOOL_COMMIT_EVENT_KIND,
+};
+
 struct selinux_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
     struct file_t file;
+    u32 event_kind;
     u32 buf_size;
     char buf[SELINUX_BUF_LEN];
 };
 
-int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count) {
+int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_event_kind_t kind) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SELINUX,
         .policy = fetch_policy(EVENT_SELINUX),
-        .selinux = {},
+        .selinux = {
+            .event_kind = kind,
+        },
     };
 
     struct dentry *dentry = get_file_dentry(file);
@@ -64,6 +74,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
         return 0;
 
     struct selinux_event_t event = {};
+    event.event_kind = syscall->selinux.event_kind;
     event.buf_size = syscall->selinux.buf_size;
     memcpy(event.buf, syscall->selinux.buf, SELINUX_BUF_LEN);
     event.file = syscall->selinux.file;
@@ -81,19 +92,19 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
     return dr_selinux_callback(ctx, retval);
 }
 
-#define PROBE_SEL_WRITE_FUNC(func_name)                        \
+#define PROBE_SEL_WRITE_FUNC(func_name, kind)                  \
     SEC("kprobe/" #func_name)                                  \
     int kprobe__##func_name(struct pt_regs *ctx) {             \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
         const char *buf = (const char *)PT_REGS_PARM2(ctx);    \
         size_t count = (size_t)PT_REGS_PARM3(ctx);             \
         /* selinux only supports ppos = 0 */                   \
-        return handle_selinux_event(ctx, file, buf, count);    \
+        return handle_selinux_event(ctx, file, buf, count, (kind));    \
     }
 
-PROBE_SEL_WRITE_FUNC(sel_write_disable)
-PROBE_SEL_WRITE_FUNC(sel_write_enforce)
-PROBE_SEL_WRITE_FUNC(sel_write_bool)
-PROBE_SEL_WRITE_FUNC(sel_commit_bools_write)
+PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_EVENT_KIND)
 
 #endif

@@ -409,11 +409,21 @@ type OpenEvent struct {
 }
 
 // SELinuxRawBufCapacity represents the capacity of the byte array in a SELinuxEvent
-const SELinuxRawBufCapacity = 36
+const SELinuxRawBufCapacity = 32
+
+type SELinuxEventKind uint32
+
+const (
+	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	SELinuxEnforceChangeEventKind
+	SELinuxDisableChangeEventKind
+	SELinuxBoolCommitEventKind
+)
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
 	File         FileEvent                   `field:"file"`
+	EventKind    SELinuxEventKind            `field:"-"`
 	RawBufSize   uint32                      `field:"-"`
 	RawBuf       [SELinuxRawBufCapacity]byte `field:"-"`
 	BooleanValue bool                        `field:"write.bool_value,ResolveSELinuxBooleanValue"`
