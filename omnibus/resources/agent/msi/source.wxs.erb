@@ -258,6 +258,9 @@
           <RegistryValue Name="hostname_fqdn"
                          Type="string"
                          Value="[HOSTNAME_FQDN_ENABLED]" />
+          <RegistryValue Name="skip_ssl_validation"
+                         Type="string"
+                         Value="[SKIP_SSL_VALIDATION]" />
         </RegistryKey>
 
       </Component>
@@ -396,9 +399,9 @@
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
                  NeverOverwrite="yes"
                  Permanent="yes">
-        <File Id="datadog.yaml.example"
-            Name="datadog.yaml"
-            Source="$(var.EtcFiles)\datadog.yaml.example"/>
+        <File Id="stackstate.yaml.example"
+              Name="stackstate.yaml"
+              Source="$(var.EtcFiles)\stackstate.yaml.example"/>
       </Component>
 
       <Component Id="install_info"
@@ -493,7 +496,7 @@
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="stackstate.yaml.example" />
       <ComponentRef Id="install_info" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
