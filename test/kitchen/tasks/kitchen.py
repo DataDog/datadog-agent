@@ -48,7 +48,7 @@ def genconfig(
                 "Fetching the latest kitchen platforms.json from Github. Use --platformfile=platforms.json to override with a local file."
             )
             r = requests.get(
-                'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
+                'https://raw.githubusercontent.com/DataDog/datadog-agent/main/test/kitchen/platforms.json',
                 allow_redirects=True,
             )
             r.raise_for_status()
