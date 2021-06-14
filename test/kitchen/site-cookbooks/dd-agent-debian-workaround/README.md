@@ -1,3 +1,3 @@
-# dd-agent-rhel-workaround cookbook
+# dd-agent-debian-workaround cookbook
 
-Works around the root partition not being large enough to install and upgrade the Agent
+Works around dirmngr not being installed by default on some Debian / Ubuntu hosts.
