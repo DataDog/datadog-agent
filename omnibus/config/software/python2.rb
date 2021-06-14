@@ -86,13 +86,12 @@ else
   dependency "vc_redist_14"
 
   if windows_arch_i386?
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
+    dependency "vc_ucrt_redist"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x86.zip",
            :sha256 => "c8309b3351610a7159e91e55f09f7341bc3bbdd67d2a5e3049a9d1157e5a9110",
-           :extract => :seven_zip
   else
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "8e9d8f94f42f25aa7c19df4254fc866e18ef98fbd56d5629f364b65567001abb",
-         :extract => :seven_zip
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/test-python-windows-#{version}-x64.zip",
+           :sha256 => "8e9d8f94f42f25aa7c19df4254fc866e18ef98fbd56d5629f364b65567001abb",
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
