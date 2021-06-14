@@ -3,7 +3,6 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"strings"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
 const (
