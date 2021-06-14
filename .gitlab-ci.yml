@@ -407,7 +407,6 @@ build_win:
     - set "PATH=%PROGRAMFILES(X86)%\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin;%PATH%"
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - type %APPDATA%\pip\pip.ini
     - call .gitlab-scripts/windows_build_env.cmd
 # debug
 #    - call .gitlab-scripts/windows_deps.cmd
@@ -475,7 +474,6 @@ pre_release_win:
   script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - type %APPDATA%\pip\pip.ini
     - call .gitlab-scripts/windows_build_env.cmd
     - call "%WORKON_HOME%\venv\Scripts\activate.bat"
     - set /P VERSION=< version.txt
