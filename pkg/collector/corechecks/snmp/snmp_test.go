@@ -1036,7 +1036,7 @@ metrics:
 	assert.Equal(t, strings.Count(logs, "failed to close session"), 1, logs)
 }
 
-func TestReportDeviceMetadataWithProfileError(t *testing.T) {
+func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = mockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
@@ -1091,16 +1091,6 @@ tags:
 
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
-			//{
-			//	Name:  "1.3.6.1.2.1.2.2.1.13.1",
-			//	Type:  gosnmp.Integer,
-			//	Value: 131,
-			//},
-			//{
-			//	Name:  "1.3.6.1.2.1.2.2.1.14.1",
-			//	Type:  gosnmp.Integer,
-			//	Value: 141,
-			//},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.2.1",
 				Type:  gosnmp.OctetString,
@@ -1131,16 +1121,6 @@ tags:
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow1"),
 			},
-			//{
-			//	Name:  "1.3.6.1.2.1.2.2.1.13.2",
-			//	Type:  gosnmp.Integer,
-			//	Value: 132,
-			//},
-			//{
-			//	Name:  "1.3.6.1.2.1.2.2.1.14.2",
-			//	Type:  gosnmp.Integer,
-			//	Value: 142,
-			//},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.2.2",
 				Type:  gosnmp.OctetString,
@@ -1171,16 +1151,6 @@ tags:
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
 			},
-			//{
-			//	Name:  "9", // exit table
-			//	Type:  gosnmp.Integer,
-			//	Value: 999,
-			//},
-			//{
-			//	Name:  "9", // exit table
-			//	Type:  gosnmp.Integer,
-			//	Value: 999,
-			//},
 			{
 				Name:  "9", // exit table
 				Type:  gosnmp.Integer,
@@ -1220,9 +1190,6 @@ tags:
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
-		//"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-		//"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-		//"1.2.3.4.5",
 		"1.3.6.1.2.1.1.3.0",
 	}).Return(&packet, nil)
 	session.On("GetBulk", []string{
@@ -1240,16 +1207,9 @@ tags:
 	assert.Error(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	//row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	//row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
-	//sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(141), "", row1Tags)
-	//sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(142), "", row2Tags)
-	//sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
-	//sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
-	//sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
 	// language=json
 	event := []byte(`
