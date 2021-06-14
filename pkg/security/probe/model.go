@@ -376,8 +376,48 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 	return e.FSGroup
 }
 
-// ResolveSELinuxBooleanValue resolves the boolean value of the SELinux event
-func (ev *Event) ResolveSELinuxBooleanValue(e *model.SELinuxEvent) bool {
+// ResolveSELinuxBoolName resolves the boolean name of the SELinux event
+func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return ""
+	}
+
+	return ev.resolvers.resolveBasename(&e.File.FileFields)
+}
+
+// ResolveSELinuxBoolChangeValue resolves the boolean value of the SELinux event
+func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(int(e.RawBufSize))
+	for _, b := range e.RawBuf[:e.RawBufSize] {
+		if b == 0 {
+			break
+		}
+		builder.WriteByte(b)
+	}
+
+	booleanInt, err := strconv.Atoi(builder.String())
+	if err != nil {
+		return ""
+	}
+
+	if booleanInt == 0 {
+		return "off"
+	} else {
+		return "on"
+	}
+}
+
+// ResolveSELinuxBoolCommitValue resolves the boolean value of the SELinux event
+func (ev *Event) ResolveSELinuxBoolCommitValue(e *model.SELinuxEvent) bool {
+	if e.EventKind != model.SELinuxBoolCommitEventKind {
+		return false
+	}
+
 	var builder strings.Builder
 	builder.Grow(int(e.RawBufSize))
 	for _, b := range e.RawBuf[:e.RawBufSize] {
@@ -393,6 +433,20 @@ func (ev *Event) ResolveSELinuxBooleanValue(e *model.SELinuxEvent) bool {
 	}
 
 	return booleanInt != 0
+}
+
+// ResolveSELinuxEnforceStatus resolves the enforcment status
+func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxDisableChangeEventKind && e.EventKind != model.SELinuxEnforceChangeEventKind {
+		return ""
+	}
+
+	status, err := ev.resolvers.SELinuxResolver.GetCurrentEnforceStatus()
+	if err != nil {
+		return ""
+	} else {
+		return status
+	}
 }
 
 func (ev *Event) String() string {

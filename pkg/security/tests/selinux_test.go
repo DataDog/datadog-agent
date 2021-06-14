@@ -24,20 +24,16 @@ const TEST_BOOL_NAME = "selinuxuser_ping"
 func TestSELinux(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
-			ID:         "test_selinux_disable",
-			Expression: `selinux.file.name == "disable"`,
-		},
-		{
 			ID:         "test_selinux_enforce",
-			Expression: `selinux.file.name == "enforce"`,
+			Expression: `selinux.enforce.status in ["enabled", "permissive"]`,
 		},
 		{
 			ID:         "test_selinux_write_bool_true",
-			Expression: `selinux.file.name == "selinuxuser_ping" && selinux.write.bool_value == true`,
+			Expression: `selinux.bool.name == "selinuxuser_ping" && selinux.bool.state == "on"`,
 		},
 		{
 			ID:         "test_selinux_write_bool_false",
-			Expression: `selinux.file.name == "selinuxuser_ping" && selinux.write.bool_value == false`,
+			Expression: `selinux.bool.name == "selinuxuser_ping" && selinux.bool.state == "off"`,
 		},
 	}
 
@@ -66,15 +62,8 @@ func TestSELinux(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			assertTriggeredRule(t, rule, "test_selinux_disable")
+			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
-
-			assertFieldEqual(t, event, "selinux.write.bool_value", false, "wrong disable value")
-
-			fileName := "/sys/fs/selinux/disable"
-			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
-			assertFieldEqual(t, event, "selinux.file.name", "disable", "wrong file name")
-			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -95,12 +84,7 @@ func TestSELinux(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
-			assertFieldEqual(t, event, "selinux.write.bool_value", false, "wrong enforce value")
-
-			fileName := "/sys/fs/selinux/enforce"
-			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
-			assertFieldEqual(t, event, "selinux.file.name", "enforce", "wrong file name")
-			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -123,12 +107,7 @@ func TestSELinux(t *testing.T) {
 
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
-			assertFieldEqual(t, event, "selinux.write.bool_value", true, "wrong bool value")
-
-			fileName := fmt.Sprintf("/sys/fs/selinux/booleans/%s", TEST_BOOL_NAME)
-			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
-			assertFieldEqual(t, event, "selinux.file.name", TEST_BOOL_NAME, "wrong file name")
-			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -151,12 +130,7 @@ func TestSELinux(t *testing.T) {
 
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
-			assertFieldEqual(t, event, "selinux.write.bool_value", false, "wrong bool value")
-
-			fileName := fmt.Sprintf("/sys/fs/selinux/booleans/%s", TEST_BOOL_NAME)
-			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
-			assertFieldEqual(t, event, "selinux.file.name", TEST_BOOL_NAME, "wrong file name")
-			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -179,7 +153,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	rules := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_commit_bools",
-			Expression: `selinux.file.name == "commit_pending_bools" && selinux.write.bool_value == true`,
+			Expression: `selinux.bool_commit.state == true`,
 		},
 	}
 
@@ -212,12 +186,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
-			assertFieldEqual(t, event, "selinux.write.bool_value", true, "wrong bool value")
-
-			fileName := "/sys/fs/selinux/commit_pending_bools"
-			assertFieldEqual(t, event, "selinux.file.path", fileName, "wrong file path")
-			assertFieldEqual(t, event, "selinux.file.name", "commit_pending_bools", "wrong file name")
-			assertFieldEqual(t, event, "selinux.file.inode", int(getInode(t, fileName)), "wrong inode")
+			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")

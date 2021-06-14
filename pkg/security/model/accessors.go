@@ -3112,6 +3112,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "selinux.bool.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.bool.state":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolChangeValue
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.bool_commit.state":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).SELinux.BoolCommitValue
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.enforce.status":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.EnforceStatus
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
 	case "selinux.file.container_path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3237,16 +3277,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).SELinux.File.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "selinux.write.bool_value":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-
-				return (*Event)(ctx.Object).SELinux.BooleanValue
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4296,6 +4326,14 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rmdir.retval",
 
+		"selinux.bool.name",
+
+		"selinux.bool.state",
+
+		"selinux.bool_commit.state",
+
+		"selinux.enforce.status",
+
 		"selinux.file.container_path",
 
 		"selinux.file.filesystem",
@@ -4321,8 +4359,6 @@ func (e *Event) GetFields() []eval.Field {
 		"selinux.file.uid",
 
 		"selinux.file.user",
-
-		"selinux.write.bool_value",
 
 		"setgid.egid",
 
@@ -6059,6 +6095,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "selinux.bool.name":
+
+		return e.SELinux.BoolName, nil
+
+	case "selinux.bool.state":
+
+		return e.SELinux.BoolChangeValue, nil
+
+	case "selinux.bool_commit.state":
+
+		return e.SELinux.BoolCommitValue, nil
+
+	case "selinux.enforce.status":
+
+		return e.SELinux.EnforceStatus, nil
+
 	case "selinux.file.container_path":
 
 		return e.SELinux.File.ContainerPath, nil
@@ -6110,10 +6162,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "selinux.file.user":
 
 		return e.SELinux.File.FileFields.User, nil
-
-	case "selinux.write.bool_value":
-
-		return e.SELinux.BooleanValue, nil
 
 	case "setgid.egid":
 
@@ -7094,6 +7142,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rmdir.retval":
 		return "rmdir", nil
 
+	case "selinux.bool.name":
+		return "selinux", nil
+
+	case "selinux.bool.state":
+		return "selinux", nil
+
+	case "selinux.bool_commit.state":
+		return "selinux", nil
+
+	case "selinux.enforce.status":
+		return "selinux", nil
+
 	case "selinux.file.container_path":
 		return "selinux", nil
 
@@ -7131,9 +7191,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "selinux", nil
 
 	case "selinux.file.user":
-		return "selinux", nil
-
-	case "selinux.write.bool_value":
 		return "selinux", nil
 
 	case "setgid.egid":
@@ -8315,6 +8372,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "selinux.bool.name":
+
+		return reflect.String, nil
+
+	case "selinux.bool.state":
+
+		return reflect.String, nil
+
+	case "selinux.bool_commit.state":
+
+		return reflect.Bool, nil
+
+	case "selinux.enforce.status":
+
+		return reflect.String, nil
+
 	case "selinux.file.container_path":
 
 		return reflect.String, nil
@@ -8366,10 +8439,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "selinux.file.user":
 
 		return reflect.String, nil
-
-	case "selinux.write.bool_value":
-
-		return reflect.Bool, nil
 
 	case "setgid.egid":
 
@@ -11330,6 +11399,47 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "selinux.bool.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
+		}
+		e.SELinux.BoolName = str
+
+		return nil
+
+	case "selinux.bool.state":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
+		}
+		e.SELinux.BoolChangeValue = str
+
+		return nil
+
+	case "selinux.bool_commit.state":
+
+		var ok bool
+		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolCommitValue"}
+		}
+		return nil
+
+	case "selinux.enforce.status":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
+		}
+		e.SELinux.EnforceStatus = str
+
+		return nil
+
 	case "selinux.file.container_path":
 
 		var ok bool
@@ -11462,14 +11572,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SELinux.File.FileFields.User = str
 
-		return nil
-
-	case "selinux.write.bool_value":
-
-		var ok bool
-		if e.SELinux.BooleanValue, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SELinux.BooleanValue"}
-		}
 		return nil
 
 	case "setgid.egid":
