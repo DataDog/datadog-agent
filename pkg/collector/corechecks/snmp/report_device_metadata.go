@@ -64,6 +64,8 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpCon
 
 func buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([]metadata.InterfaceMetadata, error) {
 	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return an nil slice.
 		return nil, nil
 	}
 	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
