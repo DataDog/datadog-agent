@@ -172,7 +172,7 @@ void getHostInformation() {
             WcaLog(LOGMSG_STANDARD, "Got two different computer names %S %S", computername.c_str(), compare_computer.c_str());
         }
     }
-    std::wstring domain; 
+    std::wstring domain;
     if(wrapGetComputerNameExW(ComputerNameDnsDomain, domain))
     {
         // newer domains will look like DNS domains.  (i.e. domain.local)
@@ -239,6 +239,7 @@ void getOsStrings()
         if(programdataroot.back() != L'\\'){
             programdataroot += L"\\";
         }
+        programdataroot += L"..\\";
     }
     if(!ddroot.getStringValue(L"InstallPath", installdir))
     {
@@ -258,6 +259,7 @@ void getOsStrings()
     logdir = programdataroot + logsdirsuffix;
 
     agent_exe = L"\"" + installdir + L"bin\\agent.exe\"";
+    // [sts] datadog yaml rename to stackstate yaml
     process_exe = L"\"" + installdir + L"bin\\agent\\process-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     trace_exe   = L"\"" + installdir + L"bin\\agent\\trace-agent.exe\" --config=\"" + programdataroot + L"datadog.yaml\"" ;
     embedded2Dir = installdir + L"embedded2";
@@ -317,7 +319,7 @@ bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst,
     }
     if (ERROR_SUCCESS != uiStat)
     {
-        if (szValueBuf != NULL) 
+        if (szValueBuf != NULL)
            delete[] szValueBuf;
         WcaLog(LOGMSG_STANDARD, "failed to get  property");
         return false;

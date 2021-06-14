@@ -2,19 +2,19 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
       xmlns:bal="http://schemas.microsoft.com/wix/BalExtension">
   <?include "parameters.wxi" ?>
-	<Bundle Name="Datadog Agent Installer" 
-            Version="$(var.VersionNumber)" 
-            Manufacturer="Datadog Inc." 
+	<Bundle Name="Datadog Agent Installer"
+            Version="$(var.VersionNumber)"
+            Manufacturer="Datadog Inc."
             UpgradeCode="$(var.UpgradeCode)" >
-		
+
          <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.RtfLicense" >
-          
+
           <bal:WixStandardBootstrapperApplication
-          LicenseFile="Resources\assets\license.rtf" 
+          LicenseFile="Resources\assets\license.rtf"
           ThemeFile="bundle_theme.xml"
           LogoSideFile="Resources\assets\dd_logo_side.png"
           LogoFile="Resources\assets\dd_logo_side.png"
-          LocalizationFile="localization-en-us.wxl" 
+          LocalizationFile="localization-en-us.wxl"
           />
         </BootstrapperApplicationRef>
 
@@ -25,7 +25,9 @@
     <Variable Name="SITE" bal:Overridable="yes"/>
     <Variable Name="TAGS" bal:Overridable="yes"/>
     <Variable Name="HOSTNAME" bal:Overridable="yes"/>
-		
+    <Variable Name="STS_URL" bal:Overridable="yes"/>
+    <Variable Name="SKIP_SSL_VALIDATION" bal:Overridable="yes"/>
+
     <Chain>
       <ExePackage
         SourceFile="$(var.HelperDir)\upgrade-helper.exe"
@@ -39,7 +41,7 @@
         <!-- 1 indicates was installed by this user, uninstalled, proceed-->
         <ExitCode Value="1" Behavior="success"/>
         <!-- -1 indicates it's installed as another user, fail -->
-        <ExitCode Value="-1" Behavior="error"/> 
+        <ExitCode Value="-1" Behavior="error"/>
         <!-- All other values error -->
       </ExePackage>
       <MsiPackage SourceFile="$(var.PackageMsi)">
@@ -47,6 +49,8 @@
         <MsiProperty Name="SITE" Value="[SITE]"/>
         <MsiProperty Name="TAGS" Value="[TAGS]"/>
         <MsiProperty Name="HOSTNAME" Value="[HOSTNAME]"/>
+        <MsiProperty Name="STS_URL" Value="[STS_URL]"/>
+        <MsiProperty Name="SKIP_SSL_VALIDATION" Value="[SKIP_SSL_VALIDATION]"/>
       </MsiPackage>
 		</Chain>
 	</Bundle>

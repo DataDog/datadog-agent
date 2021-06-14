@@ -52,13 +52,13 @@ build do
         elsif linux?
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
-              unless arm?
-                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
-                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
-                # replace paths with expected target toolchain location
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
-              end
+                unless arm?
+                    rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                    # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
+                    command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
+                    # replace paths with expected target toolchain location
+                    command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
+                end
             end
 
             # Move system service files
@@ -103,7 +103,7 @@ build do
 
             # Move SELinux policy
             if debian? || redhat?
-              move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+                move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
             end
 
             # Create empty directories so that they're owned by the package
@@ -151,9 +151,9 @@ build do
 
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
-            # Caution: we don't want to do this for Agent 6.x
+                # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
+                # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
+                # Caution: we don't want to do this for Agent 6.x
             elsif with_python_runtime? "3"
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
@@ -188,7 +188,7 @@ build do
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else 
+            else
                 hardened_runtime = ""
             end
 

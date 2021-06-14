@@ -11,7 +11,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     int passbuflen = 0;
     wchar_t *passbuf = NULL;
     const wchar_t * passToUse = NULL;
-    
+
     std::wstring providedPassword;
     PSID sid = NULL;
     LSA_HANDLE hLsa = NULL;
@@ -103,7 +103,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     // add all the rights we want to the user (either existing or newly created)
 
     // set the account privileges regardless; if they're already set the OS will silently
-    // ignore the request.    
+    // ignore the request.
     hr = -1;
     sid = GetSidForUser(NULL, data.Username().c_str());
     if (!sid) {

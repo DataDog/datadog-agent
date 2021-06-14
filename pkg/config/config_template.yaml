@@ -331,6 +331,9 @@ api_key:
 # [sts] disable metadata collection
 enable_metadata_collection: false
 
+# [sts] disable inventories, our backend doesn't support this payload
+inventories_enabled: false
+
 ## @param enable_gohai - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
 # [sts] disable gohai collection
