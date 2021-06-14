@@ -34,14 +34,14 @@ func TestTagsBuilderAppend(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c", "d"}, tb.data)
 }
 
-func TestTagsBuilderSortUniq(t *testing.T) {
+func TestTagsBuilderUniq(t *testing.T) {
 	tb := NewTagsBuilder()
 
 	tb.Append("c", "b", "b", "a")
 	assert.Equal(t, []string{"c", "b", "b", "a"}, tb.data)
 
-	tb.SortUniq()
-	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
+	tb.Uniq()
+	assert.Equal(t, []string{"c", "b", "a"}, tb.data)
 }
 
 func TestTagsBuilderReset(t *testing.T) {

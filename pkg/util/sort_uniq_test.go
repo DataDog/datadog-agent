@@ -20,7 +20,47 @@ func TestSortUniqInPlace(t *testing.T) {
 	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
 
-func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
+func TestDedupInPlace(t *testing.T) {
+	assert := assert.New(t)
+
+	elements := []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval", "tag2:tagval"}
+	elements = DedupInPlace(elements)
+
+	// duplicated tags removed
+	assert.ElementsMatch(elements, []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval"})
+
+	// should not change anything
+	elements = DedupInPlace(elements)
+	assert.ElementsMatch(elements, []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval"})
+}
+
+func benchmarkDedupTags(b *testing.B, numberOfTags int) {
+	tags := make([]string, 0, numberOfTags+1)
+	for i := 0; i < numberOfTags; i++ {
+		// worst case since never the same tag
+		tags = append(tags, fmt.Sprintf("aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylong:tag%d", i))
+	}
+
+	tempTags := make([]string, len(tags))
+	copy(tempTags, tags)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		copy(tempTags, tags)
+		DedupInPlace(tempTags)
+	}
+}
+
+func BenchmarkDeduplicateTags(b *testing.B) {
+	for i := 1; i <= 128; i *= 2 {
+		b.Run(fmt.Sprintf("deduplicate-%d-tags-in-place", i), func(b *testing.B) {
+			benchmarkDedupTags(b, i)
+		})
+	}
+}
+
+func benchmarkSortUniqTags(b *testing.B, numberOfTags int) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {
 		tags = append(tags, fmt.Sprintf("aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylong:tag%d", i))
@@ -38,10 +78,10 @@ func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 		SortUniqInPlace(tempTags)
 	}
 }
-func BenchmarkDeduplicateTags(b *testing.B) {
+func BenchmarkSortUniqTags(b *testing.B) {
 	for i := 1; i <= 128; i *= 2 {
-		b.Run(fmt.Sprintf("deduplicate-%d-tags-in-place", i), func(b *testing.B) {
-			benchmarkDeduplicateTags(b, i)
+		b.Run(fmt.Sprintf("sort-uniq-%d-tags-in-place", i), func(b *testing.B) {
+			benchmarkSortUniqTags(b, i)
 		})
 	}
 }

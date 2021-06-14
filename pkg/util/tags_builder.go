@@ -32,9 +32,9 @@ func (tb *TagsBuilder) Append(tags ...string) {
 	tb.data = append(tb.data, tags...)
 }
 
-// SortUniq sorts and remove duplicate in place
-func (tb *TagsBuilder) SortUniq() {
-	tb.data = SortUniqInPlace(tb.data)
+// Uniq removes duplicate in place
+func (tb *TagsBuilder) Uniq() {
+	tb.data = DedupInPlace(tb.data)
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal

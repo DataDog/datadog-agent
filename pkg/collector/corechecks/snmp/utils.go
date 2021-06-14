@@ -43,7 +43,7 @@ func buildDeviceID(origTags []string) (string, []string) {
 		}
 		tags = append(tags, tag)
 	}
-	tags = util.SortUniqInPlace(tags)
+	tags = util.DedupInPlace(tags)
 	for _, tag := range tags {
 		// the implementation of h.Write never returns a non-nil error
 		_, _ = h.Write([]byte(tag))

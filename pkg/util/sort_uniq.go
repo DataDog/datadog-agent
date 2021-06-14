@@ -19,6 +19,24 @@ func SortUniqInPlace(elements []string) []string {
 	return uniqSorted(elements)
 }
 
+func DedupInPlace(elements []string) []string {
+	if len(elements) < 2 {
+		return elements
+	}
+
+	m := make(map[string]struct{})
+	idx := 0
+	for i := range elements {
+		if _, exists := m[elements[i]]; !exists {
+			m[elements[i]] = struct{}{}
+			elements[idx] = elements[i]
+			idx++
+		}
+	}
+
+	return elements[:idx]
+}
+
 // uniqSorted remove duplicate elements from the given slice
 // the given slice needs to be sorted
 func uniqSorted(elements []string) []string {
