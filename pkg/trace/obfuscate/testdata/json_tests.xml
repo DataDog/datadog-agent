@@ -624,6 +624,7 @@
 				<key>Join Filter</key>
 				<key>Merge Cond</key>
 				<key>Recheck Cond</key>
+				<key>Sampling Parameters</key>
 				<key>TID Cond</key>
 			</ObfuscateSQLValues>
 			<KeepValues>
@@ -643,13 +644,18 @@
 				<key>Constraint Name</key>
 				<key>CTE Name</key>
 				<key>Custom Plan Provider</key>
+				<key>Deforming</key>
+				<key>Emission</key>
 				<key>Exact Heap Blocks</key>
 				<key>Execution Time</key>
+				<key>Expressions</key>
 				<key>Foreign Delete</key>
 				<key>Foreign Insert</key>
 				<key>Foreign Update</key>
 				<key>Function Call</key>
 				<key>Function Name</key>
+				<key>Generation</key>
+				<key>Group Count</key>
 				<key>Grouping Sets</key>
 				<key>Group Key</key>
 				<key>HashAgg Batches</key>
@@ -661,6 +667,7 @@
 				<key>I/O Write Time</key>
 				<key>Incremental Sort Groups</key>
 				<key>Index Name</key>
+				<key>Inlining</key>
 				<key>Join Type</key>
 				<key>Local Dirtied Blocks</key>
 				<key>Local Hit Blocks</key>
@@ -668,6 +675,8 @@
 				<key>Local Written Blocks</key>
 				<key>Lossy Heap Blocks</key>
 				<key>Node Type</key>
+				<key>Optimization</key>
+				<key>Options</key>
 				<key>Original Hash Batches</key>
 				<key>Original Hash Buckets</key>
 				<key>Parallel Aware</key>
@@ -678,6 +687,7 @@
 				<key>Planned Partitions</key>
 				<key>Planning Time</key>
 				<key>Presorted Key</key>
+				<key>Query Identifier</key>
 				<key>Plan Rows</key>
 				<key>Plan Width</key>
 				<key>Relation Name</key>
@@ -687,9 +697,9 @@
 				<key>Rows Removed by Index Recheck</key>
 				<key>Rows Removed by Join Filter</key>
 				<key>Sampling Method</key>
-				<key>Sampling Parameters</key>
 				<key>Scan Direction</key>
 				<key>Schema</key>
+				<key>Settings</key>
 				<key>Shared Dirtied Blocks</key>
 				<key>Shared Hit Blocks</key>
 				<key>Shared Read Blocks</key>
@@ -709,6 +719,8 @@
 				<key>Temp Read Blocks</key>
 				<key>Temp Written Blocks</key>
 				<key>Time</key>
+				<key>Timing</key>
+				<key>Total</key>
 				<key>Trigger</key>
 				<key>Trigger Name</key>
 				<key>Triggers</key>
@@ -740,6 +752,7 @@
 		"Join Filter": "datadog 'dummy'",
 		"Merge Cond": "datadog 'dummy'",
 		"Recheck Cond": "datadog 'dummy'",
+		"Sampling Parameters": ["dog", "food"],
 		"TID Cond": "datadog 'dummy'",
 		"Actual Loops": 1,
 		"Actual Rows": 2,
@@ -757,14 +770,19 @@
 		"Constraint Name": 1,
 		"CTE Name": "Dog Food Users",
 		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Deforming": false,
+		"Emission": 1.1,
 		"Exact Heap Blocks": 1,
 		"Execution Time": 1,
+		"Expressions": false,
 		"Foreign Delete": 1,
 		"Foreign Insert": 2,
 		"Foreign Update": 3,
 		"Function Call": 1,
 		"Function Name": 2,
-		"Group Key": 1,
+		"Generation": 1.22,
+		"Group Count": 1,
+		"Group Key": 2,
 		"Grouping Sets": ["a", "b"],
 		"Hash Buckets": 1,
 		"Hash Keys": 2,
@@ -773,6 +791,7 @@
 		"Heap Fetches": 1,
 		"Incremental Sort Groups": ["dog", "food"],
 		"Index Name": "dogfood",
+		"Inlining": 2.1,
 		"I/O Read Time": 1,
 		"I/O Write Time": 2,
 		"Join Type": "Left",
@@ -782,6 +801,8 @@
 		"Local Written Blocks": 4,
 		"Lossy Heap Blocks": 1,
 		"Node Type": "Aggregate",
+		"Optimization": 2.1,
+		"Options": ["dog", "food"],
 		"Original Hash Batches": 1,
 		"Original Hash Buckets": 2,
 		"Parallel Aware": false,
@@ -792,6 +813,7 @@
 		"Planned Partitions": 1,
 		"Planning Time": 1,
 		"Presorted Key": ["dog", "food"],
+		"Query Identifier": "dog",
 		"Relation Name": "dog",
 		"Repeatable Seed": "datad0g",
 		"Rows Removed by Conflict Filter": 1,
@@ -799,9 +821,9 @@
 		"Rows Removed by Index Recheck": 3,
 		"Rows Removed by Join Filter": 4,
 		"Sampling Method": "system",
-		"Sampling Parameters": ["dog", "food"],
 		"Scan Direction": "Forward",
 		"Schema": "dogfood_user",
+		"Settings": ["dog"],
 		"Shared Dirtied Blocks": 1,
 		"Shared Hit Blocks": 2,
 		"Shared Read Blocks": 3,
@@ -820,6 +842,8 @@
 		"Temp Read Blocks": 1,
 		"Temp Written Blocks": 2,
 		"Time": 1,
+		"Timing": "off",
+		"Total": 1.1,
 		"Trigger Name": "find_user",
 		"Triggers": 1,
 		"Trigger": "find_user()",
@@ -853,6 +877,7 @@
 		"Join Filter": "datadog ?",
 		"Merge Cond": "datadog ?",
 		"Recheck Cond": "datadog ?",
+		"Sampling Parameters": ["?", "?"],
 		"TID Cond": "datadog ?",
 		"Actual Loops": 1,
 		"Actual Rows": 2,
@@ -870,14 +895,19 @@
 		"Constraint Name": 1,
 		"CTE Name": "Dog Food Users",
 		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Deforming": false,
+		"Emission": 1.1,
 		"Exact Heap Blocks": 1,
 		"Execution Time": 1,
+		"Expressions": false,
 		"Foreign Delete": 1,
 		"Foreign Insert": 2,
 		"Foreign Update": 3,
 		"Function Call": 1,
 		"Function Name": 2,
-		"Group Key": 1,
+		"Generation": 1.22,
+		"Group Count": 1,
+		"Group Key": 2,
 		"Grouping Sets": ["a", "b"],
 		"Hash Buckets": 1,
 		"Hash Keys": 2,
@@ -886,6 +916,7 @@
 		"Heap Fetches": 1,
 		"Incremental Sort Groups": ["dog", "food"],
 		"Index Name": "dogfood",
+		"Inlining": 2.1,
 		"I/O Read Time": 1,
 		"I/O Write Time": 2,
 		"Join Type": "Left",
@@ -895,6 +926,8 @@
 		"Local Written Blocks": 4,
 		"Lossy Heap Blocks": 1,
 		"Node Type": "Aggregate",
+		"Optimization": 2.1,
+		"Options": ["dog", "food"],
 		"Original Hash Batches": 1,
 		"Original Hash Buckets": 2,
 		"Parallel Aware": false,
@@ -905,6 +938,7 @@
 		"Planned Partitions": 1,
 		"Planning Time": 1,
 		"Presorted Key": ["dog", "food"],
+		"Query Identifier": "dog",
 		"Relation Name": "dog",
 		"Repeatable Seed": "datad0g",
 		"Rows Removed by Conflict Filter": 1,
@@ -912,9 +946,9 @@
 		"Rows Removed by Index Recheck": 3,
 		"Rows Removed by Join Filter": 4,
 		"Sampling Method": "system",
-		"Sampling Parameters": ["dog", "food"],
 		"Scan Direction": "Forward",
 		"Schema": "dogfood_user",
+		"Settings": ["dog"],
 		"Shared Dirtied Blocks": 1,
 		"Shared Hit Blocks": 2,
 		"Shared Read Blocks": 3,
@@ -933,6 +967,8 @@
 		"Temp Read Blocks": 1,
 		"Temp Written Blocks": 2,
 		"Time": 1,
+		"Timing": "off",
+		"Total": 1.1,
 		"Trigger Name": "find_user",
 		"Triggers": 1,
 		"Trigger": "find_user()",
