@@ -8,8 +8,7 @@
 
 enum selinux_event_kind_t {
     SELINUX_BOOL_CHANGE_EVENT_KIND,
-    SELINUX_ENFORCE_CHANGE_EVENT_KIND,
-    SELINUX_DISABLE_CHANGE_EVENT_KIND,
+    SELINUX_STATUS_CHANGE_EVENT_KIND,
     SELINUX_BOOL_COMMIT_EVENT_KIND,
 };
 
@@ -102,8 +101,8 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
         return handle_selinux_event(ctx, file, buf, count, (kind));    \
     }
 
-PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_EVENT_KIND)
-PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_STATUS_CHANGE_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_STATUS_CHANGE_EVENT_KIND)
 PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_EVENT_KIND)
 PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_EVENT_KIND)
 
