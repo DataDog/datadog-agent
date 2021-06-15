@@ -23,7 +23,7 @@ Running the script
 
 Putting it all together, you will have a command line such as
 ```powershell
-docker run --rm -v "$(Get-Location):c:\mnt" <image> powershell -C "c:\mnt\generate-pyzip.ps1 -Version 3.8.1 -OutDir c:\mnt"
+docker run --rm -v "$(Get-Location):c:\mnt" <image> powershell -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.8.1 -OutDir c:\mnt"
 ```
 
 ```

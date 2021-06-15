@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -74,9 +75,16 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
-		httputils.NoProxyWarningMapMutex.Lock()
-		stats["TransportWarnings"] = httputils.NoProxyWarningMap
-		httputils.NoProxyWarningMapMutex.Unlock()
+		httputils.NoProxyMapMutex.Lock()
+		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
+		stats["NoProxyIgnoredWarningMap"] = httputils.NoProxyIgnoredWarningMap
+		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
+		stats["NoProxyChanged"] = httputils.NoProxyChanged
+		httputils.NoProxyMapMutex.Unlock()
+	}
+
+	if config.IsContainerized() {
+		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors()
 	}
 
 	return stats, nil
@@ -176,7 +184,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
 		} else {
-			orchestratorStats := orchestrator.GetStatus(apiCl.Cl)
+			orchestratorStats := orchestrator.GetStatus(context.TODO(), apiCl.Cl)
 			stats["orchestrator"] = orchestratorStats
 		}
 	}
@@ -321,7 +329,12 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
-
+	s, err := check.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
+	if err != nil {
+		log.Debug("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+	} else {
+		stats["aggregatorStats"] = s
+	}
 	dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
 	dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
 	dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())

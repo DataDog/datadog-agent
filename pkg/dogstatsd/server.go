@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package dogstatsd
 
@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -44,9 +46,19 @@ var (
 	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"message_type", "state"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error"}
-	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok"}
+		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
+	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
+	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+
+	// while we try to add the origin tag in the tlmProcessed metric, we want to
+	// avoid having it growing indefinitely, hence this safeguard to limit the
+	// size of this cache for long-running agent or environment with a lot of
+	// different container IDs.
+	maxOriginTagsCached = 200
+
+	tlmChannel            = telemetry.NewHistogramNoOp()
+	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
+	once                  sync.Once
 )
 
 func init() {
@@ -57,6 +69,47 @@ func init() {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
+}
+
+// used in debug mode to add the origin on the processed metric as a tag
+type cachedTagsOriginMap struct {
+	origin string
+	ok     map[string]string
+	err    map[string]string
+}
+
+func initLatencyTelemetry() {
+	get := func(option string) []float64 {
+		if !config.Datadog.IsSet(option) {
+			return nil
+		}
+
+		buckets, err := config.Datadog.GetFloat64SliceE(option)
+		if err != nil {
+			log.Errorf("%s, falling back to default values", err)
+			return nil
+		}
+		if len(buckets) == 0 {
+			log.Debugf("'%s' is empty, falling back to default values", option)
+			return nil
+		}
+		return buckets
+	}
+
+	buckets := get("telemetry.dogstatsd.aggregator_channel_latency_buckets")
+	if buckets == nil {
+		buckets = defaultChannelBuckets
+	}
+
+	tlmChannel = telemetry.NewHistogram(
+		"dogstatsd",
+		"channel_latency",
+		[]string{"message_type"},
+		"Time in millisecond to push metrics to the aggregator input buffer",
+		buckets)
+
+	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
+	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
 // Server represent a Dogstatsd server
@@ -70,8 +123,9 @@ type Server struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
-	packetsIn                 chan listeners.Packets
-	sharedPacketPool          *listeners.PacketPool
+	packetsIn                 chan packets.Packets
+	sharedPacketPool          *packets.Pool
+	sharedPacketPoolManager   *packets.PoolManager
 	sharedFloat64List         *float64ListPool
 	Statistics                *util.Stats
 	Started                   bool
@@ -84,8 +138,11 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
+	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
-	eolTerminationEnabled     bool
+	eolTerminationUDP         bool
+	eolTerminationUDS         bool
+	eolTerminationNamedPipe   bool
 	telemetryEnabled          bool
 	entityIDPrecedenceEnabled bool
 	// disableVerboseLogs is a feature flag to disable the logs capable
@@ -93,6 +150,11 @@ type Server struct {
 	// NOTE(remy): this should probably be dropped and use a throttler logger, see
 	// package (pkg/trace/logutils) for a possible throttler implemetation.
 	disableVerboseLogs bool
+
+	// cachedTlmOriginIds is caching origin -> tlmProcessedOkTags/tlmProcessedErrorTags
+	// to avoid escaping these in the heap in this hot path.
+	cachedTlmOriginIds map[string]cachedTagsOriginMap
+	cachedOrder        []cachedTagsOriginMap // for cache eviction
 
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
@@ -132,6 +194,9 @@ type metricsCountBuckets struct {
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
 func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+	// This needs to be done after the configuration is loaded
+	once.Do(initLatencyTelemetry)
+
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -149,18 +214,23 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		metricsStatsEnabled = 1
 	}
 
-	packetsChannel := make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
+	capture, err := replay.NewTrafficCapture()
+	if err != nil {
+		return nil, err
+	}
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
 
 	udsListenerRunning := false
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPool)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -169,7 +239,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPool)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -179,7 +249,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPool)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
 			log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -212,11 +282,29 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
+	eolTerminationUDP := false
+	eolTerminationUDS := false
+	eolTerminationNamedPipe := false
+
+	for _, v := range config.Datadog.GetStringSlice("dogstatsd_eol_required") {
+		switch v {
+		case "udp":
+			eolTerminationUDP = true
+		case "uds":
+			eolTerminationUDS = true
+		case "named_pipe":
+			eolTerminationNamedPipe = true
+		default:
+			log.Errorf("Invalid dogstatsd_eol_required value: %s", v)
+		}
+	}
+
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
 		packetsIn:                 packetsChannel,
 		sharedPacketPool:          sharedPacketPool,
+		sharedPacketPoolManager:   sharedPacketPoolManager,
 		sharedFloat64List:         newFloat64ListPool(),
 		aggregator:                aggregator,
 		listeners:                 tmpListeners,
@@ -228,7 +316,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
 		extraTags:                 extraTags,
-		eolTerminationEnabled:     config.Datadog.GetBool("dogstatsd_eol_required"),
+		eolTerminationUDP:         eolTerminationUDP,
+		eolTerminationUDS:         eolTerminationUDS,
+		eolTerminationNamedPipe:   eolTerminationNamedPipe,
 		telemetryEnabled:          telemetry_utils.IsEnabled(),
 		entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 		disableVerboseLogs:        config.Datadog.GetBool("dogstatsd_disable_verbose_logs"),
@@ -241,7 +331,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			},
 			keyGen: ckey.NewKeyGenerator(),
 		},
+		TCapture:           capture,
 		UdsListenerRunning: udsListenerRunning,
+		cachedTlmOriginIds: make(map[string]cachedTagsOriginMap),
 	}
 
 	// packets forwarding
@@ -255,7 +347,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		if err != nil {
 			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
-			s.packetsIn = make(chan listeners.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
+			s.packetsIn = make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 			go s.forwarder(con, packetsChannel)
 		}
 	}
@@ -315,7 +407,12 @@ func (s *Server) handleMessages() {
 	}
 }
 
-func (s *Server) forwarder(fcon net.Conn, packetsChannel chan listeners.Packets) {
+// Capture starts a traffic capture with the specified duration, returns an error if any
+func (s *Server) Capture(d time.Duration) error {
+	return s.TCapture.Start(d)
+}
+
+func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -390,11 +487,23 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
-func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*listeners.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
+func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
+	switch sourceType {
+	case packets.UDS:
+		return s.eolTerminationUDS
+	case packets.UDP:
+		return s.eolTerminationUDP
+	case packets.NamedPipe:
+		return s.eolTerminationNamedPipe
+	}
+	return false
+}
+
+func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
-			message := nextMessage(&packet.Contents, s.eolTerminationEnabled)
+			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
 			if message == nil {
 				break
 			}
@@ -425,13 +534,16 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				var err error
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin)
+				debugEnabled := atomic.LoadUint64(&s.Debug.Enabled) == 1
+
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, debugEnabled)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
 				}
+
 				for idx := range samples {
-					if atomic.LoadUint64(&s.Debug.Enabled) == 1 {
+					if debugEnabled {
 						s.storeMetricStats(samples[idx])
 					}
 					batcher.appendSample(samples[idx])
@@ -444,7 +556,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*liste
 				}
 			}
 		}
-		s.sharedPacketPool.Put(packet)
+		s.sharedPacketPoolManager.Put(packet)
 	}
 	batcher.flush()
 	return samples
@@ -458,13 +570,55 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
-func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string) ([]metrics.MetricSample, error) {
+// createOriginTagMaps  keeps these in a cache to avoid a lot of heap escape
+// that we can't avoid in this hot path
+func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
+	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
+	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
+	okMap["origin"] = origin
+	errorMap["origin"] = origin
+	maps := cachedTagsOriginMap{
+		origin: origin,
+		ok:     okMap,
+		err:    errorMap,
+	}
+
+	s.cachedTlmOriginIds[origin] = maps
+	s.cachedOrder = append(s.cachedOrder, maps)
+
+	if len(s.cachedOrder) > maxOriginTagsCached {
+		// remove the oldest one from the cache
+		pop := s.cachedOrder[0]
+		delete(s.cachedTlmOriginIds, pop.origin)
+		s.cachedOrder = s.cachedOrder[1:]
+		// remove it from the telemetry metrics as well
+		tlmProcessed.DeleteWithTags(pop.ok)
+		tlmProcessed.DeleteWithTags(pop.err)
+	}
+
+	return maps
+}
+
+func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
+	okTags := tlmProcessedOkTags
+	errorTags := tlmProcessedErrorTags
+	if origin != "" && telemetry {
+		var maps cachedTagsOriginMap // errorMap and okMap for this origin
+		var exists bool
+		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
+			maps = s.createOriginTagMaps(origin)
+		}
+		okTags = maps.ok
+		errorTags = maps.err
+	}
+
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.IncWithTags(tlmProcessedErrorTags)
+		tlmProcessed.IncWithTags(errorTags)
 		return metricSamples, err
 	}
+
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
@@ -488,7 +642,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		tlmProcessed.IncWithTags(tlmProcessedOkTags)
+		tlmProcessed.IncWithTags(okTags)
 	}
 	return metricSamples, nil
 }
@@ -497,12 +651,12 @@ func (s *Server) parseEventMessage(parser *parser, message []byte, origin string
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
-		tlmProcessed.Inc("events", "error")
+		tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
 	event := enrichEvent(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	event.Tags = append(event.Tags, s.extraTags...)
-	tlmProcessed.Inc("events", "ok")
+	tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -511,13 +665,13 @@ func (s *Server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
-		tlmProcessed.Inc("service_checks", "error")
+		tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, s.defaultHostname, origin, s.entityIDPrecedenceEnabled)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
-	tlmProcessed.Inc("service_checks", "ok")
+	tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
 }
 
@@ -529,6 +683,9 @@ func (s *Server) Stop() {
 	}
 	if s.Statistics != nil {
 		s.Statistics.Stop()
+	}
+	if s.TCapture != nil {
+		s.TCapture.Stop()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false

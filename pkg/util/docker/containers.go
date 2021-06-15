@@ -35,7 +35,7 @@ type ContainerListConfig struct {
 	FlagExcluded  bool
 }
 
-// Containers gets a list of all containers on the current node using a mix of
+// ListContainers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
 func (d *DockerUtil) ListContainers(ctx context.Context, cfg *ContainerListConfig) ([]*containers.Container, error) {
 	err := providers.ContainerImpl().Prefetch()

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -47,11 +48,31 @@ func GetHostname(ctx context.Context) (string, error) {
 	return hostname, nil
 }
 
-// GetHostAlias returns the host alias from GCE
-func GetHostAlias(ctx context.Context) (string, error) {
+// GetHostAliases returns the host aliases from GCE
+func GetHostAliases(ctx context.Context) ([]string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
+
+	aliases := []string{}
+
+	hostname, err := GetHostname(ctx)
+	if err == nil {
+		aliases = append(aliases, hostname)
+	} else {
+		log.Debugf("failed to get hostname to use as Host Alias: %s", err)
+	}
+
+	if instanceAlias, err := getInstanceAlias(ctx, hostname); err == nil {
+		aliases = append(aliases, instanceAlias)
+	} else {
+		log.Debugf("failed to get Host Alias: %s", err)
+	}
+
+	return aliases, nil
+}
+
+func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
 	instanceName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/name",
 		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
@@ -59,8 +80,7 @@ func GetHostAlias(ctx context.Context) (string, error) {
 		// For instance, it happens in GKE, where the metadata server is only a subset
 		// of the Compute Engine metadata server.
 		// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gke_mds
-		hostname, hostErr := GetHostname(ctx)
-		if hostErr != nil {
+		if hostname == "" {
 			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
 		}
 		instanceName = strings.SplitN(hostname, ".", 2)[0]

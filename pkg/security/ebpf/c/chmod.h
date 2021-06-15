@@ -24,10 +24,10 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_CHMOD,
+        .type = EVENT_CHMOD,
         .policy = policy,
         .setattr = {
-            .mode = mode
+            .mode = mode & S_IALLUGO,
         }
     };
 
@@ -48,13 +48,12 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_CHMOD);
-    if (!syscall)
+int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
-    if (IS_UNHANDLED_ERROR(retval))
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
+    if (!syscall)
         return 0;
 
     struct chmod_event_t event = {
@@ -74,16 +73,36 @@ int __attribute__((always_inline)) trace__sys_chmod_ret(struct pt_regs *ctx) {
     return 0;
 }
 
+int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_chmod_ret(ctx, retval);
+}
+
+SEC("tracepoint/syscalls/sys_exit_chmod")
+int tracepoint_syscalls_sys_exit_chmod(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_chmod_ret(args, args->ret);
+}
+
 SYSCALL_KRETPROBE(chmod) {
-    return trace__sys_chmod_ret(ctx);
+    return kprobe_sys_chmod_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_fchmod")
+int tracepoint_syscalls_sys_exit_fchmod(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_chmod_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(fchmod) {
-    return trace__sys_chmod_ret(ctx);
+    return kprobe_sys_chmod_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_fchmodat")
+int tracepoint_syscalls_sys_exit_fchmodat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_chmod_ret(args, args->ret);
 }
 
 SYSCALL_KRETPROBE(fchmodat) {
-    return trace__sys_chmod_ret(ctx);
+    return kprobe_sys_chmod_ret(ctx);
 }
 
 #endif

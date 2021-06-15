@@ -12,23 +12,19 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // NanoToUserHZDivisor holds the divisor to convert cpu.usage to the
 // same unit as cpu.system (USER_HZ = 1/100)
 // TODO: get USER_HZ from gopsutil? Needs to patch it
 const NanoToUserHZDivisor float64 = 1e9 / 100
-
-var (
-	numCPU = float64(runtime.NumCPU())
-)
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
 // available then we return an empty stats file.
@@ -285,7 +281,7 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 // If the limits files aren't available (on older version) then
 // we'll return the default value of numCPU * 100.
 func (c ContainerCgroup) CPULimit() (float64, error) {
-	limit := numCPU * 100.0
+	limit := float64(system.HostCPUCount()) * 100.0
 
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")

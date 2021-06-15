@@ -27,9 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
-	pb "github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	gorilla "github.com/gorilla/mux"
 )
 
@@ -57,7 +57,6 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() error {
-
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP

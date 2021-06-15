@@ -222,3 +222,8 @@ func hasTemplateFields(nodes client.Nodes) bool {
 func init() {
 	RegisterProvider("etcd", NewEtcdConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the EtcdConfigProvider
+func (p *EtcdConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

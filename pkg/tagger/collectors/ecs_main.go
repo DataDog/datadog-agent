@@ -107,21 +107,28 @@ func (c *ECSCollector) Fetch(ctx context.Context, entity string) ([]string, []st
 
 	for _, info := range updates {
 		if info.Entity == entity {
-			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
+			var err error
+			if info.SkipCache {
+				err = errors.NewPartial(entity)
+			}
+
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, err
 		}
 	}
 	// container not found in updates
 	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
 
-func addTagsForContainer(ctx context.Context, containerID string, tags *utils.TagList) {
+func addTagsForContainer(ctx context.Context, containerID string, tags *utils.TagList) error {
 	task, err := fetchContainerTaskWithTagsV3(ctx, containerID)
 	if err != nil {
-		log.Warnf("Unable to get resource tags for container %s: %s", containerID, err)
-		return
+		return fmt.Errorf("Unable to get resource tags for container %s: %w", containerID, err)
 	}
+
 	addResourceTags(tags, task.ContainerInstanceTags)
 	addResourceTags(tags, task.TaskTags)
+
+	return nil
 }
 
 func fetchContainerTaskWithTagsV3(ctx context.Context, containerID string) (*v3.Task, error) {

@@ -22,6 +22,7 @@ type Tagger interface {
 	TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error
 	Standard(entity string) ([]string, error)
 	List(cardinality collectors.TagCardinality) response.TaggerListResponse
+	GetEntity(entityID string) (*types.Entity, error)
 
 	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)

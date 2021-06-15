@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -160,7 +161,7 @@ func (c *Concentrator) Flush() pb.StatsPayload {
 }
 
 func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
-	m := make(map[PayloadKey][]pb.ClientStatsBucket)
+	m := make(map[PayloadAggregationKey][]pb.ClientStatsBucket)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -187,13 +188,13 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	sb := make([]pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		sb = append(sb, pb.ClientStatsPayload{
-			Env:      k.env,
-			Hostname: k.hostname,
-			Version:  k.version,
+			Env:      k.Env,
+			Hostname: k.Hostname,
+			Version:  k.Version,
 			Stats:    s,
 		})
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv}
+	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

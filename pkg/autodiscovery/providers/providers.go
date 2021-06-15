@@ -32,6 +32,9 @@ type ProviderCache struct {
 	NumAdTemplates    int
 }
 
+// ErrorMsgSet contains a unique list of configuration errors for a provider
+type ErrorMsgSet map[string]struct{}
+
 // NewCPCache instantiate a ProviderCache.
 func NewCPCache() *ProviderCache {
 	return &ProviderCache{
@@ -53,4 +56,5 @@ type ConfigProvider interface {
 	Collect(context.Context) ([]integration.Config, error)
 	String() string
 	IsUpToDate(context.Context) (bool, error)
+	GetConfigErrors() map[string]ErrorMsgSet
 }

@@ -1,10 +1,4 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -41,18 +35,17 @@
 
 .docker_build_agent7_windows_common:
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_a7]
   stage: image_build
   needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    BUILD_ARG: --build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-amd64"
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
-    - $TARGET_TAG = "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-amd64"
     - cp ${OMNIBUS_PACKAGE_DIR}/datadog-agent-7*-x86_64.zip ${BUILD_CONTEXT}/datadog-agent-7-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
     - get-childitem ${BUILD_CONTEXT}
@@ -127,3 +120,76 @@ docker_build_agent7_windows2004_jmx:
     VARIANT: 2004
     TAG_SUFFIX: -7-jmx
     WITH_JMX: "true"
+
+docker_build_agent7_windows1809_core:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    VARIANT: 1809
+    TAG_SUFFIX: -7
+    WITH_JMX: "false"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
+
+docker_build_agent7_windows1809_core_jmx:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    VARIANT: 1809
+    TAG_SUFFIX: -7-jmx
+    WITH_JMX: "true"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
+
+docker_build_agent7_windows1909_core:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  variables:
+    VARIANT: 1909
+    TAG_SUFFIX: -7
+    WITH_JMX: "false"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
+
+docker_build_agent7_windows1909_core_jmx:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  variables:
+    VARIANT: 1909
+    TAG_SUFFIX: -7-jmx
+    WITH_JMX: "true"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
+
+docker_build_agent7_windows2004_core:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  variables:
+    VARIANT: 2004
+    TAG_SUFFIX: "-7"
+    WITH_JMX: "false"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
+
+docker_build_agent7_windows2004_core_jmx:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent7_windows_common
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
+  variables:
+    VARIANT: 2004
+    TAG_SUFFIX: -7-jmx
+    WITH_JMX: "true"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -37,6 +38,9 @@ type ConnectionsCheck struct {
 	networkID              string
 	notInitializedLogLimit *procutil.LogLimit
 	lastTelemetry          *model.CollectorConnectionsTelemetry
+	// store the last collection result by PID, currently used to populate network data for processes
+	// it's in format map[int32][]*model.Connections
+	lastConnsByPID atomic.Value
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -90,8 +94,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 
 	connTel := c.diffTelemetry(conns.ConnTelemetry)
 
+	c.lastConnsByPID.Store(getConnectionsByPID(conns))
+
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -140,6 +146,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
 		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
+		DnsStatsDropped:           tel.DnsStatsDropped,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -158,6 +165,23 @@ func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
 	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
 	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
+	c.lastTelemetry.DnsStatsDropped = tel.DnsStatsDropped
+}
+
+func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
+	if result := c.lastConnsByPID.Load(); result != nil {
+		return result.(map[int32][]*model.Connection)
+	}
+	return nil
+}
+
+// getConnectionsByPID groups a list of connection objects by PID
+func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection {
+	result := make(map[int32][]*model.Connection)
+	for _, conn := range conns.Conns {
+		result[conn.Pid] = append(result[conn.Pid], conn)
+	}
+	return result
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
@@ -170,6 +194,7 @@ func batchConnections(
 	connTelemetry *model.CollectorConnectionsTelemetry,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
+	routes []*model.Route,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -214,6 +239,26 @@ func batchConnections(
 				batchDomains[i] = domain
 			}
 		}
+
+		// remap route indices
+		// map of old index to new index
+		newRouteIndices := make(map[int32]int32)
+		var batchRoutes []*model.Route
+		for _, c := range batchConns {
+			if c.RouteIdx < 0 {
+				continue
+			}
+			if i, ok := newRouteIndices[c.RouteIdx]; ok {
+				c.RouteIdx = i
+				continue
+			}
+
+			new := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = new
+			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
+			c.RouteIdx = new
+		}
+
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
@@ -224,6 +269,7 @@ func batchConnections(
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
 			Domains:           batchDomains,
+			Routes:            batchRoutes,
 		}
 
 		// Add OS telemetry

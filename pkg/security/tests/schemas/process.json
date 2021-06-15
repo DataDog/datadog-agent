@@ -1,0 +1,229 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "process.json",
+    "type": "object",
+    "properties": {
+        "tid": {
+            "type": "integer"
+        },
+        "uid": {
+            "type": "integer"
+        },
+        "gid": {
+            "type": "integer"
+        },
+        "user": {
+            "type": "string"
+        },
+        "group": {
+            "type": "string"
+        },
+        "executable_container_path": {
+            "$ref": "file:///container_path.json"
+        },
+        "executable_path": {
+            "type": "string"
+        },
+        "comm": {
+            "type": "string"
+        },
+        "executable_inode": {
+            "type": "integer"
+        },
+        "executable_mount_id": {
+            "type": "integer"
+        },
+        "tty": {
+            "allOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "not": {
+                        "type": "string",
+                        "enum": [
+                            "null"
+                        ]
+                    }
+                }
+            ]
+        },
+        "fork_time": {
+            "$ref": "file:///datetime.json"
+        },
+        "exec_time": {
+            "$ref": "file:///datetime.json"
+        },
+        "credentials": {
+            "type": "object",
+            "properties": {
+                "uid": {
+                    "type": "integer"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "gid": {
+                    "type": "integer"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "euid": {
+                    "type": "integer"
+                },
+                "euser": {
+                    "type": "string"
+                },
+                "egid": {
+                    "type": "integer"
+                },
+                "egroup": {
+                    "type": "string"
+                },
+                "fsuid": {
+                    "type": "integer"
+                },
+                "fsuser": {
+                    "type": "string"
+                },
+                "fsgid": {
+                    "type": "integer"
+                },
+                "fsgroup": {
+                    "type": "string"
+                },
+                "cap_effective": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true
+                },
+                "cap_permitted": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true
+                }
+            },
+            "required": [
+                "uid",
+                "gid",
+                "euid",
+                "euser",
+                "egid",
+                "egroup",
+                "fsuid",
+                "fsuser",
+                "fsgid",
+                "fsgroup",
+                "cap_effective",
+                "cap_permitted"
+            ]
+        },
+        "executable": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "container_path": {
+                    "$ref": "file:///container_path.json"
+                },
+                "inode": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "integer"
+                },
+                "mount_id": {
+                    "type": "integer"
+                },
+                "filesystem": {
+                    "type": "string"
+                },
+                "uid": {
+                    "type": "integer"
+                },
+                "gid": {
+                    "type": "integer"
+                },
+                "modification_time": {
+                    "$ref": "file:///datetime.json"
+                },
+                "change_time": {
+                    "$ref": "file:///datetime.json"
+                }
+            },
+            "required": [
+                "path",
+                "name",
+                "inode",
+                "mode",
+                "mount_id",
+                "filesystem",
+                "uid",
+                "gid",
+                "modification_time",
+                "change_time"
+            ]
+        },
+        "container": {
+            "$ref": "file:///container.json"
+        }
+    },
+    "oneOf": [
+        {
+            "properties": {
+                "pid": {
+                    "type": "integer",
+                    "enum": [
+                        1
+                    ]
+                }
+            },
+            "required": [
+                "pid"
+            ]
+        },
+        {
+            "properties": {
+                "pid": {
+                    "type": "integer",
+                    "minimum": 2
+                },
+                "ppid": {
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "pid",
+                "ppid"
+            ]
+        }
+    ],
+    "required": [
+        "tid",
+        "uid",
+        "gid",
+        "executable_path",
+        "comm",
+        "executable_inode",
+        "executable_mount_id",
+        "credentials",
+        "executable"
+    ],
+    "dependencies": {
+        "executable_container_path": [
+            "container"
+        ],
+        "container": [
+            "executable_container_path"
+        ]
+    }
+}

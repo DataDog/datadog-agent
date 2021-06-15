@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -21,6 +21,7 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 )
 
+// exported for testing purposes
 const (
 	DatadogMetricErrorConditionReason string = "Unable to fetch data from Datadog"
 )
@@ -149,7 +150,7 @@ func (d *DatadogMetricInternal) IsNewerThan(currentStatus datadoghq.DatadogMetri
 	return true
 }
 
-// HasBeenUpdated returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
+// HasBeenUpdatedFor returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
 func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 	return d.UpdateTime.After(time.Now().UTC().Add(-duration))
 }
@@ -242,6 +243,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
+		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}
@@ -254,7 +256,7 @@ func (d *DatadogMetricInternal) SetQueries(q string) {
 	d.resolvedQuery = &q
 }
 
-// SetQueries is only used for testing in other packages
+// SetQuery is only used for testing in other packages
 func (d *DatadogMetricInternal) SetQuery(q string) {
 	d.query = q
 }

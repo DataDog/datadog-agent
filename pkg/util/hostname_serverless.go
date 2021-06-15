@@ -23,3 +23,7 @@ func Fqdn(hostname string) string {
 func GetHostname(ctx context.Context) (string, error) {
 	return "", nil
 }
+
+func GetHostnameData() (HostnameData, error) {
+	return HostnameData{}, nil
+}

@@ -257,7 +257,7 @@ func (s *KubeServiceService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeServiceService) GetTaggerEntity() string {
 	return s.entity
 }

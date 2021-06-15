@@ -6,6 +6,7 @@
 package mocksender
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -65,9 +66,14 @@ func (m *MockSender) Event(e metrics.Event) {
 	m.Called(e)
 }
 
+//EventPlatformEvent enables the event platform event mock call.
+func (m *MockSender) EventPlatformEvent(rawEvent string, eventType string) {
+	m.Called(rawEvent, eventType)
+}
+
 //HistogramBucket enables the histogram bucket mock call.
-func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string) {
-	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags)
+func (m *MockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	m.Called(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 }
 
 //Commit enables the commit mock call.
@@ -90,10 +96,10 @@ func (m *MockSender) FinalizeCheckServiceTag() {
 	m.Called()
 }
 
-//GetMetricStats enables the get metric stats mock call.
-func (m *MockSender) GetMetricStats() map[string]int64 {
+//GetSenderStats enables the get metric stats mock call.
+func (m *MockSender) GetSenderStats() check.SenderStats {
 	m.Called()
-	return make(map[string]int64)
+	return check.NewSenderStats()
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages

@@ -8,9 +8,13 @@
 package forwarder
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,7 +108,7 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 
 func TestRequeueTransaction(t *testing.T) {
 	forwarder := newDomainForwarderForTest(0)
-	tr := NewHTTPTransaction()
+	tr := transaction.NewHTTPTransaction()
 	requireLenForwarderRetryQueue(t, forwarder, 0)
 	forwarder.requeueTransaction(tr)
 	requireLenForwarderRetryQueue(t, forwarder, 1)
@@ -115,16 +119,16 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.init()
 
 	// Default value should be 0
-	assert.Equal(t, int64(0), transactionsDropped.Value())
+	assert.Equal(t, int64(0), transaction.TransactionsDropped.Value())
 
 	payload := []byte{1}
-	t1 := NewHTTPTransaction()
+	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
-	t1.Endpoint.route = "test1"
+	t1.Endpoint.Route = "test1"
 	t1.Payload = &payload
-	t2 := NewHTTPTransaction()
+	t2 := transaction.NewHTTPTransaction()
 	t2.Domain = "domain/"
-	t2.Endpoint.route = "test2"
+	t2.Endpoint.Route = "test2"
 	t2.Payload = &payload
 
 	// Create blocks
@@ -140,7 +144,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryTransactions(time.Now())
 	requireLenForwarderRetryQueue(t, forwarder, 1)
 	assert.Len(t, forwarder.lowPrio, 1)
-	assert.Equal(t, int64(1), transactionsDropped.Value())
+	assert.Equal(t, int64(1), transaction.TransactionsDropped.Value())
 }
 
 func TestForwarderRetry(t *testing.T) {
@@ -171,7 +175,7 @@ func TestForwarderRetry(t *testing.T) {
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
 	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
-	trs, err := forwarder.transactionContainer.extractTransactions()
+	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 1)
 	assert.Equal(t, trs[0], notReady)
@@ -229,7 +233,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 
 	require.Len(t, forwarder.highPrio, 0)
 	require.Len(t, forwarder.lowPrio, 0)
-	trs, err := forwarder.transactionContainer.extractTransactions()
+	trs, err := forwarder.retryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 2)
 
@@ -243,9 +247,9 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	telemetry := transactionContainerTelemetry{}
-	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 1+2, 0, telemetry)
-	forwarder := newDomainForwarder("test", transactionContainer, 0, 10, sortByCreatedTimeAndPriority{highPriorityFirst: true})
+	telemetry := retry.TransactionRetryQueueTelemetry{}
+	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
+	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -257,28 +261,53 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 		tr.On("GetPayloadSize").Return(payloadSize)
 		tr.On("GetTarget").Return("blocked")
 		tr.On("GetCreatedAt").Return(time.Now().Add(time.Duration(-payloadSize) * time.Second))
-		transactionContainer.add(tr)
+		transactionRetryQueue.Add(tr)
 	}
 
 	forwarder.retryTransactions(time.Now())
 
-	trs, err := transactionContainer.extractTransactions()
+	trs, err := transactionRetryQueue.ExtractTransactions()
 	require.NoError(t, err)
 	require.Len(t, trs, 2)
 	require.Equal(t, 1, trs[0].GetPayloadSize())
 	require.Equal(t, 2, trs[1].GetPayloadSize())
 }
 
-func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
-	sorter := sortByCreatedTimeAndPriority{highPriorityFirst: true}
-	telemetry := transactionContainerTelemetry{}
-	transactionContainer := newTransactionContainer(sortByCreatedTimeAndPriority{highPriorityFirst: true}, nil, 2, 0, telemetry)
+func TestDomainForwarderInitConfigs(t *testing.T) {
+	// Test default values
+	forwarder := newDomainForwarderForTest(0)
+	forwarder.init()
+	assert.Equal(t, 1000, cap(forwarder.highPrio))
+	assert.Equal(t, 1000, cap(forwarder.lowPrio))
+	assert.Equal(t, 1000, cap(forwarder.requeuedTransaction))
 
-	return newDomainForwarder("test", transactionContainer, 1, connectionResetInterval, sorter)
+	// Test custom values
+	datadogYaml := `
+forwarder_high_prio_buffer_size: 1100
+forwarder_low_prio_buffer_size: 1200
+forwarder_requeue_buffer_size: 1300
+`
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+	assert.NoError(t, err)
+
+	forwarder = newDomainForwarderForTest(0)
+	forwarder.init()
+	assert.Equal(t, 1100, cap(forwarder.highPrio))
+	assert.Equal(t, 1200, cap(forwarder.lowPrio))
+	assert.Equal(t, 1300, cap(forwarder.requeuedTransaction))
+}
+
+func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
+	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
+	telemetry := retry.TransactionRetryQueueTelemetry{}
+	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
+
+	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter)
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {
-	require.Equal(t, expectedValue, forwarder.transactionContainer.getTransactionCount())
+	require.Equal(t, expectedValue, forwarder.retryQueue.GetTransactionCount())
 }
 
 func newTestTransactionDomainForwarder() *testTransaction {

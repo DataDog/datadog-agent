@@ -1,0 +1,84 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "file.json",
+    "type": "object",
+    "properties": {
+        "file": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "container_path": {
+                    "$ref": "file:///container_path.json"
+                },
+                "inode": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "integer"
+                },
+                "mount_id": {
+                    "type": "integer"
+                },
+                "filesystem": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "group": {
+                    "type": "string"
+                },
+                "modification_time": {
+                    "$ref": "file:///datetime.json"
+                },
+                "change_time": {
+                    "$ref": "file:///datetime.json"
+                },
+                "destination": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {
+                            "type": "integer"
+                        },
+                        "uid": {
+                            "type": "integer"
+                        },
+                        "gid": {
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "mode",
+                        "uid",
+                        "gid"
+                    ]
+                },
+                "flags": {
+                    "type": "array",
+                    "items": [
+                        {
+                            "type": "string"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "path",
+                "name",
+                "inode",
+                "mode",
+                "mount_id",
+                "filesystem",
+                "user",
+                "group",
+                "modification_time",
+                "change_time"
+            ]
+        }
+    }
+}

@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // +build !windows
+// +build !darwin
 
 package config
 

@@ -1,13 +1,4 @@
 ---
-.if_kitchen_deploy: &if_kitchen_deploy
-  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_TAG != null || $DEPLOY_AGENT == "true" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
 .kitchen_common:
   stage: kitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:$DATADOG_AGENT_BUILDERS
@@ -19,6 +10,17 @@
       - $CI_PROJECT_DIR/kitchen_logs
   retry: 1
 
+# Kitchen: providers
+# ---------------
+
+.kitchen_ec2:
+  variables:
+    KITCHEN_PROVIDER: ec2
+    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
+
+.kitchen_ec2_spot_instances:
+  variables:
+    KITCHEN_EC2_SPOT_PRICE: on-demand
 
 # Kitchen: agents
 # ---------------
@@ -26,9 +28,7 @@
 .kitchen_agent_a6:
   extends: .kitchen_common
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen_deploy
+    !reference [.on_kitchen_tests_a6]
   variables:
     AGENT_MAJOR_VERSION: 6
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -36,9 +36,7 @@
 .kitchen_agent_a7:
   extends: .kitchen_common
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen_deploy
+    !reference [.on_kitchen_tests_a7]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -79,32 +77,52 @@
   variables:
     AGENT_FLAVOR: "datadog-agent"
 
+# For non-main Agent installs, KITCHEN_PLATFORM_SUFFIX needs to be set
+# to a unique name. See test/kitchen/drivers/azure_driver.yml for details.
 .kitchen_datadog_iot_agent_flavor:
   variables:
     AGENT_FLAVOR: "datadog-iot-agent"
+    KITCHEN_PLATFORM_SUFFIX: "iot"
 
 .kitchen_datadog_dogstatsd_flavor:
   variables:
     AGENT_FLAVOR: "datadog-dogstatsd"
+    KITCHEN_PLATFORM_SUFFIX: "dsd"
 
 # Kitchen: Azure locations
 # -------------------------------
 
 .kitchen_azure_location_north_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "North Central US"
 
 .kitchen_azure_location_west_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "West Central US"
 
 .kitchen_azure_location_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "Central US"
 
 .kitchen_azure_location_south_central_us:
   variables:
+    KITCHEN_PROVIDER: azure
     AZURE_LOCATION: "South Central US"
+
+
+# Kitchen: EC2 locations
+# -------------------------------
+
+.kitchen_ec2_location_us_east_1:
+  extends:
+    - .kitchen_ec2
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-c18341ed
+    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
 
 
 # Kitchen: Test types (test suite * agent flavor + azure location)

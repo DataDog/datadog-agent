@@ -8,7 +8,9 @@
 enum erpc_op {
     UNKNOWN_OP,
     DISCARD_INODE_OP,
-    DISCARD_PID_OP
+    DISCARD_PID_OP,
+    RESOLVE_SEGMENT_OP,
+    RESOLVE_PATH_OP
 };
 
 int __attribute__((always_inline)) handle_discard(void *data, u64 *event_type, u64 *timeout) {
@@ -58,7 +60,7 @@ int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
     u64 fd, pid;
 
     LOAD_CONSTANT("erpc_fd", fd);
-    LOAD_CONSTANT("erpc_pid", pid);
+    LOAD_CONSTANT("runtime_pid", pid);
 
     u32 vfs_fd = PT_REGS_PARM2(ctx);
     if (!vfs_fd || (u64)vfs_fd != fd) {
@@ -88,11 +90,20 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
 
     void *data = req + sizeof(op);
 
+    if (!is_flushing_discarders()) {
+        switch (op) {
+            case DISCARD_INODE_OP:
+                return handle_discard_inode(data);
+            case DISCARD_PID_OP:
+                return handle_discard_pid(data);
+        }
+    }
+
     switch (op) {
-        case DISCARD_INODE_OP:
-            return handle_discard_inode(data);
-        case DISCARD_PID_OP:
-            return handle_discard_pid(data);
+        case RESOLVE_SEGMENT_OP:
+            return handle_resolve_segment(data);
+        case RESOLVE_PATH_OP:
+            return handle_resolve_path(ctx, data);
     }
 
     return 0;

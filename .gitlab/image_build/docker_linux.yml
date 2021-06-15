@@ -1,10 +1,4 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 .docker_build_job_definition:
   stage: image_build
   script:
@@ -44,8 +38,7 @@
 docker_build_agent6:
   extends: .docker_build_job_definition_amd64
   rules:
-    - <<: *if_version_6
-      when: on_success
+    !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -59,8 +52,7 @@ docker_build_agent6:
 docker_build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    - <<: *if_version_6
-      when: on_success
+    !reference [.on_all_builds_a6]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -75,8 +67,7 @@ docker_build_agent6_arm64:
 docker_build_agent6_jmx:
   extends: .docker_build_job_definition_amd64
   rules:
-    - <<: *if_version_6
-      when: on_success
+    !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -92,8 +83,7 @@ docker_build_agent6_jmx:
 docker_build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    - <<: *if_version_6
-      when: on_success
+    !reference [.on_all_builds_a6]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -110,8 +100,7 @@ docker_build_agent6_jmx_arm64:
 docker_build_agent6_py2py3_jmx:
   extends: .docker_build_job_definition_amd64
   rules:
-    - <<: *if_version_6
-      when: on_success
+    !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -126,8 +115,7 @@ docker_build_agent6_py2py3_jmx:
 docker_build_agent7:
   extends: .docker_build_job_definition_amd64
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_a7]
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -141,8 +129,7 @@ docker_build_agent7:
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_all_builds_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -157,8 +144,7 @@ docker_build_agent7_arm64:
 docker_build_agent7_jmx:
   extends: .docker_build_job_definition_amd64
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_a7]
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -172,8 +158,7 @@ docker_build_agent7_jmx:
 docker_build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_all_builds_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -187,6 +172,8 @@ docker_build_agent7_jmx_arm64:
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
   extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
@@ -196,6 +183,8 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_tag_or_a7_all_builds]
   needs:
     - job: cluster_agent-build_arm64
       artifacts: false
@@ -206,6 +195,8 @@ docker_build_cluster_agent_arm64:
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
   extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_a7]
   needs:
     - job: build_dogstatsd_static-deb_x64
       artifacts: false

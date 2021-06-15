@@ -24,17 +24,6 @@ struct bpf_map_def SEC("maps/concurrent_syscalls") concurrent_syscalls = {
 
 #define CONCURRENT_SYSCALLS_COUNTER 0
 
-struct _tracepoint_raw_syscalls_sys_exit
-{
-    unsigned short common_type;
-    unsigned char common_flags;
-    unsigned char common_preempt_count;
-    int common_pid;
-
-    long id;
-    long ret;
-};
-
 struct process_syscall_t {
     char comm[TASK_COMM_LEN];
     int pid;
@@ -89,15 +78,19 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 }
 
 SEC("tracepoint/raw_syscalls/sys_exit")
-int sys_exit(struct _tracepoint_raw_syscalls_sys_exit *args) {
-    u32 key = CONCURRENT_SYSCALLS_COUNTER;
-    long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
-    if (concurrent_syscalls_counter == NULL)
-        return 0;
+int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    u64 enabled;
+    LOAD_CONSTANT("syscall_monitor", enabled);
+    if (enabled) {
+        u32 key = CONCURRENT_SYSCALLS_COUNTER;
+        long *concurrent_syscalls_counter = bpf_map_lookup_elem(&concurrent_syscalls, &key);
+        if (concurrent_syscalls_counter == NULL)
+            return 0;
 
-    __sync_fetch_and_add(concurrent_syscalls_counter, -1);
-    if (*concurrent_syscalls_counter < 0) {
-        __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+        __sync_fetch_and_add(concurrent_syscalls_counter, -1);
+        if (*concurrent_syscalls_counter < 0) {
+            __sync_fetch_and_add(concurrent_syscalls_counter, 1);
+        }
     }
 
     return 0;

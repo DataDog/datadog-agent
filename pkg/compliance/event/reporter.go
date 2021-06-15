@@ -9,8 +9,15 @@ import (
 	"encoding/json"
 	"time"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +30,32 @@ type Reporter interface {
 type reporter struct {
 	logSource *config.LogSource
 	logChan   chan *message.Message
+}
+
+// NewLogReporter instantiates a new log reporter
+func NewLogReporter(stopper restart.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, context *client.DestinationsContext) (Reporter, error) {
+	health := health.RegisterLiveness(sourceType)
+
+	// setup the auditor
+	auditor := auditor.New(runPath, sourceType+"-registry.json", coreconfig.DefaultAuditorTTL, health)
+	auditor.Start()
+	stopper.Add(auditor)
+
+	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
+	pipelineProvider.Start()
+	stopper.Add(pipelineProvider)
+
+	logSource := config.NewLogSource(
+		sourceName,
+		&config.LogsConfig{
+			Type:    sourceType,
+			Service: sourceName,
+			Source:  sourceName,
+		},
+	)
+
+	return NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
 // NewReporter returns an instance of Reporter

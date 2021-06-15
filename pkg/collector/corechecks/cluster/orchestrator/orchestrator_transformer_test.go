@@ -16,12 +16,26 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+func int32Ptr(v int32) *int32 {
+	return &v
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
 
 func TestExtractDeployment(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
@@ -758,6 +772,349 @@ func TestExtractNode(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, &tc.expected, extractNode(&tc.input))
+		})
+	}
+}
+
+func TestExtractJob(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+	startTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 31, 0, 0, time.UTC))
+	completionTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 35, 0, 0, time.UTC))
+	lastTransitionTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 35, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    batchv1.Job
+		expected model.Job
+	}{
+		"job started by cronjob (in progress)": {
+			input: batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels:            map[string]string{"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Name:              "job",
+					Namespace:         "project",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "batch/v1beta1",
+							Controller: boolPtr(true),
+							Kind:       "CronJob",
+							Name:       "test-job",
+							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
+				},
+				Spec: batchv1.JobSpec{
+					BackoffLimit: int32Ptr(6),
+					Completions:  int32Ptr(1),
+					Parallelism:  int32Ptr(1),
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
+						},
+					},
+				},
+				Status: batchv1.JobStatus{
+					Active:    1,
+					StartTime: &startTime,
+				},
+			},
+			expected: model.Job{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"controller-uid:43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Name:              "job",
+					Namespace:         "project",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Kind: "CronJob",
+							Name: "test-job",
+							Uid:  "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					Uid:             "8893e7a0-fc49-4627-b695-3ed47074ecba",
+				},
+				Spec: &model.JobSpec{
+					BackoffLimit: 6,
+					Completions:  1,
+					Parallelism:  1,
+					Selectors: []*model.LabelSelectorRequirement{
+						{
+							Key:      "controller-uid",
+							Operator: "In",
+							Values:   []string{"43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+						},
+					},
+				},
+				Status: &model.JobStatus{
+					Active:    1,
+					StartTime: startTime.Unix(),
+				},
+			},
+		},
+		"job started by cronjob (completed)": {
+			input: batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels:            map[string]string{"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Name:              "job",
+					Namespace:         "project",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "batch/v1beta1",
+							Controller: boolPtr(true),
+							Kind:       "CronJob",
+							Name:       "test-job",
+							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
+				},
+				Spec: batchv1.JobSpec{
+					BackoffLimit: int32Ptr(6),
+					Completions:  int32Ptr(1),
+					Parallelism:  int32Ptr(1),
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
+						},
+					},
+				},
+				Status: batchv1.JobStatus{
+					CompletionTime: &completionTime,
+					Conditions: []batchv1.JobCondition{
+						{
+							LastProbeTime:      lastTransitionTime,
+							LastTransitionTime: lastTransitionTime,
+							Status:             corev1.ConditionTrue,
+							Type:               batchv1.JobComplete,
+						},
+					},
+					Succeeded: 1,
+					StartTime: &startTime,
+				},
+			},
+			expected: model.Job{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"controller-uid:43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Name:              "job",
+					Namespace:         "project",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Kind: "CronJob",
+							Name: "test-job",
+							Uid:  "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					Uid:             "8893e7a0-fc49-4627-b695-3ed47074ecba",
+				},
+				Spec: &model.JobSpec{
+					BackoffLimit: 6,
+					Completions:  1,
+					Parallelism:  1,
+					Selectors: []*model.LabelSelectorRequirement{
+						{
+							Key:      "controller-uid",
+							Operator: "In",
+							Values:   []string{"43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+						},
+					},
+				},
+				Status: &model.JobStatus{
+					CompletionTime: completionTime.Unix(),
+					Succeeded:      1,
+					StartTime:      startTime.Unix(),
+				},
+			},
+		},
+		"job started by cronjob (failed)": {
+			input: batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
+					},
+					Name:      "job",
+					Namespace: "project",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "batch/v1beta1",
+							Controller: boolPtr(true),
+							Kind:       "CronJob",
+							Name:       "test-job",
+							UID:        "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					UID:             types.UID("8893e7a0-fc49-4627-b695-3ed47074ecba"),
+				},
+				Spec: batchv1.JobSpec{
+					BackoffLimit: int32Ptr(6),
+					Completions:  int32Ptr(1),
+					Parallelism:  int32Ptr(1),
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"controller-uid": "43739057-c6d7-4a5e-ab63-d0c8844e5272",
+						},
+					},
+				},
+				Status: batchv1.JobStatus{
+					Failed: 1,
+					Conditions: []batchv1.JobCondition{
+						{
+							LastProbeTime:      lastTransitionTime,
+							LastTransitionTime: lastTransitionTime,
+							Message:            "Job has reached the specified backoff limit",
+							Reason:             "BackoffLimitExceeded",
+							Status:             corev1.ConditionTrue,
+							Type:               batchv1.JobFailed,
+						},
+					},
+					StartTime: &startTime,
+				},
+			},
+			expected: model.Job{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"controller-uid:43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+					Name:              "job",
+					Namespace:         "project",
+					OwnerReferences: []*model.OwnerReference{
+						{
+							Kind: "CronJob",
+							Name: "test-job",
+							Uid:  "d0326ca4-d405-4fe9-99b5-7bfc4a6722b6",
+						},
+					},
+					ResourceVersion: "220021511",
+					Uid:             "8893e7a0-fc49-4627-b695-3ed47074ecba",
+				},
+				Spec: &model.JobSpec{
+					BackoffLimit: 6,
+					Completions:  1,
+					Parallelism:  1,
+					Selectors: []*model.LabelSelectorRequirement{
+						{
+							Key:      "controller-uid",
+							Operator: "In",
+							Values:   []string{"43739057-c6d7-4a5e-ab63-d0c8844e5272"},
+						},
+					},
+				},
+				Status: &model.JobStatus{
+					ConditionMessage: "Job has reached the specified backoff limit",
+					Failed:           1,
+					StartTime:        startTime.Unix(),
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractJob(&tc.input))
+		})
+	}
+}
+
+func TestExtractCronJob(t *testing.T) {
+	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+	lastScheduleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+
+	tests := map[string]struct {
+		input    batchv1beta1.CronJob
+		expected model.CronJob
+	}{
+		"full cron job (active)": {
+			input: batchv1beta1.CronJob{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"annotation": "my-annotation",
+					},
+					CreationTimestamp: creationTime,
+					Labels: map[string]string{
+						"app": "my-app",
+					},
+					Name:            "cronjob",
+					Namespace:       "project",
+					ResourceVersion: "220593670",
+					UID:             types.UID("0ff96226-578d-4679-b3c8-72e8a485c0ef"),
+				},
+				Spec: batchv1beta1.CronJobSpec{
+					ConcurrencyPolicy:          batchv1beta1.ForbidConcurrent,
+					FailedJobsHistoryLimit:     int32Ptr(4),
+					Schedule:                   "*/5 * * * *",
+					StartingDeadlineSeconds:    int64Ptr(120),
+					SuccessfulJobsHistoryLimit: int32Ptr(2),
+					Suspend:                    boolPtr(false),
+				},
+				Status: batchv1beta1.CronJobStatus{
+					Active: []corev1.ObjectReference{
+						{
+							APIVersion:      "batch/v1",
+							Kind:            "Job",
+							Name:            "cronjob-1618585500",
+							Namespace:       "project",
+							ResourceVersion: "220593669",
+							UID:             "644a62fe-783f-4609-bd2b-a9ec1212c07b",
+						},
+					},
+					LastScheduleTime: &lastScheduleTime,
+				},
+			},
+			expected: model.CronJob{
+				Metadata: &model.Metadata{
+					Annotations:       []string{"annotation:my-annotation"},
+					CreationTimestamp: creationTime.Unix(),
+					Labels:            []string{"app:my-app"},
+					Name:              "cronjob",
+					Namespace:         "project",
+					ResourceVersion:   "220593670",
+					Uid:               "0ff96226-578d-4679-b3c8-72e8a485c0ef",
+				},
+				Spec: &model.CronJobSpec{
+					ConcurrencyPolicy:          "Forbid",
+					FailedJobsHistoryLimit:     4,
+					Schedule:                   "*/5 * * * *",
+					StartingDeadlineSeconds:    120,
+					SuccessfulJobsHistoryLimit: 2,
+					Suspend:                    false,
+				},
+				Status: &model.CronJobStatus{
+					Active: []*model.ObjectReference{
+						{
+							ApiVersion:      "batch/v1",
+							Kind:            "Job",
+							Name:            "cronjob-1618585500",
+							Namespace:       "project",
+							ResourceVersion: "220593669",
+							Uid:             "644a62fe-783f-4609-bd2b-a9ec1212c07b",
+						},
+					},
+					LastScheduleTime: lastScheduleTime.Unix(),
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractCronJob(&tc.input))
 		})
 	}
 }

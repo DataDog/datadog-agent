@@ -141,12 +141,17 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	logSource := config.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
-			Type:    sourceType,
-			Service: sourceName,
-			Source:  sourceName,
+			Type:   sourceType,
+			Source: sourceName,
 		},
 	)
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
+}
+
+// This function will only be used on Linux. The only platforms where the runtime agent runs
+func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.", coreconfig.Datadog)
+	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.")
 }
 
 func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {

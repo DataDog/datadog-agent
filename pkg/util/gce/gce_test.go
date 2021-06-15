@@ -72,9 +72,9 @@ func TestGetHostAliases(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias(ctx)
+	val, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, "gce-instance-name.gce-project", val)
+	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-instance-name.gce-project"}, val)
 }
 
 func TestGetHostAliasesInstanceNameError(t *testing.T) {
@@ -97,9 +97,9 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias(ctx)
+	val, err := GetHostAliases(ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, "gce-custom-hostname.gce-project", val)
+	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-custom-hostname.gce-project"}, val)
 }
 
 func TestGetClusterName(t *testing.T) {

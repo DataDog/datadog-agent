@@ -15,8 +15,10 @@ import (
 	"io"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var fmap = Textfmap()
@@ -34,6 +36,12 @@ func FormatStatus(data []byte) (string, error) {
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
+	s, err := check.TranslateEventPlatformEventTypes(aggregatorStats)
+	if err != nil {
+		log.Debug("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+	} else {
+		aggregatorStats = s
+	}
 	dogstatsdStats := stats["dogstatsdStats"]
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
@@ -41,6 +49,7 @@ func FormatStatus(data []byte) (string, error) {
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
+	autodiscoveryErrors := stats["autodiscoveryErrors"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -60,6 +69,9 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	if traps.IsEnabled() {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	}
+	if config.IsContainerized() {
+		renderStatusTemplate(b, "/autodiscovery.tmpl", autodiscoveryErrors)
 	}
 
 	return b.String(), nil

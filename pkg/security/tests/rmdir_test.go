@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestRmdir(t *testing.T) {
@@ -60,7 +61,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 
-			testContainerPath(t, event, "rmdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rmdir.file.container_path")
+			}
 		}
 	}))
 
@@ -92,7 +95,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 
-			testContainerPath(t, event, "rmdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rmdir.file.container_path")
+			}
 		}
 	})
 }

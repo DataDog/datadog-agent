@@ -212,9 +212,9 @@ func (l *DockerListener) processEvent(ctx context.Context, e *docker.ContainerEv
 
 	if found {
 		switch e.Action {
-		case "die":
+		case docker.ContainerEventActionDie:
 			l.removeService(cID)
-		case "start":
+		case docker.ContainerEventActionStart:
 			// Container restarted with the same ID within 5 seconds.
 			time.AfterFunc(5*time.Second, func() {
 				l.createService(ctx, cID)
@@ -244,22 +244,23 @@ func (l *DockerListener) createService(ctx context.Context, cID string) {
 	var isKube bool
 	cInspect, err := l.dockerUtil.Inspect(ctx, cID, false)
 	if err != nil {
-		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
-	} else {
-		containerImage, err = l.dockerUtil.ResolveImageNameFromContainer(ctx, cInspect)
-		if err != nil {
-			log.Warnf("error while resolving image name: %s", err)
-			containerImage = ""
-		}
-		// Detect AD exclusion
-		containerName = cInspect.Name
-		if l.filters.IsExcluded(containers.GlobalFilter, containerName, containerImage, "") {
-			log.Debugf("container %s filtered out: name %q image %q", cID[:12], containerName, containerImage)
-			return
-		}
-		if findKubernetesInLabels(cInspect.Config.Labels) {
-			isKube = true
-		}
+		log.Errorf("Failed to inspect container '%s', not creating AD service, err: %s", cID[:12], err)
+		return
+	}
+
+	containerImage, err = l.dockerUtil.ResolveImageNameFromContainer(ctx, cInspect)
+	if err != nil {
+		log.Warnf("error while resolving image name: %s", err)
+		containerImage = ""
+	}
+	// Detect AD exclusion
+	containerName = cInspect.Name
+	if l.filters.IsExcluded(containers.GlobalFilter, containerName, containerImage, "") {
+		log.Debugf("container %s filtered out: name %q image %q", cID[:12], containerName, containerImage)
+		return
+	}
+	if findKubernetesInLabels(cInspect.Config.Labels) {
+		isKube = true
 	}
 
 	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)

@@ -38,7 +38,8 @@ func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 
 // Clear reinitializes the buffer.
 func (p *MessageBuffer) Clear() {
-	p.messageBuffer = p.messageBuffer[:0]
+	// create a new buffer to avoid race conditions
+	p.messageBuffer = make([]*message.Message, 0, cap(p.messageBuffer))
 	p.contentSize = 0
 }
 
@@ -55,4 +56,9 @@ func (p *MessageBuffer) IsFull() bool {
 // IsEmpty returns true if the buffer is empty.
 func (p *MessageBuffer) IsEmpty() bool {
 	return len(p.messageBuffer) == 0
+}
+
+// ContentSizeLimit returns the configured content size limit. Messages above this limit are not accepted.
+func (p *MessageBuffer) ContentSizeLimit() int {
+	return p.contentSizeLimit
 }

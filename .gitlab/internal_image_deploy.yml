@@ -1,0 +1,25 @@
+---
+# internal_image_deploy stage
+# Contains jobs to trigger a pipeline in the images repo to create internal Agent images.
+
+docker_trigger_internal:
+  stage: internal_image_deploy
+  rules:
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
+  needs:
+    - job: docker_build_agent7_jmx
+      artifacts: false
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: false
+  trigger:
+    project: DataDog/images
+    branch: master
+    strategy: depend
+  variables:
+    IMAGE_VERSION: tmpl-v3
+    IMAGE_NAME: datadog-agent
+    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
+    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
+    TMPL_AGENT_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx
+    RELEASE_STAGING: "true"
+    RELEASE_PROD: "true"

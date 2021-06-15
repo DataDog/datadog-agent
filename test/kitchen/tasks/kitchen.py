@@ -2,7 +2,9 @@ import glob
 import json
 import os.path
 import re
+import traceback
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -15,8 +17,10 @@ def genconfig(
     osversions="all",
     testfiles=None,
     uservars=None,
-    platformfile="platforms.json",
+    platformfile=None,
     platlist=None,
+    fips=False,
+    arch="x86_64",
 ):
     """
     Create a kitchen config
@@ -35,7 +39,25 @@ def genconfig(
     if not platlist and not provider:
         provider = "azure"
 
-    platforms = load_platforms(ctx, platformfile=platformfile)
+    if platformfile:
+        with open(platformfile, "r") as f:
+            platforms = json.load(f)
+    else:
+        try:
+            print(
+                "Fetching the latest kitchen platforms.json from Github. Use --platformfile=platforms.json to override with a local file."
+            )
+            r = requests.get(
+                'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
+                allow_redirects=True,
+            )
+            r.raise_for_status()
+            platforms = r.json()
+        except Exception:
+            traceback.print_exc()
+            print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
+            with open("platforms.json", "r") as f:
+                platforms = json.load(f)
 
     # create the TEST_PLATFORMS environment variable
     testplatformslist = []
@@ -49,9 +71,8 @@ def genconfig(
                 ),
                 code=2,
             )
-            raise Exit(2)
 
-        ## check to see if the OS is configured for the given provider
+        # check to see if the OS is configured for the given provider
         prov = plat.get(provider)
         if not prov:
             raise Exit(
@@ -61,20 +82,30 @@ def genconfig(
                 code=3,
             )
 
-        ## get list of target OSes
+        ar = prov.get(arch)
+        if not ar:
+            raise Exit(
+                message="Unknown architecture {arch}. "
+                "Known architectures for platform {plat} provider {prov} are {avail}\n".format(
+                    arch=arch, prov=provider, plat=platform, avail=list(prov.keys())
+                ),
+                code=4,
+            )
+
+        # get list of target OSes
         if osversions.lower() == "all":
             osversions = ".*"
 
-        osimages = load_targets(ctx, prov, osversions)
+        osimages = load_targets(ctx, ar, osversions)
 
         print("Chose os targets {}\n".format(osimages))
         for osimage in osimages:
-            testplatformslist.append("{},{}".format(osimage, prov[osimage]))
+            testplatformslist.append("{},{}".format(osimage, ar[osimage]))
 
     elif platlist:
-        # platform list should be in the form of driver,os,image
+        # platform list should be in the form of driver,os,arch,image
         for entry in platlist:
-            driver, os, image = entry.split(",")
+            driver, os, arch, image = entry.split(",")
             if provider and driver != provider:
                 raise Exit(
                     message="Can only use one driver type per config ( {} != {} )\n".format(provider, driver), code=1
@@ -88,10 +119,13 @@ def genconfig(
             if not platforms[os].get(driver):
                 raise Exit(message="Unknown driver in {}\n".format(entry), code=5)
 
-            if not platforms[os][driver].get(image):
+            if not platforms[os][driver].get(arch):
+                raise Exit(message="Unknown architecture in {}\n".format(entry), code=5)
+
+            if not platforms[os][driver][arch].get(image):
                 raise Exit(message="Unknown image in {}\n".format(entry), code=6)
 
-            testplatformslist.append("{},{}".format(image, platforms[os][driver][image]))
+            testplatformslist.append("{},{}".format(image, platforms[os][driver][arch][image]))
 
     print("Using the following test platform(s)\n")
     for logplat in testplatformslist:
@@ -122,13 +156,25 @@ def genconfig(
     if uservars:
         env = load_user_env(ctx, provider, uservars)
     env['TEST_PLATFORMS'] = testplatforms
+
+    if fips:
+        env['FIPS'] = 'true'
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
 
-def load_platforms(_, platformfile):
-    with open(platformfile, "r") as f:
-        platforms = json.load(f)
-    return platforms
+@task
+def should_rerun_failed(_, runlog):
+    """
+    Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
+    """
+    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    with open(runlog, 'r', encoding='utf-8') as f:
+        text = f.read()
+        result = set(test_result_re.findall(text))
+        if result == {'0'} or result == set():
+            print("Seeing no failed tests in log, advising to rerun")
+        else:
+            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
 
 
 def load_targets(_, targethash, selections):

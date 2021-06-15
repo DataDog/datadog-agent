@@ -142,3 +142,8 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 func init() {
 	RegisterProvider("clusterchecks", NewClusterChecksConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the ClusterChecksConfigProvider
+func (c *ClusterChecksConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

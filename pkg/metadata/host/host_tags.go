@@ -67,7 +67,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		return appendAndSplitTags(old, new, splits)
 	}
 
-	rawHostTags := config.Datadog.GetStringSlice("tags")
+	rawHostTags := config.GetConfiguredTags(false)
 	hostTags := make([]string, 0, len(rawHostTags))
 	hostTags = appendToHostTags(hostTags, rawHostTags)
 
@@ -146,7 +146,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 	}
 
 	t := &Tags{
-		System:              hostTags,
+		System:              util.SortUniqInPlace(hostTags),
 		GoogleCloudPlatform: gceTags,
 	}
 

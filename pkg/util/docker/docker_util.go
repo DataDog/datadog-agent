@@ -235,8 +235,25 @@ func (d *DockerUtil) Inspect(ctx context.Context, id string, withSize bool) (typ
 			return container, nil
 		}
 	}
+
+	container, err := d.InspectNoCache(ctx, id, withSize)
+	if err != nil {
+		return container, err
+	}
+
+	// cache the inspect for 10 seconds to reduce pressure on the daemon
+	cache.Cache.Set(cacheKey, container, 10*time.Second)
+
+	return container, nil
+}
+
+// InspectNoCache returns a docker inspect object for a given container ID. It
+// ignores the inspect cache, always collecting fresh data from the docker
+// daemon.
+func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize bool) (types.ContainerJSON, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
+
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
 	if client.IsErrNotFound(err) {
 		return container, dderrors.NewNotFound(fmt.Sprintf("docker container %s", id))
@@ -244,12 +261,11 @@ func (d *DockerUtil) Inspect(ctx context.Context, id string, withSize bool) (typ
 	if err != nil {
 		return container, err
 	}
+
 	// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
 	if container.ContainerJSONBase == nil {
 		return container, errors.New("invalid inspect data")
 	}
-	// cache the inspect for 10 seconds to reduce pressure on the daemon
-	cache.Cache.Set(cacheKey, container, 10*time.Second)
 
 	return container, nil
 }

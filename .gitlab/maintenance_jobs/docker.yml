@@ -5,9 +5,6 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
 .docker_hub_variables: &docker_hub_variables
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
@@ -33,9 +30,7 @@
 revert_latest_6_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -50,9 +45,7 @@ revert_latest_6_docker_hub:
 revert_latest_7_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -65,33 +58,47 @@ revert_latest_7_docker_hub:
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-servercore
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-jmx
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag latest-servercore-jmx
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-servercore
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-jmx
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
       --image datadog/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --signed-push --name datadog/agent --tag 7-servercore-jmx
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-servercore,windows/amd64
+      --image datadog/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-servercore,windows/amd64
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:latest
     - inv -e docker.publish --signed-pull --signed-push datadog/dogstatsd:${NEW_LATEST_RELEASE_7} datadog/dogstatsd:7
 
 revert_latest_6_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -106,9 +113,7 @@ revert_latest_6_google_container_registry:
 revert_latest_7_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -121,24 +126,40 @@ revert_latest_7_google_container_registry:
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-servercore
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-jmx
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag latest-servercore-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7},linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7},linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-servercore
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1809-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win1909-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-win2004-servercore,windows/amd64
     - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-jmx
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx,linux/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909,windows/amd64
       --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004,windows/amd64
       --image gcr.io/datadoghq/agent-arm64:${NEW_LATEST_RELEASE_7}-jmx,linux/arm64
+    - inv -e docker.publish-manifest --name gcr.io/datadoghq/agent --tag 7-servercore-jmx
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1809-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win1909-servercore,windows/amd64
+      --image gcr.io/datadoghq/agent-amd64:${NEW_LATEST_RELEASE_7}-jmx-win2004-servercore,windows/amd64
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:latest
     - inv -e docker.publish gcr.io/datadoghq/dogstatsd:${NEW_LATEST_RELEASE_7} gcr.io/datadoghq/dogstatsd:7
 
@@ -149,9 +170,7 @@ revert_latest_7_google_container_registry:
 # - in the gitlab pipeline view, trigger the step (in the first column)
 delete_docker_tag:
   rules:
-    - <<: *if_master_branch
-      when: manual
-      allow_failure: true
+    !reference [.on_master_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   tags: ["runner:docker", "size:large"]

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -59,12 +61,24 @@ type Launcher struct {
 	sources                *config.LogSources        // To schedule file source when taileing container from file
 }
 
+// IsAvailable retrues true if the launcher is available and a retrier otherwise
+func IsAvailable() (bool, *retry.Retrier) {
+	util, retrier := dockerutil.GetDockerUtilWithRetrier()
+	if util != nil {
+		log.Info("Docker launcher is available")
+		return true, nil
+	}
+	if coreConfig.IsFeaturePresent(coreConfig.Docker) {
+		log.Warnf("Docker launcher is not available: %v", retrier.LastError())
+	}
+	return false, retrier
+}
+
 // NewLauncher returns a new launcher
-func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
-	if !shouldRetry {
-		if _, err := dockerutil.GetDockerUtil(); err != nil {
-			return nil, err
-		}
+func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+	if _, err := dockerutil.GetDockerUtil(); err != nil {
+		log.Errorf("DockerUtil not available, failed to create launcher", err)
+		return nil
 	}
 
 	launcher := &Launcher{
@@ -97,7 +111,7 @@ func NewLauncher(readTimeout time.Duration, sources *config.LogSources, services
 	launcher.removedSources = sources.GetRemovedForType(config.DockerType)
 	launcher.addedServices = services.GetAddedServicesForType(config.DockerType)
 	launcher.removedServices = services.GetRemovedServicesForType(config.DockerType)
-	return launcher, nil
+	return launcher
 }
 
 // Start starts the Launcher

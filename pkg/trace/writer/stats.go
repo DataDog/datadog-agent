@@ -176,8 +176,10 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
 	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
 	current := pb.StatsPayload{
-		AgentHostname: sp.AgentHostname,
-		AgentEnv:      sp.AgentEnv,
+		AgentHostname:  sp.AgentHostname,
+		AgentEnv:       sp.AgentEnv,
+		AgentVersion:   sp.AgentVersion,
+		ClientComputed: sp.ClientComputed,
 	}
 	var nbEntries, nbBuckets int
 	addPayload := func() {
@@ -251,10 +253,16 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 		payloads[i] = clientStatsPayload{
 			bucketIndexes: make(map[timeWindow]int, 1),
 			ClientStatsPayload: pb.ClientStatsPayload{
-				Hostname: p.Hostname,
-				Env:      p.Env,
-				Version:  p.Version,
-				Stats:    make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+				Hostname:         p.Hostname,
+				Env:              p.Env,
+				Version:          p.Version,
+				Service:          p.Service,
+				Lang:             p.Lang,
+				TracerVersion:    p.TracerVersion,
+				RuntimeID:        p.RuntimeID,
+				Sequence:         p.Sequence,
+				AgentAggregation: p.AgentAggregation,
+				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}
 	}

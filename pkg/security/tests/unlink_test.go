@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestUnlink(t *testing.T) {
@@ -55,7 +56,9 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 
-			testContainerPath(t, event, "unlink.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "unlink.file.container_path")
+			}
 		}
 	}))
 
@@ -83,7 +86,9 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 
-			testContainerPath(t, event, "unlink.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "unlink.file.container_path")
+			}
 		}
 	})
 }

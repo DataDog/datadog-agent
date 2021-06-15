@@ -12,6 +12,4 @@ if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
 fi
 
 # Remove all default checks, AD will automatically enable fargate check
-if [[ ! -e /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default ]]; then
-    find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete
-fi
+find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" | xargs grep -L 'ad_identifiers' | xargs rm -f

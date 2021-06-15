@@ -83,3 +83,32 @@ Severity=Informational
 Language=English
 The service %1 received the stop command, shutting down.
 .
+
+MessageId=12
+SymbolicName=MSG_RECEIVED_STOP_SHUTDOWN
+Severity=Informational
+Language=English
+The service %1 received the shutdown command from the service control manager, shutting down.
+.
+
+MessageId=13
+SymbolicName=MSG_AGENT_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating shutdown.
+.
+
+MessageId=14
+SymbolicName=MSG_AGENT_START_FAILURE
+Severity=Error
+Language=English
+The service failed to start. Error %1
+.
+
+MessageId=15
+SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
+Severity=Warning
+Language=English
+System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
+.
+

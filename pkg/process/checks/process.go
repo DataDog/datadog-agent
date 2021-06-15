@@ -26,6 +26,9 @@ var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
+// ctrProcMsgFactory builds a CollectorProc
+type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.CollectorProc
+
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
@@ -106,16 +109,16 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, err
 	}
 
-	if sysProbeUtil != nil {
-		mergeProcWithSysprobeStats(procs, sysProbeUtil)
-	}
-
 	// stores lastPIDs to be used by RTProcess
 	lastPIDs := make([]int32, 0, len(procs))
 	for pid := range procs {
 		lastPIDs = append(lastPIDs, pid)
 	}
 	p.lastPIDs.Store(lastPIDs)
+
+	if sysProbeUtil != nil {
+		mergeProcWithSysprobeStats(lastPIDs, procs, sysProbeUtil)
+	}
 
 	ctrList, _ := util.GetContainers()
 
@@ -133,7 +136,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, nil
 	}
 
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun)
+	connsByPID := Connections.getLastConnectionsByPID()
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
@@ -168,8 +173,8 @@ func createProcCtrMessages(
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
-	totalProcs, totalContainers := 0, 0
-	msgs := make([]*model.CollectorProc, 0)
+	var totalProcs, totalContainers int
+	var msgs []*model.CollectorProc
 
 	// we first split non-container processes in chunks
 	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
@@ -184,26 +189,21 @@ func createProcCtrMessages(
 		})
 	}
 
-	ctrProcs := make([]*model.Process, 0)
-	ctrs := make([]*model.Container, 0, len(containers))
-	for _, ctr := range containers {
-		if procs, ok := procsByCtr[ctr.Id]; ok {
-			ctrProcs = append(ctrProcs, procs...)
-		}
-		ctrs = append(ctrs, ctr)
-	}
+	procCtrMessages := packProcCtrMessages(cfg.MaxCtrProcessesPerMessage, procsByCtr, containers,
+		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
+			return &model.CollectorProc{
+				HostName:          cfg.HostName,
+				NetworkId:         networkID,
+				Info:              sysInfo,
+				Processes:         p,
+				Containers:        c,
+				GroupId:           groupID,
+				ContainerHostType: cfg.ContainerHostType,
+			}
+		},
+	)
 
-	if len(ctrs) > 0 {
-		msgs = append(msgs, &model.CollectorProc{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Info:              sysInfo,
-			Processes:         ctrProcs,
-			Containers:        ctrs,
-			GroupId:           groupID,
-			ContainerHostType: cfg.ContainerHostType,
-		})
-	}
+	msgs = append(msgs, procCtrMessages...)
 
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
@@ -216,6 +216,54 @@ func createProcCtrMessages(
 	}
 
 	return messages, totalProcs, totalContainers
+}
+
+// packProcCtrMessages packs container processes into messages using the next-fit bin packing algorithm. The
+// container and its processes are placed into a CollectorProc up to the provided capacity. Some containers may have
+// more processes than the supplied capacity, for these they simply get packed into its own message.
+func packProcCtrMessages(
+	capacity int,
+	procsByCtr map[string][]*model.Process,
+	containers []*model.Container,
+	msgFn ctrProcMsgFactory,
+) []*model.CollectorProc {
+	var msgs []*model.CollectorProc
+	var ctrs []*model.Container
+	var ctrProcs []*model.Process
+
+	space := capacity
+
+	for _, ctr := range containers {
+		procs := procsByCtr[ctr.Id]
+
+		if len(procs) > capacity {
+			// this container has more process then the msg capacity, so we send it separately
+			msgs = append(msgs, msgFn(procs, ctr))
+			continue
+		}
+
+		if len(procs) > space {
+			// there is not enough space to fit the next set of container processes, so complete the payload with
+			// the previous container processes and reset
+			msgs = append(msgs, msgFn(ctrProcs, ctrs...))
+			ctrs = nil
+			ctrProcs = nil
+			space = capacity
+		}
+
+		ctrs = append(ctrs, ctr)
+		ctrProcs = append(ctrProcs, procs...)
+		space -= len(procs)
+	}
+
+	if len(ctrs) > 0 {
+		// create messages with any remaining containers and processes
+		msgs = append(msgs, msgFn(ctrProcs, ctrs...))
+	}
+
+	log.Tracef("Created %d container process messages", len(msgs))
+
+	return msgs
 }
 
 // chunkProcesses split non-container processes into chunks and return a list of chunks
@@ -255,8 +303,10 @@ func fmtProcesses(
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
+	connsByPID map[int32][]*model.Connection,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
+	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(cfg, fp, lastProcs) {
@@ -280,6 +330,7 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
+			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -357,6 +408,16 @@ func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 	return ms
 }
 
+func formatNetworks(conns []*model.Connection, interval int) *model.ProcessNetworks {
+	connRate := float32(len(conns)) / float32(interval)
+	totalTraffic := uint64(0)
+	for _, conn := range conns {
+		totalTraffic += conn.LastBytesSent + conn.LastBytesReceived
+	}
+	bytesRate := float32(totalTraffic) / float32(interval)
+	return &model.ProcessNetworks{ConnectionRate: connRate, BytesRate: bytesRate}
+}
+
 // skipProcess will skip a given process if it's blacklisted or hasn't existed
 // for multiple collections.
 func skipProcess(
@@ -392,8 +453,8 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
-	pStats, err := pu.GetProcStats()
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, proc := range procs {
 			if s, ok := pStats.StatsByPID[pid]; ok {

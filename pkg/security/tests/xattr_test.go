@@ -14,9 +14,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestSetXAttr(t *testing.T) {
@@ -72,7 +73,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 
-			testContainerPath(t, event, "setxattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "setxattr.file.container_path")
+			}
 		}
 	})
 
@@ -114,7 +117,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 
-			testContainerPath(t, event, "setxattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "setxattr.file.container_path")
+			}
 		}
 	})
 
@@ -149,7 +154,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 
-			testContainerPath(t, event, "setxattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "setxattr.file.container_path")
+			}
 		}
 	})
 }
@@ -220,7 +227,9 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 
-			testContainerPath(t, event, "removexattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "removexattr.file.container_path")
+			}
 		}
 	})
 
@@ -269,7 +278,9 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 
-			testContainerPath(t, event, "removexattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "removexattr.file.container_path")
+			}
 		}
 	})
 
@@ -326,7 +337,9 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
 			}
 
-			testContainerPath(t, event, "removexattr.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "removexattr.file.container_path")
+			}
 		}
 	})
 }

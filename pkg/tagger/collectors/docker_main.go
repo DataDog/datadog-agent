@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -101,7 +102,7 @@ func (c *DockerCollector) Fetch(ctx context.Context, entity string) ([]string, [
 	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
-	low, orchestrator, high, _, err := c.fetchForDockerID(ctx, cID)
+	low, orchestrator, high, _, err := c.fetchForDockerID(ctx, cID, true)
 	return low, orchestrator, high, err
 }
 
@@ -109,10 +110,12 @@ func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerE
 	var info *TagInfo
 
 	switch e.Action {
-	case "die":
+	case docker.ContainerEventActionDie:
 		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
-	case "start":
-		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID)
+	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
+		inspectCached := e.Action == docker.ContainerEventActionStart
+		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID, inspectCached)
+
 		if err != nil {
 			log.Debugf("Error fetching tags for container '%s': %v", e.ContainerName, err)
 		}
@@ -130,8 +133,18 @@ func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerE
 	c.infoOut <- []*TagInfo{info}
 }
 
-func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string) ([]string, []string, []string, []string, error) {
-	co, err := c.dockerUtil.Inspect(ctx, cID, false)
+func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string, inspectCached bool) ([]string, []string, []string, []string, error) {
+	var (
+		co  types.ContainerJSON
+		err error
+	)
+
+	if inspectCached {
+		co, err = c.dockerUtil.Inspect(ctx, cID, false)
+	} else {
+		co, err = c.dockerUtil.InspectNoCache(ctx, cID, false)
+	}
+
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			log.Debugf("Failed to inspect container %s - %s", cID, err)

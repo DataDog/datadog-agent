@@ -7,7 +7,9 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import (
+	"github.com/DataDog/ebpf/manager"
+)
 
 // allProbes contain the list of all the probes of the runtime security module
 var allProbes []*manager.Probe
@@ -48,7 +50,7 @@ func AllProbes() []*manager.Probe {
 		// Snapshot probe
 		&manager.Probe{
 			UID:     SecurityAgentUID,
-			Section: "kretprobe/get_task_exe_file",
+			Section: "kprobe/security_inode_getattr",
 		},
 	)
 
@@ -67,7 +69,7 @@ func AllMaps() []*manager.Map {
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
-		{Name: "inode_info_cache"},
+		{Name: "exec_file_cache"},
 		// Open tables
 		{Name: "open_flags_approvers"},
 		// Exec tables
@@ -85,6 +87,20 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllMapSpecEditors returns the list of map editors
+func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+	return map[string]manager.MapSpecEditor{
+		"proc_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pid_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+	}
+}
+
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
@@ -99,6 +115,7 @@ func AllTailRoutes() []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getDentryResolverTailCallRoutes()...)
 
 	return routes
 }

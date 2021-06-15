@@ -104,11 +104,11 @@ func newRule(ruleDef *rules.RuleDefinition) *rules.Rule {
 type EventLostRead struct {
 	Timestamp time.Time `json:"date"`
 	Name      string    `json:"map"`
-	Lost      int64     `json:"lost"`
+	Lost      float64   `json:"lost"`
 }
 
 // NewEventLostReadEvent returns the rule and a populated custom event for a lost_events_read event
-func NewEventLostReadEvent(mapName string, lost int64) (*rules.Rule, *CustomEvent) {
+func NewEventLostReadEvent(mapName string, lost float64) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
 			ID: LostEventsRuleID,
 		}), newCustomEvent(model.CustomLostReadEventType, EventLostRead{
@@ -266,7 +266,6 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 // easyjson:json
 type NoisyProcessEvent struct {
 	Timestamp      time.Time                 `json:"date"`
-	Event          string                    `json:"event_type"`
 	Count          uint64                    `json:"pid_count"`
 	Threshold      int64                     `json:"threshold"`
 	ControlPeriod  time.Duration             `json:"control_period"`
@@ -275,8 +274,7 @@ type NoisyProcessEvent struct {
 }
 
 // NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(eventType model.EventType,
-	count uint64,
+func NewNoisyProcessEvent(count uint64,
 	threshold int64,
 	controlPeriod time.Duration,
 	discardedUntil time.Time,
@@ -287,7 +285,6 @@ func NewNoisyProcessEvent(eventType model.EventType,
 			ID: NoisyProcessRuleID,
 		}), newCustomEvent(model.CustomNoisyProcessEventType, NoisyProcessEvent{
 			Timestamp:      timestamp,
-			Event:          eventType.String(),
 			Count:          count,
 			Threshold:      threshold,
 			ControlPeriod:  controlPeriod,
@@ -300,8 +297,6 @@ func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
 	case ErrTruncatedParents:
 		return model.CustomTruncatedParentsEventType
-	case ErrTruncatedSegment:
-		return model.CustomTruncatedSegmentEventType
 	default:
 		return model.UnknownEventType
 	}

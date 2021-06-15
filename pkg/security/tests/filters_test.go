@@ -43,7 +43,7 @@ func openTestFile(test *testModule, filename string, flags int) (int, string, er
 	return int(fd), testFile, nil
 }
 
-func TestOpenBasenameApproverFilter(t *testing.T) {
+func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -54,7 +54,47 @@ func TestOpenBasenameApproverFilter(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableMapDentryResolution: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	fd1, testFile1, err := openTestFile(test, basename, syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+	defer syscall.Close(fd1)
+
+	if _, err := waitForOpenProbeEvent(test, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	fd2, testFile2, err := openTestFile(test, "test-oba-2", syscall.O_CREAT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+	defer syscall.Close(fd2)
+
+	if event, err := waitForOpenProbeEvent(test, testFile2); err == nil {
+		t.Fatalf("shouldn't get an event: %+v", event)
+	}
+}
+
+func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
+	// generate a basename up to the current limit of the agent
+	var basename string
+	for i := 0; i < model.MaxSegmentLength; i++ {
+		basename += "a"
+	}
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
+	}
+
+	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableERPCDentryResolution: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,6 +135,9 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 	}
 	defer test.Close()
 
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
+
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +167,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 func TestOpenParentDiscarderFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "/usr/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "/usr/local/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
@@ -132,6 +175,9 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obd-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {
@@ -215,6 +261,9 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 	}
 	defer test.Close()
 
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
+
 	fd1, testFile1, err := openTestFile(test, "test-oba-1", syscall.O_CREAT)
 	if err != nil {
 		t.Fatal(err)
@@ -255,6 +304,9 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
 
 	fd1, testFile1, err := openTestFile(test, "test-obc-2", syscall.O_CREAT|syscall.O_SYNC)
 	if err != nil {

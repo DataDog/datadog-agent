@@ -28,7 +28,7 @@ type StaticCollector struct {
 func (c *StaticCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.infoOut = out
 	// Extract DD_TAGS environment variable
-	c.ddTagsEnvVar = config.Datadog.GetStringSlice("tags")
+	c.ddTagsEnvVar = config.GetConfiguredTags(false)
 
 	return FetchOnlyCollection, nil
 }

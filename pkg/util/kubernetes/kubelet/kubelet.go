@@ -110,8 +110,8 @@ func ResetCache() {
 	cache.Cache.Delete(podListCacheKey)
 }
 
-// GetKubeUtil returns an instance of KubeUtil.
-func GetKubeUtil() (KubeUtilInterface, error) {
+// GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier
+func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 	globalKubeUtilMutex.Lock()
 	defer globalKubeUtilMutex.Unlock()
 	if globalKubeUtil == nil {
@@ -127,9 +127,18 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Kube util init error: %s", err)
-		return nil, err
+		return nil, &globalKubeUtil.initRetry
 	}
 	return globalKubeUtil, nil
+}
+
+// GetKubeUtil returns an instance of KubeUtil.
+func GetKubeUtil() (KubeUtilInterface, error) {
+	util, retrier := GetKubeUtilWithRetrier()
+	if retrier != nil {
+		return nil, retrier.LastError()
+	}
+	return util, nil
 }
 
 // GetNodeInfo returns the IP address and the hostname of the first valid pod in the PodList
@@ -365,7 +374,7 @@ func (ku *KubeUtil) GetKubeletAPIEndpoint() string {
 	return ku.kubeletClient.kubeletURL
 }
 
-// GetConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
 // Possible map entries:
 //   - url: full url with scheme (required)
 //   - verify_tls: "true" or "false" string

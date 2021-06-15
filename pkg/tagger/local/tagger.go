@@ -211,10 +211,10 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 
 func (t *Tagger) pull(ctx context.Context) {
 	t.RLock()
-	for _, puller := range t.pullers {
+	for name, puller := range t.pullers {
 		err := puller.Pull(ctx)
 		if err != nil {
-			log.Warnf("%s", err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
@@ -251,17 +251,23 @@ IterCollectors:
 				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
+
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
-		low, orch, high, err := collector.Fetch(context.TODO(), entity)
+
 		cacheMiss := false
+		skipCache := false
+		low, orch, high, err := collector.Fetch(context.TODO(), entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 			cacheMiss = true
+		case errors.IsPartial(err):
+			skipCache = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time
 		}
+
 		tagArrays = append(tagArrays, low)
 		if cardinality == collectors.OrchestratorCardinality {
 			tagArrays = append(tagArrays, orch)
@@ -269,6 +275,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, orch)
 			tagArrays = append(tagArrays, high)
 		}
+
 		// Submit to cache for next lookup
 		t.store.processTagInfo([]*collectors.TagInfo{
 			{
@@ -278,6 +285,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
+				SkipCache:            skipCache,
 			},
 		})
 	}
@@ -327,6 +335,18 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 	}
 
 	return tags, nil
+}
+
+// GetEntity returns the entity corresponding to the specified id and an error
+func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
+
+	tags, err := t.store.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	entity := tags.toEntity()
+	return &entity, nil
 }
 
 // List the content of the tagger

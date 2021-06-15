@@ -105,7 +105,7 @@ func (h *AutoscalersController) gc() {
 		log.Debugf("Garbage collection over %d WPAs", len(wpaListObj))
 		for _, obj := range wpaListObj {
 			tmp := &v1alpha1.WatermarkPodAutoscaler{}
-			if err := StructureIntoWPA(obj, tmp); err != nil {
+			if err := UnstructuredIntoWPA(obj, tmp); err != nil {
 				log.Errorf("Unable to cast object from local cache into a WPA: %v", err)
 				continue
 			}

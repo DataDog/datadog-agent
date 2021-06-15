@@ -55,6 +55,8 @@ const (
 	CapsetEventType
 	// ArgsEnvsEventType args and envs event
 	ArgsEnvsEventType
+	// MountReleasedEventType sent when a mount point is released
+	MountReleasedEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -76,8 +78,6 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
-	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
-	CustomTruncatedSegmentEventType
 )
 
 func (t EventType) String() string {
@@ -124,6 +124,8 @@ func (t EventType) String() string {
 		return "capset"
 	case ArgsEnvsEventType:
 		return "args_envs"
+	case MountReleasedEventType:
+		return "mount_released"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -137,8 +139,6 @@ func (t EventType) String() string {
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
 		return "truncated_parents"
-	case CustomTruncatedSegmentEventType:
-		return "truncated_segment"
 	default:
 		return "unknown"
 	}

@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMkdir(t *testing.T) {
@@ -60,7 +61,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 
-			testContainerPath(t, event, "mkdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "mkdir.file.container_path")
+			}
 		}
 	}))
 
@@ -89,7 +92,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 
-			testContainerPath(t, event, "mkdir.file.container_path")
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "mkdir.file.container_path")
+			}
 		}
 	})
 }
@@ -122,11 +127,11 @@ func TestMkdirError(t *testing.T) {
 			runtime.LockOSThread()
 			// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 10000, 10000, 0); errno != 0 {
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
 				t.Error(err)
 			}
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 10000, 10000, 0); errno != 0 {
+			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
 				t.Error(err)
 			}
 

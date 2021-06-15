@@ -34,7 +34,7 @@ func TestConntrackers(t *testing.T) {
 	for _, conntracker := range conntrackers {
 		t.Run(conntracker.name, func(t *testing.T) {
 			t.Run("IPv4", func(t *testing.T) {
-				cfg := config.NewDefaultConfig()
+				cfg := config.New()
 				ct, err := conntracker.create(cfg)
 				require.NoError(t, err)
 				defer ct.Close()
@@ -45,7 +45,7 @@ func TestConntrackers(t *testing.T) {
 				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct)
 			})
 			t.Run("IPv6", func(t *testing.T) {
-				cfg := config.NewDefaultConfig()
+				cfg := config.New()
 				ct, err := conntracker.create(cfg)
 				require.NoError(t, err)
 				defer ct.Close()
@@ -56,7 +56,7 @@ func TestConntrackers(t *testing.T) {
 				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
 			})
 			t.Run("cross namespace", func(t *testing.T) {
-				cfg := config.NewDefaultConfig()
+				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
 				ct, err := conntracker.create(cfg)
 				require.NoError(t, err)

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"testing"
 
-	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 )

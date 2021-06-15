@@ -65,6 +65,7 @@ func (c *Check) Run() error {
 
 		user := ((t.User + t.Nice) - (c.lastTimes.User + c.lastTimes.Nice)) / c.nbCPU
 		system := ((t.System + t.Irq + t.Softirq) - (c.lastTimes.System + c.lastTimes.Irq + c.lastTimes.Softirq)) / c.nbCPU
+		interrupt := ((t.Irq + t.Softirq) - (c.lastTimes.Irq + c.lastTimes.Softirq)) / c.nbCPU
 		iowait := (t.Iowait - c.lastTimes.Iowait) / c.nbCPU
 		idle := (t.Idle - c.lastTimes.Idle) / c.nbCPU
 		stolen := (t.Steal - c.lastTimes.Steal) / c.nbCPU
@@ -72,6 +73,7 @@ func (c *Check) Run() error {
 
 		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
 		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
+		sender.Gauge("system.cpu.interrupt", interrupt*toPercent, "", nil)
 		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
 		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
 		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)

@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList)) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList) error) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks {
@@ -41,9 +42,14 @@ func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDo
 					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
 
+				skipCache := false
 				for _, fn := range containerHandlers {
 					if fn != nil {
-						fn(ctx, container.DockerID, tags)
+						err := fn(ctx, container.DockerID, tags)
+						if err != nil {
+							log.Warnf("container handler func failed: %s", err)
+							skipCache = true
+						}
 					}
 				}
 
@@ -57,6 +63,7 @@ func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDo
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,
+					SkipCache:            skipCache,
 				}
 				output = append(output, info)
 			}
