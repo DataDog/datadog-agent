@@ -522,10 +522,10 @@ func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
 	status, err := ev.resolvers.SELinuxResolver.GetCurrentEnforceStatus()
 	if err != nil {
 		return ""
-	} else {
-		ev.SELinux.EnforceStatus = status
-		return ev.SELinux.EnforceStatus
 	}
+
+	ev.SELinux.EnforceStatus = status
+	return ev.SELinux.EnforceStatus
 }
 
 // ResolveSELinuxEnforceStatusHasChanged resolves if the SELinux enforcement has changed

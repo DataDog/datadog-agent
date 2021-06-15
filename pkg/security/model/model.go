@@ -411,11 +411,15 @@ type OpenEvent struct {
 // SELinuxRawBufCapacity represents the capacity of the byte array in a SELinuxEvent
 const SELinuxRawBufCapacity = 32
 
+// SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
 const (
+	// SELinuxBoolChangeEventKind represents SELinux boolean change events
 	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	// SELinuxStatusChangeEventKind represents SELinux status change events
 	SELinuxStatusChangeEventKind
+	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
 	SELinuxBoolCommitEventKind
 )
 

@@ -14,12 +14,14 @@ import (
 	"sync"
 )
 
+// SELinuxResolver resolved SELinux context
 type SELinuxResolver struct {
 	sync.RWMutex
 	currentBoolValues map[string]bool
 	pendingBoolValues map[string]bool
 }
 
+// NewSELinuxResolver returns a new SELinux resolver
 func NewSELinuxResolver() *SELinuxResolver {
 	return &SELinuxResolver{
 		currentBoolValues: make(map[string]bool),
@@ -27,6 +29,7 @@ func NewSELinuxResolver() *SELinuxResolver {
 	}
 }
 
+// FlushPendingBools flushes currently pending bools so that their values can be retrived through `GetCurrentBoolValue`
 func (r *SELinuxResolver) FlushPendingBools() {
 	r.Lock()
 	defer r.Unlock()
@@ -40,7 +43,7 @@ func (r *SELinuxResolver) FlushPendingBools() {
 	}
 }
 
-// GetCurrentBoolValue2 returns the current value of the provided SELinux boolean
+// GetCurrentBoolValue returns the current value of the provided SELinux boolean
 func (r *SELinuxResolver) GetCurrentBoolValue(boolName string) (bool, error) {
 	r.RLock()
 	defer r.RUnlock()
