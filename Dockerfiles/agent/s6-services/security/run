@@ -2,7 +2,7 @@
 
 define SECURITY_AGENT_ENABLED 0
 
-ifthenelse { s6-test "${SECURITY_AGENT_ENABLED}" = "1" }
+ifthenelse { s6-test ${SECURITY_AGENT_ENABLED} -eq 1 }
 {
     foreground { /initlog.sh "starting security-agent" }
     security-agent start -c=/etc/datadog-agent/datadog.yaml
