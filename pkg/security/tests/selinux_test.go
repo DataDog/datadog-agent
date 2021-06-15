@@ -103,10 +103,9 @@ func TestSELinux(t *testing.T) {
 			t.Error(err)
 		} else {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_true")
-			assert.Equal(t, event.SELinux.File.BasenameStr, TEST_BOOL_NAME, "wrong bool name")
-
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
+			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
 			if testEnvironment == DockerEnvironment {
@@ -126,10 +125,9 @@ func TestSELinux(t *testing.T) {
 			t.Error(err)
 		} else {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_false")
-			assert.Equal(t, event.SELinux.File.BasenameStr, TEST_BOOL_NAME, "wrong bool name")
-
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
+			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
 			if testEnvironment == DockerEnvironment {
