@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
@@ -62,10 +61,6 @@ var flareCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		if err := util.SetAuthToken(); err != nil {
-			return fmt.Errorf("unable to set up authentication token: %v", err)
-		}
-
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
 		if err != nil {
@@ -92,16 +87,11 @@ var flareCmd = &cobra.Command{
 }
 
 func readProfileData(pdata *flare.ProfileData) error {
-	c, err := common.NewSettingsClient()
-	if err != nil {
-		return fmt.Errorf("failed to initialize settings client: %v", err)
-	}
-
-	prevSettings, err := setRuntimeProfilingSettings(c)
+	prevSettings, err := setRuntimeProfilingSettings()
 	if err != nil {
 		return err
 	}
-	defer resetRuntimeProfilingSettings(c, prevSettings)
+	defer resetRuntimeProfilingSettings(prevSettings)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
 	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
@@ -232,17 +222,17 @@ func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 	return filePath, nil
 }
 
-func setRuntimeProfilingSettings(c settings.Client) (map[string]interface{}, error) {
+func setRuntimeProfilingSettings() (map[string]interface{}, error) {
 	prev := make(map[string]interface{})
 	if profileMutex && profileMutexFraction > 0 {
-		old, err := setRuntimeSetting(c, "runtime_mutex_profile_fraction", profileMutexFraction)
+		old, err := setRuntimeSetting("runtime_mutex_profile_fraction", profileMutexFraction)
 		if err != nil {
 			return nil, err
 		}
 		prev["runtime_mutex_profile_fraction"] = old
 	}
 	if profileBlocking && profileBlockingRate > 0 {
-		old, err := setRuntimeSetting(c, "runtime_block_profile_rate", profileBlockingRate)
+		old, err := setRuntimeSetting("runtime_block_profile_rate", profileBlockingRate)
 		if err != nil {
 			return nil, err
 		}
@@ -251,8 +241,17 @@ func setRuntimeProfilingSettings(c settings.Client) (map[string]interface{}, err
 	return prev, nil
 }
 
-func setRuntimeSetting(c settings.Client, name string, new int) (interface{}, error) {
+func setRuntimeSetting(name string, new int) (interface{}, error) {
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize settings client: %v", err)
+	}
+
 	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, new))
+
+	if err := util.SetAuthToken(); err != nil {
+		return nil, fmt.Errorf("unable to set up authentication token: %v", err)
+	}
 
 	oldVal, err := c.Get(name)
 	if err != nil {
@@ -266,7 +265,17 @@ func setRuntimeSetting(c settings.Client, name string, new int) (interface{}, er
 	return oldVal, nil
 }
 
-func resetRuntimeProfilingSettings(c settings.Client, prev map[string]interface{}) {
+func resetRuntimeProfilingSettings(prev map[string]interface{}) {
+	if len(prev) == 0 {
+		return
+	}
+
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString("Failed to restore runtime settings: %v", err))
+		return
+	}
+
 	for name, value := range prev {
 		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
 		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
