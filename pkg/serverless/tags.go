@@ -21,6 +21,7 @@ const (
 	functionARNKey           = "function_arn"
 	functionNameKey          = "functionname"
 	regionKey                = "region"
+	accountIDKey             = "account_id"
 	awsAccountKey            = "aws_account"
 	resourceKey              = "resource"
 	executedVersionKey       = "executedversion"
@@ -44,6 +45,7 @@ func buildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, regionKey, parts[3])
 	tags = setIfNotEmpty(tags, awsAccountKey, parts[4])
+	tags = setIfNotEmpty(tags, accountIDKey, parts[4])
 	tags = setIfNotEmpty(tags, functionNameKey, parts[6])
 	tags = setIfNotEmpty(tags, resourceKey, parts[6])
 
