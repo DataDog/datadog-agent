@@ -141,9 +141,8 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	logSource := config.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
-			Type:    sourceType,
-			Service: sourceName,
-			Source:  sourceName,
+			Type:   sourceType,
+			Source: sourceName,
 		},
 	)
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
