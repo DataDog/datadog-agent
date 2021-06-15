@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Reveals safe and useful information within a SQL execution plan for Postgres.
+    Reveals useful information within a SQL execution plan for Postgres.

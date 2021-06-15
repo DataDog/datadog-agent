@@ -615,588 +615,114 @@
 		<Test>
 			<Tag>normalize.sql.plan.postgres</Tag>
 			<ObfuscateSQLValues>
-				<key>Index Cond</key>
-				<key>Recheck Cond</key>
-				<key>Merge Cond</key>
-				<key>Hash Cond</key>
-				<key>Join Filter</key>
-			</ObfuscateSQLValues>
-			<KeepValues>
-				<key>Node Type</key>
-				<key>Parallel Aware</key>
-				<key>Scan Direction</key>
-				<key>Index Name</key>
-				<key>Relation Name</key>
-				<key>Alias</key>
-				<key>Parent Relationship</key>
-				<key>Sort Key</key>
-			</KeepValues>
-			<In><![CDATA[
-{
-  "Plan": {
-	"Node Type": "Unique",
-	"Parallel Aware": false,
-	"Startup Cost": 223.09,
-	"Total Cost": 223.59,
-	"Plan Rows": 100,
-	"Plan Width": 121,
-	"Plans": [
-	  {
-		"Node Type": "Sort",
-		"Parent Relationship": "Outer",
-		"Parallel Aware": false,
-		"Startup Cost": 223.09,
-		"Total Cost": 223.34,
-		"Plan Rows": 100,
-		"Plan Width": 121,
-		"Sort Key": [
-		  "c"
-		],
-		"Plans": [
-		  {
-			"Node Type": "Bitmap Heap Scan",
-			"Parent Relationship": "Outer",
-			"Parallel Aware": false,
-			"Relation Name": "sbtest1",
-			"Alias": "sbtest1",
-			"Startup Cost": 5.31,
-			"Total Cost": 219.77,
-			"Plan Rows": 100,
-			"Plan Width": 121,
-			"Recheck Cond": "((id >= 4999) AND (id <= 5098))",
-			"Plans": [
-			  {
-				"Node Type": "Bitmap Index Scan",
-				"Parent Relationship": "Outer",
-				"Parallel Aware": false,
-				"Index Name": "sbtest1_pkey",
-				"Startup Cost": 0.00,
-				"Total Cost": 5.29,
-				"Plan Rows": 100,
-				"Plan Width": 0,
-				"Index Cond": "((id >= 4999) AND (id <= 5098))"
-			  }
-			]
-		  }
-		]
-	  }
-	]
-  }
-}]]></In>
-			<Out><![CDATA[
-{
-  "Plan": {
-	"Node Type": "Unique",
-	"Parallel Aware": false,
-	"Startup Cost": "?",
-	"Total Cost": "?",
-	"Plan Rows": "?",
-	"Plan Width": "?",
-	"Plans": [
-	  {
-		"Node Type": "Sort",
-		"Parent Relationship": "Outer",
-		"Parallel Aware": false,
-		"Startup Cost": "?",
-		"Total Cost": "?",
-		"Plan Rows": "?",
-		"Plan Width": "?",
-		"Sort Key": [
-		  "c"
-		],
-		"Plans": [
-		  {
-			"Node Type": "Bitmap Heap Scan",
-			"Parent Relationship": "Outer",
-			"Parallel Aware": false,
-			"Relation Name": "sbtest1",
-			"Alias": "sbtest1",
-			"Startup Cost": "?",
-			"Total Cost": "?",
-			"Plan Rows": "?",
-			"Plan Width": "?",
-			"Recheck Cond": "( ( id >= ? ) AND ( id <= ? ) )",
-			"Plans": [
-			  {
-				"Node Type": "Bitmap Index Scan",
-				"Parent Relationship": "Outer",
-				"Parallel Aware": false,
-				"Index Name": "sbtest1_pkey",
-				"Startup Cost": "?",
-				"Total Cost": "?",
-				"Plan Rows": "?",
-				"Plan Width": "?",
-				"Index Cond": "( ( id >= ? ) AND ( id <= ? ) )"
-			  }
-			]
-		  }
-		]
-	  }
-	]
-  }
-}]]></Out>
-		</Test>
-		<Test>
-			<Tag>normalize.sql.plan.postgres</Tag>
-			<ObfuscateSQLValues>
-				<key>Index Cond</key>
-				<key>Recheck Cond</key>
-				<key>Merge Cond</key>
-				<key>Hash Cond</key>
-				<key>Join Filter</key>
+				<key>Cache Key</key>
+				<key>Conflict Arbiter Indexes</key>
+				<key>Conflict Resolution</key>
 				<key>Filter</key>
-			</ObfuscateSQLValues>
-			<KeepValues>
-				<key>Node Type</key>
-				<key>Parallel Aware</key>
-				<key>Scan Direction</key>
-				<key>Index Name</key>
-				<key>Relation Name</key>
-				<key>Alias</key>
-				<key>Parent Relationship</key>
-				<key>Sort Key</key>
-				<key>Join Type</key>
-				<key>Inner Unique</key>
-				<key>Plan Rows</key>
-				<key>Plan Width</key>
-				<key>Startup Cost</key>
-				<key>Total Cost</key>
-			</KeepValues>
-			<In><![CDATA[
-{
-   "Plan": {
-      "Node Type":"Limit",
-      "Parallel Aware":false,
-      "Startup Cost":2.25,
-      "Total Cost":22.56,
-      "Plan Rows":990,
-      "Plan Width":272,
-      "Plans": [
-         {
-            "Node Type":"Hash Join",
-            "Parent Relationship":"Outer",
-            "Parallel Aware":false,
-            "Join Type":"Left",
-            "Startup Cost":2.25,
-            "Total Cost":22.56,
-            "Plan Rows":990,
-            "Plan Width":272,
-            "Inner Unique":true,
-            "Hash Cond":"(pg_stat_statements.dbid = pg_database.)",
-            "Plans": [
-               {
-                  "Node Type":"Hash Join",
-                  "Parent Relationship":"Outer",
-                  "Parallel Aware":false,
-                  "Join Type":"Left",
-                  "Startup Cost":1.21,
-                  "Total Cost":18.86,
-                  "Plan Rows":990,
-                  "Plan Width":212,
-                  "Inner Unique":true,
-                  "Hash Cond":"(pg_stat_statements.userid = pg_authid.oid)",
-                  "Plans": [
-                     {
-                        "Node Type":"Function Scan",
-                        "Parent Relationship":"Outer",
-                        "Parallel Aware":false,
-                        "Function Name":"pg_stat_statements",
-                        "Alias":"pg_stat_statements",
-                        "Startup Cost":0.0,
-                        "Total Cost":15.0,
-                        "Plan Rows":990,
-                        "Plan Width":152,
-                        "Filter":"(query <> 'datadog'::text)"
-                     },
-                     {
-                        "Node Type":"Hash",
-                        "Parent Relationship":"Inner",
-                        "Parallel Aware":false,
-                        "Startup Cost":1.09,
-                        "Total Cost":1.09,
-                        "Plan Rows":9,
-                        "Plan Width":68,
-                        "Plans": [
-                           {
-                              "Node Type":"Seq Scan",
-                              "Parent Relationship":"Outer",
-                              "Parallel Aware":false,
-                              "Relation Name":"pg_authid",
-                              "Alias":"pg_authid",
-                              "Startup Cost":0.0,
-                              "Total Cost":1.09,
-                              "Plan Rows":9,
-                              "Plan Width":68
-                           }
-                        ]
-                     }
-                  ]
-               },
-               {
-                  "Node Type":"Hash",
-                  "Parent Relationship":"Inner",
-                  "Parallel Aware":false,
-                  "Startup Cost":1.02,
-                  "Total Cost":1.02,
-                  "Plan Rows":2,
-                  "Plan Width":68,
-                  "Plans": [
-                     {
-                        "Node Type":"Seq Scan",
-                        "Parent Relationship":"Outer",
-                        "Parallel Aware":false,
-                        "Relation Name":"pg_database",
-                        "Alias":"pg_database",
-                        "Startup Cost":0.0,
-                        "Total Cost":1.02,
-                        "Plan Rows":2,
-                        "Plan Width":68
-                     }
-                  ]
-               }
-            ]
-         }
-      ]
-   }
-}]]></In>
-			<Out><![CDATA[
-{
-   "Plan": {
-      "Node Type":"Limit",
-      "Parallel Aware":false,
-      "Startup Cost":2.25,
-      "Total Cost":22.56,
-      "Plan Rows":990,
-      "Plan Width":272,
-      "Plans": [
-         {
-            "Node Type":"Hash Join",
-            "Parent Relationship":"Outer",
-            "Parallel Aware":false,
-            "Join Type":"Left",
-            "Startup Cost":2.25,
-            "Total Cost":22.56,
-            "Plan Rows":990,
-            "Plan Width":272,
-            "Inner Unique":true,
-            "Hash Cond":"( pg_stat_statements.dbid = pg_database. )",
-            "Plans": [
-               {
-                  "Node Type":"Hash Join",
-                  "Parent Relationship":"Outer",
-                  "Parallel Aware":false,
-                  "Join Type":"Left",
-                  "Startup Cost":1.21,
-                  "Total Cost":18.86,
-                  "Plan Rows":990,
-                  "Plan Width":212,
-                  "Inner Unique":true,
-                  "Hash Cond":"( pg_stat_statements.userid = pg_authid.oid )",
-                  "Plans": [
-                     {
-                        "Node Type":"Function Scan",
-                        "Parent Relationship":"Outer",
-                        "Parallel Aware":false,
-                        "Function Name":"?",
-                        "Alias":"pg_stat_statements",
-                        "Startup Cost":0.0,
-                        "Total Cost":15.0,
-                        "Plan Rows":990,
-                        "Plan Width":152,
-                        "Filter":"( query <> ? :: text )"
-                     },
-                     {
-                        "Node Type":"Hash",
-                        "Parent Relationship":"Inner",
-                        "Parallel Aware":false,
-                        "Startup Cost":1.09,
-                        "Total Cost":1.09,
-                        "Plan Rows":9,
-                        "Plan Width":68,
-                        "Plans": [
-                           {
-                              "Node Type":"Seq Scan",
-                              "Parent Relationship":"Outer",
-                              "Parallel Aware":false,
-                              "Relation Name":"pg_authid",
-                              "Alias":"pg_authid",
-                              "Startup Cost":0.0,
-                              "Total Cost":1.09,
-                              "Plan Rows":9,
-                              "Plan Width":68
-                           }
-                        ]
-                     }
-                  ]
-               },
-               {
-                  "Node Type":"Hash",
-                  "Parent Relationship":"Inner",
-                  "Parallel Aware":false,
-                  "Startup Cost":1.02,
-                  "Total Cost":1.02,
-                  "Plan Rows":2,
-                  "Plan Width":68,
-                  "Plans": [
-                     {
-                        "Node Type":"Seq Scan",
-                        "Parent Relationship":"Outer",
-                        "Parallel Aware":false,
-                        "Relation Name":"pg_database",
-                        "Alias":"pg_database",
-                        "Startup Cost":0.0,
-                        "Total Cost":1.02,
-                        "Plan Rows":2,
-                        "Plan Width":68
-                     }
-                  ]
-               }
-            ]
-         }
-      ]
-   }
-}]]></Out>
-		</Test>
-		<Test>
-			<Tag>normalize.sql.plan.postgres</Tag>
-			<ObfuscateSQLValues>
-				<key>Index Cond</key>
-				<key>Recheck Cond</key>
-				<key>Merge Cond</key>
 				<key>Hash Cond</key>
-				<key>Join Filter</key>
-			</ObfuscateSQLValues>
-			<KeepValues>
-				<key>Node Type</key>
-				<key>Parallel Aware</key>
-				<key>Scan Direction</key>
-				<key>Index Name</key>
-				<key>Relation Name</key>
-				<key>Alias</key>
-				<key>Parent Relationship</key>
-				<key>Sort Key</key>
-				<key>Plan Rows</key>
-				<key>Plan Width</key>
-				<key>Startup Cost</key>
-				<key>Total Cost</key>
-				<key>Strategy</key>
-				<key>Workers Planned</key>
-				<key>Group Key</key>
-			</KeepValues>
-			<In><![CDATA[
-{
-  "Plan": {
-    "Node Type": "Aggregate",
-    "Strategy": "Hashed",
-    "Parallel Aware": false,
-    "Startup Cost": 428605.09,
-    "Total Cost": 428658.76,
-    "Plan Rows": 200,
-    "Plan Width": 12,
-    "Group Key": [
-      "c"
-    ],
-    "Plans": [
-      {
-        "Node Type": "Gather Merge",
-        "Parent Relationship": "Outer",
-        "Parallel Aware": false,
-        "Startup Cost": 428605.09,
-        "Total Cost": 428651.76,
-        "Plan Rows": 400,
-        "Plan Width": 20,
-        "Workers Planned": 3,
-        "Plans": [
-          {
-            "Node Type": "Sort",
-            "Parent Relationship": "Outer",
-            "Parallel Aware": false,
-            "Startup Cost": 427605.06,
-            "Total Cost": 427605.56,
-            "Plan Rows": 200,
-            "Plan Width": 20,
-            "Sort Key": [
-              "id"
-            ],
-            "Plans": [
-              {
-                "Node Type": "Aggregate",
-                "Strategy": "Hashed",
-                "Parent Relationship": "Outer",
-                "Parallel Aware": false,
-                "Startup Cost": 427595.42,
-                "Total Cost": 427597.42,
-                "Plan Rows": 200,
-                "Plan Width": 20,
-                "Group Key": [
-                  "b"
-                ],
-                "Plans": [
-                  {
-                    "Node Type": "Append",
-                    "Parent Relationship": "Outer",
-                    "Parallel Aware": true,
-                    "Startup Cost": 0.41,
-                    "Total Cost": 425820.88,
-                    "Plan Rows": 236605,
-                    "Plan Width": 20,
-                    "Plans": [
-                      {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Member",
-                        "Parallel Aware": true,
-                        "Scan Direction": "Forward",
-                        "Index Name": "host_agg3_pkey",
-                        "Relation Name": "host_agg3",
-                        "Alias": "host_agg3",
-                        "Startup Cost": 0.41,
-                        "Total Cost": 7034.85,
-                        "Plan Rows": 3863,
-                        "Plan Width": 20
-                      },
-                      {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Member",
-                        "Parallel Aware": true,
-                        "Scan Direction": "Forward",
-                        "Index Name": "host_agg4_pkey",
-                        "Relation Name": "host_agg4",
-                        "Alias": "host_agg4",
-                        "Startup Cost": 0.41,
-                        "Total Cost": 6990.53,
-                        "Plan Rows": 3798,
-                        "Plan Width": 20
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-}]]></In>
-			<Out><![CDATA[
-{
-  "Plan": {
-    "Node Type": "Aggregate",
-    "Strategy": "Hashed",
-    "Parallel Aware": false,
-    "Startup Cost": 428605.09,
-    "Total Cost": 428658.76,
-    "Plan Rows": 200,
-    "Plan Width": 12,
-    "Group Key": [
-      "c"
-    ],
-    "Plans": [
-      {
-        "Node Type": "Gather Merge",
-        "Parent Relationship": "Outer",
-        "Parallel Aware": false,
-        "Startup Cost": 428605.09,
-        "Total Cost": 428651.76,
-        "Plan Rows": 400,
-        "Plan Width": 20,
-        "Workers Planned": 3,
-        "Plans": [
-          {
-            "Node Type": "Sort",
-            "Parent Relationship": "Outer",
-            "Parallel Aware": false,
-            "Startup Cost": 427605.06,
-            "Total Cost": 427605.56,
-            "Plan Rows": 200,
-            "Plan Width": 20,
-            "Sort Key": [
-              "id"
-            ],
-            "Plans": [
-              {
-                "Node Type": "Aggregate",
-                "Strategy": "Hashed",
-                "Parent Relationship": "Outer",
-                "Parallel Aware": false,
-                "Startup Cost": 427595.42,
-                "Total Cost": 427597.42,
-                "Plan Rows": 200,
-                "Plan Width": 20,
-                "Group Key": [
-                  "b"
-                ],
-                "Plans": [
-                  {
-                    "Node Type": "Append",
-                    "Parent Relationship": "Outer",
-                    "Parallel Aware": true,
-                    "Startup Cost": 0.41,
-                    "Total Cost": 425820.88,
-                    "Plan Rows": 236605,
-                    "Plan Width": 20,
-                    "Plans": [
-                      {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Member",
-                        "Parallel Aware": true,
-                        "Scan Direction": "Forward",
-                        "Index Name": "host_agg3_pkey",
-                        "Relation Name": "host_agg3",
-                        "Alias": "host_agg3",
-                        "Startup Cost": 0.41,
-                        "Total Cost": 7034.85,
-                        "Plan Rows": 3863,
-                        "Plan Width": 20
-                      },
-                      {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Member",
-                        "Parallel Aware": true,
-                        "Scan Direction": "Forward",
-                        "Index Name": "host_agg4_pkey",
-                        "Relation Name": "host_agg4",
-                        "Alias": "host_agg4",
-                        "Startup Cost": 0.41,
-                        "Total Cost": 6990.53,
-                        "Plan Rows": 3798,
-                        "Plan Width": 20
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-}]]></Out>
-		</Test>
-		<Test>
-			<Tag>normalize.sql.plan.postgres</Tag>
-			<ObfuscateSQLValues>
 				<key>Index Cond</key>
-				<key>Recheck Cond</key>
-				<key>Merge Cond</key>
-				<key>Hash Cond</key>
 				<key>Join Filter</key>
-				<key>Filter</key>
+				<key>Merge Cond</key>
+				<key>Recheck Cond</key>
+				<key>TID Cond</key>
 			</ObfuscateSQLValues>
 			<KeepValues>
-				<key>Node Type</key>
-				<key>Parallel Aware</key>
+				<key>Actual Loops</key>
+				<key>Actual Rows</key>
+				<key>Actual Startup Time</key>
+				<key>Actual Total Time</key>
 				<key>Alias</key>
-				<key>Parent Relationship</key>
-				<key>Plan Rows</key>
-				<key>Plan Width</key>
-				<key>Startup Cost</key>
-				<key>Total Cost</key>
-				<key>Strategy</key>
+				<key>Async Capable</key>
+				<key>Average Sort Space Used</key>
+				<key>Cache Evictions</key>
+				<key>Cache Hits</key>
+				<key>Cache Misses</key>
+				<key>Cache Overflows</key>
+				<key>Command</key>
+				<key>Conflicting Tuples</key>
+				<key>Constraint Name</key>
 				<key>CTE Name</key>
+				<key>Custom Plan Provider</key>
+				<key>Exact Heap Blocks</key>
+				<key>Execution Time</key>
+				<key>Foreign Delete</key>
+				<key>Foreign Insert</key>
+				<key>Foreign Update</key>
+				<key>Function Call</key>
+				<key>Function Name</key>
+				<key>Grouping Sets</key>
+				<key>Group Key</key>
+				<key>HashAgg Batches</key>
+				<key>Hash Buckets</key>
+				<key>Hash Key</key>
+				<key>Hash Keys</key>
+				<key>Heap Fetches</key>
+				<key>I/O Read Time</key>
+				<key>I/O Write Time</key>
+				<key>Incremental Sort Groups</key>
+				<key>Index Name</key>
+				<key>Join Type</key>
+				<key>Local Dirtied Blocks</key>
+				<key>Local Hit Blocks</key>
+				<key>Local Read Blocks</key>
+				<key>Local Written Blocks</key>
+				<key>Lossy Heap Blocks</key>
+				<key>Node Type</key>
+				<key>Original Hash Batches</key>
+				<key>Original Hash Buckets</key>
+				<key>Parallel Aware</key>
+				<key>Parent Relationship</key>
 				<key>Partial Mode</key>
+				<key>Peak Memory Usage</key>
+				<key>Peak Sort Space Used</key>
+				<key>Planned Partitions</key>
+				<key>Planning Time</key>
+				<key>Presorted Key</key>
+				<key>Plan Rows</key>
+				<key>Plan Width</key>
+				<key>Relation Name</key>
+				<key>Repeatable Seed</key>
+				<key>Rows Removed by Conflict Filter</key>
+				<key>Rows Removed by Filter</key>
+				<key>Rows Removed by Index Recheck</key>
+				<key>Rows Removed by Join Filter</key>
+				<key>Sampling Method</key>
+				<key>Sampling Parameters</key>
+				<key>Scan Direction</key>
+				<key>Schema</key>
+				<key>Shared Dirtied Blocks</key>
+				<key>Shared Hit Blocks</key>
+				<key>Shared Read Blocks</key>
+				<key>Shared Written Blocks</key>
+				<key>Single Copy</key>
+				<key>Sort Key</key>
+				<key>Sort Method</key>
+				<key>Sort Methods Used</key>
+				<key>Sort Space</key>
+				<key>Sort Space Type</key>
+				<key>Sort Space Used</key>
+				<key>Startup Cost</key>
+				<key>Strategy</key>
 				<key>Subplan Name</key>
+				<key>Subplans Removed</key>
+				<key>Target Tables</key>
+				<key>Temp Read Blocks</key>
+				<key>Temp Written Blocks</key>
+				<key>Time</key>
+				<key>Trigger</key>
+				<key>Trigger Name</key>
+				<key>Triggers</key>
+				<key>Tuples Inserted</key>
+				<key>Tuplestore Name</key>
+				<key>Total Cost</key>
+				<key>WAL Bytes</key>
+				<key>WAL FPI</key>
+				<key>WAL Records</key>
+				<key>Worker</key>
+				<key>Worker Number</key>
+				<key>Workers</key>
+				<key>Workers Launched</key>
+				<key>Workers Planned</key>
 			</KeepValues>
 			<In><![CDATA[
 {
@@ -1205,36 +731,110 @@
     "Startup Cost": 74286.07,
     "Plans": [
       {
-        "Startup Cost": 73384,
-        "Plans": [
-          {
-            "Startup Cost": 0,
-            "Node Type": "Result",
-            "Plan Rows": 1,
-            "Parallel Aware": false,
-            "Parent Relationship": "InitPlan",
-            "Plan Width": 32,
-            "Subplan Name": "Find dogfood",
-            "Total Cost": 0.04
-          }
-        ],
-        "CTE Name": "datadog_dog_food",
-        "Node Type": "CTE Scan",
-        "Plan Rows": 67,
-        "Filter": "(query <> 'dogfood'::text)",
-        "Alias": "tt",
-        "Parallel Aware": false,
-        "Parent Relationship": "Outer",
-        "Plan Width": 196,
-        "Total Cost": 74285.23
+		"Cache Key": "datadog 'dummy'",
+		"Conflict Arbiter Indexes": "datadog 'dummy'",
+		"Conflict Resolution": "datadog 'dummy'",
+		"Filter": "(query <> 'dogfood'::text)",
+		"Hash Cond": "(pg_stat_statements.dbid = pg_database.)",
+		"Index Cond": "(pg_stat_statements.dbid = pg_database.)",
+		"Join Filter": "datadog 'dummy'",
+		"Merge Cond": "datadog 'dummy'",
+		"Recheck Cond": "datadog 'dummy'",
+		"TID Cond": "datadog 'dummy'",
+		"Actual Loops": 1,
+		"Actual Rows": 2,
+		"Actual Startup Time": 3,
+		"Actual Total Time": 4,
+		"Alias": "dog",
+		"Async Capable": true,
+		"Average Sort Space Used": 1,
+		"Cache Evictions": 1,
+		"Cache Hits": 2,
+		"Cache Misses": 3,
+		"Cache Overflows": 4,
+		"Command": "sort_by_dogfood",
+		"Conflicting Tuples": 1,
+		"Constraint Name": 1,
+		"CTE Name": "Dog Food Users",
+		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Exact Heap Blocks": 1,
+		"Execution Time": 1,
+		"Foreign Delete": 1,
+		"Foreign Insert": 2,
+		"Foreign Update": 3,
+		"Function Call": 1,
+		"Function Name": 2,
+		"Group Key": 1,
+		"Grouping Sets": ["a", "b"],
+		"Hash Buckets": 1,
+		"Hash Keys": 2,
+		"Hash Key": 3,
+		"HashAgg Batches": 4,
+		"Heap Fetches": 1,
+		"Incremental Sort Groups": ["dog", "food"],
+		"Index Name": "dogfood",
+		"I/O Read Time": 1,
+		"I/O Write Time": 2,
+		"Join Type": "Left",
+		"Local Dirtied Blocks": 1,
+		"Local Hit Blocks": 2,
+		"Local Read Blocks": 3,
+		"Local Written Blocks": 4,
+		"Lossy Heap Blocks": 1,
+		"Node Type": "Aggregate",
+		"Original Hash Batches": 1,
+		"Original Hash Buckets": 2,
+		"Parallel Aware": false,
+		"Parent Relationship": "Outer",
+		"Partial Mode": "Simple",
+		"Peak Memory Usage": 1,
+		"Peak Sort Space Used": 2,
+		"Planned Partitions": 1,
+		"Planning Time": 1,
+		"Presorted Key": ["dog", "food"],
+		"Relation Name": "dog",
+		"Repeatable Seed": "datad0g",
+		"Rows Removed by Conflict Filter": 1,
+		"Rows Removed by Filter": 2,
+		"Rows Removed by Index Recheck": 3,
+		"Rows Removed by Join Filter": 4,
+		"Sampling Method": "system",
+		"Sampling Parameters": ["dog", "food"],
+		"Scan Direction": "Forward",
+		"Schema": "dogfood_user",
+		"Shared Dirtied Blocks": 1,
+		"Shared Hit Blocks": 2,
+		"Shared Read Blocks": 3,
+		"Shared Written Blocks": 4,
+		"Single Copy": false,
+		"Sort Key": "a",
+		"Sort Methods Used": ["quicksort", "heapsort"],
+		"Sort Method": "quick",
+		"Sort Space Type": 1,
+		"Sort Space Used": 2,
+		"Sort Space": 3,
+		"Strategy": "Hashed",
+		"Subplan Name": "dog",
+		"Subplans Removed": 0,
+		"Target Tables": "old_dog_food",
+		"Temp Read Blocks": 1,
+		"Temp Written Blocks": 2,
+		"Time": 1,
+		"Trigger Name": "find_user",
+		"Triggers": 1,
+		"Trigger": "find_user()",
+		"Tuples Inserted": 1,
+		"Tuplestore Name": "dog_tuples",
+		"WAL Bytes": 1,
+		"WAL FPI": 2,
+		"WAL Records": 3,
+		"Worker": "dog",
+		"Worker Number": 1,
+		"Workers": ["dog", "food"],
+		"Workers Launched": 5,
+		"Workers Planned": 5
       }
-    ],
-    "Node Type": "Aggregate",
-    "Strategy": "Sorted",
-    "Plan Rows": 1,
-    "Parallel Aware": false,
-    "Plan Width": 8,
-    "Total Cost": 74286.08
+    ]
   }
 }]]></In>
 			<Out><![CDATA[
@@ -1244,36 +844,110 @@
     "Startup Cost": 74286.07,
     "Plans": [
       {
-        "Startup Cost": 73384,
-        "Plans": [
-          {
-            "Startup Cost": 0,
-            "Node Type": "Result",
-            "Plan Rows": 1,
-            "Parallel Aware": false,
-            "Parent Relationship": "InitPlan",
-            "Plan Width": 32,
-            "Subplan Name": "Find dogfood",
-            "Total Cost": 0.04
-          }
-        ],
-        "CTE Name": "datadog_dog_food",
-        "Node Type": "CTE Scan",
-        "Plan Rows": 67,
-        "Filter": "( query <> ? :: text )",
-        "Alias": "tt",
-        "Parallel Aware": false,
-        "Parent Relationship": "Outer",
-        "Plan Width": 196,
-        "Total Cost": 74285.23
+		"Cache Key": "datadog ?",
+		"Conflict Arbiter Indexes": "datadog ?",
+		"Conflict Resolution": "datadog ?",
+		"Filter": "( query <> ? :: text )",
+		"Hash Cond": "( pg_stat_statements.dbid = pg_database. )",
+		"Index Cond": "( pg_stat_statements.dbid = pg_database. )",
+		"Join Filter": "datadog ?",
+		"Merge Cond": "datadog ?",
+		"Recheck Cond": "datadog ?",
+		"TID Cond": "datadog ?",
+		"Actual Loops": 1,
+		"Actual Rows": 2,
+		"Actual Startup Time": 3,
+		"Actual Total Time": 4,
+		"Alias": "dog",
+		"Async Capable": true,
+		"Average Sort Space Used": 1,
+		"Cache Evictions": 1,
+		"Cache Hits": 2,
+		"Cache Misses": 3,
+		"Cache Overflows": 4,
+		"Command": "sort_by_dogfood",
+		"Conflicting Tuples": 1,
+		"Constraint Name": 1,
+		"CTE Name": "Dog Food Users",
+		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Exact Heap Blocks": 1,
+		"Execution Time": 1,
+		"Foreign Delete": 1,
+		"Foreign Insert": 2,
+		"Foreign Update": 3,
+		"Function Call": 1,
+		"Function Name": 2,
+		"Group Key": 1,
+		"Grouping Sets": ["a", "b"],
+		"Hash Buckets": 1,
+		"Hash Keys": 2,
+		"Hash Key": 3,
+		"HashAgg Batches": 4,
+		"Heap Fetches": 1,
+		"Incremental Sort Groups": ["dog", "food"],
+		"Index Name": "dogfood",
+		"I/O Read Time": 1,
+		"I/O Write Time": 2,
+		"Join Type": "Left",
+		"Local Dirtied Blocks": 1,
+		"Local Hit Blocks": 2,
+		"Local Read Blocks": 3,
+		"Local Written Blocks": 4,
+		"Lossy Heap Blocks": 1,
+		"Node Type": "Aggregate",
+		"Original Hash Batches": 1,
+		"Original Hash Buckets": 2,
+		"Parallel Aware": false,
+		"Parent Relationship": "Outer",
+		"Partial Mode": "Simple",
+		"Peak Memory Usage": 1,
+		"Peak Sort Space Used": 2,
+		"Planned Partitions": 1,
+		"Planning Time": 1,
+		"Presorted Key": ["dog", "food"],
+		"Relation Name": "dog",
+		"Repeatable Seed": "datad0g",
+		"Rows Removed by Conflict Filter": 1,
+		"Rows Removed by Filter": 2,
+		"Rows Removed by Index Recheck": 3,
+		"Rows Removed by Join Filter": 4,
+		"Sampling Method": "system",
+		"Sampling Parameters": ["dog", "food"],
+		"Scan Direction": "Forward",
+		"Schema": "dogfood_user",
+		"Shared Dirtied Blocks": 1,
+		"Shared Hit Blocks": 2,
+		"Shared Read Blocks": 3,
+		"Shared Written Blocks": 4,
+		"Single Copy": false,
+		"Sort Key": "a",
+		"Sort Methods Used": ["quicksort", "heapsort"],
+		"Sort Method": "quick",
+		"Sort Space Type": 1,
+		"Sort Space Used": 2,
+		"Sort Space": 3,
+		"Strategy": "Hashed",
+		"Subplan Name": "dog",
+		"Subplans Removed": 0,
+		"Target Tables": "old_dog_food",
+		"Temp Read Blocks": 1,
+		"Temp Written Blocks": 2,
+		"Time": 1,
+		"Trigger Name": "find_user",
+		"Triggers": 1,
+		"Trigger": "find_user()",
+		"Tuples Inserted": 1,
+		"Tuplestore Name": "dog_tuples",
+		"WAL Bytes": 1,
+		"WAL FPI": 2,
+		"WAL Records": 3,
+		"Worker": "dog",
+		"Worker Number": 1,
+		"Workers": ["dog", "food"],
+		"Workers Launched": 5,
+		"Workers Planned": 5
       }
-    ],
-    "Node Type": "Aggregate",
-    "Strategy": "Sorted",
-    "Plan Rows": 1,
-    "Parallel Aware": false,
-    "Plan Width": 8,
-    "Total Cost": 74286.08
+    ]
   }
 }]]></Out>
 		</Test>
