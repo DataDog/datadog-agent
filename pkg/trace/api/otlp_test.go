@@ -679,3 +679,33 @@ func TestOTLPConvertSpan(t *testing.T) {
 		assert.Equal(t, tt.out, convertSpan(tt.rattr, tt.lib, tt.in))
 	}
 }
+
+func BenchmarkProcessRequest(b *testing.B) {
+	metadata := http.Header(map[string][]string{
+		headerLang:        {"go"},
+		headerContainerID: {"containerdID"},
+	})
+	out := make(chan *Payload, 100)
+	end := make(chan struct{})
+	go func() {
+		defer close(end)
+		for {
+			select {
+			case <-out:
+				// drain
+			case <-end:
+				return
+			}
+		}
+	}()
+
+	r := NewOTLPReceiver(out, nil)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.processRequest(otlpProtocolHTTP, metadata, otlpTestTraceServiceReq)
+	}
+	b.StopTimer()
+	end <- struct{}{}
+	<-end
+}

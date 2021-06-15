@@ -155,19 +155,32 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
 	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
-	if v := h.Get(headerLang); v != "" {
+	if v := fastHeaderGet(h, headerLang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
-	if v := h.Get(headerLangVersion); v != "" {
+	if v := fastHeaderGet(h, headerLangVersion); v != "" {
 		tags = append(tags, "lang_version:"+v)
 	}
-	if v := h.Get(headerLangInterpreter); v != "" {
+	if v := fastHeaderGet(h, headerLangInterpreter); v != "" {
 		tags = append(tags, "interpreter:"+v)
 	}
-	if v := h.Get(headerLangInterpreterVendor); v != "" {
+	if v := fastHeaderGet(h, headerLangInterpreterVendor); v != "" {
 		tags = append(tags, "lang_vendor:"+v)
 	}
 	return tags
+}
+
+// fastHeaderGet returns the given key from the header, avoiding the caonical transformation of key
+// that is normally applied by http.Header.Get.
+func fastHeaderGet(h http.Header, canonicalKey string) string {
+	if h == nil {
+		return ""
+	}
+	v, ok := h[canonicalKey]
+	if !ok || len(v) == 0 {
+		return ""
+	}
+	return v[0]
 }
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
@@ -182,14 +195,14 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		}
 		lang := rattr["telemetry.sdk.language"]
 		if lang == "" {
-			lang = header.Get(headerLang)
+			lang = fastHeaderGet(header, headerLang)
 		}
 		tagstats := &info.TagStats{
 			Tags: info.Tags{
 				Lang:            lang,
-				LangVersion:     header.Get(headerLangVersion),
-				Interpreter:     header.Get(headerLangInterpreter),
-				LangVendor:      header.Get(headerLangInterpreterVendor),
+				LangVersion:     fastHeaderGet(header, headerLangVersion),
+				Interpreter:     fastHeaderGet(header, headerLangInterpreter),
+				LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
 				TracerVersion:   fmt.Sprintf("otlp-%s", rattr["telemetry.sdk.version"]),
 				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
 			},
@@ -205,11 +218,12 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 				tracesByID[traceID] = append(tracesByID[traceID], convertSpan(rattr, lib, span))
 			}
 		}
-		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tagstats.AsTags(), 1)
-		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tagstats.AsTags(), 1)
+		tags := tagstats.AsTags()
+		metrics.Count("datadog.trace_agent.otlp.spans", int64(len(rspans.InstrumentationLibrarySpans)), tags, 1)
+		metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 		p := Payload{
 			Source:        tagstats,
-			ContainerTags: getContainerTags(header.Get(headerContainerID)),
+			ContainerTags: getContainerTags(fastHeaderGet(header, headerContainerID)),
 			Traces:        make(pb.Traces, 0, len(tracesByID)),
 		}
 		for _, trace := range tracesByID {
@@ -244,10 +258,12 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
 		},
 	}
-	// keep original IDs
-	span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
-	span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
-	span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
+	if config.HasFeature("otlp_original_ids") {
+		// keep original IDs
+		span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
+		span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
+		span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
+	}
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr["service.version"]; ver != "" {
 			span.Meta["version"] = ver
