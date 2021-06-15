@@ -29,7 +29,7 @@ func NewSELinuxResolver() *SELinuxResolver {
 	}
 }
 
-// FlushPendingBools flushes currently pending bools so that their values can be retrived through `GetCurrentBoolValue`
+// FlushPendingBools flushes currently pending bools so that their values can be retrieved through `GetCurrentBoolValue`
 func (r *SELinuxResolver) FlushPendingBools() {
 	r.Lock()
 	defer r.Unlock()
