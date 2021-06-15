@@ -214,7 +214,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0xa5e7bdf20a52df72), byteArrayToUint64(otlpTestID128))
+		assert.Equal(t, uint64(0x240031ead750e5f3), byteArrayToUint64(otlpTestID128))
 		assert.Equal(t, uint64(0), byteArrayToUint64(nil))
 		assert.Equal(t, uint64(0), byteArrayToUint64([]byte{0}))
 		assert.Equal(t, uint64(0), byteArrayToUint64([]byte{0, 1, 2, 3, 4, 5, 6}))
@@ -459,8 +459,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Service:  "pylons",
 				Name:     "ddtracer.server",
 				Resource: "/path",
-				TraceID:  11954732583131209586,
-				SpanID:   11954732583131209586,
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
 				ParentID: 0,
 				Start:    int64(now),
 				Duration: 200000000,
@@ -549,8 +549,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Service:  "userbase",
 				Name:     "ddtracer.server",
 				Resource: "GET /path",
-				TraceID:  11954732583131209586,
-				SpanID:   11954732583131209586,
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
 				ParentID: 0,
 				Start:    int64(now),
 				Duration: 200000000,
@@ -642,8 +642,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Service:  "pylons",
 				Name:     "ddtracer.server",
 				Resource: "GET /path",
-				TraceID:  11954732583131209586,
-				SpanID:   11954732583131209586,
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
 				ParentID: 0,
 				Start:    int64(now),
 				Duration: 200000000,

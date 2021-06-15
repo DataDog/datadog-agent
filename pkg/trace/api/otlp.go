@@ -368,7 +368,7 @@ func byteArrayToUint64(b []byte) uint64 {
 	if len(b) < 8 {
 		return 0
 	}
-	return binary.LittleEndian.Uint64(b)
+	return binary.BigEndian.Uint64(b[len(b)-8:])
 }
 
 // anyValueString converts otlppb.AnyValue a to its string representation.
