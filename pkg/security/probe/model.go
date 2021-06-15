@@ -382,13 +382,44 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 		return ""
 	}
 
-	return ev.resolvers.resolveBasename(&e.File.FileFields)
+	if len(ev.SELinux.BoolName) == 0 {
+		ev.SELinux.BoolName = ev.resolvers.resolveBasename(&e.File.FileFields)
+	}
+	return ev.SELinux.BoolName
+}
+
+// ResolveSELinuxBoolPreviousValue resolves the previous boolean value of the SELinux event
+func (ev *Event) ResolveSELinuxBoolPreviousValue(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return ""
+	}
+
+	if ev.SELinux.BoolPreviousValue == "on" || ev.SELinux.BoolPreviousValue == "off" {
+		return ev.SELinux.BoolPreviousValue
+	}
+
+	boolName := ev.ResolveSELinuxBoolName(e)
+	previousValue, err := ev.resolvers.SELinuxResolver.GetCurrentBoolValue(boolName)
+	if err != nil {
+		return ""
+	}
+
+	if previousValue {
+		ev.SELinux.BoolPreviousValue = "on"
+	} else {
+		ev.SELinux.BoolPreviousValue = "off"
+	}
+	return ev.SELinux.BoolPreviousValue
 }
 
 // ResolveSELinuxBoolChangeValue resolves the boolean value of the SELinux event
 func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxBoolChangeEventKind {
 		return ""
+	}
+
+	if ev.SELinux.BoolChangeValue == "on" || ev.SELinux.BoolChangeValue == "off" {
+		return ev.SELinux.BoolChangeValue
 	}
 
 	var builder strings.Builder
@@ -406,10 +437,52 @@ func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
 	}
 
 	if booleanInt == 0 {
-		return "off"
+		ev.SELinux.BoolChangeValue = "off"
 	} else {
-		return "on"
+		ev.SELinux.BoolChangeValue = "on"
 	}
+	return ev.SELinux.BoolChangeValue
+}
+
+// ResolveSELinuxBoolHasChangedValue resolves if the boolean value of the SELinux event has changed
+func (ev *Event) ResolveSELinuxBoolHasChangedValue(e *model.SELinuxEvent) bool {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return false
+	}
+
+	if ev.SELinux.BoolHasChangedValue {
+		return true
+	}
+
+	previousValue := ev.ResolveSELinuxBoolPreviousValue(e)
+	newValue := ev.ResolveSELinuxBoolChangeValue(e)
+
+	if len(previousValue) == 0 {
+		ev.SELinux.BoolHasChangedValue = true
+	} else {
+		ev.SELinux.BoolHasChangedValue = previousValue != newValue
+	}
+	return ev.SELinux.BoolHasChangedValue
+}
+
+// StoreSELinuxCurrentBoolValue stores the current bool value in the resolver
+func (ev *Event) StoreSELinuxCurrentBoolValue(e *model.SELinuxEvent) {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return
+	}
+
+	boolName := ev.ResolveSELinuxBoolName(e)
+	var newValue bool
+	switch ev.ResolveSELinuxBoolChangeValue(e) {
+	case "on":
+		newValue = true
+	case "off":
+		newValue = false
+	default:
+		return
+	}
+
+	ev.resolvers.SELinuxResolver.SetCurrentBoolValue(boolName, newValue)
 }
 
 // ResolveSELinuxBoolCommitValue resolves the boolean value of the SELinux event
@@ -432,7 +505,8 @@ func (ev *Event) ResolveSELinuxBoolCommitValue(e *model.SELinuxEvent) bool {
 		return false
 	}
 
-	return booleanInt != 0
+	ev.SELinux.BoolCommitValue = booleanInt != 0
+	return ev.SELinux.BoolCommitValue
 }
 
 // ResolveSELinuxEnforceStatus resolves the enforcement status
@@ -441,12 +515,23 @@ func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
 		return ""
 	}
 
+	if len(ev.SELinux.EnforceStatus) != 0 {
+		return ev.SELinux.EnforceStatus
+	}
+
 	status, err := ev.resolvers.SELinuxResolver.GetCurrentEnforceStatus()
 	if err != nil {
 		return ""
 	} else {
-		return status
+		ev.SELinux.EnforceStatus = status
+		return ev.SELinux.EnforceStatus
 	}
+}
+
+// ResolveSELinuxEnforceStatusHasChanged resolves if the SELinux enforcement has changed
+func (ev *Event) ResolveSELinuxEnforceStatusHasChanged(e *model.SELinuxEvent) bool {
+	ev.SELinux.EnforceStatusHasChanged = true
+	return ev.SELinux.EnforceStatusHasChanged
 }
 
 func (ev *Event) String() string {

@@ -500,6 +500,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		event.resolvers.SELinuxResolver.FlushPendingBools()
+		event.StoreSELinuxCurrentBoolValue(&event.SELinux)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

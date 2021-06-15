@@ -20,6 +20,7 @@ import (
 )
 
 const TEST_BOOL_NAME = "selinuxuser_ping"
+const TEST_BOOL_NAME2 = "httpd_enable_cgi"
 
 func TestSELinux(t *testing.T) {
 	rules := []*rules.RuleDefinition{
@@ -185,6 +186,99 @@ func TestSELinuxCommitBools(t *testing.T) {
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
+		}
+	})
+}
+
+func TestSELinuxBoolChangeBasic(t *testing.T) {
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_selinux_bool_has_changed",
+			Expression: `selinux.bool.name == "httpd_enable_cgi" && selinux.bool.changed == true`,
+		},
+		{
+			ID:         "test_selinux_bool_has_not_changed",
+			Expression: `selinux.bool.name == "httpd_enable_cgi" && selinux.bool.changed == false`,
+		},
+	}
+
+	test, err := newTestModule(nil, rules, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+		t.Skipf("SELinux is not available, skipping tests")
+	}
+
+	startBoolValue, err := getBoolValue(TEST_BOOL_NAME2)
+	if err != nil {
+		t.Errorf("failed to save bool state: %v", err)
+	}
+	defer setBoolValue(TEST_BOOL_NAME2, startBoolValue)
+
+	t.Run("sel_bool_change_value", func(t *testing.T) {
+		// init phase
+		if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
+			t.Errorf("failed to run setsebool: %v", err)
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux_bool_has_changed")
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+
+			// always true at first
+			assertFieldEqual(t, event, "selinux.bool.changed", true, "wrong bool change value")
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
+		}
+
+		// no change phase
+		if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
+			t.Errorf("failed to run setsebool: %v", err)
+		}
+
+		event, rule, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux_bool_has_not_changed")
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+
+			// always true at first
+			assertFieldEqual(t, event, "selinux.bool.changed", false, "wrong bool change value")
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
+		}
+
+		// actual change phase
+		if err := setBoolValue(TEST_BOOL_NAME2, !startBoolValue); err != nil {
+			t.Errorf("failed to run setsebool: %v", err)
+		}
+
+		event, rule, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux_bool_has_changed")
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+
+			assertFieldEqual(t, event, "selinux.bool.changed", true, "wrong bool change value")
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")

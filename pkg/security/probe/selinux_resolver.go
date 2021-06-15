@@ -9,32 +9,64 @@ package probe
 
 import (
 	"errors"
-	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 type SELinuxResolver struct {
+	sync.RWMutex
+	currentBoolValues map[string]bool
+	pendingBoolValues map[string]bool
 }
 
-// GetCurrentBoolValue returns the current value of the provided SELinux boolean
+func NewSELinuxResolver() *SELinuxResolver {
+	return &SELinuxResolver{
+		currentBoolValues: make(map[string]bool),
+		pendingBoolValues: make(map[string]bool),
+	}
+}
+
+func (r *SELinuxResolver) FlushPendingBools() {
+	r.Lock()
+	defer r.Unlock()
+
+	for k, v := range r.pendingBoolValues {
+		r.currentBoolValues[k] = v
+	}
+
+	for k := range r.pendingBoolValues {
+		delete(r.pendingBoolValues, k)
+	}
+}
+
+// GetCurrentBoolValue2 returns the current value of the provided SELinux boolean
 func (r *SELinuxResolver) GetCurrentBoolValue(boolName string) (bool, error) {
-	output, err := exec.Command("getsebool", boolName).Output()
+	r.RLock()
+	defer r.RUnlock()
+
+	val, ok := r.currentBoolValues[boolName]
+	if !ok {
+		return false, errors.New("no current value")
+	}
+	return val, nil
+}
+
+// SetCurrentBoolValue sets the current value of the provided SELinux boolean
+func (r *SELinuxResolver) SetCurrentBoolValue(boolName string, value bool) {
+	r.Lock()
+	defer r.Unlock()
+
+	r.pendingBoolValues[boolName] = value
+}
+
+// ResolveBoolValueChange resolves the change state of boolean value for SELinux events, while updating the old values map
+func (r *SELinuxResolver) ResolveBoolValueChange(boolName string, newValue bool) bool {
+	currentValue, err := r.GetCurrentBoolValue(boolName)
 	if err != nil {
-		return false, err
+		return true // if error, let's assume the value has changed
 	}
-
-	var resName, boolValue string
-	parsed, err := fmt.Sscanf(string(output), "%s --> %s", &resName, &boolValue)
-	if err != nil {
-		return false, err
-	}
-
-	if parsed != 2 || resName != boolName || (boolValue != "on" && boolValue != "off") {
-		return false, errors.New("failed to parse getsebool output")
-	}
-
-	return boolValue == "on", nil
+	return currentValue != newValue
 }
 
 // GetCurrentEnforceStatus returns the current SELinux enforcement status, one of "enforcing", "permissive", "disabled"

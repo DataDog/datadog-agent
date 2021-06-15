@@ -422,14 +422,17 @@ const (
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	File            FileEvent                   `field:"-"`
-	EventKind       SELinuxEventKind            `field:"-"`
-	RawBufSize      uint32                      `field:"-"`
-	RawBuf          [SELinuxRawBufCapacity]byte `field:"-"`
-	BoolName        string                      `field:"bool.name,ResolveSELinuxBoolName"`
-	BoolChangeValue string                      `field:"bool.state,ResolveSELinuxBoolChangeValue"`
-	BoolCommitValue bool                        `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
-	EnforceStatus   string                      `field:"enforce.status,ResolveSELinuxEnforceStatus"`
+	File                    FileEvent                   `field:"-"`
+	EventKind               SELinuxEventKind            `field:"-"`
+	RawBufSize              uint32                      `field:"-"`
+	RawBuf                  [SELinuxRawBufCapacity]byte `field:"-"`
+	BoolName                string                      `field:"bool.name,ResolveSELinuxBoolName"`
+	BoolChangeValue         string                      `field:"bool.state,ResolveSELinuxBoolChangeValue"`
+	BoolPreviousValue       string                      `field:"-"`
+	BoolHasChangedValue     bool                        `field:"bool.changed,ResolveSELinuxBoolHasChangedValue"`
+	BoolCommitValue         bool                        `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
+	EnforceStatus           string                      `field:"enforce.status,ResolveSELinuxEnforceStatus"`
+	EnforceStatusHasChanged bool                        `field:"enforce.changed,ResolveSELinuxEnforceStatusHasChanged"`
 }
 
 var zeroProcessContext ProcessContext

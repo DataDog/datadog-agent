@@ -187,18 +187,20 @@ type ProcessContextSerializer struct {
 
 // easyjson:json
 type selinuxBoolChangeSerializer struct {
-	Name  string `json:"name,omitempty"`
-	State string `json:"state,omitempty"`
+	Name    string `json:"name,omitempty"`
+	State   string `json:"state,omitempty"`
+	Changed bool   `json:"changed"`
 }
 
 // easyjson:json
 type selinuxEnforceStatusSerializer struct {
-	Status string `json:"status,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Changed bool   `json:"changed"`
 }
 
 // easyjson:json
 type selinuxBoolCommitSerializer struct {
-	State bool `json:"state,omitempty"`
+	State bool `json:"state"`
 }
 
 // SELinuxEventSerializer serializes a SELinux context to JSON
@@ -438,14 +440,16 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	case model.SELinuxBoolChangeEventKind:
 		return &SELinuxEventSerializer{
 			BoolChange: &selinuxBoolChangeSerializer{
-				Name:  e.ResolveSELinuxBoolName(&e.SELinux),
-				State: e.ResolveSELinuxBoolChangeValue(&e.SELinux),
+				Name:    e.ResolveSELinuxBoolName(&e.SELinux),
+				State:   e.ResolveSELinuxBoolChangeValue(&e.SELinux),
+				Changed: e.ResolveSELinuxBoolHasChangedValue(&e.SELinux),
 			},
 		}
 	case model.SELinuxEnforceChangeEventKind, model.SELinuxDisableChangeEventKind:
 		return &SELinuxEventSerializer{
 			EnforceStatus: &selinuxEnforceStatusSerializer{
-				Status: e.ResolveSELinuxEnforceStatus(&e.SELinux),
+				Status:  e.ResolveSELinuxEnforceStatus(&e.SELinux),
+				Changed: e.ResolveSELinuxEnforceStatusHasChanged(&e.SELinux),
 			},
 		}
 	case model.SELinuxBoolCommitEventKind:
