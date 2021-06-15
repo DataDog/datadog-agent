@@ -32,6 +32,10 @@ func TestDedupInPlace(t *testing.T) {
 	// should not change anything
 	elements = DedupInPlace(elements)
 	assert.ElementsMatch(elements, []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval"})
+
+	elements = []string{"tag2:tagval", "tag3:tagggg", "tag4", "tag2:tagval", "tag1:tagval", "tag2:tagval", "tag4", "tag1:tagval", "tag1:tagval"}
+	elements = DedupInPlace(elements)
+	assert.ElementsMatch(elements, []string{"tag2:tagval", "tag3:tagggg", "tag4", "tag1:tagval"})
 }
 
 func benchmarkDedupTags(b *testing.B, numberOfTags int) {

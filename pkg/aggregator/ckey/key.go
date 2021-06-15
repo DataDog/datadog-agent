@@ -6,6 +6,8 @@
 package ckey
 
 import (
+	"sort"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/cespare/xxhash"
 )
@@ -65,7 +67,13 @@ func NewKeyGenerator() *KeyGenerator {
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
-	util.DedupInPlace(tags)
+	if len(tags) > util.InsertionSortThreshold {
+		sort.Strings(tags)
+		util.UniqSorted(tags)
+	} else {
+		util.DedupInPlace(tags)
+	}
+
 	g.intb = 0xc6a4a7935bd1e995
 	g.intb = g.intb ^ xxhash.Sum64String(name)
 	g.intb = g.intb ^ xxhash.Sum64String(hostname)

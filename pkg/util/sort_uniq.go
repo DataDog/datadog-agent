@@ -1,6 +1,8 @@
 package util
 
-import "sort"
+import (
+	"sort"
+)
 
 // SortUniqInPlace sorts and remove duplicates from elements in place
 // The returned slice is a subslice of elements
@@ -16,7 +18,7 @@ func SortUniqInPlace(elements []string) []string {
 		// which confuses the escape analysis
 		sort.Strings(elements)
 	}
-	return uniqSorted(elements)
+	return UniqSorted(elements)
 }
 
 // DedupInPlace deduplicates the string re-using the given slice.
@@ -25,14 +27,20 @@ func DedupInPlace(elements []string) []string {
 		return elements
 	}
 
-	m := make(map[string]struct{})
-	idx := 0
-	for i := range elements {
-		if _, exists := m[elements[i]]; !exists {
-			m[elements[i]] = struct{}{}
-			elements[idx] = elements[i]
-			idx++
+	idx := 1
+OUTER:
+	for i := 1; i < len(elements); i++ {
+		el := elements[i]
+
+		for j := 0; j < idx; j++ {
+			if len(el) != len(elements[j]) || el != elements[j] {
+				continue
+			}
+			continue OUTER
 		}
+
+		elements[idx] = elements[i]
+		idx++
 	}
 
 	return elements[:idx]
@@ -40,7 +48,7 @@ func DedupInPlace(elements []string) []string {
 
 // uniqSorted remove duplicate elements from the given slice
 // the given slice needs to be sorted
-func uniqSorted(elements []string) []string {
+func UniqSorted(elements []string) []string {
 	j := 0
 	for i := 1; i < len(elements); i++ {
 		if elements[j] == elements[i] {

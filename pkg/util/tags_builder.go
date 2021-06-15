@@ -5,6 +5,8 @@
 
 package util
 
+import "sort"
+
 // TagsBuilder allows to build a slice of tags to generate the context while
 // reusing the same internal slice.
 type TagsBuilder struct {
@@ -34,7 +36,12 @@ func (tb *TagsBuilder) Append(tags ...string) {
 
 // Uniq removes duplicate in place
 func (tb *TagsBuilder) Uniq() {
-	tb.data = DedupInPlace(tb.data)
+	if len(tb.data) > InsertionSortThreshold {
+		sort.Strings(tb.data)
+		tb.data = UniqSorted(tb.data)
+	} else {
+		tb.data = DedupInPlace(tb.data)
+	}
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
