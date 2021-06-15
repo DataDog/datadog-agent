@@ -314,19 +314,20 @@ variables:
 .on_deploy_a7_manual:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_tagged_deploy
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-  - <<: *if_deploy
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
