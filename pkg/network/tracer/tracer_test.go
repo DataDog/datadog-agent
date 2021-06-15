@@ -2734,3 +2734,63 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
 	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
 }
+
+func TestSendfileRegression(t *testing.T) {
+	// Start tracer
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Start TCP server
+	var rcvd int64
+	server := NewTCPServer(func(c net.Conn) {
+		rcvd, _ = io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Create temporary file
+	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	n, err := tmpfile.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	require.Equal(t, clientMessageSize, n)
+	_, err = tmpfile.Seek(0, 0)
+	require.NoError(t, err)
+
+	// Connect to TCP server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Send payload using SENDFILE(2) syscall
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	rawConn.Control(func(fd uintptr) {
+		n, _ = syscall.Sendfile(int(fd), int(tmpfile.Fd()), nil, clientMessageSize)
+	})
+	require.Equal(t, clientMessageSize, n)
+
+	// Verify that our TCP server received the contents of the file
+	c.Close()
+	require.Eventually(t, func() bool {
+		return int64(clientMessageSize) == rcvd
+	}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
+
+	// Finaly retrieve connection and assert that the sendfile was accounted for
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+
+	assert.Equalf(t, int64(clientMessageSize), conn.MonotonicSentBytes, "sendfile data wasn't traced")
+}
