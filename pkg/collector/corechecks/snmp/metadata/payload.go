@@ -4,6 +4,16 @@ package metadata
 // Resources are devices, interfaces, etc
 var PayloadMetadataBatchSize = 100
 
+// DeviceStatus enum type
+type DeviceStatus int32
+
+const (
+	// DeviceStatusReachable means the device can be reached by snmp integration
+	DeviceStatusReachable = DeviceStatus(1)
+	// DeviceStatusUnreachable means the device cannot be reached by snmp integration
+	DeviceStatusUnreachable = DeviceStatus(2)
+)
+
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
 	Subnet           string              `json:"subnet"`
@@ -14,16 +24,17 @@ type NetworkDevicesMetadata struct {
 
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
-	ID          string   `json:"id"`
-	IDTags      []string `json:"id_tags"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	IPAddress   string   `json:"ip_address"`
-	SysObjectID string   `json:"sys_object_id"`
-	Profile     string   `json:"profile"`
-	Vendor      string   `json:"vendor"`
-	Subnet      string   `json:"subnet"`
-	Tags        []string `json:"tags"`
+	ID          string       `json:"id"`
+	IDTags      []string     `json:"id_tags"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	IPAddress   string       `json:"ip_address"`
+	SysObjectID string       `json:"sys_object_id"`
+	Profile     string       `json:"profile"`
+	Vendor      string       `json:"vendor"`
+	Subnet      string       `json:"subnet"`
+	Tags        []string     `json:"tags"`
+	Status      DeviceStatus `json:"status"`
 }
 
 // InterfaceMetadata contains interface metadata
