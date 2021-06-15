@@ -435,7 +435,7 @@ func (ev *Event) ResolveSELinuxBoolCommitValue(e *model.SELinuxEvent) bool {
 	return booleanInt != 0
 }
 
-// ResolveSELinuxEnforceStatus resolves the enforcment status
+// ResolveSELinuxEnforceStatus resolves the enforcement status
 func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxDisableChangeEventKind && e.EventKind != model.SELinuxEnforceChangeEventKind {
 		return ""
