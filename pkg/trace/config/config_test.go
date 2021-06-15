@@ -271,23 +271,39 @@ func TestAcquireHostname(t *testing.T) {
 	assert.Equal(t, host, c.Hostname)
 }
 
-func TestNormalizeEnv(t *testing.T) {
+func TestNormalizeDDEnvVar(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("dd_env_ok", func(t *testing.T) {
-		err := os.Setenv("DD_ENV", "staging")
-		defer os.Unsetenv("DD_ENV")
-		assert.NoError(err)
-		cfg, err := Load("./testdata/site_override.yaml")
-		assert.NoError(err)
-		assert.Equal("staging", cfg.DefaultEnv)
-	})
-	t.Run("dd_env_normalized", func(t *testing.T) {
-		err := os.Setenv("DD_ENV", "STAGING")
-		defer os.Unsetenv("DD_ENV")
-		assert.NoError(err)
-		cfg, err := Load("./testdata/site_override.yaml")
-		assert.NoError(err)
-		assert.Equal("staging", cfg.DefaultEnv)
-	})
+	for name, envVal := range map[string]string{
+		"ok":        "staging",
+		"normalize": "STAGING",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := os.Setenv("DD_ENV", envVal)
+			defer os.Unsetenv("DD_ENV")
+			assert.NoError(err)
+			cfg, err := Load("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+			assert.Equal("staging", cfg.DefaultEnv)
+		})
+	}
+}
+
+func TestNormalizeEnvFromConfig(t *testing.T) {
+	assert := assert.New(t)
+
+	for name, cfgFile := range map[string]string{
+		"apm_config_env_ok":        "./testdata/ok_apm_config_env.yaml",
+		"top_level_env_ok":         "./testdata/ok_top_level_env.yaml",
+		"host_tag_env_ok":          "./testdata/ok_host_tag_env.yaml",
+		"apm_config_env_normalize": "./testdata/unnormalized_apm_config_env.yaml",
+		"top_level_env_normalize":  "./testdata/unnormalized_top_level_env.yaml",
+		"host_tag_env_normalize":   "./testdata/unnormalized_host_tag_env.yaml",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := Load(cfgFile)
+			assert.NoError(err)
+			assert.Equal("staging", cfg.DefaultEnv)
+		})
+	}
 }
