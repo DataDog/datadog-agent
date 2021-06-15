@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
@@ -233,6 +234,61 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 	}
 }
 
+// marshalEvents marshals events into JSON.
+func marshalEvents(events []*otlppb.Span_Event) string {
+	var str strings.Builder
+	str.WriteString("[")
+	for i, e := range events {
+		if i > 0 {
+			str.WriteString(",")
+		}
+		var wrote bool
+		str.WriteString("{")
+		if v := e.TimeUnixNano; v != 0 {
+			str.WriteString(`"time_unix_nano":`)
+			str.WriteString(strconv.FormatUint(v, 10))
+			wrote = true
+		}
+		if v := e.Name; v != "" {
+			if wrote {
+				str.WriteString(",")
+			}
+			str.WriteString(`"name":"`)
+			str.WriteString(v)
+			str.WriteString(`"`)
+			wrote = true
+		}
+		if len(e.Attributes) > 0 {
+			if wrote {
+				str.WriteString(",")
+			}
+			str.WriteString(`"attributes":{`)
+			for j, kv := range e.Attributes {
+				if j > 0 {
+					str.WriteString(",")
+				}
+				str.WriteString(`"`)
+				str.WriteString(kv.Key)
+				str.WriteString(`":"`)
+				str.WriteString(anyValueString(kv.Value))
+				str.WriteString(`"`)
+			}
+			str.WriteString("}")
+			wrote = true
+		}
+		if v := e.DroppedAttributesCount; v != 0 {
+			if wrote {
+				str.WriteString(",")
+			}
+			str.WriteString(`"dropped_attributes_count":`)
+			str.WriteString(strconv.FormatUint(uint64(v), 10))
+		}
+		str.WriteString("}")
+	}
+	str.WriteString("]")
+	return str.String()
+}
+
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in *otlppb.Span) *pb.Span {
@@ -258,7 +314,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 			sampler.KeySamplingPriority: float64(sampler.PriorityAutoKeep),
 		},
 	}
-	if config.HasFeature("otlp_original_ids") {
+	if features.Has("otlp_original_ids") {
 		// keep original IDs
 		span.Meta["otlp_ids.trace"] = hex.EncodeToString(in.TraceId)
 		span.Meta["otlp_ids.span"] = hex.EncodeToString(in.SpanId)
@@ -270,12 +326,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		}
 	}
 	if len(in.Events) > 0 {
-		out, err := json.Marshal(in.Events)
-		if err != nil {
-			log.Warnf("Error marshaling span.Event: %v", err)
-		} else {
-			span.Meta["events"] = string(out)
-		}
+		span.Meta["events"] = marshalEvents(in.Events)
 	}
 	for _, kv := range in.Attributes {
 		switch v := kv.Value.Value.(type) {

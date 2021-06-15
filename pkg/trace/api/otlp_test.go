@@ -2,8 +2,10 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -438,7 +440,7 @@ func TestOTLPHelpers(t *testing.T) {
 
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(time.Now().UnixNano())
-	for _, tt := range []struct {
+	for i, tt := range []struct {
 		rattr map[string]string
 		lib   *otlppb.InstrumentationLibrary
 		in    *otlppb.Span
@@ -470,14 +472,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"env":                             "staging",
 					"instrumentation_library.name":    "ddtracer",
 					"instrumentation_library.version": "v2",
-					"otlp_ids.parent":                 "00",
-					"otlp_ids.span":                   "72df520af2bde7a5240031ead750e5f3",
-					"otlp_ids.trace":                  "72df520af2bde7a5240031ead750e5f3",
 					"service.name":                    "pylons",
 					"service.version":                 "v1.2.3",
 					"trace_state":                     "state",
 					"version":                         "v1.2.3",
-					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":[{\"key\":\"message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"accuracy\",\"value\":{\"Value\":{\"DoubleValue\":2.4}}}],\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":[{\"key\":\"exception.message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"exception.type\",\"value\":{\"Value\":{\"StringValue\":\"mem\"}}},{\"key\":\"exception.stacktrace\",\"value\":{\"Value\":{\"StringValue\":\"1/2/3\"}}}],\"dropped_attributes_count\":2}]",
+					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.40\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                       "Out of memory",
 					"error.type":                      "mem",
 					"error.stack":                     "1/2/3",
@@ -561,13 +560,10 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"deployment.environment":          "prod",
 					"instrumentation_library.name":    "ddtracer",
 					"instrumentation_library.version": "v2",
-					"otlp_ids.parent":                 "00",
-					"otlp_ids.span":                   "72df520af2bde7a5240031ead750e5f3",
-					"otlp_ids.trace":                  "72df520af2bde7a5240031ead750e5f3",
 					"service.version":                 "v1.2.3",
 					"trace_state":                     "state",
 					"version":                         "v1.2.3",
-					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":[{\"key\":\"message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"accuracy\",\"value\":{\"Value\":{\"DoubleValue\":2.4}}}],\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":[{\"key\":\"exception.message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"exception.type\",\"value\":{\"Value\":{\"StringValue\":\"mem\"}}},{\"key\":\"exception.stacktrace\",\"value\":{\"Value\":{\"StringValue\":\"1/2/3\"}}}],\"dropped_attributes_count\":2}]",
+					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.40\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                       "Out of memory",
 					"error.type":                      "mem",
 					"error.stack":                     "1/2/3",
@@ -653,14 +649,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"env":                             "staging",
 					"instrumentation_library.name":    "ddtracer",
 					"instrumentation_library.version": "v2",
-					"otlp_ids.parent":                 "00",
-					"otlp_ids.span":                   "72df520af2bde7a5240031ead750e5f3",
-					"otlp_ids.trace":                  "72df520af2bde7a5240031ead750e5f3",
 					"service.name":                    "pylons",
 					"service.version":                 "v1.2.3",
 					"trace_state":                     "state",
 					"version":                         "v1.2.3",
-					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":[{\"key\":\"message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"accuracy\",\"value\":{\"Value\":{\"DoubleValue\":2.4}}}],\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":[{\"key\":\"exception.message\",\"value\":{\"Value\":{\"StringValue\":\"Out of memory\"}}},{\"key\":\"exception.type\",\"value\":{\"Value\":{\"StringValue\":\"mem\"}}},{\"key\":\"exception.stacktrace\",\"value\":{\"Value\":{\"StringValue\":\"1/2/3\"}}}],\"dropped_attributes_count\":2}]",
+					"events":                          "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.40\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
 					"error.msg":                       "Out of memory",
 					"error.type":                      "mem",
 					"error.stack":                     "1/2/3",
@@ -676,8 +669,200 @@ func TestOTLPConvertSpan(t *testing.T) {
 			},
 		},
 	} {
-		assert.Equal(t, tt.out, convertSpan(tt.rattr, tt.lib, tt.in))
+		assert.Equal(t, tt.out, convertSpan(tt.rattr, tt.lib, tt.in), i)
 	}
+}
+
+func TestMarshalEvents(t *testing.T) {
+	for _, tt := range []struct {
+		in  []*otlppb.Span_Event
+		out string
+	}{
+		{
+			in: []*otlppb.Span_Event{
+				{
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					},
+					DroppedAttributesCount: 3,
+				},
+			},
+			out: `[{
+					"attributes": {"message":"OOM"},
+					"dropped_attributes_count":3
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					Name: "boom",
+				},
+			},
+			out: `[{"name":"boom"}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					Name: "boom",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					},
+					DroppedAttributesCount: 3,
+				},
+			},
+			out: `[{
+					"name":"boom",
+					"attributes": {"message":"OOM"},
+					"dropped_attributes_count":3
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano: 123,
+					Name:         "boom",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					},
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"name":"boom",
+					"attributes": { "message":"OOM" },
+					"dropped_attributes_count":2
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{"dropped_attributes_count":2}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano: 123,
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					},
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"attributes": {
+						"message":"OOM",
+						"accuracy":"2.40"
+					},
+					"dropped_attributes_count":2
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano: 123,
+					Name:         "boom",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					},
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"name":"boom",
+					"attributes": {
+						"message":"OOM",
+						"accuracy":"2.40"
+					}
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano:           123,
+					Name:                   "boom",
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"name":"boom",
+					"dropped_attributes_count":2
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano: 123,
+					Name:         "boom",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					},
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"name":"boom",
+					"attributes": {
+						"message":"OOM",
+						"accuracy":"2.40"
+					},
+					"dropped_attributes_count":2
+				}]`,
+		}, {
+			in: []*otlppb.Span_Event{
+				{
+					TimeUnixNano: 123,
+					Name:         "boom",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					},
+					DroppedAttributesCount: 2,
+				},
+				{
+					TimeUnixNano: 456,
+					Name:         "exception",
+					Attributes: []*otlppb.KeyValue{
+						{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
+						{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+					},
+					DroppedAttributesCount: 2,
+				},
+			},
+			out: `[{
+					"time_unix_nano":123,
+					"name":"boom",
+					"attributes": {
+						"message":"OOM",
+						"accuracy":"2.40"
+					},
+					"dropped_attributes_count":2
+				}, {
+					"time_unix_nano":456,
+					"name":"exception",
+					"attributes": {
+						"exception.message":"OOM",
+						"exception.type":"mem",
+						"exception.stacktrace":"1/2/3"
+					},
+					"dropped_attributes_count":2
+				}]`,
+		},
+	} {
+		assert.Equal(t, trimSpaces(tt.out), marshalEvents(tt.in))
+	}
+}
+
+func trimSpaces(str string) string {
+	var out strings.Builder
+	for _, ch := range str {
+		if !unicode.IsSpace(ch) {
+			out.WriteRune(ch)
+		}
+	}
+	return out.String()
 }
 
 func BenchmarkProcessRequest(b *testing.B) {
