@@ -46,7 +46,7 @@ OUTER:
 	return elements[:idx]
 }
 
-// uniqSorted remove duplicate elements from the given slice
+// UniqSorted removes duplicate elements from the given slice
 // the given slice needs to be sorted
 func UniqSorted(elements []string) []string {
 	j := 0
