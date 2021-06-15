@@ -453,9 +453,6 @@
         <?endif ?>
         <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
         <ComponentRef Id="CleanupMainApplicationFolder" />
-        <?if $(var.IncludePython2) = true ?>
-          <ComponentRef Id="MSVCRUNTIME" />
-        <?endif ?>
       <?if $(var.IncludeSysprobe) = true ?>
           <ComponentRef Id="DATADOGSYSPROBESERVICE" />
           <ComponentRef Id="system_probe.yaml.example" />
