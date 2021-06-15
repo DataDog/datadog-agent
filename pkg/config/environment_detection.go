@@ -99,11 +99,18 @@ func detectFeatures() {
 	if IsAutoconfigEnabled() {
 		detectContainerFeatures(newFeatures)
 		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
-		for _, ef := range excludedFeatures {
-			delete(newFeatures, Feature(ef))
+		for _, f := range excludedFeatures {
+			delete(newFeatures, Feature(f))
+		}
+
+		includedFeatures := Datadog.GetStringSlice("autoconfig_include_features")
+		for _, f := range includedFeatures {
+			newFeatures[Feature(f)] = struct{}{}
 		}
 
 		log.Infof("Features detected from environment: %v", newFeatures)
+	} else {
+		log.Warnf("Deactivating Autoconfig will disable most components. It's recommended to use autoconfig_exclude_features and autoconfig_include_features to activate/deactivate features selectively")
 	}
 	detectedFeatures = newFeatures
 }

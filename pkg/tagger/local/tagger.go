@@ -161,6 +161,10 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 	for name, factory := range t.candidates {
 		collector := factory()
 		mode, err := collector.Detect(ctx, t.infoIn)
+		if mode == collectors.NoCollection && err == nil {
+			log.Debugf("collector %s skipped as feature not activated", name)
+			continue
+		}
 		if retry.IsErrWillRetry(err) {
 			log.Debugf("will retry %s later: %s", name, err)
 			continue // don't add it to the modes map as we want to retry later
@@ -347,7 +351,6 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-
 	tags, err := t.store.getEntityTags(entityID)
 	if err != nil {
 		return nil, err

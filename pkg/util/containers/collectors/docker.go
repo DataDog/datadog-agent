@@ -9,9 +9,11 @@ package collectors
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -27,6 +29,10 @@ type DockerCollector struct {
 
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect() error {
+	if !config.IsFeaturePresent(config.Docker) {
+		return errors.New("Docker feature is deactivated")
+	}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return err

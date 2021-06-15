@@ -10,6 +10,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -67,6 +68,10 @@ func detectAgentV1URL() (string, error) {
 
 func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
+
+	if !config.IsFeaturePresent(config.Docker) {
+		return nil, errors.New("docker feature not activated")
+	}
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
