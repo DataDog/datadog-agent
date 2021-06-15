@@ -804,7 +804,6 @@
 		"Local Read Blocks": 3,
 		"Local Written Blocks": 4,
 		"Lossy Heap Blocks": 1,
-		"Node Type": "Aggregate",
 		"Optimization": 2.1,
 		"Options": ["dog", "food"],
 		"Original Hash Batches": 1,
