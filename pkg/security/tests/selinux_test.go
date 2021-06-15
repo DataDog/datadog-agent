@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -319,6 +320,81 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 	})
 }
 
+func TestSELinuxEnforceStatusChange(t *testing.T) {
+	rules := []*rules.RuleDefinition{
+		{
+			ID:         "test_selinux_status_has_changed",
+			Expression: `selinux.enforce.status == "permissive" && selinux.enforce.changed == true`,
+		},
+		{
+			ID:         "test_selinux_status_has_not_changed",
+			Expression: `selinux.enforce.status == "permissive" && selinux.enforce.changed == false`,
+		},
+	}
+
+	test, err := newTestModule(nil, rules, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+		t.Skipf("SELinux is not available, skipping tests")
+	}
+
+	t.Run("setenforce_changed_value", func(t *testing.T) {
+		// go to permissive mode
+		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+			t.Errorf("Failed to run setenforce")
+		}
+
+		event, rule, err := test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux_status_has_changed") // first time, so changed = true
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+
+			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
+			assertFieldEqual(t, event, "selinux.enforce.changed", true, "wrong changed value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
+		}
+
+		// go AGAIN to permissive mode
+		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+			t.Errorf("Failed to run setenforce")
+		}
+
+		event, rule, err = test.GetEvent()
+		if err != nil {
+			t.Error(err)
+		} else {
+			assertTriggeredRule(t, rule, "test_selinux_status_has_not_changed") // seconc time, so changed = false
+			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+
+			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
+			assertFieldEqual(t, event, "selinux.enforce.changed", false, "wrong changed value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			if testEnvironment == DockerEnvironment {
+				testContainerPath(t, event, "rename.file.container_path")
+				testContainerPath(t, event, "rename.file.destination.container_path")
+			}
+		}
+	})
+}
+
 func rawSudoWrite(filePath, writeContent string, ignoreRunError bool) error {
 	cmd := exec.Command("sudo", "-n", "tee", filePath)
 	stdin, err := cmd.StdinPipe()
@@ -372,4 +448,15 @@ func setBoolValue(boolName string, value bool) error {
 
 	cmd := exec.Command("sudo", "-n", "setsebool", boolName, valueStr)
 	return cmd.Run()
+}
+
+func getEnforceStatus() (string, error) {
+	cmd := exec.Command("sudo", "-n", "getenforce")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	status := strings.ToLower(strings.TrimSpace(string(output)))
+	return status, nil
 }

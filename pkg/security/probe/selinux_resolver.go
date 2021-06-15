@@ -19,6 +19,9 @@ type SELinuxResolver struct {
 	sync.RWMutex
 	currentBoolValues map[string]bool
 	pendingBoolValues map[string]bool
+
+	previousEnforceStatus string
+	currentEnforceStatus  string
 }
 
 // NewSELinuxResolver returns a new SELinux resolver
@@ -29,18 +32,22 @@ func NewSELinuxResolver() *SELinuxResolver {
 	}
 }
 
-// FlushPendingBools flushes currently pending bools so that their values can be retrieved through `GetCurrentBoolValue`
-func (r *SELinuxResolver) FlushPendingBools() {
+// flushPendingBools flushes currently pending bools so that their values can be retrieved through `GetCurrentBoolValue`
+func (r *SELinuxResolver) flushPendingBools() {
+	for k, v := range r.pendingBoolValues {
+		r.currentBoolValues[k] = v
+		delete(r.pendingBoolValues, k)
+	}
+}
+
+// BeginNewResolveStep starts a new resolver step by converting current state to previous state
+func (r *SELinuxResolver) BeginNewResolveStep() {
 	r.Lock()
 	defer r.Unlock()
 
-	for k, v := range r.pendingBoolValues {
-		r.currentBoolValues[k] = v
-	}
-
-	for k := range r.pendingBoolValues {
-		delete(r.pendingBoolValues, k)
-	}
+	r.flushPendingBools()
+	r.previousEnforceStatus = r.currentEnforceStatus
+	r.currentEnforceStatus = ""
 }
 
 // GetCurrentBoolValue returns the current value of the provided SELinux boolean
@@ -63,17 +70,23 @@ func (r *SELinuxResolver) SetCurrentBoolValue(boolName string, value bool) {
 	r.pendingBoolValues[boolName] = value
 }
 
-// ResolveBoolValueChange resolves the change state of boolean value for SELinux events, while updating the old values map
-func (r *SELinuxResolver) ResolveBoolValueChange(boolName string, newValue bool) bool {
-	currentValue, err := r.GetCurrentBoolValue(boolName)
-	if err != nil {
-		return true // if error, let's assume the value has changed
-	}
-	return currentValue != newValue
+// ResolvePreviousEnforceStatus returns the previous SELinux enforcement status, one of "enforcing", "permissive", "disabled" or "" if it was not set
+func (r *SELinuxResolver) ResolvePreviousEnforceStatus() string {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.previousEnforceStatus
 }
 
-// GetCurrentEnforceStatus returns the current SELinux enforcement status, one of "enforcing", "permissive", "disabled"
-func (r *SELinuxResolver) GetCurrentEnforceStatus() (string, error) {
+// ResolveCurrentEnforceStatus returns the current SELinux enforcement status, one of "enforcing", "permissive", "disabled"
+func (r *SELinuxResolver) ResolveCurrentEnforceStatus() (string, error) {
+	r.Lock()
+	defer r.Unlock()
+
+	if len(r.currentEnforceStatus) != 0 {
+		return r.currentEnforceStatus, nil
+	}
+
 	output, err := exec.Command("getenforce").Output()
 	if err != nil {
 		return "", err
@@ -82,6 +95,7 @@ func (r *SELinuxResolver) GetCurrentEnforceStatus() (string, error) {
 	status := strings.ToLower(strings.TrimSpace(string(output)))
 	switch status {
 	case "enforcing", "permissive", "disabled":
+		r.currentEnforceStatus = status
 		return status, nil
 	default:
 		return "", errors.New("failed to parse getenforce output")
