@@ -44,6 +44,10 @@ func TestChown32(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if ok := runSyscallTesterFunc(t, syscallTester, "check"); !ok {
+		t.Skip("x86 syscall tester not able to run")
+	}
+
 	prevUID := 98
 	prevGID := 99
 	fileMode := 0o447
@@ -54,11 +58,7 @@ func TestChown32(t *testing.T) {
 	}
 
 	t.Run("chown", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "chown", testFile, "100", "200")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
 
 		defer func() {
 			prevUID = 100
@@ -91,11 +91,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "fchown", testFile, "101", "201")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
 
 		defer func() {
 			prevUID = 101
@@ -128,11 +124,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "fchownat", testFile, "102", "202")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
 
 		defer func() {
 			prevUID = 102
@@ -175,11 +167,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		sideTester := exec.Command(syscallTester, "lchown", testSymlink, "103", "203")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -217,11 +205,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		sideTester := exec.Command(syscallTester, "lchown32", testSymlink, "104", "204")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
 
 		event, _, err := test.GetEvent()
 		if err != nil {
@@ -249,11 +233,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "fchown32", testFile, "105", "205")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
 
 		defer func() {
 			prevUID = 105
@@ -286,11 +266,7 @@ func TestChown32(t *testing.T) {
 	})
 
 	t.Run("chown32", func(t *testing.T) {
-		sideTester := exec.Command(syscallTester, "chown32", testFile, "106", "206")
-		if output, err := sideTester.CombinedOutput(); err != nil {
-			t.Error(string(output))
-			t.Error(err)
-		}
+		runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
 
 		defer func() {
 			prevUID = 106
@@ -343,4 +319,16 @@ func loadSyscallTester(t *testModule) (string, error) {
 	}
 
 	return binPath, nil
+}
+
+func runSyscallTesterFunc(t *testing.T, path string, args ...string) bool {
+	t.Helper()
+	sideTester := exec.Command(path, args...)
+	if output, err := sideTester.CombinedOutput(); err != nil {
+		t.Error(string(output))
+		t.Error(err)
+		return false
+	} else {
+		return true
+	}
 }

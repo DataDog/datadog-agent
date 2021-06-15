@@ -129,7 +129,9 @@ int main(int argc, char **argv) {
 
     char *cmd = argv[1];
 
-    if (strcmp(cmd, "chown") == 0) {
+    if (strcmp(cmd, "check") == 0) {
+        return EXIT_SUCCESS;
+    } else if (strcmp(cmd, "chown") == 0) {
         return chown_syscall(argc - 1, argv + 1);
     } else if (strcmp(cmd, "fchown") == 0) {
         return fchown_syscall(argc - 1, argv + 1);
