@@ -66,6 +66,10 @@ func TestSELinux(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
 				testContainerPath(t, event, "rename.file.destination.container_path")
@@ -86,6 +90,10 @@ func TestSELinux(t *testing.T) {
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -109,6 +117,10 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
 				testContainerPath(t, event, "rename.file.destination.container_path")
@@ -130,6 +142,10 @@ func TestSELinux(t *testing.T) {
 
 			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -182,10 +198,13 @@ func TestSELinuxCommitBools(t *testing.T) {
 			t.Error(err)
 		} else {
 			assertTriggeredRule(t, rule, "test_selinux_commit_bools")
-
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
@@ -239,6 +258,10 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			// always true at first
 			assertFieldEqual(t, event, "selinux.bool.changed", true, "wrong bool change value")
 
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
 				testContainerPath(t, event, "rename.file.destination.container_path")
@@ -260,6 +283,10 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			// always true at first
 			assertFieldEqual(t, event, "selinux.bool.changed", false, "wrong bool change value")
 
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")
 				testContainerPath(t, event, "rename.file.destination.container_path")
@@ -279,6 +306,10 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool.changed", true, "wrong bool change value")
+
+			if !validateSELinuxSchema(t, event) {
+				t.Fatal(event.String())
+			}
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "rename.file.container_path")

@@ -649,6 +649,10 @@ func newEventSerializer(event *Event) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
 	case model.SELinuxEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
+		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
 		s.Category = KernelActivity
 	}
