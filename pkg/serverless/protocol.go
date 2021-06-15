@@ -77,6 +77,10 @@ type Daemon struct {
 	InvcWg *sync.WaitGroup
 
 	extraTags []string
+
+	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
+	// this should be reset before each invocation
+	finishInvocationOnce sync.Once
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -154,7 +158,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop() {
+func (d *Daemon) Stop(isTimeout bool) {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 	d.ReadyWg.Wait()
@@ -165,9 +169,12 @@ func (d *Daemon) Stop() {
 	}
 	d.stopped = true
 
-	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
-	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	if !isTimeout {
+		// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
+		log.Debug("Waiting to shut down HTTP server")
+		time.Sleep(shutdownDelay)
+	}
+
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
 	if err != nil {
@@ -221,8 +228,8 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// this wait group will be blocking until the DogStatsD server has been instantiated + extra tags have been set
-	daemon.ReadyWg.Add(2)
+	// this wait group will be blocking until the DogStatsD server has been instantiated
+	daemon.ReadyWg.Add(1)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -252,7 +259,9 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.InvcWg.Done()
+	d.finishInvocationOnce.Do(func() {
+		d.InvcWg.Done()
+	})
 }
 
 // WaitForDaemon waits until invocation finished any pending work
@@ -291,10 +300,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 		source := aws.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
-		} else {
-			log.Debug("Impossible to retrieve the lambda LogSource")
 		}
-		d.ReadyWg.Done()
 	}
 }
 
@@ -391,7 +397,6 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()
