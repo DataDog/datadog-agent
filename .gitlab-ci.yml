@@ -293,17 +293,18 @@ variables:
 .on_deploy_a6_manual:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_tagged_deploy
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-  - <<: *if_deploy
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
       IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
 
 .on_deploy_a7:
   - <<: *if_not_version_7
