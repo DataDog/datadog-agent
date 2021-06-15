@@ -270,3 +270,24 @@ func TestAcquireHostname(t *testing.T) {
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)
 }
+
+func TestNormalizeEnv(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("dd_env_ok", func(t *testing.T) {
+		err := os.Setenv("DD_ENV", "staging")
+		defer os.Unsetenv("DD_ENV")
+		assert.NoError(err)
+		cfg, err := Load("./testdata/site_override.yaml")
+		assert.NoError(err)
+		assert.Equal("staging", cfg.DefaultEnv)
+	})
+	t.Run("dd_env_normalized", func(t *testing.T) {
+		err := os.Setenv("DD_ENV", "STAGING")
+		defer os.Unsetenv("DD_ENV")
+		assert.NoError(err)
+		cfg, err := Load("./testdata/site_override.yaml")
+		assert.NoError(err)
+		assert.Equal("staging", cfg.DefaultEnv)
+	})
+}
