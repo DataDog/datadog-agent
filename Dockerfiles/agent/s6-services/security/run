@@ -8,6 +8,6 @@ ifthenelse { s6-test ${SECURITY_AGENT_ENABLED} -eq 1 }
     security-agent start -c=/etc/datadog-agent/datadog.yaml
 }
 {
-    foreground { /initlog.sh "security-agent is disabled, disabling the service" }
+    foreground { /initlog.sh "security-agent is disabled, disabling the service." }
     foreground { /bin/s6-svc -d /var/run/s6/services/security/ }
 }
