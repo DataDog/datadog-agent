@@ -4,6 +4,7 @@ import re
 import traceback
 from collections import defaultdict
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -330,6 +331,23 @@ def generate_failure_messages(base):
             messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send
+
+
+@task
+def trigger_child_pipeline(_, ref, repo_name, variables):
+    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": ref, "variables": {}}
+
+    for v in variables.split(','):
+        data['variables'][v] = os.environ[v]
+
+    print("Creating child pipeline in repo {}, on ref {} with params: {}".format(repo_name, ref, data['variables']))
+    res = requests.post(
+        "https://gitlab.ddbuild.io/api/v4/projects/DataDog/{}/trigger/pipeline".format(repo_name), json=data
+    )
+    res.raise_for_status()
+    child_pipeline = res.json()
+    print(f"Created a child pipeline with id={child_pipeline['id']}, url={child_pipeline['web_url']}")
+    return child_pipeline['id']
 
 
 @task
