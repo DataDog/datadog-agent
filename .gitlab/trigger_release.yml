@@ -12,9 +12,9 @@ trigger_release_6:
     !reference [.on_deploy_stable_or_beta_repo_branch_a6_always]
   stage: trigger_release
   script:
-    - export RELEASE_VERSION=$(inv -e agent.version --major-version 6 --url-safe)
+    - export RELEASE_VERSION=$(inv -e agent.version --major-version 6 --url-safe)-1
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --repo-name "DataDog/agent-release-management" --ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
 
 trigger_release_7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -23,6 +23,6 @@ trigger_release_7:
     !reference [.on_deploy_stable_or_beta_repo_branch_a7_always]
   stage: trigger_release
   script:
-    - export RELEASE_VERSION=$(inv -e agent.version --major-version 7 --url-safe)
+    - export RELEASE_VERSION=$(inv -e agent.version --major-version 7 --url-safe)-1
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --repo-name "DataDog/agent-release-management" --ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"

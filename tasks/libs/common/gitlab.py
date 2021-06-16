@@ -89,6 +89,15 @@ class Gitlab(object):
 
         return sorted(pipelines, key=lambda pipeline: pipeline['created_at'], reverse=True)[0]
 
+    def trigger_pipeline(self, project_name, data):
+        """
+        Gets one page of the jobs for a pipeline.
+        per_page cannot exceed 100.
+        """
+        path = "/projects/{}/trigger/pipeline".format(quote(project_name, safe=""))
+
+        return self.make_request(path, data=data, json=True)
+
     def pipeline(self, project_name, pipeline_id):
         """
         Gets info for a given pipeline.

@@ -333,24 +333,32 @@ def generate_failure_messages(base):
 
 
 @task
-def trigger_child_pipeline(_, ref, repo_name, variables):
-    from urllib.parse import quote
+def trigger_child_pipeline(_, git_ref, project_name, variables):
+    # The Gitlab utility requires `GITLAB_TOKEN` to be set, even though
+    # we won't use it here
+    if os.environ.get('CI_JOB_TOKEN'):
+        os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
-    import requests
+    gitlab = Gitlab()
 
-    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": ref, "variables": {}}
+    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print("Creating child pipeline in repo {}, on ref {} with params: {}".format(repo_name, ref, data['variables']))
-    res = requests.post(
-        "https://gitlab.ddbuild.io/api/v4/projects/{}/trigger/pipeline".format(quote(repo_name, safe="")), json=data
+    print(
+        "Creating child pipeline in repo {}, on git ref {} with params: {}".format(
+            project_name, git_ref, data['variables']
+        )
     )
-    res.raise_for_status()
-    child_pipeline = res.json()
-    print(f"Created a child pipeline with id={child_pipeline['id']}, url={child_pipeline['web_url']}")
-    return child_pipeline['id']
+
+    res = gitlab.trigger_pipeline(project_name, data)
+
+    print(res)
+
+    print(f"Created a child pipeline with id={res['id']}, url={res['web_url']}")
+
+    return res['id']
 
 
 @task
