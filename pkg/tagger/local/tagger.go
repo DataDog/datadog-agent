@@ -250,7 +250,7 @@ IterCollectors:
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 
 		cacheMiss := false
-		var expiryDate *time.Time
+		var expiryDate time.Time
 		low, orch, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
@@ -258,8 +258,7 @@ IterCollectors:
 			cacheMiss = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			expireAfter := time.Now().Add(1 * time.Second)
-			expiryDate = &expireAfter
+			expiryDate = time.Now().Add(1 * time.Second)
 		}
 
 		tagArrays = append(tagArrays, low)
@@ -279,8 +278,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
-				//set expiry date for cache of failed Fetch
-				ExpiryDate: expiryDate,
+				ExpiryDate:           expiryDate,
 			},
 		})
 	}
