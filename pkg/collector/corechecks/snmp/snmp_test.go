@@ -565,6 +565,7 @@ profiles:
   "interfaces": [
     {
       "device_id": "173b2077d0770b8",
+      "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
@@ -575,6 +576,7 @@ profiles:
     },
     {
       "device_id": "173b2077d0770b8",
+	  "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",
@@ -1240,6 +1242,7 @@ tags:
   "interfaces": [
     {
       "device_id": "173b2077d0770b8",
+      "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
       "alias": "descRow1",
@@ -1250,6 +1253,7 @@ tags:
     },
     {
       "device_id": "173b2077d0770b8",
+      "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
       "alias": "descRow2",
