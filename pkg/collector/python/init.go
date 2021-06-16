@@ -11,7 +11,6 @@ import (
 	"expvar"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -165,6 +164,23 @@ void initkubeutilModule(rtloader_t *rtloader) {
 */
 import "C"
 
+// InterpreterResolutionError is our custom error for when our interpreter
+// path resolution fails
+type InterpreterResolutionError struct {
+	IsFatal bool
+	Err     error
+}
+
+func (ire InterpreterResolutionError) Error() string {
+	if ire.IsFatal {
+		return fmt.Sprintf("Error trying to resolve interpreter path: '%v'."+
+			" You can set 'allow_python_path_heuristics_failure' to ignore this error.", ire.Err)
+	}
+
+	return fmt.Sprintf("Error trying to resolve interpreter path: '%v'."+
+		" Python's 'multiprocessing' library may fail to work.", ire.Err)
+}
+
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -240,21 +256,27 @@ func sendTelemetry(pythonVersion string) {
 	})
 }
 
-func resolveExecPath(execName string) (string, error) {
-	execPath, err := exec.LookPath(execName)
+func pathToBinary(name string, ignoreErrors bool) (string, error) {
+	absPath, err := executable.ResolvePath(name)
 	if err != nil {
-		return "", err
+		resolutionError := InterpreterResolutionError{
+			IsFatal: !ignoreErrors,
+			Err:     err,
+		}
+		log.Error(resolutionError)
+
+		if ignoreErrors {
+			return "", nil
+		}
+
+		return "", resolutionError
+
 	}
 
-	execAbsPath, err := filepath.Abs(execPath)
-	if err != nil {
-		return "", err
-	}
-
-	return execAbsPath, nil
+	return absPath, nil
 }
 
-func resolvePythonExecPath(pythonVersion string) string {
+func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, error) {
 	// Since the install location can be set by the user on Windows we use relative import
 	if runtime.GOOS == "windows" {
 		_here, err := executable.Folder()
@@ -302,16 +324,10 @@ func resolvePythonExecPath(pythonVersion string) string {
 		// use the absolute path to the python.exe in our path.
 		if PythonHome == "" {
 			log.Warnf("Python home is empty. Inferring interpreter path from binary in path.")
-			interpreterAbsPath, err := resolveExecPath(PythonWinExeBasename)
-			if err != nil {
-				log.Warnf("Error trying to resolve interpreter path for executable: '%v'."+
-					" Python's 'multiprocessing' library may fail to work.", err)
-			}
-
-			return interpreterAbsPath
+			return pathToBinary(PythonWinExeBasename, ignoreErrors)
 		}
 
-		return filepath.Join(PythonHome, PythonWinExeBasename)
+		return filepath.Join(PythonHome, PythonWinExeBasename), nil
 	}
 
 	// On *nix both Python versions are installed in the same embedded directory. We
@@ -324,23 +340,18 @@ func resolvePythonExecPath(pythonVersion string) string {
 	// variable won't be set so what we do here is to just find out where our current
 	// default in-path "python2"/"python3" command is located and get its absolute path.
 	if PythonHome == "" {
-		interpreterAbsPath, err := resolveExecPath(interpreterBasename)
-		if err != nil {
-			log.Warnf("Error trying to resolve interpreter path for executable: '%v'."+
-				" Python's 'multiprocessing' library may fail to work.", err)
-			return interpreterBasename
-		}
-
-		return interpreterAbsPath
+		log.Warnf("Python home is empty. Inferring interpreter path from binary in path.")
+		return pathToBinary(interpreterBasename, ignoreErrors)
 	}
 
 	// If we're here, the ldflags have been used so we key off of those to get the
 	// absolute path of the interpreter executable
-	return filepath.Join(PythonHome, "bin", interpreterBasename)
+	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
+	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
@@ -354,7 +365,10 @@ func Initialize(paths ...string) error {
 	}
 
 	// Note: pythonBinPath is a module-level var
-	pythonBinPath = resolvePythonExecPath(pythonVersion)
+	pythonBinPath, err := resolvePythonExecPath(pythonVersion, allowPathHeuristicsFailure)
+	if err != nil {
+		return err
+	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
 	var pyErr *C.char = nil
