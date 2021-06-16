@@ -1,26 +1,35 @@
 package config
 
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/pkg/errors"
+)
+
 // AgentConfig represents the agent configuration API.
 type AgentConfig interface {
 	SetKnown(s string)
 	BindEnvAndSetDefault(key string, v interface{}, env ...string)
 	GetBool(key string) bool
 	GetString(key string) string
+	GetInt(key string) int
 }
+
+const (
+	// intakeURLTemplate specifies the string template allowing to obtain the
+	// intake URL from a given site.
+	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
+	defaultSite              = "datad0g.com"
+)
 
 // InitConfig initializes the config defaults on a config
 func InitConfig(cfg AgentConfig) {
 	cfg.SetKnown("appsec_config.enabled")
-	cfg.SetKnown("appsec_config.api.http.listen_addr")
-	cfg.SetKnown("appsec_config.backend.base_url")
-	cfg.SetKnown("appsec_config.api_key")
-	cfg.SetKnown("appsec_config.backend.proxy")
+	cfg.SetKnown("appsec_config.appsec_dd_url")
 
-	cfg.BindEnvAndSetDefault("appsec_config.enabled", false, "DD_APPSEC_ENABLED")
-	cfg.BindEnvAndSetDefault("appsec_config.api.http.listen_addr", "0.0.0.0:8127", "DD_APPSEC_API_HTTP_LISTEN_ADDR")
-	cfg.BindEnvAndSetDefault("appsec_config.backend.base_url", "FIXME", "DD_APPSEC_BACKEND_BASE_URL") //nolint:errcheck
-	cfg.BindEnvAndSetDefault("appsec_config.api_key", "", "DD_APPSEC_API_KEY")                        //nolint:errcheck
-	cfg.BindEnvAndSetDefault("appsec_config.backend.proxy", "", "DD_APPSEC_BACKEND_API_PROXY")        //nolint:errcheck
+	cfg.BindEnvAndSetDefault("appsec_config.enabled", true, "DD_APPSEC_ENABLED")
+	cfg.BindEnvAndSetDefault("appsec_config.appsec_dd_url", "", "DD_APPSEC_DD_URL")
 }
 
 // Config handles the interpretation of the configuration. It is also a simple
@@ -29,21 +38,38 @@ func InitConfig(cfg AgentConfig) {
 type Config struct {
 	Enabled bool
 
-	// HTTP API
-	HTTPAPIListenAddr string
-
-	// Backend API
-	BackendAPIBaseURL string
-	BackendAPIKey     string
-	BackendAPIProxy   string
+	// Intake API URL
+	IntakeURL *url.URL
+	ApiKey    string
 }
 
-func FromAgentConfig(cfg AgentConfig) *Config {
-	return &Config{
-		Enabled:           cfg.GetBool("appsec_config.enabled"),
-		HTTPAPIListenAddr: cfg.GetString("appsec_config.api.http.listen_addr"),
-		BackendAPIKey:     cfg.GetString("appsec_config.api_key"),
-		BackendAPIBaseURL: cfg.GetString("appsec_config.backend.base_url"),
-		BackendAPIProxy:   cfg.GetString("appsec_config.backend.proxy"),
+func FromAgentConfig(cfg AgentConfig) (*Config, error) {
+	intakeURL, err := intakeURL(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "config")
 	}
+	return &Config{
+		Enabled:   cfg.GetBool("appsec_config.enabled"),
+		IntakeURL: intakeURL,
+		ApiKey:    cfg.GetString("api_key"),
+	}, nil
+}
+
+// intakeURL returns the appsec intake URL.
+func intakeURL(cfg AgentConfig) (*url.URL, error) {
+	var main string
+	if url := cfg.GetString("appsec_config.appsec_dd_url"); url != "" {
+		main = url
+	} else {
+		site := cfg.GetString("site")
+		if site == "" {
+			site = defaultSite
+		}
+		main = fmt.Sprintf(defaultIntakeURLTemplate, site)
+	}
+	u, err := url.Parse(main)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error while parsing the appsec intake API URL %s", main)
+	}
+	return u, nil
 }

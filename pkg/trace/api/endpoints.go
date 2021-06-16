@@ -1,6 +1,9 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // endpoint specifies an API endpoint definition.
 type endpoint struct {
@@ -74,5 +77,21 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
+	},
+	{
+		Pattern: "/appsec",
+		Handler: func(r *HTTPReceiver) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				req.URL.Path = strings.TrimPrefix(req.URL.Path, "/appsec")
+				if req.URL.Path == "" {
+					req.URL.Path = "/"
+				}
+				req.URL.RawPath = strings.TrimPrefix(req.URL.RawPath, "/appsec")
+				if req.URL.RawPath == "" {
+					req.URL.RawPath = "/"
+				}
+				r.appsecHandler.ServeHTTP(w, req)
+			})
+		},
 	},
 }

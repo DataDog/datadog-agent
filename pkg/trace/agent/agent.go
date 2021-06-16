@@ -7,10 +7,15 @@ package agent
 
 import (
 	"context"
+	"net/http"
 	"runtime"
 	"sync/atomic"
 	"time"
 
+	appsecagent "github.com/DataDog/datadog-agent/pkg/appsec/agent"
+	appsecapi "github.com/DataDog/datadog-agent/pkg/appsec/api/http"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/appsec/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -68,6 +73,18 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
 
+	var appsecHandler http.Handler
+	appsecConf, err := appsecconfig.FromAgentConfig(coreconfig.Datadog)
+	if err != nil {
+		log.Error("appsec agent: configuration: ", err)
+	} else {
+		if appsecConf.Enabled {
+			appsecHandler = appsecapi.NewServeMux(appsecConf)
+		} else {
+			log.Info("appsec agent: ", appsecagent.ErrAgentDisabled)
+		}
+	}
+
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan),
@@ -85,7 +102,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		conf:                  conf,
 		ctx:                   ctx,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, appsecHandler, in, agnt)
 	return agnt
 }
 

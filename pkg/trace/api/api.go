@@ -76,12 +76,14 @@ type HTTPReceiver struct {
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
-	wg   sync.WaitGroup // waits for all requests to be processed
-	exit chan struct{}
+	appsecHandler http.Handler
+
+	wg        sync.WaitGroup // waits for all requests to be processed
+	exit      chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, appsecHandler http.Handler, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if config.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -97,6 +99,8 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
+
+		appsecHandler: appsecHandler,
 
 		exit: make(chan struct{}),
 	}
