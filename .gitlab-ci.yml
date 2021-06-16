@@ -518,7 +518,7 @@ pre_release_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/*.deb ./Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
 
@@ -539,7 +539,7 @@ pre_release_trace_agent_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
 
@@ -558,7 +558,7 @@ pre_release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
 
@@ -775,9 +775,8 @@ release_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/pkg/*.deb Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent latest
   when: manual
   only:
     - tags
@@ -800,9 +799,8 @@ release_trace_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent latest
   when: manual
   only:
     - tags
@@ -825,9 +823,8 @@ release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent latest
   when: manual
   only:
     - tags
