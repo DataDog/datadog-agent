@@ -334,6 +334,8 @@ def generate_failure_messages(base):
 
 @task
 def trigger_child_pipeline(_, ref, repo_name, variables):
+    from urllib.parse import quote
+
     import requests
 
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": ref, "variables": {}}
@@ -343,7 +345,7 @@ def trigger_child_pipeline(_, ref, repo_name, variables):
 
     print("Creating child pipeline in repo {}, on ref {} with params: {}".format(repo_name, ref, data['variables']))
     res = requests.post(
-        "https://gitlab.ddbuild.io/api/v4/projects/DataDog/{}/trigger/pipeline".format(repo_name), json=data
+        "https://gitlab.ddbuild.io/api/v4/projects/{}/trigger/pipeline".format(quote(repo_name, safe="")), json=data
     )
     res.raise_for_status()
     child_pipeline = res.json()

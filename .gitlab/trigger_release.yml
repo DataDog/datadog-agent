@@ -14,7 +14,7 @@ trigger_release_6:
   script:
     - RELEASE_VERSION=$(inv -e agent.version --major-version 6 --url-safe)
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --repo-name "agent-release-management" --ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --repo-name "DataDog/agent-release-management" --ref "master" --variables "RELEASE_VERSION"
 
 trigger_release_7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
@@ -25,4 +25,4 @@ trigger_release_7:
   script:
     - RELEASE_VERSION=$(inv -e agent.version --major-version 7 --url-safe)
     - python3 -m pip install -r requirements.txt
-    - inv pipeline.trigger-child-pipeline --repo-name "agent-release-management" --ref "master" --variables "RELEASE_VERSION"
+    - inv pipeline.trigger-child-pipeline --repo-name "DataDog/agent-release-management" --ref "master" --variables "RELEASE_VERSION"
