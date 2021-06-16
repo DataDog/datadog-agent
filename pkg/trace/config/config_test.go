@@ -271,20 +271,43 @@ func TestAcquireHostname(t *testing.T) {
 	assert.Equal(t, host, c.Hostname)
 }
 
-func TestNormalizeDDEnvVar(t *testing.T) {
+func TestNormalizeEnvFromDDEnv(t *testing.T) {
 	assert := assert.New(t)
 
-	for name, envVal := range map[string]string{
-		"ok":        "staging",
-		"normalize": "STAGING",
+	for in, out := range map[string]string{
+		"staging":   "staging",
+		"stAging":   "staging",
+		"staging 1": "staging_1",
 	} {
-		t.Run(name, func(t *testing.T) {
-			err := os.Setenv("DD_ENV", envVal)
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			err := os.Setenv("DD_ENV", in)
 			defer os.Unsetenv("DD_ENV")
 			assert.NoError(err)
 			cfg, err := Load("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
-			assert.Equal("staging", cfg.DefaultEnv)
+			assert.Equal(out, cfg.DefaultEnv)
+		})
+	}
+}
+
+func TestNormalizeEnvFromDDTags(t *testing.T) {
+	assert := assert.New(t)
+
+	for in, out := range map[string]string{
+		"env:staging": "staging",
+		"env:stAging": "staging",
+		// The value of DD_TAGS is parsed with a space delimiter.
+		"tag:value env:STAGING tag2:value2": "staging",
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			err := os.Setenv("DD_TAGS", in)
+			defer os.Unsetenv("DD_TAGS")
+			assert.NoError(err)
+			cfg, err := Load("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+			assert.Equal(out, cfg.DefaultEnv)
 		})
 	}
 }
@@ -292,15 +315,16 @@ func TestNormalizeDDEnvVar(t *testing.T) {
 func TestNormalizeEnvFromConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	for name, cfgFile := range map[string]string{
-		"apm_config_env_ok":        "./testdata/ok_apm_config_env.yaml",
-		"top_level_env_ok":         "./testdata/ok_top_level_env.yaml",
-		"host_tag_env_ok":          "./testdata/ok_host_tag_env.yaml",
-		"apm_config_env_normalize": "./testdata/unnormalized_apm_config_env.yaml",
-		"top_level_env_normalize":  "./testdata/unnormalized_top_level_env.yaml",
-		"host_tag_env_normalize":   "./testdata/unnormalized_host_tag_env.yaml",
+	for _, cfgFile := range []string{
+		"./testdata/ok_env_apm_config.yaml",
+		"./testdata/ok_env_top_level.yaml",
+		"./testdata/ok_env_host_tag.yaml",
+		"./testdata/non-normalized_env_apm_config.yaml",
+		"./testdata/non-normalized_env_top_level.yaml",
+		"./testdata/non-normalized_env_host_tag.yaml",
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
 			cfg, err := Load(cfgFile)
 			assert.NoError(err)
 			assert.Equal("staging", cfg.DefaultEnv)
