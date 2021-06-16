@@ -6,21 +6,23 @@
 # because there's no way to retry a trigger job once it gets skipped
 # because of a pipeline failure, even when retrying the pipeline.
 trigger_release_6:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a6_always]
   stage: trigger_release
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_6-1
-  trigger:
-    project: DataDog/agent-release-management
-    branch: master
+  script:
+    - RELEASE_VERSION=$(inv -e agent.version --major-version 6 --url-safe)
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --repo-name "agent-release-management" --ref "master" --variables "RELEASE_VERSION"
 
 trigger_release_7:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a7_always]
   stage: trigger_release
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_7-1
-  trigger:
-    project: DataDog/agent-release-management
-    branch: master
+  script:
+    - RELEASE_VERSION=$(inv -e agent.version --major-version 7 --url-safe)
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --repo-name "agent-release-management" --ref "master" --variables "RELEASE_VERSION"

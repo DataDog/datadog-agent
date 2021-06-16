@@ -4,7 +4,6 @@ import re
 import traceback
 from collections import defaultdict
 
-import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -335,6 +334,8 @@ def generate_failure_messages(base):
 
 @task
 def trigger_child_pipeline(_, ref, repo_name, variables):
+    import requests
+
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": ref, "variables": {}}
 
     for v in variables.split(','):
