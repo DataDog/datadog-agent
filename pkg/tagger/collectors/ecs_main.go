@@ -132,7 +132,7 @@ func addTagsForContainer(ctx context.Context, containerID string, tags *utils.Ta
 }
 
 func fetchContainerTaskWithTagsV3(ctx context.Context, containerID string) (*v3.Task, error) {
-	metaV3, err := ecsmeta.V3(containerID)
+	metaV3, err := ecsmeta.V3(ctx, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize client for metadata v3 API: %s", err)
 	}
