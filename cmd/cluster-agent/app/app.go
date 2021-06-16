@@ -152,6 +152,11 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	// Init settings that can be changed at runtime
+	if err := initRuntimeSettings(); err != nil {
+		log.Warnf("Can't initiliaze the runtime settings: %v", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
 		return nil

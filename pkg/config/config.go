@@ -196,6 +196,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -263,7 +264,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 
 	// Use to output logs in JSON format

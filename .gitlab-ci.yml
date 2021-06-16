@@ -194,10 +194,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs
 # on master and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 # Rule to trigger test kitchen setup, run, and cleanup.
 # By default:
