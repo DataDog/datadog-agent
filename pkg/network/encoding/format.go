@@ -41,6 +41,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.Raddr = formatAddr(conn.Dest, conn.DPort)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
+	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
@@ -262,6 +263,17 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 		return model.ConnectionDirection_none
 	default:
 		return model.ConnectionDirection_unspecified
+	}
+}
+
+func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
+	switch e {
+	case network.EphemeralTrue:
+		return model.EphemeralPortState_ephemeralTrue
+	case network.EphemeralFalse:
+		return model.EphemeralPortState_ephemeralFalse
+	default:
+		return model.EphemeralPortState_ephemeralUnspecified
 	}
 }
 
