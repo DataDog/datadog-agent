@@ -921,7 +921,7 @@
 			<Out><![CDATA[
 {
   "Plan": {
-	"Node Type": "Aggregate",
+    "Node Type": "Aggregate",
     "Partial Mode": "Partial",
     "Startup Cost": 74286.07,
 	"Total Cost": 223.59,
