@@ -5,7 +5,7 @@ set -xe
 IMAGE_TAG="${1}"
 IMAGE_REPO="${2}"
 DOCKERFILE_PATH="${3}"
-EXTRA_TAG="${4:""}"
+EXTRA_TAG="${4:-''}"
 REGISTRY="${5:-docker.io}"
 ORGANIZATION="${6:-stackstate}"
 
