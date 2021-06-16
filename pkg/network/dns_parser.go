@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
@@ -133,13 +134,14 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	question := dns.Questions[0]
-	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
+	if question.Class != layers.DNSClassIN {
 		return errSkippedPayload
 	}
 
 	// Only consider responses
 	if !dns.QR {
 		pktInfo.pktType = Query
+		pktInfo.queryType = question.Type
 		if p.collectDNSDomains {
 			pktInfo.question = string(question.Name)
 		}
@@ -154,6 +156,8 @@ func (p *dnsParser) parseAnswerInto(
 
 	var alias []byte
 	domainQueried := question.Name
+	log.Infof("answer for query %v %v", question.Type, string(domainQueried))
+	pktInfo.queryType = question.Type
 
 	// Retrieve the CNAME record, if available.
 	alias = p.extractCNAME(domainQueried, dns.Answers)

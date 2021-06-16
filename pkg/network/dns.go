@@ -1,11 +1,14 @@
 package network
 
-import "github.com/DataDog/datadog-agent/pkg/process/util"
+import (
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/google/gopacket/layers"
+)
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
 	Resolve([]ConnectionStats) map[util.Address][]string
-	GetDNSStats() map[DNSKey]map[string]DNSStats
+	GetDNSStats() map[DNSKey]map[string]map[layers.DNSType]DNSStats
 	GetStats() map[string]int64
 	Close()
 }
@@ -21,7 +24,7 @@ func (nullReverseDNS) Resolve(_ []ConnectionStats) map[util.Address][]string {
 	return nil
 }
 
-func (nullReverseDNS) GetDNSStats() map[DNSKey]map[string]DNSStats {
+func (nullReverseDNS) GetDNSStats() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
 	return nil
 }
 

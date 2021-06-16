@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/gopacket/layers"
 )
 
 const maxRoutes = math.MaxInt32
@@ -264,10 +265,15 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(stats map[string]map[layers.DNSType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
-	for d, s := range stats {
+	for d, stat := range stats {
 		var ms model.DNSStats
+
+		// TODO
+		// for now, just do the A record types which is what we're expecting, until
+		// new protobufs are available.
+		s := stat[layers.DNSTypeA]
 		ms.DnsCountByRcode = s.DNSCountByRcode
 		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
 		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum

@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	humanize "github.com/dustin/go-humanize"
+	"github.com/google/gopacket/layers"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -162,7 +163,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum   uint64
 	DNSFailureLatencySum   uint64
 	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	DNSStatsByDomain       map[string]map[layers.DNSType]DNSStats
 
 	Via *Via
 }
