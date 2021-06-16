@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,12 +48,14 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomain: map[string]network.DNSStats{
+				DNSStatsByDomain: map[string]map[layers.DNSType]network.DNSStats{
 					"foo.com": {
-						DNSTimeouts:          0,
-						DNSSuccessLatencySum: 0,
-						DNSFailureLatencySum: 0,
-						DNSCountByRcode:      map[uint32]uint32{0: 1},
+						layers.DNSTypeA: {
+							DNSTimeouts:          0,
+							DNSSuccessLatencySum: 0,
+							DNSFailureLatencySum: 0,
+							DNSCountByRcode:      map[uint32]uint32{0: 1},
+						},
 					},
 				},
 				Via: &network.Via{
