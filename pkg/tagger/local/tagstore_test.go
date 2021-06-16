@@ -122,7 +122,7 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 	assert.Nil(s.T(), sources)
 }
 
-func (s *StoreTestSuite) TestPruneDeletedEntities() {
+func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	s.store.processTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
@@ -152,8 +152,6 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 		},
 	})
 
-	assert.Len(s.T(), s.store.toDelete, 1)
-
 	// Data should still be in the store
 	tagsHigh, sourcesHigh := s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 4)
@@ -165,10 +163,7 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	s.store.pruneDeletedEntities()
-
-	// deletion map should be empty now
-	assert.Len(s.T(), s.store.toDelete, 0)
+	s.store.prune()
 
 	// test1 should only have tags from source2, source1 should be removed
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
@@ -198,7 +193,7 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 		},
 	})
 
-	s.store.pruneDeletedEntities()
+	s.store.prune()
 
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
@@ -208,7 +203,7 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 	assert.Len(s.T(), sourcesHigh, 1)
 }
 
-func (s *StoreTestSuite) TestPruneEmptyEntries() {
+func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	s.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source1",
@@ -245,7 +240,7 @@ func (s *StoreTestSuite) TestPruneEmptyEntries() {
 	})
 
 	assert.Len(s.T(), s.store.store, 5)
-	s.store.pruneEmptyEntries()
+	s.store.prune()
 	assert.Len(s.T(), s.store.store, 3)
 
 	// Assert non-empty tags aren't deleted
@@ -282,7 +277,7 @@ func TestGetEntityTags(t *testing.T) {
 	tags, sources := etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
 	etags.sourceTags["source"] = sourceTags{
@@ -292,15 +287,15 @@ func TestGetEntityTags(t *testing.T) {
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 
 	// Invalidate the cache, we should now get the tags
-	etags.storeWasUpdated = true
+	etags.cacheValid = false
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 4)
 	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
 	assert.Len(t, sources, 1)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 	tags, sources = etags.get(collectors.LowCardinality)
 	assert.Len(t, tags, 2)
 	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
@@ -308,30 +303,28 @@ func TestGetEntityTags(t *testing.T) {
 }
 
 func (s *StoreTestSuite) TestGetExpiredTags() {
-	expiryDate := time.Now().Add(1 * time.Second)
 	s.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source",
 			Entity:       "entityA",
+			HighCardTags: []string{"expired"},
+			ExpiryDate:   time.Now().Add(-10 * time.Second),
+		},
+		{
+			Source:       "source",
+			Entity:       "entityB",
 			HighCardTags: []string{"expiresSoon"},
-			ExpiryDate:   &expiryDate,
+			ExpiryDate:   time.Now().Add(10 * time.Second),
 		},
 	})
 
-	tagsHigh, _ := s.store.lookup("entityA", collectors.HighCardinality)
+	s.store.prune()
+
+	tagsHigh, _ := s.store.lookup("entityB", collectors.HighCardinality)
 	assert.Contains(s.T(), tagsHigh, "expiresSoon")
 
-	time.Sleep(500 * time.Millisecond)
-
 	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
-	//cache didn't expire yet
-	assert.Contains(s.T(), tagsHigh, "expiresSoon")
-
-	time.Sleep(500 * time.Millisecond)
-
-	//cache expired after 1 second. It should be no tags
-	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
-	assert.NotContains(s.T(), tagsHigh, "expiresSoon")
+	assert.NotContains(s.T(), tagsHigh, "expired")
 }
 
 func TestDuplicateSourceTags(t *testing.T) {
@@ -341,7 +334,7 @@ func TestDuplicateSourceTags(t *testing.T) {
 	tags, sources := etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 
 	// Mock collector priorities
 	collectors.CollectorPriorities = map[string]collectors.CollectorPriority{
@@ -369,15 +362,15 @@ func TestDuplicateSourceTags(t *testing.T) {
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 0)
 	assert.Len(t, sources, 0)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 
 	// Invalidate the cache, we should now get the tags
-	etags.storeWasUpdated = true
+	etags.cacheValid = false
 	tags, sources = etags.get(collectors.HighCardinality)
 	assert.Len(t, tags, 7)
 	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
 	assert.Len(t, sources, 3)
-	assert.True(t, etags.cacheValid())
+	assert.True(t, etags.cacheValid)
 	tags, sources = etags.get(collectors.LowCardinality)
 	assert.Len(t, sources, 3)
 	assert.Len(t, tags, 5)
@@ -441,7 +434,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.pruneDeletedEntities()
+	store.prune()
 
 	store.processTagInfo([]*collectors.TagInfo{
 		{
@@ -451,7 +444,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.pruneDeletedEntities()
+	store.prune()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
