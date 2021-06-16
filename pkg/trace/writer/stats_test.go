@@ -292,11 +292,13 @@ func getKey(b pb.ClientGroupedStats, start, duration uint64) key {
 		start:    start,
 		duration: duration,
 		Aggregation: stats.Aggregation{
-			Resource:   b.Resource,
-			Service:    b.Service,
-			Type:       b.Type,
-			StatusCode: b.HTTPStatusCode,
-			Synthetics: b.Synthetics,
+			BucketsAggregationKey: stats.BucketsAggregationKey{
+				Resource:   b.Resource,
+				Service:    b.Service,
+				Type:       b.Type,
+				StatusCode: b.HTTPStatusCode,
+				Synthetics: b.Synthetics,
+			},
 		},
 	}
 }

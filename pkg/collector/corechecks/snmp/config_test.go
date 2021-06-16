@@ -177,6 +177,7 @@ oid_batch_size: 10
 		{Symbol: symbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
 	metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	metrics = append(metrics, metricsConfig{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
 
 	metricsTags := []metricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
@@ -210,6 +211,7 @@ oid_batch_size: 10
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
+	assert.Equal(t, false, check.config.autodetectProfile)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -230,7 +232,7 @@ community_string: abc
 	assert.Equal(t, uint16(161), check.config.port)
 	assert.Equal(t, 2, check.config.timeout)
 	assert.Equal(t, 3, check.config.retries)
-	var metrics []metricsConfig
+	metrics := []metricsConfig{{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
 
 	var metricsTags []metricTagConfig
 
@@ -361,6 +363,7 @@ global_metrics:
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: symbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
+		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
 	assert.Equal(t, metrics, check.config.metrics)
 }
@@ -391,6 +394,7 @@ global_metrics:
 
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "aInstanceMetric"}},
+		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
 	assert.Equal(t, metrics, check.config.metrics)
 }

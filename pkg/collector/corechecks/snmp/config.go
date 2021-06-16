@@ -50,7 +50,7 @@ type snmpInstanceConfig struct {
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network"`
+	Network string `yaml:"network_address"`
 }
 
 type snmpConfig struct {
@@ -74,13 +74,13 @@ type snmpConfig struct {
 	profileTags           []string
 	profile               string
 	profileDef            *profileDefinition
-	uptimeMetricAdded     bool
 	extraTags             []string
 	instanceTags          []string
 	collectDeviceMetadata bool
 	deviceID              string
 	deviceIDTags          []string
 	subnet                string
+	autodetectProfile     bool
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -111,13 +111,9 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 }
 
 func (c *snmpConfig) addUptimeMetric() {
-	if c.uptimeMetricAdded {
-		return
-	}
 	metricConfig := getUptimeMetricConfig()
 	c.metrics = append(c.metrics, metricConfig)
 	c.oidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
-	c.uptimeMetricAdded = true
 }
 
 // getStaticTags return static tags built from configuration
@@ -142,7 +138,7 @@ func (c *snmpConfig) getDeviceIDTags() []string {
 func (c *snmpConfig) toString() string {
 	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
 		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, "+
-		"oidBatchSize=`%d`, profileTags=`%#v`, uptimeMetricAdded=`%t`",
+		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.ipAddress,
 		c.port,
 		c.snmpVersion,
@@ -155,7 +151,6 @@ func (c *snmpConfig) toString() string {
 		c.oidConfig,
 		c.oidBatchSize,
 		c.profileTags,
-		c.uptimeMetricAdded,
 	)
 }
 
@@ -193,7 +188,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if instance.Network != "" {
-		log.Warnf("`network` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	}
 
 	if c.ipAddress == "" {
@@ -278,6 +273,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
+	if profile != "" || len(c.metrics) > 0 {
+		c.autodetectProfile = false
+	} else {
+		c.autodetectProfile = true
+	}
+
 	if profile != "" {
 		err = c.refreshWithProfile(profile)
 		if err != nil {
@@ -292,6 +293,8 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		log.Debugf("subnet not found: %s", err)
 	}
 	c.subnet = subnet
+
+	c.addUptimeMetric()
 	return c, nil
 }
 

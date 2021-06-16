@@ -14,6 +14,8 @@ from datetime import date
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from tasks.utils import DEFAULT_BRANCH
+
 from .modules import DEFAULT_MODULES
 
 
@@ -56,8 +58,8 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
             """prelude:
     |
     Released on: {1}
-    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#{2}{3}>`_.""".format(
-                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version,
+    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
+                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version, DEFAULT_BRANCH,
             )
         )
 

@@ -217,9 +217,39 @@ struct bpf_map_def SEC("maps/dr_erpc_state") dr_erpc_state = {
     .namespace = "",
 };
 
+#define DR_ERPC_OK               0
+#define DR_ERPC_CACHE_MISS       1
+#define DR_ERPC_BUFFER_SIZE      2
+#define DR_ERPC_MAJOR_PAGE_FAULT 3
+#define DR_ERPC_TAIL_CALL_ERROR  4
+#define DR_ERPC_UNKNOWN_ERROR    5
+
+struct dr_erpc_stats_t {
+    u64 count;
+};
+
+struct bpf_map_def SEC("maps/dr_erpc_stats_fb") dr_erpc_stats_fb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct dr_erpc_stats_t),
+    .max_entries = 6,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/dr_erpc_stats_bb") dr_erpc_stats_bb = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct dr_erpc_stats_t),
+    .max_entries = 6,
+    .pinning = 0,
+    .namespace = "",
+};
+
 SEC("kprobe/dentry_resolver_erpc")
 int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
     u32 key = 0;
+    u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
     struct path_key_t iteration_key = {};
 
@@ -235,26 +265,36 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
     {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
-        if (map_value == NULL)
+        if (map_value == NULL) {
+            resolution_err = DR_ERPC_CACHE_MISS;
             goto exit;
+        }
 
         // make sure we do not write outside of the provided buffer
-        if (state->cursor + sizeof(state->key) >= state->buffer_size)
+        if (state->cursor + sizeof(state->key) >= state->buffer_size) {
+            resolution_err = DR_ERPC_BUFFER_SIZE;
             goto exit;
+        }
 
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &state->key, sizeof(state->key));
-        if (state->ret < 0)
+        if (state->ret < 0) {
+            resolution_err = state->ret == -14 ? DR_ERPC_MAJOR_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
+        }
 
         state->cursor += sizeof(state->key);
 
         // make sure we do not write outside of the provided buffer
-        if (state->cursor + map_value->len >= state->buffer_size)
+        if (state->cursor + map_value->len >= state->buffer_size) {
+            resolution_err = DR_ERPC_BUFFER_SIZE;
             goto exit;
+        }
 
         state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
-        if (state->ret < 0)
+        if (state->ret < 0) {
+            resolution_err = state->ret == -14 ? DR_ERPC_MAJOR_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
+        }
 
         state->cursor += map_value->len;
 
@@ -266,9 +306,21 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
         bpf_tail_call(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
 exit:
+    if (resolution_err > 0) {
+        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
+        if (erpc_stats == NULL)
+            return 0;
+
+        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &resolution_err);
+        if (stats == NULL) {
+            return 0;
+        }
+        __sync_fetch_and_add(&stats->count, 1);
+    }
     return 0;
 }
 

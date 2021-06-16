@@ -11,8 +11,7 @@
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: functional_test
   needs: ["tests_ebpf_x64"]
   variables:
@@ -27,8 +26,7 @@
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: functional_test
   needs: ["tests_ebpf_x64"]
   variables:

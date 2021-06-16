@@ -7,7 +7,7 @@
 #include "syscalls.h"
 #include "container.h"
 
-#define MAX_PERF_STR_BUFF_LEN 128
+#define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_PER_TAIL 28
 #define MAX_ARRAY_ELEMENT_SIZE 4096

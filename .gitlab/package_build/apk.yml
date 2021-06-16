@@ -1,17 +1,7 @@
 ---
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 agent_android_apk:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy
-      when: never
-    - when: on_success
+    !reference [.on_a7_except_deploy]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/android_builder:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
