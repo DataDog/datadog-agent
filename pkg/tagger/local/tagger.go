@@ -84,6 +84,7 @@ func (t *Tagger) Init() error {
 	// Only register the health check when the tagger is started
 	t.health = health.RegisterLiveness("tagger")
 
+	// TODO(deps injection): add a context in the tagger struct to how the restart if the tagger
 	t.startCollectors(context.TODO())
 	go t.run() //nolint:errcheck
 	go t.pull(context.TODO())
