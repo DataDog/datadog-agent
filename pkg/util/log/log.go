@@ -428,6 +428,26 @@ func formatError(v ...interface{}) error {
 	return errors.New(msg)
 }
 
+func formatErrorc(message string, context ...interface{}) error {
+	// Build a format string like this:
+	// message (%s:%v, %s:%v, ... %s:%v)
+	var fmtBuffer bytes.Buffer
+	fmtBuffer.WriteString(message)
+	if len(context) > 0 && len(context)%2 == 0 {
+		fmtBuffer.WriteString(" (")
+		for i := 0; i < len(context); i += 2 {
+			fmtBuffer.WriteString("%s:%v")
+			if i != len(context)-2 {
+				fmtBuffer.WriteString(", ")
+			}
+		}
+		fmtBuffer.WriteString(")")
+	}
+
+	msg := fmt.Sprintf(fmtBuffer.String(), context...)
+	return errors.New(scrubMessage(msg))
+}
+
 func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		s := buildLogEntry(v...)
@@ -486,6 +506,26 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string
 	}
 }
 
+func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, message string, fallbackStderr bool, context ...interface{}) error {
+	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
+		msg := logger.scrub(message)
+		logger.contextLock.Lock()
+		logger.inner.SetContext(context)
+		err := logFunc(msg)
+		logger.inner.SetContext(nil)
+		// Not using defer to make sure we release lock as fast as possible
+		logger.contextLock.Unlock()
+		return err
+	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
+		addLogToBuffer(bufferFunc)
+	}
+	err := formatErrorc(message, context...)
+	if fallbackStderr {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+	}
+	return err
+}
+
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
 	log(seelog.TraceLvl, func() { Trace(v...) }, logger.trace, v...)
@@ -541,6 +581,11 @@ func Warnf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, false, params...)
 }
 
+// Warnc logs at the warn level with context and returns an error containing the formated log message
+func Warnc(message string, context ...interface{}) error {
+	return logContextWithError(seelog.WarnLvl, func() { Warnc(message, context...) }, logger.warn, message, false, context...)
+}
+
 // Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, logger.error, true, v...)
@@ -551,6 +596,11 @@ func Errorf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, true, params...)
 }
 
+// Errorc logs at the error level with context and returns an error containing the formated log message
+func Errorc(message string, context ...interface{}) error {
+	return logContextWithError(seelog.ErrorLvl, func() { Errorc(message, context...) }, logger.error, message, true, context...)
+}
+
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
 	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, true, v...)
@@ -559,6 +609,11 @@ func Critical(v ...interface{}) error {
 // Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, true, params...)
+}
+
+// Criticalc logs at the critical level with context and returns an error containing the formated log message
+func Criticalc(message string, context ...interface{}) error {
+	return logContextWithError(seelog.CriticalLvl, func() { Criticalc(message, context...) }, logger.critical, message, true, context...)
 }
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
