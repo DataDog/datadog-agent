@@ -334,10 +334,12 @@ def generate_failure_messages(base):
 
 @task
 def trigger_child_pipeline(_, git_ref, project_name, variables):
-    # The Gitlab utility requires `GITLAB_TOKEN` to be set, even though
+    if not os.environ.get('CI_JOB_TOKEN'):
+        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
+
+    # The Gitlab lib requires `GITLAB_TOKEN` to be set, even though
     # we won't use it here
-    if os.environ.get('CI_JOB_TOKEN'):
-        os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
     gitlab = Gitlab()
 
