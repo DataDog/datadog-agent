@@ -329,4 +329,4 @@ the [provided wrappers]() to reserve memory:
 
 [1] https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
 [2] https://blog.detectify.com/2019/09/05/how-we-tracked-down-a-memory-leak-in-one-of-our-go-microservices/
-[3] https://github.com/DataDog/datadog-agent/blob/master/rtloader/common/rtloader_mem.h
+[3] https://github.com/DataDog/datadog-agent/blob/main/rtloader/common/rtloader_mem.h
