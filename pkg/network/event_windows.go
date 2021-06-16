@@ -97,7 +97,7 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 		familyarg = "ipv4"
 	}
 	switch t {
-	case UDP:
+	case TCP:
 		protoarg = "tcp"
 	default:
 		protoarg = "udp"
@@ -117,11 +117,11 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 		return
 	}
 	output := cmdOutput.Bytes()
-	var startportline = regexp.MustCompile(`Start.*: (\d+)`)
-	var numberline = regexp.MustCompile(`Number.*: (\d+)`)
+	var startPortLine = regexp.MustCompile(`Start.*: (\d+)`)
+	var numberLine = regexp.MustCompile(`Number.*: (\d+)`)
 
-	startPort := startportline.FindStringSubmatch(string(output))
-	rangeLen := numberline.FindStringSubmatch(string(output))
+	startPort := startPortLine.FindStringSubmatch(string(output))
+	rangeLen := numberLine.FindStringSubmatch(string(output))
 
 	portstart, err := strconv.Atoi(startPort[1])
 	if err != nil {
