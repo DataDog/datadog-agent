@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/agent-payload v4.73.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.6
-	github.com/DataDog/datadog-go v4.5.0+incompatible
+	github.com/DataDog/datadog-go v4.7.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
