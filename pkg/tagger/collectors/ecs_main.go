@@ -106,9 +106,21 @@ func (c *ECSCollector) Fetch(entity string) ([]string, []string, []string, error
 
 	for _, info := range updates {
 		if info.Entity == entity {
-			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
+			// this TagInfo is sent to c.infoOut too, but there is
+			// no guarantee that it will be processed before or
+			// after consumers of Fetch get the tags returned here.
+			// To prevent a cached TagInfo with an expiry date from
+			// being overwritten with one without, we need to
+			// somehow return an error here.
+			var err error
+			if !info.ExpiryDate.IsZero() {
+				err = errors.NewPartial(entity)
+			}
+
+			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, err
 		}
 	}
+
 	// container not found in updates
 	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
 }
