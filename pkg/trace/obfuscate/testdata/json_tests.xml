@@ -616,14 +616,15 @@
 			<Tag>normalize.sql.plan.postgres</Tag>
 			<ObfuscateSQLValues>
 				<key>Cache Key</key>
-				<key>Conflict Arbiter Indexes</key>
-				<key>Conflict Resolution</key>
+				<key>Conflict Filter</key>
 				<key>Filter</key>
 				<key>Hash Cond</key>
 				<key>Index Cond</key>
 				<key>Join Filter</key>
 				<key>Merge Cond</key>
+				<key>Output</key>
 				<key>Recheck Cond</key>
+				<key>Repeatable Seed</key>
 				<key>Sampling Parameters</key>
 				<key>TID Cond</key>
 			</ObfuscateSQLValues>
@@ -639,7 +640,10 @@
 				<key>Cache Hits</key>
 				<key>Cache Misses</key>
 				<key>Cache Overflows</key>
+                <key>Calls</key>
 				<key>Command</key>
+				<key>Conflict Arbiter Indexes</key>
+				<key>Conflict Resolution</key>
 				<key>Conflicting Tuples</key>
 				<key>Constraint Name</key>
 				<key>CTE Name</key>
@@ -652,6 +656,7 @@
 				<key>Foreign Delete</key>
 				<key>Foreign Insert</key>
 				<key>Foreign Update</key>
+				<key>Full-sort Groups</key>
 				<key>Function Call</key>
 				<key>Function Name</key>
 				<key>Generation</key>
@@ -659,13 +664,11 @@
 				<key>Grouping Sets</key>
 				<key>Group Key</key>
 				<key>HashAgg Batches</key>
+				<key>Hash Batches</key>
 				<key>Hash Buckets</key>
-				<key>Hash Key</key>
-				<key>Hash Keys</key>
 				<key>Heap Fetches</key>
 				<key>I/O Read Time</key>
 				<key>I/O Write Time</key>
-				<key>Incremental Sort Groups</key>
 				<key>Index Name</key>
 				<key>Inlining</key>
 				<key>Join Type</key>
@@ -676,7 +679,6 @@
 				<key>Lossy Heap Blocks</key>
 				<key>Node Type</key>
 				<key>Optimization</key>
-				<key>Options</key>
 				<key>Original Hash Batches</key>
 				<key>Original Hash Buckets</key>
 				<key>Parallel Aware</key>
@@ -686,12 +688,12 @@
 				<key>Peak Sort Space Used</key>
 				<key>Planned Partitions</key>
 				<key>Planning Time</key>
+				<key>Pre-sorted Groups</key>
 				<key>Presorted Key</key>
 				<key>Query Identifier</key>
 				<key>Plan Rows</key>
 				<key>Plan Width</key>
 				<key>Relation Name</key>
-				<key>Repeatable Seed</key>
 				<key>Rows Removed by Conflict Filter</key>
 				<key>Rows Removed by Filter</key>
 				<key>Rows Removed by Index Recheck</key>
@@ -747,117 +749,169 @@
 	"Plan Width": 121,
     "Plans": [
       {
-		"Cache Key": "datadog 'dummy'",
-		"Conflict Arbiter Indexes": "datadog 'dummy'",
-		"Conflict Resolution": "datadog 'dummy'",
+		"Cache Key": "datadog.org_id",
+		"Conflict Filter": "(datadog.org_id != 8182)",
 		"Filter": "(query <> 'dogfood'::text)",
 		"Hash Cond": "(pg_stat_statements.dbid = pg_database.)",
-		"Index Cond": "(pg_stat_statements.dbid = pg_database.)",
-		"Join Filter": "datadog 'dummy'",
-		"Merge Cond": "datadog 'dummy'",
-		"Recheck Cond": "datadog 'dummy'",
-		"Sampling Parameters": ["dog", "food"],
-		"TID Cond": "datadog 'dummy'",
-		"Actual Loops": 1,
-		"Actual Rows": 2,
-		"Actual Startup Time": 3,
-		"Actual Total Time": 4,
+		"Index Cond": "((datadog.org.id >= 10) AND (datadog.org.id < 15))",
+		"Join Filter": "datadog.org.name != 'dummy'",
+		"Merge Cond": "datadog.org_name = 'dummy'",
+		"Output": ["'fakename'::text", "25", "NULL::timestamp without time zone", "NULL::text"],
+		"Recheck Cond": "datadog.org.id >= 10",
+		"Sampling Parameters": ["'15528'::real"],
+		"TID Cond": "((datadog.tid > '15531'::tid) AND (datadog.tid <= '(44247,178)'::tid))",
 		"Alias": "dog",
 		"Async Capable": true,
-		"Average Sort Space Used": 1,
 		"Cache Evictions": 1,
 		"Cache Hits": 2,
 		"Cache Misses": 3,
 		"Cache Overflows": 4,
-		"Command": "sort_by_dogfood",
+		"Command": "Intersect",
+		"Conflict Arbiter Indexes": "dummy_index",
+		"Conflict Resolution": "NOTHING",
 		"Conflicting Tuples": 1,
-		"Constraint Name": 1,
-		"CTE Name": "Dog Food Users",
-		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Constraint Name": "datadog_org.id_pkey",
+		"CTE Name": "CTE_datadog",
+		"Custom Plan Provider": "Custom Dogfood",
 		"Deforming": false,
-		"Emission": 1.1,
 		"Exact Heap Blocks": 1,
 		"Execution Time": 1,
 		"Expressions": false,
-		"Foreign Delete": 1,
-		"Foreign Insert": 2,
-		"Foreign Update": 3,
-		"Function Call": 1,
-		"Function Name": 2,
-		"Generation": 1.22,
-		"Group Count": 1,
-		"Group Key": 2,
-		"Grouping Sets": ["a", "b"],
-		"Hash Buckets": 1,
-		"Hash Keys": 2,
-		"Hash Key": 3,
+		"Foreign Delete": "datadog.org_id",
+		"Foreign Insert": "datadog.org_id",
+		"Foreign Update": "datadog.has_apm",
+		"Function Call": "count_active_users_for_product('dbm')",
+		"Function Name": "count_active_users_for_product",
+		"Group Key": ["datadog.org_id", "datadog.has_apm"],
+		"Grouping Sets": ["datadog.has_apm", "datadog.enabled_logs"],
+		"Hash Batches": 32,
+		"Hash Buckets": 8319,
 		"HashAgg Batches": 4,
-		"Heap Fetches": 1,
-		"Incremental Sort Groups": ["dog", "food"],
+		"Heap Fetches": 8,
 		"Index Name": "dogfood",
-		"Inlining": 2.1,
-		"I/O Read Time": 1,
-		"I/O Write Time": 2,
+		"I/O Read Time": 5.31,
+		"I/O Write Time": 8.18,
 		"Join Type": "Left",
-		"Local Dirtied Blocks": 1,
-		"Local Hit Blocks": 2,
-		"Local Read Blocks": 3,
-		"Local Written Blocks": 4,
 		"Lossy Heap Blocks": 1,
-		"Optimization": 2.1,
-		"Options": ["dog", "food"],
-		"Original Hash Batches": 1,
-		"Original Hash Buckets": 2,
+		"Original Hash Batches": 32,
+		"Original Hash Buckets": 65536,
 		"Parallel Aware": false,
 		"Parent Relationship": "Outer",
-		"Partial Mode": "Simple",
-		"Peak Memory Usage": 1,
-		"Peak Sort Space Used": 2,
+		"Peak Memory Usage": 3941,
 		"Planned Partitions": 1,
-		"Planning Time": 1,
+		"Planning Time": 0.431,
 		"Presorted Key": ["dog", "food"],
 		"Query Identifier": "dog",
 		"Relation Name": "dog",
-		"Repeatable Seed": "datad0g",
+		"Repeatable Seed": "'60'::double precision",
 		"Rows Removed by Conflict Filter": 1,
 		"Rows Removed by Filter": 2,
 		"Rows Removed by Index Recheck": 3,
 		"Rows Removed by Join Filter": 4,
 		"Sampling Method": "system",
 		"Scan Direction": "Forward",
-		"Schema": "dogfood_user",
-		"Settings": ["dog"],
-		"Shared Dirtied Blocks": 1,
-		"Shared Hit Blocks": 2,
-		"Shared Read Blocks": 3,
-		"Shared Written Blocks": 4,
+		"Schema": "dogfood_users",
+		"Settings": {
+			"enable_mergejoin": "off",
+			"enable_nestloop": "off",
+			"jit_above_cost": "0",
+			"jit_inline_above_cost": "0",
+			"jit_optimize_above_cost": "0"
+		},
 		"Single Copy": false,
-		"Sort Key": "a",
-		"Sort Methods Used": ["quicksort", "heapsort"],
-		"Sort Method": "quick",
-		"Sort Space Type": 1,
+		"Sort Key": "datadog.org_id",
+		"Sort Method": "quicksort",
+		"Sort Space Type": "Memory",
 		"Sort Space Used": 2,
-		"Sort Space": 3,
 		"Strategy": "Hashed",
-		"Subplan Name": "dog",
+		"Subplan Name": "DogPlan 1",
 		"Subplans Removed": 0,
-		"Target Tables": "old_dog_food",
-		"Temp Read Blocks": 1,
-		"Temp Written Blocks": 2,
-		"Time": 1,
-		"Timing": "off",
-		"Total": 1.1,
-		"Trigger Name": "find_user",
-		"Triggers": 1,
-		"Trigger": "find_user()",
+		"Target Tables": "dog_food_users",
+		"Timing": {
+			"Generation": 1.22,
+			"Inlining": 0.1,
+			"Optimization": 0.83,
+			"Emission": 5.418,
+			"Total": 7.568
+		},
+		"Triggers": [
+			{
+			   "Trigger Name": "validate_user",
+			   "Relation": "datadog",
+			   "Time": 1.676,
+			   "Calls": 1
+			},
+			{
+			   "Trigger Name": "has_apm",
+			   "Relation": "datadog",
+			   "Time": 1.32,
+			   "Calls": 1
+			}
+		],
+		"Trigger": {
+		   "Trigger Name": "has_apm",
+		   "Relation": "datadog",
+		   "Time": 1.32,
+		   "Calls": 1
+		},
 		"Tuples Inserted": 1,
 		"Tuplestore Name": "dog_tuples",
 		"WAL Bytes": 1,
 		"WAL FPI": 2,
 		"WAL Records": 3,
-		"Worker": "dog",
-		"Worker Number": 1,
-		"Workers": ["dog", "food"],
+		"Worker": {
+		   "Worker Number": 0,
+		   "Actual Startup Time": 303.67,
+		   "Actual Total Time": 303.92,
+		   "Actual Rows": 256,
+		   "Actual Loops": 1
+		},
+		"Workers": [
+			{
+			   "Worker Number": 0,
+			   "Actual Startup Time": 1303.877,
+			   "Actual Total Time": 1303.928,
+			   "Actual Rows": 256,
+			   "Actual Loops": 1,
+			   "Full-sort Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "quicksort"
+				  ],
+				  "Sort Space Memory": {
+					 "Average Sort Space Used": 34,
+					 "Peak Sort Space Used": 34
+				  }
+			   },
+			   "Pre-sorted Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "external merge"
+				  ],
+				  "Sort Space Disk": {
+					 "Average Sort Space Used": 82256,
+					 "Peak Sort Space Used": 82256
+				  }
+			   }
+			},
+			{
+			   "Worker Number": 1,
+			   "Actual Startup Time": 0.016,
+			   "Actual Total Time": 51.325,
+			   "Actual Rows": 294375,
+			   "Actual Loops": 1,
+			   "Shared Hit Blocks": 3925,
+			   "Shared Read Blocks": 0,
+			   "Shared Dirtied Blocks": 0,
+			   "Shared Written Blocks": 0,
+			   "Local Hit Blocks": 0,
+			   "Local Read Blocks": 0,
+			   "Local Dirtied Blocks": 0,
+			   "Local Written Blocks": 0,
+			   "Temp Read Blocks": 0,
+			   "Temp Written Blocks": 0
+			}
+		],
 		"Workers Launched": 5,
 		"Workers Planned": 5
       }
@@ -875,117 +929,169 @@
 	"Plan Width": 121,
     "Plans": [
       {
-		"Cache Key": "datadog ?",
-		"Conflict Arbiter Indexes": "datadog ?",
-		"Conflict Resolution": "datadog ?",
+		"Cache Key": "datadog.org_id",
+		"Conflict Filter": "( datadog.org_id != ? )",
 		"Filter": "( query <> ? :: text )",
 		"Hash Cond": "( pg_stat_statements.dbid = pg_database. )",
-		"Index Cond": "( pg_stat_statements.dbid = pg_database. )",
-		"Join Filter": "datadog ?",
-		"Merge Cond": "datadog ?",
-		"Recheck Cond": "datadog ?",
-		"Sampling Parameters": ["?", "?"],
-		"TID Cond": "datadog ?",
-		"Actual Loops": 1,
-		"Actual Rows": 2,
-		"Actual Startup Time": 3,
-		"Actual Total Time": 4,
+		"Index Cond": "( ( datadog.org.id >= ? ) AND ( datadog.org.id < ? ) )",
+		"Join Filter": "datadog.org.name != ?",
+		"Merge Cond": "datadog.org_name = ?",
+		"Output": ["?", "?", "?", "?"],
+		"Recheck Cond": "datadog.org.id >= ?",
+		"Sampling Parameters": ["?"],
+		"TID Cond": "( ( datadog.tid > ? :: tid ) AND ( datadog.tid <= ? :: tid ) )",
 		"Alias": "dog",
 		"Async Capable": true,
-		"Average Sort Space Used": 1,
 		"Cache Evictions": 1,
 		"Cache Hits": 2,
 		"Cache Misses": 3,
 		"Cache Overflows": 4,
-		"Command": "sort_by_dogfood",
+		"Command": "Intersect",
+		"Conflict Arbiter Indexes": "dummy_index",
+		"Conflict Resolution": "NOTHING",
 		"Conflicting Tuples": 1,
-		"Constraint Name": 1,
-		"CTE Name": "Dog Food Users",
-		"Custom Plan Provider": "custom_sort_by_dogfood",
+		"Constraint Name": "datadog_org.id_pkey",
+		"CTE Name": "CTE_datadog",
+		"Custom Plan Provider": "Custom Dogfood",
 		"Deforming": false,
-		"Emission": 1.1,
 		"Exact Heap Blocks": 1,
 		"Execution Time": 1,
 		"Expressions": false,
-		"Foreign Delete": 1,
-		"Foreign Insert": 2,
-		"Foreign Update": 3,
-		"Function Call": 1,
-		"Function Name": 2,
-		"Generation": 1.22,
-		"Group Count": 1,
-		"Group Key": 2,
-		"Grouping Sets": ["a", "b"],
-		"Hash Buckets": 1,
-		"Hash Keys": 2,
-		"Hash Key": 3,
+		"Foreign Delete": "datadog.org_id",
+		"Foreign Insert": "datadog.org_id",
+		"Foreign Update": "datadog.has_apm",
+		"Function Call": "count_active_users_for_product('dbm')",
+		"Function Name": "count_active_users_for_product",
+		"Group Key": ["datadog.org_id", "datadog.has_apm"],
+		"Grouping Sets": ["datadog.has_apm", "datadog.enabled_logs"],
+		"Hash Batches": 32,
+		"Hash Buckets": 8319,
 		"HashAgg Batches": 4,
-		"Heap Fetches": 1,
-		"Incremental Sort Groups": ["dog", "food"],
+		"Heap Fetches": 8,
 		"Index Name": "dogfood",
-		"Inlining": 2.1,
-		"I/O Read Time": 1,
-		"I/O Write Time": 2,
+		"I/O Read Time": 5.31,
+		"I/O Write Time": 8.18,
 		"Join Type": "Left",
-		"Local Dirtied Blocks": 1,
-		"Local Hit Blocks": 2,
-		"Local Read Blocks": 3,
-		"Local Written Blocks": 4,
 		"Lossy Heap Blocks": 1,
-		"Optimization": 2.1,
-		"Options": ["dog", "food"],
-		"Original Hash Batches": 1,
-		"Original Hash Buckets": 2,
+		"Original Hash Batches": 32,
+		"Original Hash Buckets": 65536,
 		"Parallel Aware": false,
 		"Parent Relationship": "Outer",
-		"Partial Mode": "Simple",
-		"Peak Memory Usage": 1,
-		"Peak Sort Space Used": 2,
+		"Peak Memory Usage": 3941,
 		"Planned Partitions": 1,
-		"Planning Time": 1,
+		"Planning Time": 0.431,
 		"Presorted Key": ["dog", "food"],
 		"Query Identifier": "dog",
 		"Relation Name": "dog",
-		"Repeatable Seed": "datad0g",
+		"Repeatable Seed": "? :: double precision",
 		"Rows Removed by Conflict Filter": 1,
 		"Rows Removed by Filter": 2,
 		"Rows Removed by Index Recheck": 3,
 		"Rows Removed by Join Filter": 4,
 		"Sampling Method": "system",
 		"Scan Direction": "Forward",
-		"Schema": "dogfood_user",
-		"Settings": ["dog"],
-		"Shared Dirtied Blocks": 1,
-		"Shared Hit Blocks": 2,
-		"Shared Read Blocks": 3,
-		"Shared Written Blocks": 4,
+		"Schema": "dogfood_users",
+		"Settings": {
+			"enable_mergejoin": "off",
+			"enable_nestloop": "off",
+			"jit_above_cost": "0",
+			"jit_inline_above_cost": "0",
+			"jit_optimize_above_cost": "0"
+		},
 		"Single Copy": false,
-		"Sort Key": "a",
-		"Sort Methods Used": ["quicksort", "heapsort"],
-		"Sort Method": "quick",
-		"Sort Space Type": 1,
+		"Sort Key": "datadog.org_id",
+		"Sort Method": "quicksort",
+		"Sort Space Type": "Memory",
 		"Sort Space Used": 2,
-		"Sort Space": 3,
 		"Strategy": "Hashed",
-		"Subplan Name": "dog",
+		"Subplan Name": "DogPlan 1",
 		"Subplans Removed": 0,
-		"Target Tables": "old_dog_food",
-		"Temp Read Blocks": 1,
-		"Temp Written Blocks": 2,
-		"Time": 1,
-		"Timing": "off",
-		"Total": 1.1,
-		"Trigger Name": "find_user",
-		"Triggers": 1,
-		"Trigger": "find_user()",
+		"Target Tables": "dog_food_users",
+		"Timing": {
+			"Generation": 1.22,
+			"Inlining": 0.1,
+			"Optimization": 0.83,
+			"Emission": 5.418,
+			"Total": 7.568
+		},
+		"Triggers": [
+			{
+			   "Trigger Name": "validate_user",
+			   "Relation": "datadog",
+			   "Time": 1.676,
+			   "Calls": 1
+			},
+			{
+			   "Trigger Name": "has_apm",
+			   "Relation": "datadog",
+			   "Time": 1.32,
+			   "Calls": 1
+			}
+		],
+		"Trigger": {
+		   "Trigger Name": "has_apm",
+		   "Relation": "datadog",
+		   "Time": 1.32,
+		   "Calls": 1
+		},
 		"Tuples Inserted": 1,
 		"Tuplestore Name": "dog_tuples",
 		"WAL Bytes": 1,
 		"WAL FPI": 2,
 		"WAL Records": 3,
-		"Worker": "dog",
-		"Worker Number": 1,
-		"Workers": ["dog", "food"],
+		"Worker": {
+		   "Worker Number": 0,
+		   "Actual Startup Time": 303.67,
+		   "Actual Total Time": 303.92,
+		   "Actual Rows": 256,
+		   "Actual Loops": 1
+		},
+		"Workers": [
+			{
+			   "Worker Number": 0,
+			   "Actual Startup Time": 1303.877,
+			   "Actual Total Time": 1303.928,
+			   "Actual Rows": 256,
+			   "Actual Loops": 1,
+			   "Full-sort Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "quicksort"
+				  ],
+				  "Sort Space Memory": {
+					 "Average Sort Space Used": 34,
+					 "Peak Sort Space Used": 34
+				  }
+			   },
+			   "Pre-sorted Groups": {
+				  "Group Count": 1,
+				  "Sort Methods Used": [
+					 "external merge"
+				  ],
+				  "Sort Space Disk": {
+					 "Average Sort Space Used": 82256,
+					 "Peak Sort Space Used": 82256
+				  }
+			   }
+			},
+			{
+			   "Worker Number": 1,
+			   "Actual Startup Time": 0.016,
+			   "Actual Total Time": 51.325,
+			   "Actual Rows": 294375,
+			   "Actual Loops": 1,
+			   "Shared Hit Blocks": 3925,
+			   "Shared Read Blocks": 0,
+			   "Shared Dirtied Blocks": 0,
+			   "Shared Written Blocks": 0,
+			   "Local Hit Blocks": 0,
+			   "Local Read Blocks": 0,
+			   "Local Dirtied Blocks": 0,
+			   "Local Written Blocks": 0,
+			   "Temp Read Blocks": 0,
+			   "Temp Written Blocks": 0
+			}
+		],
 		"Workers Launched": 5,
 		"Workers Planned": 5
       }
