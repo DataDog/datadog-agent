@@ -148,4 +148,9 @@ SYSCALL_KRETPROBE(unlinkat) {
     return kprobe_sys_unlink_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_unlink_exit")
+int tracepoint_handle_sys_unlink_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_unlink_ret(args, args->ret);
+}
+
 #endif

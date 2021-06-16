@@ -144,4 +144,9 @@ SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
     return kprobe_sys_utimes_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_utimes_exit")
+int tracepoint_handle_sys_utimes_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_utimes_ret(args, args->ret);
+}
+
 #endif

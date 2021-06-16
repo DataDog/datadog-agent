@@ -63,4 +63,9 @@ SYSCALL_KRETPROBE(umount) {
     return sys_umount_ret(ctx, retval);
 }
 
+SEC("tracepoint/handle_sys_umount_exit")
+int tracepoint_handle_sys_umount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_umount_ret(args, args->ret);
+}
+
 #endif

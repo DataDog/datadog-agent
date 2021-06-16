@@ -105,4 +105,9 @@ SYSCALL_KRETPROBE(fchmodat) {
     return kprobe_sys_chmod_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_chmod_exit")
+int tracepoint_handle_sys_chmod_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_chmod_ret(args, args->ret);
+}
+
 #endif

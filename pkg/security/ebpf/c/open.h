@@ -293,6 +293,11 @@ SYSCALL_KRETPROBE(openat2) {
     return kprobe_sys_open_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_open_exit")
+int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
 SEC("kretprobe/io_openat2")
 int kretprobe__io_openat2(struct pt_regs *ctx) {
     struct file *f = (struct file *) PT_REGS_RC(ctx);

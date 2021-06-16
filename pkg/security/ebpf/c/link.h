@@ -142,6 +142,11 @@ SYSCALL_KRETPROBE(linkat) {
     return kprobe_sys_link_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_link_exit")
+int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
 int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;

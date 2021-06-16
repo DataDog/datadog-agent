@@ -184,6 +184,11 @@ SYSCALL_KRETPROBE(lsetxattr) {
     return kprobe_sys_setxattr_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_setxattr_exit")
+int tracepoint_handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
+}
+
 int __attribute__((always_inline)) kprobe_sys_removexattr_ret(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
@@ -214,6 +219,11 @@ int tracepoint_syscalls_sys_exit_fremovexattr(struct tracepoint_syscalls_sys_exi
 
 SYSCALL_KRETPROBE(fremovexattr) {
     return kprobe_sys_removexattr_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_removexattr_exit")
+int tracepoint_handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 #endif

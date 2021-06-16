@@ -115,6 +115,11 @@ SYSCALL_KRETPROBE(mkdirat) {
     return kprobe_sys_mkdir_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_mkdir_exit")
+int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_mkdir_ret(args, args->ret, DR_TRACEPOINT);
+}
+
 int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
