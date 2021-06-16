@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/flags/features"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,7 +69,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
 		}
-		if features.HasFeature("keep_sql_alias") {
+		if features.Has("keep_sql_alias") {
 			return token, buffer, nil
 		}
 		return Filtered, nil, nil
@@ -81,7 +81,7 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	case Comment, ';':
 		return markFilteredGroupable(token), nil, nil
 	case As:
-		if !features.HasFeature("keep_sql_alias") {
+		if !features.Has("keep_sql_alias") {
 			return As, nil, nil
 		}
 		fallthrough
@@ -315,8 +315,8 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 
 	var (
-		storeTableNames    = features.HasFeature("table_names")
-		quantizeTableNames = features.HasFeature("quantize_sql_tables")
+		storeTableNames    = features.Has("table_names")
+		quantizeTableNames = features.Has("quantize_sql_tables")
 		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err                error
 		lastToken          TokenKind
