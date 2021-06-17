@@ -621,6 +621,9 @@ func InitConfig(config Config) {
 	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
+	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
@@ -1062,7 +1065,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
-// See: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func ResolveSecrets(config Config, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.

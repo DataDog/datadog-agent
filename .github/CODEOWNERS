@@ -48,6 +48,7 @@
 /.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 
 /.gitlab/deps_build.yml                              @DataDog/agent-network @DataDog/agent-platform
+/.gitlab/windows_python_build.yml                    @DataDog/agent-platform
 
 /.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
 

@@ -2,7 +2,7 @@
 features:
   - |
     The agent has been tested on Kubernetes 1.4 & OpenShift 3.4. Refer to
-    https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md
+    https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md
     for installation instructions    
 issues:
   - |

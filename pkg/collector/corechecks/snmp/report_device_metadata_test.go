@@ -138,6 +138,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
     "interfaces": [
         {
             "device_id": "1234",
+            "id_tags": [
+                "interface:21"
+            ],
             "index": 1,
             "name": "21",
             "alias": "",
@@ -148,6 +151,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
         },
         {
             "device_id": "1234",
+            "id_tags": [
+                "interface:22"
+            ],
             "index": 2,
             "name": "22",
             "alias": "",
