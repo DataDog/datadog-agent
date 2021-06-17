@@ -17,13 +17,14 @@ license_file "../LICENSE"
 source path: '..'
 relative_path 'src/github.com/StackVista/stackstate-agent'
 
-# [sts] Security agent
-enable_security_agent false
-
 build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
+
+  # [sts] Security agent
+  enable_security_agent = false
+
   if windows?
     env = {
         'GOPATH' => gopath.to_path,
