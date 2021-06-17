@@ -621,6 +621,9 @@ func InitConfig(config Config) {
 	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
+	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
