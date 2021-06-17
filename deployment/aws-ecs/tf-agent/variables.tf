@@ -35,3 +35,8 @@ variable "STS_PROCESS_AGENT_ENABLED" {
    description = "Log level"
    default = "debug"
  }
+
+variable "STS_PROTOCOL_INSPECTION_ENABLED" {
+  description = "Enables protocol inspection"
+  default = "True"
+}

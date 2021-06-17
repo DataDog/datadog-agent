@@ -134,6 +134,7 @@ services:
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "true"
+      STS_PROTOCOL_INSPECTION_ENABLED: "true"
       STS_APM_URL: "http://localhost:7077/stsAgent"
       STS_APM_ENABLED: "true"
       HOST_PROC: "/host/proc"
