@@ -84,6 +84,8 @@ func getCompatSyscallFnName(name string) string {
 	return ia32SyscallPrefix + "compat_sys_" + name
 }
 
+// ShouldUseSyscallExitTracepoints returns true if the kernel version is old and we need to use tracepoints to handle syscall exits
+// instead of kretprobes
 func ShouldUseSyscallExitTracepoints() bool {
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
