@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/gopacket/layers"
 )
 
 const maxRoutes = math.MaxInt32
@@ -277,25 +276,26 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]map[layers.DNSType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
-	m := make(map[int32]*model.DNSStats)
-	for d, stat := range stats {
-		var ms model.DNSStats
+func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+	m := make(map[int32]*model.DNSStatsByQueryType)
+	for d, bytype := range stats {
 
-		// TODO
-		// for now, just do the A record types which is what we're expecting, until
-		// new protobufs are available.
-		s := stat[layers.DNSTypeA]
-		ms.DnsCountByRcode = s.DNSCountByRcode
-		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
-		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum
-		ms.DnsTimeouts = s.DNSTimeouts
+		byqtype := &model.DNSStatsByQueryType{}
+		byqtype.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+		for t, stat := range bytype {
+			var ms model.DNSStats
+			ms.DnsCountByRcode = stat.DNSCountByRcode
+			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
+			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
+			ms.DnsTimeouts = stat.DNSTimeouts
+			byqtype.DnsStatsByDomain[int32(t)] = &ms
+		}
 		pos, ok := domainSet[d]
 		if !ok {
 			pos = len(domainSet)
 			domainSet[d] = pos
 		}
-		m[int32(pos)] = &ms
+		m[int32(pos)] = byqtype
 	}
 	return m
 }

@@ -141,7 +141,7 @@ func (p *dnsParser) parseAnswerInto(
 	// Only consider responses
 	if !dns.QR {
 		pktInfo.pktType = Query
-		pktInfo.queryType = question.Type
+		pktInfo.queryType = QueryType(question.Type)
 		if p.collectDNSDomains {
 			pktInfo.question = string(question.Name)
 		}
@@ -157,7 +157,7 @@ func (p *dnsParser) parseAnswerInto(
 	var alias []byte
 	domainQueried := question.Name
 	log.Infof("answer for query %v %v", question.Type, string(domainQueried))
-	pktInfo.queryType = question.Type
+	pktInfo.queryType = QueryType(question.Type)
 
 	// Retrieve the CNAME record, if available.
 	alias = p.extractCNAME(domainQueried, dns.Answers)

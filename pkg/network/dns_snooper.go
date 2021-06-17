@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 )
 
 const (
@@ -108,7 +107,7 @@ func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Ad
 }
 
 // GetDNSStats gets the latest DNSStats keyed by unique DNSKey, and domain
-func (s *SocketFilterSnooper) GetDNSStats() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
+func (s *SocketFilterSnooper) GetDNSStats() map[DNSKey]map[string]map[QueryType]DNSStats {
 	if s.statKeeper == nil {
 		return nil
 	}

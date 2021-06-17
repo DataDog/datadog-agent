@@ -7,7 +7,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
 
 var (
@@ -36,7 +35,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[DNSKey]map[string]map[layers.DNSType]DNSStats,
+		dns map[DNSKey]map[string]map[QueryType]DNSStats,
 		http map[http.Key]http.RequestStats,
 	) Delta
 
@@ -91,7 +90,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	// maps by dns key the domain (string) to stats structure
-	dnsStats       map[DNSKey]map[string]map[layers.DNSType]DNSStats
+	dnsStats       map[DNSKey]map[string]map[QueryType]DNSStats
 	httpStatsDelta map[http.Key]http.RequestStats
 }
 
@@ -148,7 +147,7 @@ func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[DNSKey]map[string]map[layers.DNSType]DNSStats,
+	dnsStats map[DNSKey]map[string]map[QueryType]DNSStats,
 	httpStats map[http.Key]http.RequestStats,
 ) Delta {
 	ns.Lock()
@@ -244,14 +243,14 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
 			if ns.collectDNSDomains {
-				conn.DNSStatsByDomain = make(map[string]map[layers.DNSType]DNSStats)
+				conn.DNSStatsByDomain = make(map[string]map[QueryType]DNSStats)
 			} else {
 				conn.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			var total uint32
 			for domain, byType := range dnsStatsByDomain {
 				if ns.collectDNSDomains {
-					conn.DNSStatsByDomain[domain] = make(map[layers.DNSType]DNSStats)
+					conn.DNSStatsByDomain[domain] = make(map[QueryType]DNSStats)
 				}
 				for qtype, dnsStats := range byType {
 					if ns.collectDNSDomains {
@@ -285,7 +284,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
+	ns.clients[id].dnsStats = make(map[DNSKey]map[string]map[QueryType]DNSStats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -334,10 +333,20 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	}
 }
 
+func getDeepStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
+	var count int
+	for _, bykey := range stats {
+		for _, bydomain := range bykey {
+			count += len(bydomain)
+		}
+	}
+	return count
+}
+
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[layers.DNSType]DNSStats) {
+func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[QueryType]DNSStats) {
 	for _, client := range ns.clients {
-		dnsStatsThisClient := 0
+		dnsStatsThisClient := getDeepStatsCount(stats)
 		for key, statsByDomain := range stats {
 			for domain, statsByQtype := range statsByDomain {
 				for qtype, dns := range statsByQtype {
@@ -347,14 +356,14 @@ func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[layers.DNS
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key] = make(map[string]map[layers.DNSType]DNSStats)
+						client.dnsStats[key] = make(map[string]map[QueryType]DNSStats)
 					}
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key][domain] = make(map[layers.DNSType]DNSStats)
+						client.dnsStats[key][domain] = make(map[QueryType]DNSStats)
 					}
 
 					// If we've seen DNS stats for this key already, let's combine the two
@@ -412,7 +421,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[DNSKey]map[string]map[layers.DNSType]DNSStats{},
+		dnsStats:          map[DNSKey]map[string]map[QueryType]DNSStats{},
 		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c

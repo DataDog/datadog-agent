@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
 
 // DNSPacketType tells us whether the packet is a query or a reply (successful/failed)
@@ -33,13 +32,13 @@ type dnsPacketInfo struct {
 	pktType       DNSPacketType
 	rCode         uint8  // responseCode
 	question      string // only relevant for query packets
-	queryType     layers.DNSType
+	queryType     QueryType
 }
 
 type stateKey struct {
 	key   DNSKey
 	id    uint16
-	qtype layers.DNSType
+	qtype QueryType
 }
 
 type stateValue struct {
@@ -50,7 +49,7 @@ type stateValue struct {
 type dnsStatKeeper struct {
 	mux sync.Mutex
 	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
-	stats            map[DNSKey]map[string]map[layers.DNSType]DNSStats
+	stats            map[DNSKey]map[string]map[QueryType]DNSStats
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -65,7 +64,7 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[DNSKey]map[string]map[layers.DNSType]DNSStats),
+		stats:            make(map[DNSKey]map[string]map[QueryType]DNSStats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
@@ -122,7 +121,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[string]map[layers.DNSType]DNSStats)
+		allStats = make(map[string]map[QueryType]DNSStats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -130,7 +129,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			d.droppedStats++
 			return
 		}
-		stats = make(map[layers.DNSType]DNSStats)
+		stats = make(map[QueryType]DNSStats)
 	}
 	byqtype, ok := stats[info.queryType]
 	if !ok {
@@ -165,11 +164,11 @@ func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
 	return numStats, droppedStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[QueryType]DNSStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
+	d.stats = make(map[DNSKey]map[string]map[QueryType]DNSStats)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
 	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
@@ -180,15 +179,15 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[layers.D
 
 // Snapshot returns a deep copy of all DNS stats.
 // Please only use this for testing.
-func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
+func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]map[QueryType]DNSStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	snapshot := make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
+	snapshot := make(map[DNSKey]map[string]map[QueryType]DNSStats)
 	for key, statsByDomain := range d.stats {
-		snapshot[key] = make(map[string]map[layers.DNSType]DNSStats)
+		snapshot[key] = make(map[string]map[QueryType]DNSStats)
 		for domain, statsByQType := range statsByDomain {
-			snapshot[key][domain] = make(map[layers.DNSType]DNSStats)
+			snapshot[key][domain] = make(map[QueryType]DNSStats)
 			for qtype, statsCopy := range statsByQType {
 				// Copy DNSCountByRcode map
 				rcodeCopy := make(map[uint32]uint32)
@@ -217,7 +216,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[string]map[layers.DNSType]DNSStats)
+				allStats = make(map[string]map[QueryType]DNSStats)
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
@@ -225,7 +224,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 					d.droppedStats++
 					continue
 				}
-				bytype = make(map[layers.DNSType]DNSStats)
+				bytype = make(map[QueryType]DNSStats)
 			}
 			stats, ok := bytype[k.qtype]
 			if !ok {

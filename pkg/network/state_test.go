@@ -12,8 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
-	"github.com/google/gopacket/layers"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1149,14 +1147,14 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 
-	getStats := func() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
+	getStats := func() map[DNSKey]map[string]map[QueryType]DNSStats {
 		var d = "foo.com"
-		statsByDomain := make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
-		stats := make(map[layers.DNSType]DNSStats)
+		statsByDomain := make(map[DNSKey]map[string]map[QueryType]DNSStats)
+		stats := make(map[QueryType]DNSStats)
 		countByRcode := make(map[uint32]uint32)
 		countByRcode[uint32(DNSResponseCodeNoError)] = 1
-		stats[layers.DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
-		statsByDomain[dKey] = make(map[string]map[layers.DNSType]DNSStats)
+		stats[DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
+		statsByDomain[dKey] = make(map[string]map[QueryType]DNSStats)
 		statsByDomain[dKey][d] = stats
 		return statsByDomain
 	}
@@ -1202,13 +1200,13 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
 	var d = "foo.com"
-	getStats := func() map[DNSKey]map[string]map[layers.DNSType]DNSStats {
-		statsByDomain := make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
-		stats := make(map[layers.DNSType]DNSStats)
+	getStats := func() map[DNSKey]map[string]map[QueryType]DNSStats {
+		statsByDomain := make(map[DNSKey]map[string]map[QueryType]DNSStats)
+		stats := make(map[QueryType]DNSStats)
 		countByRcode := make(map[uint32]uint32)
 		countByRcode[uint32(DNSResponseCodeNoError)] = 1
-		stats[layers.DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
-		statsByDomain[dKey] = make(map[string]map[layers.DNSType]DNSStats)
+		stats[DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
+		statsByDomain[dKey] = make(map[string]map[QueryType]DNSStats)
 		statsByDomain[dKey][d] = stats
 		return statsByDomain
 	}
@@ -1227,7 +1225,7 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	conns := state.GetDelta(client1, latestEpochTime(), nil, getStats(), nil).Connections
 	require.Len(t, conns, 1)
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][layers.DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
@@ -1235,14 +1233,14 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 	conns = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// DNS stats should be available for the new client
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][layers.DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
 	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// 2nd client should get accumulated stats
-	assert.EqualValues(t, 3, conns[0].DNSStatsByDomain[d][layers.DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 3, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 }
@@ -1260,12 +1258,12 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 
 	var d = "foo.com"
 	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	statsByDomain := make(map[DNSKey]map[string]map[layers.DNSType]DNSStats)
-	stats := make(map[layers.DNSType]DNSStats)
+	statsByDomain := make(map[DNSKey]map[string]map[QueryType]DNSStats)
+	stats := make(map[QueryType]DNSStats)
 	countByRcode := make(map[uint32]uint32)
 	countByRcode[uint32(DNSResponseCodeNoError)] = 1
-	stats[layers.DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
-	statsByDomain[dKey] = make(map[string]map[layers.DNSType]DNSStats)
+	stats[DNSTypeA] = DNSStats{DNSCountByRcode: countByRcode}
+	statsByDomain[dKey] = make(map[string]map[QueryType]DNSStats)
 	statsByDomain[dKey][d] = stats
 
 	client := "client"
