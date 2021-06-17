@@ -37,10 +37,6 @@ if linux?
   dependency 'libkrb5'
   # needed for glusterfs
   dependency 'gstatus'
-
-  unless suse? || arm?
-    dependency 'aerospike-py3'
-  end
 end
 
 relative_path 'integrations-core'
