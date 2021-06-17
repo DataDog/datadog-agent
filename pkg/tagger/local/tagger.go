@@ -24,6 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
+const (
+	notFoundTTL = 5 * time.Minute
+	deletedTTL  = 5 * time.Minute
+	errTTL      = 30 * time.Second
+)
+
 // Tagger is the entry class for entity tagging. It holds collectors, memory store
 // and handles the query logic. One can use the package methods to use the default
 // Tagger instead of instantiating one.
@@ -62,7 +68,7 @@ func NewTagger(catalog collectors.Catalog) *Tagger {
 		fetchers:        make(map[string]collectors.Fetcher),
 		infoIn:          make(chan []*collectors.TagInfo, 5),
 		pullTicker:      time.NewTicker(5 * time.Second),
-		pruneTicker:     time.NewTicker(5 * time.Minute),
+		pruneTicker:     time.NewTicker(1 * time.Minute),
 		retryTicker:     time.NewTicker(30 * time.Second),
 		telemetryTicker: time.NewTicker(1 * time.Minute),
 		stop:            make(chan bool),
@@ -255,16 +261,19 @@ IterCollectors:
 
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 
-		cacheMiss := false
+		var cacheMiss bool
 		var expiryDate time.Time
 		low, orch, high, err := collector.Fetch(context.TODO(), entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+
 			cacheMiss = true
+			expiryDate = time.Now().Add(notFoundTTL)
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			expiryDate = time.Now().Add(1 * time.Second)
+
+			expiryDate = time.Now().Add(errTTL)
 		}
 
 		tagArrays = append(tagArrays, low)

@@ -123,6 +123,8 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 }
 
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
+	clock := &fakeClock{now: time.Now()}
+	s.store.clock = clock
 	s.store.processTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
@@ -163,6 +165,7 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
+	clock.now = clock.now.Add(10 * time.Minute)
 	s.store.prune()
 
 	// test1 should only have tags from source2, source1 should be removed
@@ -193,6 +196,7 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 		},
 	})
 
+	clock.now = clock.now.Add(10 * time.Minute)
 	s.store.prune()
 
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
@@ -386,7 +390,9 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
+	clock := &fakeClock{now: time.Now()}
 	store := newTagStore()
+	store.clock = clock
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
 
@@ -434,6 +440,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
+	clock.now = clock.now.Add(10 * time.Minute)
 	store.prune()
 
 	store.processTagInfo([]*collectors.TagInfo{
@@ -444,6 +451,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
+	clock.now = clock.now.Add(10 * time.Minute)
 	store.prune()
 
 	var wg sync.WaitGroup
