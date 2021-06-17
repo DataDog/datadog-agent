@@ -12,8 +12,9 @@ import (
 	"syscall"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -23,7 +24,7 @@ func TestLink(t *testing.T) {
 		Expression: `link.file.path == "{{.Root}}/test-link" && link.file.destination.path == "{{.Root}}/test2-link" && link.file.uid == 98 && link.file.gid == 99 && link.file.destination.uid == 98 && link.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,15 +43,13 @@ func TestLink(t *testing.T) {
 	}
 
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
-		if errno != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
+			if errno != 0 {
+				t.Fatal(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "link", "wrong event type")
 			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
 
@@ -61,6 +60,9 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
+		})
+		if err != nil {
+			t.Error(err)
 		}
 
 		if err := os.Remove(testNewFile); err != nil {
@@ -69,15 +71,13 @@ func TestLink(t *testing.T) {
 	}))
 
 	t.Run("linkat", func(t *testing.T) {
-		_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
-		if errno != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
+			if errno != 0 {
+				t.Fatal(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "link", "wrong event type")
 			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
 
@@ -88,6 +88,9 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
