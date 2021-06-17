@@ -242,19 +242,25 @@ if linux?
     extra_package_file "/etc/init.d/stackstate-agent"
     extra_package_file "/etc/init.d/stackstate-agent-process"
     extra_package_file "/etc/init.d/stackstate-agent-trace"
-    extra_package_file "/etc/init.d/stackstate-agent-security"
+    if enable_security_agent
+        extra_package_file "/etc/init.d/stackstate-agent-security"
+    end
   end
   if suse?
     extra_package_file "/etc/init.d/stackstate-agent"
     extra_package_file "/etc/init.d/stackstate-agent-process"
     extra_package_file "/etc/init.d/stackstate-agent-trace"
-    extra_package_file "/etc/init.d/stackstate-agent-security"
+    if enable_security_agent
+        extra_package_file "/etc/init.d/stackstate-agent-security"
+    end
   end
   extra_package_file "#{systemd_directory}/stackstate-agent.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-sysprobe.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
-  extra_package_file "#{systemd_directory}/stackstate-agent-security.service"
+  if enable_security_agent
+    extra_package_file "#{systemd_directory}/stackstate-agent-security.service"
+  end
   extra_package_file '/etc/stackstate-agent/'
   extra_package_file '/usr/bin/sts-agent'
   extra_package_file '/var/log/stackstate-agent/'
