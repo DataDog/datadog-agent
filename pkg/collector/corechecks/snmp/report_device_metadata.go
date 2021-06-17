@@ -12,6 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
+// interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
+var interfaceNameTagKey = "interface"
+
 func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := copyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
@@ -81,15 +84,17 @@ func buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([
 			continue
 		}
 
+		name := store.getColumnValueAsString(metadata.IfNameOID, strIndex)
 		networkInterface := metadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
-			Name:        store.getColumnValueAsString(metadata.IfNameOID, strIndex),
+			Name:        name,
 			Alias:       store.getColumnValueAsString(metadata.IfAliasOID, strIndex),
 			Description: store.getColumnValueAsString(metadata.IfDescrOID, strIndex),
 			MacAddress:  store.getColumnValueAsString(metadata.IfPhysAddressOID, strIndex),
 			AdminStatus: int32(store.getColumnValueAsFloat(metadata.IfAdminStatusOID, strIndex)),
 			OperStatus:  int32(store.getColumnValueAsFloat(metadata.IfOperStatusOID, strIndex)),
+			IDTags:      []string{interfaceNameTagKey + ":" + name},
 		}
 		interfaces = append(interfaces, networkInterface)
 	}

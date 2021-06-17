@@ -25,7 +25,7 @@ type NetworkDevicesMetadata struct {
 // DeviceMetadata contains device metadata
 type DeviceMetadata struct {
 	ID          string       `json:"id"`
-	IDTags      []string     `json:"id_tags"`
+	IDTags      []string     `json:"id_tags"` // id_tags is the input to produce device.id, it's also used to correlated with device metrics.
 	Name        string       `json:"name"`
 	Description string       `json:"description"`
 	IPAddress   string       `json:"ip_address"`
@@ -39,12 +39,13 @@ type DeviceMetadata struct {
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
-	DeviceID    string `json:"device_id"`
-	Index       int32  `json:"index"` // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
-	Name        string `json:"name"`
-	Alias       string `json:"alias"`
-	Description string `json:"description"`
-	MacAddress  string `json:"mac_address"`
-	AdminStatus int32  `json:"admin_status"` // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus  int32  `json:"oper_status"`  // IF-MIB ifOperStatus type is INTEGER
+	DeviceID    string   `json:"device_id"`
+	IDTags      []string `json:"id_tags"` // used to correlate with interface metrics
+	Index       int32    `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	Name        string   `json:"name"`
+	Alias       string   `json:"alias"`
+	Description string   `json:"description"`
+	MacAddress  string   `json:"mac_address"`
+	AdminStatus int32    `json:"admin_status"` // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus  int32    `json:"oper_status"`  // IF-MIB ifOperStatus type is INTEGER
 }
