@@ -327,13 +327,3 @@ const (
 func (s Syscall) MarshalText() ([]byte, error) {
 	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
 }
-
-func getThreadInfoFlagsOffset(probe *Probe) uint64 {
-	offset := uint64(0)
-
-	if probe.kernelVersion.IsRH7Kernel() {
-		offset = 16
-	}
-
-	return offset
-}

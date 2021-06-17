@@ -83,19 +83,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     return 0;
 }
 
-// are we running an ia32 syscall (32 bits sycall on 64 bits kernel)
-bool __attribute__((always_inline)) is_running_ia32_syscall() {
-    struct task_struct *cur_task = (struct task_struct *)bpf_get_current_task();
-    struct thread_info *cur_thread_info = (struct thread_info *)cur_task;
-
-    u64 flags_offset;
-    LOAD_CONSTANT("thread_info_flags_offset", flags_offset);
-
-    u64 flags;
-    bpf_probe_read(&flags, sizeof(flags), (char *)cur_thread_info + flags_offset);
-    return flags & TIF_IA32;
-}
-
 // used as a fallback, because tracepoints are not enable when using a ia32 userspace application with a x64 kernel
 // cf. https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/ftrace.h#L106
 int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
@@ -111,7 +98,7 @@ SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     u64 fallback;
     LOAD_CONSTANT("tracepoint_raw_syscall_fallback", fallback);
-    if (fallback && is_running_ia32_syscall()) {
+    if (fallback) {
         handle_sys_exit(args);
     }
 

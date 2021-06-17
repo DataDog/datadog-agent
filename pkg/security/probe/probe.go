@@ -868,10 +868,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 				Name:  "tracepoint_raw_syscall_fallback",
 				Value: uint64(1),
 			},
-			manager.ConstantEditor{
-				Name:  "thread_info_flags_offset",
-				Value: getThreadInfoFlagsOffset(p),
-			},
 		)
 	}
 
