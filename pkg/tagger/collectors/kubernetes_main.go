@@ -178,8 +178,8 @@ func (c *KubeMetadataCollector) Fetch(ctx context.Context, entity string) ([]str
 		return lowCards, orchestratorCards, highCards, err
 	}
 
-	if kubelet.IsPodReady(pod) == false {
-		return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
+	if !kubelet.IsPodReady(pod) {
+		return lowCards, orchestratorCards, highCards, nil
 	}
 
 	pods := []*kubelet.Pod{pod}
@@ -198,6 +198,7 @@ func (c *KubeMetadataCollector) Fetch(ctx context.Context, entity string) ([]str
 			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
+
 	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
 }
 
