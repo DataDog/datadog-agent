@@ -1,6 +1,5 @@
 // Package features provides an API for enabling features and checking if
 // a given feature is enabled.
-
 package features
 
 import (
