@@ -44,9 +44,7 @@ func TestChown32(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if ok := runSyscallTesterFunc(t, syscallTester, "check"); !ok {
-		t.Skip("x86 syscall tester not able to run")
-	}
+	checkSyscallTester(t, syscallTester)
 
 	prevUID := 98
 	prevGID := 99
@@ -321,14 +319,19 @@ func loadSyscallTester(t *testModule) (string, error) {
 	return binPath, nil
 }
 
-func runSyscallTesterFunc(t *testing.T, path string, args ...string) bool {
+func checkSyscallTester(t *testing.T, path string) {
+	t.Helper()
+	sideTester := exec.Command(path, "check")
+	if _, err := sideTester.CombinedOutput(); err != nil {
+		t.Skip()
+	}
+}
+
+func runSyscallTesterFunc(t *testing.T, path string, args ...string) {
 	t.Helper()
 	sideTester := exec.Command(path, args...)
 	if output, err := sideTester.CombinedOutput(); err != nil {
 		t.Error(string(output))
 		t.Error(err)
-		return false
-	} else {
-		return true
 	}
 }
