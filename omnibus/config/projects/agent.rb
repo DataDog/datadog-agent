@@ -225,11 +225,16 @@ dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
 
 if linux?
+  # [sts] Security agent
+  enable_security_agent = false
+
   extra_package_file '/etc/init/stackstate-agent.conf'
   extra_package_file '/etc/init/stackstate-agent-process.conf'
   extra_package_file '/etc/init/stackstate-agent-sysprobe.conf'
   extra_package_file '/etc/init/stackstate-agent-trace.conf'
-  extra_package_file '/etc/init/stackstate-agent-security.conf'
+  if enable_security_agent
+    extra_package_file '/etc/init/stackstate-agent-security.conf'
+  end
   systemd_directory = "/usr/lib/systemd/system"
   if debian?
     systemd_directory = "/lib/systemd/system"
