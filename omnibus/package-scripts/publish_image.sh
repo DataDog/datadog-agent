@@ -5,7 +5,7 @@ set -xe
 IMAGE_TAG="${1}"
 IMAGE_REPO="${2}"
 DOCKERFILE_PATH="${3}"
-PUSH_LATEST="${4:-false}"
+EXTRA_TAG="${4:-''}"
 REGISTRY="${5:-docker.io}"
 ORGANIZATION="${6:-stackstate}"
 
@@ -17,8 +17,8 @@ docker build -t "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${DOCK
 docker login -u "${docker_user}" -p "${docker_password}" "${REGISTRY}"
 docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
 
-if [ "$PUSH_LATEST" = "true" ]; then
-    docker tag "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:latest"
-    echo 'Pushing release to latest'
-    docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:latest"
+if [ -z "$EXTRA_TAG" ]; then
+    docker tag "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
+    echo "Pushing release to ${EXTRA_TAG}"
+    docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
 fi
