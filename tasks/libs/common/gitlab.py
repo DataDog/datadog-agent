@@ -166,7 +166,7 @@ class Gitlab(object):
         Utility to make a request to the Gitlab API.
 
         headers: A hash of headers to pass to the request.
-        data: A hash containing the body of the request.
+        data: An object containing the body of the request.
         json_input: If set to true, data is passed with the json parameter of requests.post instead of the data parameter.
 
         By default, the request method is GET, or POST if data is not empty.
