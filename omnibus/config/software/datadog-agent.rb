@@ -17,6 +17,7 @@ license_file "../LICENSE"
 source path: '..'
 relative_path 'src/github.com/StackVista/stackstate-agent'
 
+# [sts] Security agent
 enable_security_agent false
 
 build do
