@@ -8,7 +8,7 @@ include:
 notify-on-success:
   extends: .slack-notifier-base
   rules:
-    !reference [.on_master_or_release_branch_or_deploy]
+    !reference [.on_main_or_release_branch_or_deploy]
   dependencies: []
   script: |
     COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
@@ -43,7 +43,7 @@ notify-on-tagged-success:
 notify-on-failure:
   extends: .slack-notifier-base
   rules:
-    !reference [.on_master_or_release_branch_or_deploy_failure]
+    !reference [.on_main_or_release_branch_or_deploy_failure]
   dependencies: []
   script:
     - set +x

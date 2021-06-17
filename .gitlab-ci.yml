@@ -151,10 +151,10 @@ variables:
 #
 # Condition mixins for simplification of rules
 #
-.if_master_branch: &if_master_branch
+.if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
 
-.if_not_master_branch: &if_not_master_branch
+.if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
@@ -186,11 +186,11 @@ variables:
 
 # Rule to trigger all builds conditionally.
 # By default:
-# - on master and deploy pipelines, all builds are run
+# - on main and deploy pipelines, all builds are run
 # - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
 # RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
-# RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs 
-# on master and deploy pipelines depend on jobs that are only run if we run all builds).
+# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs 
+# on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
   if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
@@ -199,10 +199,10 @@ variables:
 
 # Rule to trigger test kitchen setup, run, and cleanup.
 # By default:
-# - on master and deploy pipelines, kitchen tests are run
+# - on main and deploy pipelines, kitchen tests are run
 # - on branch pipelines, kitchen tests are not run
 # RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on master/deploy pipelines.
+# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on main/deploy pipelines.
 .if_kitchen: &if_kitchen
   if: ($CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
@@ -241,30 +241,30 @@ variables:
     allow_failure: true
 
 .on_dev_branch_manual:
-  - <<: *if_master_branch
+  - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
     when: never
   - when: manual
     allow_failure: true
 
-.on_master:
-  - <<: *if_master_branch
+.on_main:
+  - <<: *if_main_branch
 
-.on_master_manual:
-  - <<: *if_master_branch
+.on_main_manual:
+  - <<: *if_main_branch
     when: manual
     allow_failure: true
 
-.on_master_a6:
+.on_main_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_master_branch
+  - <<: *if_main_branch
 
-.on_master_a7:
+.on_main_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_master_branch
+  - <<: *if_main_branch
 
 .on_tag_or_a7:
   - <<: *if_tagged_commit
@@ -393,19 +393,19 @@ variables:
     when: never
   - when: on_success
 
-.on_master_or_release_branch:
-  - <<: *if_master_branch
+.on_main_or_release_branch:
+  - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_master_or_release_branch_or_deploy:
+.on_main_or_release_branch_or_deploy:
   - <<: *if_deploy
-  - <<: *if_master_branch
+  - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_master_or_release_branch_or_deploy_failure:
+.on_main_or_release_branch_or_deploy_failure:
   - <<: *if_deploy
     when: on_failure
-  - <<: *if_master_branch
+  - <<: *if_main_branch
     when: on_failure
   - <<: *if_release_branch
     when: on_failure
@@ -496,7 +496,7 @@ variables:
     when: never
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_master_branch
+  - <<: *if_not_main_branch
     when: never
   - <<: *if_kitchen
     when: manual
