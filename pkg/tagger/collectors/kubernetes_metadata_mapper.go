@@ -50,28 +50,30 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	}
 
 	for _, po := range pods {
-		if kubelet.IsPodReady(po) == false {
-			log.Debugf("pod %q is not ready, skipping", po.Metadata.Name)
-			continue
-		}
-
-		// We cannot define if a hostNetwork Pod is a member of a service
-		if po.Spec.HostNetwork == true {
+		// Generate empty tagInfos for pods and their containers if pod
+		// uses hostNetwork (we cannot define if a hostNetwork Pod is a
+		// member of a service) or is not ready (it would not be an
+		// endpoint of a service). This allows the tagger to cache the
+		// result and avoid repeated calls to the DCA.
+		if po.Spec.HostNetwork == true || !kubelet.IsPodReady(po) {
 			for _, container := range po.Status.Containers {
 				entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 				if err != nil {
 					log.Warnf("Unable to parse container: %s", err)
 					continue
 				}
-				info := &TagInfo{
-					Source:               kubeMetadataCollectorName,
-					Entity:               entityID,
-					HighCardTags:         []string{},
-					OrchestratorCardTags: []string{},
-					LowCardTags:          []string{},
-				}
-				tagInfo = append(tagInfo, info)
+
+				tagInfo = append(tagInfo, &TagInfo{
+					Source: kubeMetadataCollectorName,
+					Entity: entityID,
+				})
 			}
+
+			tagInfo = append(tagInfo, &TagInfo{
+				Source: kubeMetadataCollectorName,
+				Entity: kubelet.PodUIDToTaggerEntityName(po.Metadata.UID),
+			})
+
 			continue
 		}
 

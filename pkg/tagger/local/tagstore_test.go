@@ -17,6 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
+type fakeClock struct {
+	now time.Time
+}
+
+func (f fakeClock) Now() time.Time {
+	return f.now
+}
+
 type StoreTestSuite struct {
 	suite.Suite
 	store *tagStore
