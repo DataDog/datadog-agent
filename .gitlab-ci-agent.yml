@@ -1,45 +1,11 @@
 image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
-- prepare
-- build_and_test
-- pre_release
-- acceptance
-- release
-
-variables: &globalvariables
-  STS_AWS_RELEASE_BUCKET: stackstate-agent-3
-  STS_AWS_TEST_BUCKET: stackstate-agent-3-test
-  STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-3-rpm
-  STS_AWS_TEST_BUCKET_YUM: stackstate-agent-3-rpm-test
-  STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-3
-  STS_AWS_TEST_BUCKET_WIN: stackstate-agent-3-test
-  STS_DOCKER_RELEASE_REPO: stackstate-agent
-  STS_DOCKER_TEST_REPO: stackstate-agent-test
-  STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
-  STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test
-  STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
-  STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
-  # The SRC_PATH is in the GOPATH of the builders which
-  # currently is /go
-  SRC_PATH: /go/src/github.com/StackVista/stackstate-agent
-  # Directory in which we execute the omnibus build.
-  # For an unknown reason, it does not go well with
-  # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
-  OMNIBUS_BASE_DIR: /.omnibus
-  # Directory in which we put the artifacts after the build
-  # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  OMNIBUS_BASE_DIR_WIN: c:/omnibus-ruby #\$CI_RUNNER_ID
-  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omnibus-ruby #/$CI_RUNNER_ID
-  # Directory in which we execute the omnibus build for SUSE
-  # as we want to separate the RPM built for this distro.
-  BCC_VERSION: v0.12.0
-  SYSTEM_PROBE_GO_VERSION: 1.13.11
-  DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  ARCH: amd64
-  VCINSTALLDIR: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
-
+  - prepare
+  - build_and_test
+  - pre_release
+  - acceptance
+  - release
 
 ######################### pipeline bricks
 
@@ -55,7 +21,7 @@ variables: &globalvariables
 .configure_centos_env_script: &configure_centos_env_script |
   . /root/.gimme/envs/go1.13.11.env
   . /root/miniconda3/etc/profile.d/conda.sh
-  conda activate ddpy3
+  conda activate $CONDA_ENV
   mkdir -p /go/src/github.com/StackVista
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
   ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
@@ -65,7 +31,7 @@ variables: &globalvariables
 
 .configure_debian_env_script: &configure_debian_env_script |
   . /root/miniconda3/etc/profile.d/conda.sh # TODO: check possibility to use bash from the start
-  conda activate ddpy3
+  conda activate $CONDA_ENV
   mkdir -p /go/src/github.com/StackVista
   rm -rf /go/src/github.com/StackVista/stackstate-agent || true
   . /usr/local/rvm/scripts/rvm
@@ -73,7 +39,7 @@ variables: &globalvariables
 
 .configure_windows_ps1_env_script: &configure_windows_ps1_env_script |
   Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
-  conda activate ddpy3
+  conda activate $CONDA_ENV
   $current_dir=Get-Location
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir
@@ -82,8 +48,8 @@ variables: &globalvariables
 
 
 before_script:
- - *configure_debian_env_script
- - *retrieve_linux_go_deps_script
+  - *configure_debian_env_script
+  - *retrieve_linux_go_deps_script
 
 
 ## prepare stage
@@ -93,7 +59,7 @@ clear_deps_deb_cache:
   before_script: []
   cache:
     policy: push
-    key: "deps-deb-$CI_COMMIT_REF_SLUG"
+    key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -107,7 +73,7 @@ clear_deps_rpm_cache:
   before_script: []
   cache:
     policy: push
-    key: "deps-rpm-$CI_COMMIT_REF_SLUG"
+    key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -123,7 +89,7 @@ clear_deps_win_cache:
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
   cache:
     policy: push
-    key: "deps-win-$CI_COMMIT_REF_SLUG"
+    key: "deps-win-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
@@ -138,34 +104,12 @@ clear_deps_win_cache:
 deps_deb:
   stage: prepare
   cache:
-    key: "deps-deb-$CI_COMMIT_REF_SLUG"
+    key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
       - venv
   script:
-    - conda activate ddpy3
-    - inv -e deps --verbose --dep-vendor-only
-    - inv version -u > version.txt
-    - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
-    - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
-    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/version.txt
-      - $CI_PROJECT_DIR/go-pkg.tar.gz
-      - $CI_PROJECT_DIR/go-bin.tar.gz
-      - $CI_PROJECT_DIR/vendor.tar.gz
-    expire_in: 1 week
-
-deps_deb_py2:
-  stage: prepare
-  cache:
-    key: "deps-deb-py2-$CI_COMMIT_REF_SLUG"
-    paths:
-      - vendor
-      - venv
-  script:
-    - conda activate ddpy2
+    - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
     - inv version -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
@@ -183,12 +127,13 @@ deps_rpm:
   stage: prepare
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
-    key: "deps-rpm-$CI_COMMIT_REF_SLUG"
+    key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
   before_script:
     - *configure_centos_env_script
   script:
+    - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
     - inv version -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
@@ -207,10 +152,11 @@ deps_win:
   before_script:
     - *configure_windows_ps1_env_script
   cache:
-    key: "deps-win-$CI_COMMIT_REF_SLUG"
+    key: "deps-win-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - vendor
   script:
+    - conda activate $CONDA_ENV
     - inv deps
     - inv version -u > version.txt
     - cd $Env:GOPATH/pkg ; tar --force-local -czf $CI_PROJECT_DIR/go-pkg.tar.gz .
@@ -231,39 +177,26 @@ deps_win:
 
 unit_tests:
   stage: build_and_test
-#  variables: TODO: fix
-#    PYTHON_RUNTIMES: '2'
-#    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
-#    CONDA_ENV: ddpy2
   needs:
     - deps_deb
   script:
+    - conda activate $CONDA_ENV
     # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
     - inv deps
-    - inv -e agent.build --race --precompile-only --major-version 2
+    - inv -e agent.build --race --precompile-only --major-version $MAJOR_VERSION
     # TODO: check why formatting rules differ from previous step
     - gofmt -l -w -s ./pkg ./cmd
-    # TODO: --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.test
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION
   tags:
     - sts-aws
-
-# TODO:  Not observed in v7 in a direct form ?
-#integration_tests:
-#  stage: build_and_test
-#  needs:
-#    - deps_deb
-#  script:
-#    - inv -e integration-tests --race --remote-docker
-#  tags:
-#    - sts-aws
 
 filename_linting:
   stage: build_and_test
   needs:
     - deps_deb
   script:
+    - conda activate $CONDA_ENV
     - inv -e lint-filenames
 
 # TODO:  Not observed in v7 in a direct form ?
@@ -287,28 +220,21 @@ build_binaries:
   needs:
     - deps_deb
   script:
-    - inv -e dogstatsd.build --static --major-version 2
+    - conda activate $CONDA_ENV
+    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION
     - inv -e rtloader.make
     - inv -e rtloader.install
     - cd $SRC_PATH
-    - inv -e agent.build --major-version 2
+    - inv -e agent.build --major-version $MAJOR_VERSION
   tags:
     - sts-k8s-m-runner
-
-#[VS] todo: obosolete in agent7?
-#build_puppy:
-#  stage: build_and_test
-#  needs:
-#    - deps_deb
-#  script:
-#    - inv -e agent.build --puppy
-#    - ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 build_cluster_agent:
   stage: build_and_test
   needs:
     - deps_deb
   script:
+    - conda activate $CONDA_ENV
     - inv -e cluster-agent.build
     - inv -e version
     - ls -la $CI_PROJECT_DIR/bin/
@@ -322,7 +248,7 @@ clear_build_deb_cache:
   stage: build_and_test
   cache:
     policy: push
-    key: "build-deb-$CI_COMMIT_REF_SLUG"
+    key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
   when: manual
@@ -334,7 +260,7 @@ clear_build_rpm_cache:
   stage: build_and_test
   cache:
     policy: push
-    key: "build-rpm-$CI_COMMIT_REF_SLUG"
+    key: "build-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
   when: manual
@@ -350,96 +276,47 @@ build_deb:
   tags:
     - sts-k8s-xl-no-docker-runner
   cache:
-    key: "build-deb-$CI_COMMIT_REF_SLUG"
+    key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
-  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+    - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
-  - inv version
-  - cat version.txt || true
-  - source ./.gitlab-scripts/setup_artifactory.sh
+    - conda activate $CONDA_ENV
+    - inv version
+    - cat version.txt || true
+    - source ./.gitlab-scripts/setup_artifactory.sh
 
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2
-
-    # Prepare outputs
-  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
-  - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
-  - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
-  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
-
-  - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
-
-    # Prepare cache
-    # Drop packages for cache
-  - rm -rf /omnibus/pkg
-    # Drop agent for cache (will be resynced anyway)
-  - rm -rf /omnibus/src/datadog-agent
-    # Drop symlink because it will fail the build when coming from a cache
-  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-#  - mv /omnibus $CI_PROJECT_DIR/.omnibus
-  artifacts:
-    paths:
-        - $CI_PROJECT_DIR/outcomes/pkg/*.deb
-        - $CI_PROJECT_DIR/outcomes/pkg/*.json
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
-        - $CI_PROJECT_DIR/version.txt
-        - $CI_PROJECT_DIR/outcomes/binary/trace-agent
-    expire_in: 1 week
-
-build_deb_py2:
-  stage: build_and_test
-  needs:
-    - deps_deb_py2
-  tags:
-    - sts-k8s-xl-no-docker-runner
-  cache:
-    key: "build-deb-py2-$CI_COMMIT_REF_SLUG"
-    paths:
-      - .omnibus
-  script:
-    # We move .omnibus out of the CI root because this seems to cause issues with git
-    # cloning in omnibus and operations on datadog-agent
-  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
-
-  - conda activate ddpy2
-  - inv version
-  - cat version.txt || true
-  - source ./.gitlab-scripts/setup_artifactory.sh
-
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python-runtimes 2
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
 
     # Prepare outputs
-  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
-  - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
-  - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
-  - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+    - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
+    - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
+    - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
+    - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
 
-  - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
+    - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
 
-    # Prepare cache
+      # Prepare cache
     # Drop packages for cache
-  - rm -rf /omnibus/pkg
+    - rm -rf /omnibus/pkg
     # Drop agent for cache (will be resynced anyway)
-  - rm -rf /omnibus/src/datadog-agent
+    - rm -rf /omnibus/src/datadog-agent
     # Drop symlink because it will fail the build when coming from a cache
-  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-#  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+    - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+  #  - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
-        - $CI_PROJECT_DIR/outcomes/pkg/*.deb
-        - $CI_PROJECT_DIR/outcomes/pkg/*.json
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
-        - $CI_PROJECT_DIR/version.txt
-        - $CI_PROJECT_DIR/outcomes/binary/trace-agent
+      - $CI_PROJECT_DIR/outcomes/pkg/*.deb
+      - $CI_PROJECT_DIR/outcomes/pkg/*.json
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
 
 build_rpm:
@@ -450,7 +327,7 @@ build_rpm:
   tags:
     - sts-k8s-xl-no-docker-runner
   cache:
-    key: "build-rpm-$CI_COMMIT_REF_SLUG"
+    key: "build-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
   before_script:
@@ -459,48 +336,46 @@ build_rpm:
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
-  - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+    - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
-  - inv version
-  - cat version.txt || true
-  - source ./.gitlab-scripts/setup_artifactory.sh
+    - conda activate $CONDA_ENV
+    - inv version
+    - cat version.txt || true
+    - source ./.gitlab-scripts/setup_artifactory.sh
 
-# TODO:  --python-runtimes "$PYTHON_RUNTIMES" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
-  - inv -e agent.omnibus-build --major-version 2 --base-dir $OMNIBUS_BASE_DIR --skip-deps
-#  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
-#  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
+    # TODO:  --python-runtimes "$PYTHON_RUNTIMES" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+      #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
+      #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
 
     # Prepare outputs
-  - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
-  - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
-  - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
+    - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles
+    - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
+    - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
 
-  - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
+    - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
 
-#    # Prepare cache
-#    # Drop packages for cache
-  - rm -rf /omnibus/pkg
-#    # Drop agent for cache (will be resynced anyway)
-  - rm -rf /omnibus/src/datadog-agent
-#    # Drop symlink because it will fail the build when coming from a cache
-  - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+    #    # Prepare cache
+    #    # Drop packages for cache
+    - rm -rf /omnibus/pkg
+    #    # Drop agent for cache (will be resynced anyway)
+    - rm -rf /omnibus/src/datadog-agent
+    #    # Drop symlink because it will fail the build when coming from a cache
+    - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+    - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
-        - $CI_PROJECT_DIR/outcomes/pkg/*.rpm
-        - $CI_PROJECT_DIR/outcomes/pkg/*.json
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
-        - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
-        - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/outcomes/pkg/*.rpm
+      - $CI_PROJECT_DIR/outcomes/pkg/*.json
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+      - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
 
 build_win:
   stage: build_and_test
-  variables:
-    <<: *globalvariables
-    OMNIBUS_BASE_DIR: c:/omnibus-ruby
   needs:
     - deps_win
   before_script:
@@ -509,7 +384,8 @@ build_win:
     - ridk enable
   script:
     - cmd.exe /c "%GOPATH%\src\github.com\StackVista\stackstate-agent\.gitlab-scripts\setup_artifactory.cmd"
-    - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
+    - conda activate $CONDA_ENV
+    - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
@@ -529,8 +405,7 @@ test_deb_renaming:
     - build_deb
   before_script: []
   script:
-  # test v2 family
-    ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_2*.deb
+    - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
 
 test_rpm_renaming:
   stage: pre_release
@@ -539,8 +414,7 @@ test_rpm_renaming:
     - build_rpm
   before_script: []
   script:
-    # test v2 family
-    ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-2*.rpm
+    - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
 
 pre_release_deb:
   stage: pre_release
@@ -548,11 +422,11 @@ pre_release_deb:
     - deps_deb
     - build_deb
   script:
-# //TODO: move to image
+    # //TODO: move to image
     - apt-get install -y apt-utils libtool debsigs
     - ls -la /usr/local/rvm/gems/ruby-2.4.2/bin/
     - source /usr/local/rvm/scripts/rvm && gem install deb-s3
-# //
+    # //
     - source /usr/local/rvm/scripts/rvm
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
@@ -564,16 +438,13 @@ pre_release_win:
   needs:
     - deps_win
     - build_win
-  variables:
-    <<: *globalvariables
-    OMNIBUS_BASE_DIR: c:/omnibus-ruby
   before_script:
     - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
   script:
     - $env:VERSION = Get-Content version.txt -First 1
-# //TODO: in Windows MSI is build with hash shorter on one character. Find where.
+    # //TODO: in Windows MSI is build with hash shorter on one character. Find where.
     - $Env:VERSION=$Env:VERSION.Substring(0,$Env:VERSION.Length-1)
     - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
     - $filename
@@ -709,9 +580,9 @@ molecule_tests_local_install:
     - pre_release_rpm
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
-#  only:
-#    - tags
-#    - master
+  only:
+    - tags
+    - master
 
 molecule_tests_secrets:
   <<: *molecule_base
@@ -724,9 +595,9 @@ molecule_tests_secrets:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
-#  only:
-#    - tags
-#    - master
+  only:
+    - tags
+    - master
 
 
 ## release stage
