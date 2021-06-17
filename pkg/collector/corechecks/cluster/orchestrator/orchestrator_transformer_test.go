@@ -37,6 +37,107 @@ func int64Ptr(v int64) *int64 {
 	return &v
 }
 
+func TestExtractStatefulSet(t *testing.T) {
+	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
+	testInt32 := int32(2)
+	tests := map[string]struct {
+		input    v1.StatefulSet
+		expected model.StatefulSet
+	}{
+		"full sts": {
+			input: v1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
+					Name:              "sts",
+					Namespace:         "namespace",
+					CreationTimestamp: timestamp,
+					Labels: map[string]string{
+						"label": "foo",
+					},
+					Annotations: map[string]string{
+						"annotation": "bar",
+					},
+					ResourceVersion: "1234",
+				},
+				Spec: v1.StatefulSetSpec{
+					Replicas:             &testInt32,
+					RevisionHistoryLimit: &testInt32,
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": "test-sts",
+						},
+					},
+					UpdateStrategy: v1.StatefulSetUpdateStrategy{
+						Type: v1.StatefulSetUpdateStrategyType("RollingUpdate"),
+						RollingUpdate: &v1.RollingUpdateStatefulSetStrategy{
+							Partition: &testInt32,
+						},
+					},
+				},
+				Status: v1.StatefulSetStatus{
+					ObservedGeneration: 3,
+					ReadyReplicas:      2,
+					Replicas:           2,
+					UpdatedReplicas:    2,
+				},
+			}, expected: model.StatefulSet{
+				Metadata: &model.Metadata{
+					Name:              "sts",
+					Namespace:         "namespace",
+					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+					CreationTimestamp: 1389744000,
+					Labels:            []string{"label:foo"},
+					Annotations:       []string{"annotation:bar"},
+					ResourceVersion:   "1234",
+				},
+				Spec: &model.StatefulSetSpec{
+					Replicas:       2,
+					UpdateStrategy: "RollingUpdate",
+					Partition:      2,
+					Selectors: []*model.LabelSelectorRequirement{
+						{
+							Key:      "app",
+							Operator: "In",
+							Values:   []string{"test-sts"},
+						},
+					},
+				},
+				Status: &model.StatefulSetStatus{
+					Replicas:        2,
+					ReadyReplicas:   2,
+					UpdatedReplicas: 2,
+				},
+			},
+		},
+		"empty sts": {input: v1.StatefulSet{}, expected: model.StatefulSet{Metadata: &model.Metadata{}, Spec: &model.StatefulSetSpec{}, Status: &model.StatefulSetStatus{}}},
+		"partial sts": {
+			input: v1.StatefulSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sts",
+					Namespace: "namespace",
+				},
+				Spec: v1.StatefulSetSpec{
+					ServiceName: "service sts",
+				},
+			}, expected: model.StatefulSet{
+				Metadata: &model.Metadata{
+					Name:      "sts",
+					Namespace: "namespace",
+				},
+				Spec: &model.StatefulSetSpec{
+					ServiceName: "service sts",
+				},
+				Status: &model.StatefulSetStatus{},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, &tc.expected, extractStatefulSet(&tc.input))
+		})
+	}
+}
+
 func TestExtractDeployment(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)

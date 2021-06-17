@@ -33,6 +33,8 @@ const (
 	K8sCronJob
 	// K8sDaemonSet represents a Kubernetes DaemonSet
 	K8sDaemonSet
+	// K8sStatefulSet represents a Kubernetes StatefulSet
+	K8sStatefulSet
 )
 
 var (
@@ -84,9 +86,11 @@ func (n NodeType) String() string {
 		return "ReplicaSet"
 	case K8sService:
 		return "Service"
+	case K8sStatefulSet:
+		return "StatefulSet"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %v", n)
-		return ""
+		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		return "Unknown"
 	}
 }
 
