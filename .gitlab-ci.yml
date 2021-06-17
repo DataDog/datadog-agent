@@ -1,0 +1,71 @@
+stages:
+  - triggers
+
+variables: &commonvariables
+  STS_DOCKER_RELEASE_REPO: stackstate-agent
+  STS_DOCKER_TEST_REPO: stackstate-agent-test
+  STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
+  STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test
+  STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
+  STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
+  # The SRC_PATH is in the GOPATH of the builders which
+  # currently is /go
+  SRC_PATH: /go/src/github.com/StackVista/stackstate-agent
+  # Directory in which we execute the omnibus build.
+  # For an unknown reason, it does not go well with
+  # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
+  OMNIBUS_BASE_DIR: /.omnibus
+  # Directory in which we put the artifacts after the build
+  # Must be in $CI_PROJECT_DIR
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  OMNIBUS_BASE_DIR_WIN: c:/omnibus-ruby #\$CI_RUNNER_ID
+  OMNIBUS_BASE_DIR_WIN_OMNIBUS: c:/omnibus-ruby #/$CI_RUNNER_ID
+  # Directory in which we execute the omnibus build for SUSE
+  # as we want to separate the RPM built for this distro.
+  BCC_VERSION: v0.12.0
+  SYSTEM_PROBE_GO_VERSION: 1.13.11
+  DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
+  ARCH: amd64
+  VCINSTALLDIR: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
+
+.agent2_variables: &agent2_variables
+  CONDA_ENV: ddpy2
+  PYTHON_RUNTIMES: '2'
+  MAJOR_VERSION: '2'
+  STS_VER: 'v2'
+  STS_AWS_RELEASE_BUCKET: stackstate-agent-2
+  STS_AWS_TEST_BUCKET: stackstate-agent-2-test
+  STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-2-rpm
+  STS_AWS_TEST_BUCKET_YUM: stackstate-agent-2-rpm-test
+  STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-2
+  STS_AWS_TEST_BUCKET_WIN: stackstate-agent-2-test
+
+.agent3_variables: &agent3_variables
+  CONDA_ENV: ddpy3
+  PYTHON_RUNTIMES: '3'
+  MAJOR_VERSION: '3'
+  STS_VER: 'v3'
+  STS_AWS_RELEASE_BUCKET: stackstate-agent-3
+  STS_AWS_TEST_BUCKET: stackstate-agent-3-test
+  STS_AWS_RELEASE_BUCKET_YUM: stackstate-agent-3-rpm
+  STS_AWS_TEST_BUCKET_YUM: stackstate-agent-3-rpm-test
+  STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-3
+  STS_AWS_TEST_BUCKET_WIN: stackstate-agent-3-test
+
+agent2:
+  stage: triggers
+  variables:
+    <<: *commonvariables
+    <<: *agent2_variables
+  trigger:
+    include: .gitlab-ci-agent.yml
+    strategy: depend
+
+agent3:
+  stage: triggers
+  variables:
+    <<: *commonvariables
+    <<: *agent3_variables
+  trigger:
+    include: .gitlab-ci-agent.yml
+    strategy: depend
