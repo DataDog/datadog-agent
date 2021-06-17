@@ -17,14 +17,18 @@ func TestCreateSecretData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create the Secret: %v", err)
 	}
+
 	_, err = ParseSecretData(data)
 	if err != nil {
 		t.Fatalf("Failed to parse the Secret: %v", err)
 	}
-	expiration, err := GetDurationBeforeExpiration(data)
+
+	cert, err := GetCertFromSecret(data)
 	if err != nil {
 		t.Fatalf("Failed to parse the Secret: %v", err)
 	}
+
+	expiration := GetDurationBeforeExpiration(cert)
 	if expiration < 1*time.Hour {
 		t.Fatalf("The Secret expires too soon: %v", expiration)
 	}

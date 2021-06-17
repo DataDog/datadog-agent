@@ -414,8 +414,8 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64
-	onRelease func(_ *ProcessCacheEntry)
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
 }
 
 // Reset the entry

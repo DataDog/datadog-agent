@@ -113,6 +113,16 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			Name: prefix + "-2nd-heap.pprof",
 			URL:  debugURL + "/heap",
 		},
+		{
+			// mutex profile
+			Name: prefix + "-mutex.pprof",
+			URL:  debugURL + "/mutex",
+		},
+		{
+			// goroutine blocking profile
+			Name: prefix + "-block.pprof",
+			URL:  debugURL + "/block",
+		},
 	} {
 		b, err := apiutil.DoGet(c, prof.URL)
 		if err != nil {

@@ -86,7 +86,7 @@ Prelude
 -------
 
 Released on: 2021-03-02
-Pinned to datadog-agent v7.26.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7260--6260>`_.
+Pinned to datadog-agent v7.26.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7260--6260>`_.
 
 
 .. _Release Notes_dca-1.11.0_dca-1.11.X_New Features:
@@ -131,7 +131,7 @@ Prelude
 -------
 
 Released on: 2021-03-02
-    Pinned to datadog-agent v7.24.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7240--6240>`_..
+    Pinned to datadog-agent v7.24.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7240--6240>`_..
 
 .. _Release Notes_dca-1.10.0_dca-1.10.X_New Features:
 
@@ -189,7 +189,7 @@ Prelude
 -------
 
 Released on: 2020-10-21
-Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7231>`_..
+Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7231>`_..
 
 .. _Release Notes_dca-1.9.1_dca-1.9.x_Bug Fixes:
 
@@ -212,7 +212,7 @@ Prelude
 -------
 
 Released on: 2020-10-13
-Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7230--6230>`_..
+Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7230--6230>`_..
 
 New Features
 ------------
@@ -275,7 +275,7 @@ Prelude
 Released on: 2020-07-20
 
 This version contains the changes released with version 7.21.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7210--6210>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7210--6210>`_.
 
 New Features
 ------------
@@ -302,7 +302,7 @@ Prelude
 Released on: 2020-06-11
 
 This version contains the changes released with version 7.20.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7200--6200>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7200--6200>`_.
 
 Bug Fixes
 ---------
@@ -374,7 +374,7 @@ Prelude
 Released on: 2020-01-28
 
 This version contains the changes released with version 7.17.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7170>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7170>`_.
 
 New Features
 ------------
@@ -411,7 +411,7 @@ Prelude
 Released on: 2019-11-06
 
 This version contains the changes released with version 6.15.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#6150>`_.
 
 New Features
 ------------

@@ -1,6 +1,6 @@
 # Datadog Cluster Agent - DCA
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
+[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
@@ -23,7 +23,7 @@ currently in Alpha.
 
 ## Getting started
 
-For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/master/README.md)
+For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/main/README.md)
 
 To start working on the Cluster Agent, you can build the `master` branch:
 
@@ -67,7 +67,7 @@ Secondly, it will start serving the `DD_CLUSTER_AGENT.CMD_PORT` if set or 5005 b
 ## Documentation
 
 The general documentation of the project (including instructions on the Beta builds,
-Agent installation, development, etc) is located under the [docs](https://github.com/DataDog/datadog-agent/tree/master/docs) directory
+Agent installation, development, etc) is located under the [docs](https://github.com/DataDog/datadog-agent/tree/main/docs) directory
 of the present repo.
 
 ## Contributing code
