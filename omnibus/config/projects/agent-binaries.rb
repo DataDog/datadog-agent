@@ -53,7 +53,7 @@ package :zip do
     ]
 
 
-  additional_sign_files [
+   [
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\security-agent.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
