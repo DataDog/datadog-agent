@@ -863,10 +863,16 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
 	// process
 	if probes.ShouldUseSyscallExitTracepoints() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "tracepoint_raw_syscall_fallback",
-			Value: uint64(1),
-		})
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "tracepoint_raw_syscall_fallback",
+				Value: uint64(1),
+			},
+			manager.ConstantEditor{
+				Name:  "thread_info_flags_offset",
+				Value: getThreadInfoFlagsOffset(p),
+			},
+		)
 	}
 
 	// constants syscall monitor
