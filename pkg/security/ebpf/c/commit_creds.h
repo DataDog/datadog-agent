@@ -363,6 +363,11 @@ int tracepoint_syscalls_sys_exit_capset(struct tracepoint_syscalls_sys_exit_t *a
     return credentials_update_ret(args, args->ret);
 }
 
+SEC("tracepoint/handle_sys_commit_creds_exit")
+int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return credentials_update_ret(args, args->ret);
+}
+
 SEC("kprobe/commit_creds")
 int kprobe__commit_creds(struct pt_regs *ctx) {
     struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);

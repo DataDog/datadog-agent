@@ -105,5 +105,26 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 				Section: "tracepoint/handle_sys_utimes_exit",
 			},
 		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetuidEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "tracepoint/handle_sys_commit_creds_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetgidEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "tracepoint/handle_sys_commit_creds_exit",
+			},
+		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.CapsetEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "tracepoint/handle_sys_commit_creds_exit",
+			},
+		},
 	}
 }
