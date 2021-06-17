@@ -338,7 +338,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
-    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-spearated list.
+    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
