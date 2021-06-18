@@ -116,7 +116,7 @@ dca_dev_branch_multiarch_docker_hub:
 dev_master_docker_hub-a6:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_a6]
+    !reference [.on_main_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -131,7 +131,7 @@ dev_master_docker_hub-a6:
 dev_master_docker_hub-a7:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs: ["docker_build_agent7", "docker_build_agent7_jmx"]
   script:
     - inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-7-amd64       datadog/agent-dev:master-py3
@@ -140,7 +140,7 @@ dev_master_docker_hub-a7:
 dev_master_docker_hub-dogstatsd:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs: ["docker_build_dogstatsd_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DSD}:${SRC_TAG}-amd64           datadog/dogstatsd-dev:master
@@ -148,7 +148,7 @@ dev_master_docker_hub-dogstatsd:
 dca_dev_master_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs: ["docker_build_cluster_agent_amd64"]
   script:
     - inv -e docker.publish --signed-push ${SRC_DCA}:${SRC_TAG}-amd64 datadog/cluster-agent-dev:master

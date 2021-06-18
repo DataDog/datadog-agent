@@ -74,7 +74,7 @@ runs. Our invoke tasks are only compatible with Python 3, thus you will
 need to use Python 3 to run them.
 
 Though you may install invoke in a variety of way we suggest you use
-the provided [requirements](https://github.com/DataDog/datadog-agent/blob/master/requirements.txt)
+the provided [requirements](https://github.com/DataDog/datadog-agent/blob/main/requirements.txt)
 file and `pip`:
 
 ```bash
@@ -98,8 +98,8 @@ sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any
 additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/master/.circleci/images/builder/Dockerfile#L1))
-may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/master/rtloader)
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
+may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
 ## Installing dependencies
@@ -225,4 +225,4 @@ See `pre-commit run --help` for further options.
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
-Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_omnibus.md)
+Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)

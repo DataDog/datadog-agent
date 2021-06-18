@@ -19,7 +19,7 @@ func fetchValues(session sessionAPI, config snmpConfig) (*resultValueStore, erro
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(session, config.oidConfig.scalarOids, config.oidBatchSize)
 	if err != nil {
-		return &resultValueStore{}, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
+		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
 	// fetch column values
@@ -29,7 +29,7 @@ func fetchValues(session sessionAPI, config snmpConfig) (*resultValueStore, erro
 	}
 	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.oidBatchSize)
 	if err != nil {
-		return &resultValueStore{}, fmt.Errorf("failed to fetch oids with batching: %v", err)
+		return nil, fmt.Errorf("failed to fetch oids with batching: %v", err)
 	}
 
 	return &resultValueStore{scalarResults, columnResults}, nil

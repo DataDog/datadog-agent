@@ -73,7 +73,7 @@ dev_branch_docker_hub-a7-windows:
 dev_master_docker_hub-a7-windows:
   extends: .docker_tag_windows_job_definition
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   ## For Future Reference. Must update to do this job from the newest OS version
   ## that we're publishing (.e.g. adding windows2104 will require also using the
   ## 2104 builder)

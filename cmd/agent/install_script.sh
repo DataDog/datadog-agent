@@ -126,7 +126,7 @@ function verify_agent_version(){
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
-  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst\033[0m"
         fallback_msg
         exit 1;
     else

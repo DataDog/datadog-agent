@@ -2,7 +2,7 @@
 # Scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
   rules:
-    !reference [.on_master_or_release_branch]
+    !reference [.on_main_or_release_branch]
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v3523070-7400854-next
   tags: ["runner:main", "size:large"]

@@ -196,6 +196,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -263,7 +264,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 
 	// Use to output logs in JSON format
@@ -620,6 +621,9 @@ func InitConfig(config Config) {
 	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
+	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
@@ -1061,7 +1065,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
-// See: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func ResolveSecrets(config Config, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.

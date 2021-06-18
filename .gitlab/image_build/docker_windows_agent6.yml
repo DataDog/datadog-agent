@@ -1,0 +1,10 @@
+---
+docker_build_agent6_windows1809:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_build_agent6_windows_common
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    VARIANT: 1809
+    TAG_SUFFIX: -6
+    WITH_JMX: "false"

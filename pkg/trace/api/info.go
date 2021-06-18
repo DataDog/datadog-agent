@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 )
 
@@ -67,7 +68,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		GitCommit:     info.GitCommit,
 		BuildDate:     info.BuildDate,
 		Endpoints:     all,
-		FeatureFlags:  config.Features(),
+		FeatureFlags:  features.All(),
 		ClientDropP0s: true,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,

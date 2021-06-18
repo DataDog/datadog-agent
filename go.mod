@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent
 go 1.15
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
-// See https://github.com/DataDog/datadog-agent/blob/master/docs/dev/gomodreplace.md
+// See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
 // Internal deps fix version
@@ -46,7 +46,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.72.0+incompatible
+	github.com/DataDog/agent-payload v4.73.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.6
 	github.com/DataDog/datadog-go v4.5.0+incompatible
@@ -183,7 +183,7 @@ require (
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20201210142538-e3217bee35cc
 	google.golang.org/grpc v1.34.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.29.0-rc.1.0.20210226170446-a8dc39ec3484
+	gopkg.in/DataDog/dd-trace-go.v1 v1.31.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0

@@ -11,8 +11,8 @@ if ("$env:WITH_JMX" -ne "false") {
     $Env:Path="$Env:Path;C:/java/bin"
 }
 
-Expand-Archive datadog-agent-7-latest.amd64.zip
-Remove-Item datadog-agent-7-latest.amd64.zip
+Expand-Archive datadog-agent-latest.amd64.zip
+Remove-Item datadog-agent-latest.amd64.zip
 
 Get-ChildItem -Path datadog-agent-7-* | Rename-Item -NewName "Datadog Agent"
 

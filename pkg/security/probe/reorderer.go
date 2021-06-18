@@ -217,10 +217,10 @@ func (r *ReOrderer) Start(ctx context.Context) {
 		case <-metricTicker.C:
 			r.metric.QueueSize = r.heap.len()
 
-			//select {
-			//case r.Metrics <- r.metric:
-			//default:
-			//}
+			select {
+			case r.Metrics <- r.metric:
+			default:
+			}
 
 			r.metric.zero()
 		case <-ctx.Done():

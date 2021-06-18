@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -288,7 +287,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event, fieldIterator, dejavu, false); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false); err != nil {
 								log.Print(err)
 							}
 
@@ -359,7 +358,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 	packages = make(map[string]*types.Package, len(program.AllPackages))
 	for typePackage := range program.AllPackages {
-		packages[typePackage.Name()] = typePackage
+		packages[typePackage.Path()] = typePackage
 	}
 
 	var buildTags []string
