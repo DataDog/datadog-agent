@@ -225,14 +225,11 @@ dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
 
 if linux?
-  # [sts] Security agent
-  enable_security_agent = false
-
   extra_package_file '/etc/init/stackstate-agent.conf'
   extra_package_file '/etc/init/stackstate-agent-process.conf'
   extra_package_file '/etc/init/stackstate-agent-sysprobe.conf'
   extra_package_file '/etc/init/stackstate-agent-trace.conf'
-  if enable_security_agent
+  if $enable_security_agent
     extra_package_file '/etc/init/stackstate-agent-security.conf'
   end
   systemd_directory = "/usr/lib/systemd/system"
@@ -242,7 +239,7 @@ if linux?
     extra_package_file "/etc/init.d/stackstate-agent"
     extra_package_file "/etc/init.d/stackstate-agent-process"
     extra_package_file "/etc/init.d/stackstate-agent-trace"
-    if enable_security_agent
+    if $enable_security_agent
         extra_package_file "/etc/init.d/stackstate-agent-security"
     end
   end
@@ -250,7 +247,7 @@ if linux?
     extra_package_file "/etc/init.d/stackstate-agent"
     extra_package_file "/etc/init.d/stackstate-agent-process"
     extra_package_file "/etc/init.d/stackstate-agent-trace"
-    if enable_security_agent
+    if $enable_security_agent
         extra_package_file "/etc/init.d/stackstate-agent-security"
     end
   end
@@ -258,7 +255,7 @@ if linux?
   extra_package_file "#{systemd_directory}/stackstate-agent-process.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-sysprobe.service"
   extra_package_file "#{systemd_directory}/stackstate-agent-trace.service"
-  if enable_security_agent
+  if $enable_security_agent
     extra_package_file "#{systemd_directory}/stackstate-agent-security.service"
   end
   extra_package_file '/etc/stackstate-agent/'

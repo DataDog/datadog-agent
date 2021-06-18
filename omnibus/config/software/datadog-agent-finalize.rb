@@ -16,9 +16,6 @@ skip_transitive_dependency_licensing true
 build do
     # TODO too many things done here, should be split
     block do
-        # [sts] Security agent
-        enable_security_agent = false
-
         # Conf files
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/stackstate-agent"
@@ -70,7 +67,7 @@ build do
             move "#{install_dir}/scripts/stackstate-agent-trace.conf", "/etc/init"
             move "#{install_dir}/scripts/stackstate-agent-process.conf", "/etc/init"
             move "#{install_dir}/scripts/stackstate-agent-sysprobe.conf", "/etc/init"
-            if enable_security_agent
+            if $enable_security_agent
                 move "#{install_dir}/scripts/stackstate-agent-security.conf", "/etc/init"
             end
             systemd_directory = "/usr/lib/systemd/system"
@@ -83,7 +80,7 @@ build do
                 move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
-                if enable_security_agent
+                if $enable_security_agent
                     move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
                 end
             end
@@ -92,7 +89,7 @@ build do
                 move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
-                if enable_security_agent
+                if $enable_security_agent
                     move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
                 end
             end
@@ -101,7 +98,7 @@ build do
             move "#{install_dir}/scripts/stackstate-agent-trace.service", systemd_directory
             move "#{install_dir}/scripts/stackstate-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/stackstate-agent-sysprobe.service", systemd_directory
-            if enable_security_agent
+            if $enable_security_agent
                 move "#{install_dir}/scripts/stackstate-agent-security.service", systemd_directory
             end
 

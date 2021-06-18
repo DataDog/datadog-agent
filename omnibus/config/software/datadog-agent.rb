@@ -22,9 +22,6 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
 
-  # [sts] Security agent
-  enable_security_agent = false
-
   if windows?
     env = {
         'GOPATH' => gopath.to_path,
@@ -136,7 +133,7 @@ build do
   end
 
   # Security agent
-  if enable_security_agent
+  if $enable_security_agent
       if windows?
         platform = windows_arch_i386? ? "x86" : "x64"
         command "invoke -e security-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
@@ -177,7 +174,7 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-trace",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      if enable_security_agent
+      if $enable_security_agent
           erb source: "upstart_debian.security.conf.erb",
               dest: "#{install_dir}/scripts/stackstate-agent-security.conf",
               mode: 0644,
@@ -206,7 +203,7 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-trace.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      if enable_security_agent
+      if $enable_security_agent
           erb source: "upstart_redhat.security.conf.erb",
               dest: "#{install_dir}/scripts/stackstate-agent-security.conf",
               mode: 0644,
@@ -226,7 +223,7 @@ build do
           dest: "#{install_dir}/scripts/stackstate-agent-trace",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      if enable_security_agent
+      if $enable_security_agent
           erb source: "sysvinit_suse.security.erb",
               dest: "#{install_dir}/scripts/stackstate-agent-security",
               mode: 0755,
@@ -250,7 +247,7 @@ build do
         dest: "#{install_dir}/scripts/stackstate-agent-trace.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
-    if enable_security_agent
+    if $enable_security_agent
         erb source: "systemd.security.service.erb",
             dest: "#{install_dir}/scripts/stackstate-agent-security.service",
             mode: 0644,
