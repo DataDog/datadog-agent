@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatching(config snmpConfig, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
 	//retValues := make(columnResultValuesType, len(oids))
 	columnResults := newFetchColumnResults(len(oids))
 
@@ -29,7 +29,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	// start the workers
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
-		go processBatch(ch, &wg, session, oids, columnResults)
+		go processBatch(ch, &wg, config, oids, columnResults)
 	}
 
 	// push the lines to the queue channel for processing
@@ -69,10 +69,32 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	return columnResults.values, nil
 }
 
-func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+func processBatch(ch chan []string, wg *sync.WaitGroup, config snmpConfig, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+	var newSession sessionAPI
+	newSession = &snmpSession{}
+	newSession.Configure(config)
+
+
+
+	// Create connection
+	connErr := newSession.Connect()
+	if connErr != nil {
+		log.Warnf("failed to connect: %v", connErr)
+		wg.Done()
+		return
+		//return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
+	}
+	defer func() {
+		err := newSession.Close()
+		if err != nil {
+			log.Warnf("failed to close session: %v", err)
+		}
+	}()
+
+
 	for batchColumnOids := range ch {
 		// do work
-		err := doProcessBatch(batchColumnOids, session, oids, accumulatedColumnResults)
+		err := doProcessBatch(batchColumnOids, newSession, oids, accumulatedColumnResults)
 		if err != nil {
 			log.Warnf("failed to process batchColumnOids %v: %s", batchColumnOids, err)
 		}

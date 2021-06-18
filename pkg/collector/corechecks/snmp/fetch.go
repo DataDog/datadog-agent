@@ -52,7 +52,7 @@ func fetchValues(session sessionAPI, config snmpConfig) (*resultValueStore, erro
 	for _, value := range config.oidConfig.columnOids {
 		oids[value] = value
 	}
-	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.oidBatchSize, config.fetchWorkers)
+	columnResults, err := fetchColumnOidsWithBatching(config, oids, config.oidBatchSize, config.fetchWorkers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch oids with batching: %v", err)
 	}
