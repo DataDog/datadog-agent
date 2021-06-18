@@ -72,7 +72,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-1"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-1:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-1:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -140,7 +140,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-3"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-3:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-3:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -230,7 +230,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-4"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-4:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-4:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -268,7 +268,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-5"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-5:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-5:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -323,7 +323,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-6"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-6:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-6:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -378,7 +378,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-7"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-7:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-7:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodRunning,
@@ -434,7 +434,7 @@ func TestPodCollector(t *testing.T) {
 							"creationTimestamp": creationTime,
 							"tags":              map[string]string{"test": "label", "cluster-name": "test-cluster-name", "namespace": "test-namespace"},
 							"uid":               types.UID("test-pod-8"),
-							"identifiers":       []string{"urn:ip:/test-cluster-name:10.0.0.1", "urn:ip:/test-cluster-name:test-namespace:test-pod-8:10.0.0.1"},
+							"identifiers":       []string{"urn:ip:/test-cluster-name:test-namespace:test-pod-8:10.0.0.1"},
 							"restartPolicy":     coreV1.RestartPolicyAlways,
 							"status": coreV1.PodStatus{
 								Phase:                 coreV1.PodSucceeded,
