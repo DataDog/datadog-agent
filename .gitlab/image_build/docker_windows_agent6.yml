@@ -1,5 +1,5 @@
 ---
-docker_build_agent7_windows1809:
+docker_build_agent6_windows1809:
   extends:
     - .docker_build_windows_job_definition
     - .docker_build_agent6_windows_common
