@@ -148,11 +148,11 @@ int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 }
 
 int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct link_event_t event = {

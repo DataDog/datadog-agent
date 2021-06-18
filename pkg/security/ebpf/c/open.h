@@ -319,11 +319,11 @@ int kprobe__filp_close(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {

@@ -173,11 +173,11 @@ int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t 
 }
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct rename_event_t event = {

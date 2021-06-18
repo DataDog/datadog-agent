@@ -66,11 +66,11 @@ SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t,
 }
 
 int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct chown_event_t event = {

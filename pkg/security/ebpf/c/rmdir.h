@@ -117,13 +117,13 @@ int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_re
 }
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
     if (!syscall)
         return 0;
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
 
     int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RMDIR);
     if (pass_to_userspace) {

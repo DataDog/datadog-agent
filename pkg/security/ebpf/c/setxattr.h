@@ -128,11 +128,11 @@ int kprobe__vfs_removexattr(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(event_type);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct setxattr_event_t event = {
