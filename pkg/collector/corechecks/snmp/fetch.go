@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"sync"
 )
 
 // columnResultValuesType is used to store results fetched for column oids
@@ -9,6 +10,30 @@ import (
 // - the first map key is the table column oid
 // - the second map key is the index part of oid (not prefixed with column oid)
 type columnResultValuesType map[string]map[string]snmpValueType
+
+type fetchColumnResults struct {
+	values map[string]map[string]snmpValueType
+	mu     sync.Mutex
+}
+
+func newFetchColumnResults(totalColumnOids int) *fetchColumnResults {
+	return &fetchColumnResults{
+		values: make(map[string]map[string]snmpValueType, totalColumnOids),
+	}
+}
+
+func (f *fetchColumnResults) addOids(columnOid string, instanceOids map[string]snmpValueType) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, ok := f.values[columnOid]; !ok {
+		f.values[columnOid] = instanceOids
+		return
+	}
+	for oid, value := range instanceOids {
+		f.values[columnOid][oid] = value
+	}
+}
 
 // scalarResultValuesType is used to store results fetched for scalar oids
 // Structure: map[<INSTANCE OID VALUE>]snmpValueType

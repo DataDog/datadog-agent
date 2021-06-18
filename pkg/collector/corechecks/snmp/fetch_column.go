@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -10,7 +11,8 @@ import (
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int) (columnResultValuesType, error) {
-	retValues := make(columnResultValuesType, len(oids))
+	//retValues := make(columnResultValuesType, len(oids))
+	columnResults := newFetchColumnResults(len(oids))
 
 	columnOids := getOidsMapKeys(oids)
 	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
@@ -19,28 +21,81 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
+	// create a channel for work "tasks"
+	ch := make(chan []string)
+
+	wg := sync.WaitGroup{}
+
+	numWorkers := 5
+	// start the workers
+	for t := 0; t < numWorkers; t++ {
+		wg.Add(1)
+		go processBatch(ch, &wg, session, oids, columnResults)
+	}
+
+	// push the lines to the queue channel for processing
+	//for _, line := range fileline {
+	//	ch <- line
+	//}
 	for _, batchColumnOids := range batches {
-		oidsToFetch := make(map[string]string, len(batchColumnOids))
-		for _, oid := range batchColumnOids {
-			oidsToFetch[oid] = oids[oid]
-		}
+		ch <- batchColumnOids
+	}
 
-		results, err := fetchColumnOids(session, oidsToFetch)
+	// this will cause the workers to stop and exit their receive loop
+	close(ch)
+
+	// make sure they all exit
+	wg.Wait()
+	//for _, batchColumnOids := range batches {
+	//	oidsToFetch := make(map[string]string, len(batchColumnOids))
+	//	for _, oid := range batchColumnOids {
+	//		oidsToFetch[oid] = oids[oid]
+	//	}
+	//
+	//	results, err := fetchColumnOids(session, oidsToFetch)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("failed to fetch column oids: %s", err)
+	//	}
+	//
+	//	for columnOid, instanceOids := range results {
+	//		if _, ok := retValues[columnOid]; !ok {
+	//			retValues[columnOid] = instanceOids
+	//			continue
+	//		}
+	//		for oid, value := range instanceOids {
+	//			retValues[columnOid][oid] = value
+	//		}
+	//	}
+	//}
+	return columnResults.values, nil
+}
+
+func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+	for batchColumnOids := range ch {
+		// do work
+		err := doProcessBatch(batchColumnOids, session, oids, accumulatedColumnResults)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
-		}
-
-		for columnOid, instanceOids := range results {
-			if _, ok := retValues[columnOid]; !ok {
-				retValues[columnOid] = instanceOids
-				continue
-			}
-			for oid, value := range instanceOids {
-				retValues[columnOid][oid] = value
-			}
+			log.Warnf("failed to process batchColumnOids %v: %s", batchColumnOids, err)
 		}
 	}
-	return retValues, nil
+	wg.Done()
+}
+
+func doProcessBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) error {
+	oidsToFetch := make(map[string]string, len(batchColumnOids))
+	for _, oid := range batchColumnOids {
+		oidsToFetch[oid] = oids[oid]
+	}
+
+	results, err := fetchColumnOids(session, oidsToFetch)
+	if err != nil {
+		return fmt.Errorf("failed to fetch column oids: %s", err)
+	}
+
+	for columnOid, instanceOids := range results {
+		accumulatedColumnResults.addOids(columnOid, instanceOids)
+	}
+	return nil
 }
 
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,

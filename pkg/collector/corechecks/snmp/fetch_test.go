@@ -597,7 +597,7 @@ func Test_fetchValues_errors(t *testing.T) {
 					columnOids: []string{"1.1", "2.2"},
 				},
 			},
-			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetBulk: bulk error"),
+			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetBulk: bulk error"),
 		},
 	}
 	for _, tt := range tests {
