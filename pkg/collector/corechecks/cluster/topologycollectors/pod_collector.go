@@ -160,12 +160,11 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	identifiers := make([]string, 0)
 
 	if pod.Status.PodIP != "" {
-		// if the pod is not using the host network map it as cluster-name:pod-ip because PodIP is unique.
-		if !pod.Spec.HostNetwork {
-			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", pc.GetInstance().URL, pod.Status.PodIP))
-		}
-
-		// PodIP is not unique (most-likely the HostIP), so we map it with namespace and podName
+		// We map the pod ip including clustername, namespace and podName because
+		// the pod ip is not necessarily unique:
+		// * Pods can use Host networking which gives them the ip of the host
+		// * Pods for jobs can remain present after completion or failure (their status will not be running but Completed or Failed) 
+		//   with their IP (that is now free again for reuse) still attached in the pod.Status
 		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s:%s", pc.GetInstance().URL, pod.Namespace, pod.Name, pod.Status.PodIP))
 	}
 
