@@ -75,7 +75,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, 1)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -166,7 +166,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 1)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -263,7 +263,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 1)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -602,6 +602,7 @@ func Test_fetchValues_errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.config.fetchWorkers = 1
 			session := createMockSession()
 			session.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
 			session.On("GetBulk", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))

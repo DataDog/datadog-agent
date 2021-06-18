@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
 	//retValues := make(columnResultValuesType, len(oids))
 	columnResults := newFetchColumnResults(len(oids))
 
@@ -26,9 +26,8 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 
 	wg := sync.WaitGroup{}
 
-	numWorkers := 5
 	// start the workers
-	for t := 0; t < numWorkers; t++ {
+	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
 		go processBatch(ch, &wg, session, oids, columnResults)
 	}

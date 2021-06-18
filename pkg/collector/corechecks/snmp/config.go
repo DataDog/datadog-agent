@@ -14,6 +14,7 @@ import (
 )
 
 var defaultOidBatchSize = 60
+var defaultFetchWorkers = 1
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
@@ -34,6 +35,7 @@ type snmpInstanceConfig struct {
 	Timeout               Number            `yaml:"timeout"`
 	Retries               Number            `yaml:"retries"`
 	OidBatchSize          Number            `yaml:"oid_batch_size"`
+	FetchWorkers          Number            `yaml:"fetch_workers"`
 	User                  string            `yaml:"user"`
 	AuthProtocol          string            `yaml:"authProtocol"`
 	AuthKey               string            `yaml:"authKey"`
@@ -70,6 +72,7 @@ type snmpConfig struct {
 	metrics               []metricsConfig
 	metricTags            []metricTagConfig
 	oidBatchSize          int
+	fetchWorkers          int
 	profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
@@ -223,6 +226,11 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.oidBatchSize = int(initConfig.OidBatchSize)
 	} else {
 		c.oidBatchSize = defaultOidBatchSize
+	}
+	c.fetchWorkers = int(instance.FetchWorkers)
+	if c.fetchWorkers <= 0 {
+		log.Debugf("fetch workers set to default")
+		c.fetchWorkers = defaultFetchWorkers
 	}
 
 	// metrics Configs
