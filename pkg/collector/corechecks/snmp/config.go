@@ -240,6 +240,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	} else {
 		c.bulkMaxRepetitions = defaultBulkMaxRepetitions
 	}
+	if c.bulkMaxRepetitions <= 0 {
+		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", c.bulkMaxRepetitions)
+	}
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {
