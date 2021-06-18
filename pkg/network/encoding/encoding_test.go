@@ -137,12 +137,16 @@ func TestSerialization(t *testing.T) {
 				Direction: model.ConnectionDirection_local,
 
 				DnsCountByRcode: map[uint32]uint32{0: 1},
-				DnsStatsByDomain: map[int32]*model.DNSStats{
+				DnsStatsByDomain: map[int32]*model.DNSStatsByQueryType{
 					0: {
-						DnsTimeouts:          0,
-						DnsSuccessLatencySum: 0,
-						DnsFailureLatencySum: 0,
-						DnsCountByRcode:      map[uint32]uint32{0: 1},
+						DnsStatsByDomain: map[int32]*model.DNSStats{
+							int32(network.DNSTypeA): {
+								DnsTimeouts:          0,
+								DnsSuccessLatencySum: 0,
+								DnsFailureLatencySum: 0,
+								DnsCountByRcode:      map[uint32]uint32{0: 1},
+							},
+						},
 					},
 				},
 				RouteIdx:         0,
