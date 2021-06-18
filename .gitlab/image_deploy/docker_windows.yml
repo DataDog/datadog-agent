@@ -70,6 +70,30 @@ dev_branch_docker_hub-a7-windows:
     - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\publish.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
+dev_branch_docker_hub-a6-windows:
+  extends: .docker_tag_windows_job_definition
+  rules:
+    !reference [.on_a6_manual]
+  ## For Future Reference. Must update to do this job from the newest OS version
+  ## that we're publishing (.e.g. adding windows2104 will require also using the
+  ## 2104 builder)
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  needs:
+    - docker_build_agent6_windows1809
+  variables:
+    VARIANT: 2004
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      @"
+      # On newer Kernel we can pull/push older images even though these images won't run
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-win1809-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-win1809
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      "@ | Add-Content ci-scripts/publish.ps1
+    - cat ci-scripts/publish.ps1
+    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\publish.ps1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
 dev_master_docker_hub-a7-windows:
   extends: .docker_tag_windows_job_definition
   rules:
