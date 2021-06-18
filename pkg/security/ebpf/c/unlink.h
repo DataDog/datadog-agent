@@ -107,17 +107,30 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                             (mask_has_event(enabled_events, EVENT_UNLINK) ||
                              mask_has_event(enabled_events, EVENT_RMDIR));
     if (pass_to_userspace) {
-        struct unlink_event_t event = {
-            .syscall.retval = retval,
-            .file = syscall->unlink.file,
-            .flags = syscall->unlink.flags,
-            .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
-        };
+        if (syscall->unlink.flags & AT_REMOVEDIR) {
+            struct rmdir_event_t event = {
+                .syscall.retval = retval,
+                .file = syscall->unlink.file,
+                .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
+            };
 
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_container_context(entry, &event.container);
+            struct proc_cache_t *entry = fill_process_context(&event.process);
+            fill_container_context(entry, &event.container);
 
-        send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
+            send_event(ctx, EVENT_RMDIR, event);
+        } else {
+            struct unlink_event_t event = {
+                .syscall.retval = retval,
+                .file = syscall->unlink.file,
+                .flags = syscall->unlink.flags,
+                .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
+            };
+
+            struct proc_cache_t *entry = fill_process_context(&event.process);
+            fill_container_context(entry, &event.container);
+
+            send_event(ctx, EVENT_UNLINK, event);
+        }
     }
 
     invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
