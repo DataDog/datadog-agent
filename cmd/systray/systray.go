@@ -12,6 +12,9 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelog "github.com/cihub/seelog"
@@ -28,48 +31,60 @@ type menuItem struct {
 	enabled bool
 }
 
+const (
+	cmdTextStartService   = "StartService"
+	cmdTextStopService    = "StopService"
+	cmdTextRestartService = "RestartService"
+	cmdTextConfig         = "Config"
+)
+
 var (
-	separator = "SEPARATOR"
-	ni        *walk.NotifyIcon
-	launchgui bool
-	eventname = windows.StringToUTF16Ptr("ddtray-event")
+	separator       = "SEPARATOR"
+	launchGraceTime = 2
+	ni              *walk.NotifyIcon
+	launchgui       bool
+	launchelev      bool
+	launchcmd       string
+	eventname       = windows.StringToUTF16Ptr("ddtray-event")
+	isUserAdmin     bool
+	cmds            = map[string]func(){
+		cmdTextStartService:   onStart,
+		cmdTextStopService:    onStop,
+		cmdTextRestartService: onRestart,
+		cmdTextConfig:         onConfigure,
+	}
 )
 
 func init() {
 	enableLoggingToFile()
+
+	isAdmin, err := isUserAnAdmin()
+	isUserAdmin = isAdmin
+
+	if err != nil {
+		log.Warnf("Failed to call isUserAnAdmin %v", err)
+		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
+		isUserAdmin = true
+	}
 }
 
 func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.Agent()
 	verstring := av.GetNumberAndPre()
 
-	isAdmin, err := isUserAnAdmin()
-	areAdminButtonsAvailable := isAdmin
-
-	if err != nil {
-		log.Warnf("Failed to call isUserAnAdmin %v", err)
-		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
-		areAdminButtonsAvailable = true
-	}
-
-	checkRightsAndRun := func(action func()) func() {
+	menuHandler := func(cmd string) func() {
 		return func() {
-			if !areAdminButtonsAvailable {
-				showCustomMessage(notifyIcon, "You do not have the right to perform this action. "+
-					"Please login with administrator account.")
-			} else {
-				action()
-			}
+			execCmdOrElevate(cmd)
 		}
 	}
 
 	menuitems := make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Start", handler: checkRightsAndRun(onStart), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "S&top", handler: checkRightsAndRun(onStop), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Restart", handler: checkRightsAndRun(onRestart), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Configure", handler: checkRightsAndRun(onConfigure), enabled: canConfigure()})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: menuHandler(cmdTextStartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: menuHandler(cmdTextStopService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
@@ -110,24 +125,47 @@ func main() {
 	defer runtime.UnlockOSThread()
 
 	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
+
+	// launch-elev=true only means the process should have been elevated so that it will not elevate again. If the
+	// parameter is specified but the process is not elevated, some operation will fail due to access denied.
+	flag.BoolVar(&launchelev, "launch-elev", false, "Launch program as elevated, internal use only")
+
+	// If this parameter is specified, the process will try to carry out the command before the message loop.
+	flag.StringVar(&launchcmd, "launch-cmd", "", "Carry out a specific command after launch")
 	flag.Parse()
-	log.Debugf("launch-gui is %v", launchgui)
+
+	log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", launchgui, launchelev, launchcmd)
+
 	if launchgui {
 		//enableLoggingToConsole()
 		defer log.Flush()
 		log.Debug("Preparing to launch configuration interface...")
 		onConfigure()
 	}
-	// check to see if the process is already running.  If so, just exit
+
+	// Check to see if the process is already running
 	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
 		false,
 		eventname)
 
 	if h != windows.Handle(0) {
-		// was already there.  Process already running. We're done
+		// Process already running.
 		windows.CloseHandle(h)
-		return
+
+		// Wait a short period and recheck in case the other process will quit.
+		time.Sleep(time.Duration(launchGraceTime) * time.Second)
+
+		// Try again
+		h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
+			false,
+			eventname)
+
+		if h != windows.Handle(0) {
+			windows.CloseHandle(h)
+			return
+		}
 	}
+
 	// otherwise, create the handle so that nobody else will
 	h, _ = windows.CreateEvent(nil, 0, 0, eventname)
 	// should never fail; test just to make sure we don't close unopened handle
@@ -195,6 +233,11 @@ func main() {
 		log.Warnf("Failed to set window visibility %v", err)
 	}
 
+	// If a command is specified in process command line, carry it out.
+	if launchcmd != "" {
+		execCmdOrElevate(launchcmd)
+	}
+
 	// Run the message loop.
 	mw.Run()
 }
@@ -224,4 +267,46 @@ func enableLoggingToConsole() {
 	</seelog>`
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
+}
+
+// execCmdOrElevate carries out a command. If current process is not elevated and is not supposely to be elevated, it will launch
+// itself as elevated and quit from the current instance.
+func execCmdOrElevate(cmd string) {
+	if !launchelev && !isUserAdmin {
+		// If not launched as elevated and user is not admin, relaunch self. Use AND here to prevent from dead loop.
+		relaunchElevated(cmd)
+
+		// If elevation failed, just quit to the caller.
+		return
+	}
+
+	if cmds[cmd] != nil {
+		cmds[cmd]()
+	}
+}
+
+// relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
+// If the function succeeds, it will quit the process, otherwise the function will return to the caller.
+func relaunchElevated(cmd string) {
+	verb := "runas"
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+
+	// Reconstruct arguments, drop launch-gui and tell the new process it should have been elevated.
+	xargs := []string{"-launch-elev=true", "-launch-cmd=" + cmd}
+	args := strings.Join(xargs, " ")
+
+	verbPtr, _ := syscall.UTF16PtrFromString(verb)
+	exePtr, _ := syscall.UTF16PtrFromString(exe)
+	cwdPtr, _ := syscall.UTF16PtrFromString(cwd)
+	argPtr, _ := syscall.UTF16PtrFromString(args)
+
+	var showCmd int32 = 1 //SW_NORMAL
+
+	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
+	if err != nil {
+		log.Warnf("Failed to launch self as elevated %v", err)
+	} else {
+		onExit()
+	}
 }
