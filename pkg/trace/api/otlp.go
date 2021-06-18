@@ -6,6 +6,7 @@
 package api
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -126,7 +127,17 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
 
-	rd := NewLimitedReader(req.Body, o.cfg.MaxRequestBytes)
+	r := req.Body
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		gzipr, err := gzip.NewReader(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:corrupt_gzip"), 1)
+			return
+		}
+		r = gzipr
+	}
+	rd := NewLimitedReader(r, o.cfg.MaxRequestBytes)
 	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
