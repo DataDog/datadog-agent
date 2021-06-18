@@ -5,6 +5,7 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// QueryType is the DNS record type
 type QueryType layers.DNSType
 
 // DNSType known values.
