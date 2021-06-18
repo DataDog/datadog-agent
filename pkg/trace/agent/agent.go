@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -295,7 +296,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(envtraces) > 0 {
 		in := stats.Input{Traces: envtraces}
-		if config.HasFeature("fargate_stats_tags") && fargate.IsFargateInstance() {
+		if features.Has("fargate_stats_tags") && fargate.IsFargateInstance() {
 			in.ContainerID = p.ContainerID
 		}
 		a.Concentrator.In <- in
@@ -305,7 +306,7 @@ func (a *Agent) Process(p *api.Payload) {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	if !config.HasFeature("fargate_stats_tags") || !fargate.IsFargateInstance() {
+	if !features.Has("fargate_stats_tags") || !fargate.IsFargateInstance() {
 		// only allow the usage of these fields inside Fargate when the fargate_stats_tags
 		// feature flag is set.
 		in.ContainerID = ""
