@@ -17,7 +17,7 @@ type sessionAPI interface {
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
-	GetBulk(oids []string, bulkMaxRepetitions int) (result *gosnmp.SnmpPacket, err error)
+	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
 }
@@ -110,8 +110,8 @@ func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 	return s.gosnmpInst.Get(oids)
 }
 
-func (s *snmpSession) GetBulk(oids []string, bulkMaxRepetitions int) (result *gosnmp.SnmpPacket, err error) {
-	return s.gosnmpInst.GetBulk(oids, 0, uint32(bulkMaxRepetitions))
+func (s *snmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
 func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {

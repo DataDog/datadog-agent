@@ -75,7 +75,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, 10)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, defaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{

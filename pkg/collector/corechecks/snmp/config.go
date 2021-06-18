@@ -22,7 +22,7 @@ var subnetTagPrefix = "autodiscovery_subnet"
 // Using too high max repetitions might lead to tooBig SNMP error messages.
 // - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
 // - snmp-net uses 10
-const defaultBulkMaxRepetitions = 10
+const defaultBulkMaxRepetitions = uint32(10)
 
 type snmpInitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
@@ -77,7 +77,7 @@ type snmpConfig struct {
 	metrics               []metricsConfig
 	metricTags            []metricTagConfig
 	oidBatchSize          int
-	bulkMaxRepetitions    int
+	bulkMaxRepetitions    uint32
 	profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
@@ -233,16 +233,18 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.oidBatchSize = defaultOidBatchSize
 	}
 
+	var bulkMaxRepetitions int
 	if instance.BulkMaxRepetitions != 0 {
-		c.bulkMaxRepetitions = int(instance.BulkMaxRepetitions)
+		bulkMaxRepetitions = int(instance.BulkMaxRepetitions)
 	} else if initConfig.BulkMaxRepetitions != 0 {
-		c.bulkMaxRepetitions = int(initConfig.BulkMaxRepetitions)
+		bulkMaxRepetitions = int(initConfig.BulkMaxRepetitions)
 	} else {
-		c.bulkMaxRepetitions = defaultBulkMaxRepetitions
+		bulkMaxRepetitions = int(defaultBulkMaxRepetitions)
 	}
-	if c.bulkMaxRepetitions <= 0 {
-		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", c.bulkMaxRepetitions)
+	if bulkMaxRepetitions <= 0 {
+		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
+	c.bulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {

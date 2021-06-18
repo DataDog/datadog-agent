@@ -116,7 +116,7 @@ bulk_max_repetitions: 20
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, check.config.oidBatchSize)
-	assert.Equal(t, 20, check.config.bulkMaxRepetitions)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
@@ -350,7 +350,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 10, check.config.bulkMaxRepetitions)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
 	// TEST Instance config batch size
 	check = Check{session: &snmpSession{}}
@@ -362,7 +362,7 @@ bulk_max_repetitions: 10
 `)
 	err = check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 10, check.config.bulkMaxRepetitions)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
 	// TEST Init config batch size
 	check = Check{session: &snmpSession{}}
@@ -377,7 +377,7 @@ bulk_max_repetitions: 15
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 15, check.config.bulkMaxRepetitions)
+	assert.Equal(t, uint32(15), check.config.bulkMaxRepetitions)
 
 	// TEST Instance & Init config batch size
 	check = Check{session: &snmpSession{}}
@@ -393,7 +393,7 @@ bulk_max_repetitions: 15
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 20, check.config.bulkMaxRepetitions)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 
 	// TEST invalid value
 	check = Check{session: &snmpSession{}}
