@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	stdlog "log"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -68,8 +69,7 @@ func (r *HTTPReceiver) tracingProxyHandler() http.Handler {
 	if err != nil {
 		return errorProxyHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
-	return newTracingProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
+	return newTracingProxy(r.conf.NewHTTPTransport(), targets, keys, r.conf.Hostname, r.conf.DefaultEnv)
 }
 
 func errorProxyHandler(err error) http.Handler {
@@ -77,6 +77,20 @@ func errorProxyHandler(err error) http.Handler {
 		msg := fmt.Sprintf("Profile forwarder is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})
+}
+
+func isMultipart(req *http.Request) (bool, string) {
+	contentType := req.Header.Get("Content-type")
+	if contentType == "" {
+		return false, ""
+	}
+	contentType, params, err := mime.ParseMediaType(contentType)
+
+	if err != nil {
+		// TODO: ? DEBUG LOG?
+		return false, ""
+	}
+	return contentType == "multipart/form-data", ""
 }
 
 // newTracingProxy creates an http.ReverseProxy which can forward requests to
@@ -87,7 +101,7 @@ func errorProxyHandler(err error) http.Handler {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newTracingProxy(transport http.RoundTripper, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
+func newTracingProxy(transport http.RoundTripper, targets []*url.URL, keys []string, agentHostname string, agentEnv string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -96,13 +110,18 @@ func newTracingProxy(transport http.RoundTripper, targets []*url.URL, keys []str
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
+
 		containerID := req.Header.Get(headerContainerID)
 		if ctags := getContainerTags(containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			// #TODO - add payload
 		}
-		req.Header.Set("X-Datadog-Additional-Tags", tags)
+
+		req.Header.Get("DD-Agent-Hostname")
+
+		req.Header.Set("DD-Agent-Hostname", agentHostname)
+		req.Header.Set("DD-Agent-Env", agentEnv)
+
 		metrics.Count("datadog.trace_agent.proxy", 1, nil, 1)
-		// URL, Host and key are set in the transport for each outbound request
 	}
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
