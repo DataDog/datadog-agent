@@ -11,15 +11,6 @@ import (
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
-	// TODO: TEST ME
-	if fetchWorkers <= 1 {
-		return fetchColumnOidsWithBatchingSequential(session, oids, oidBatchSize)
-	}
-
-	// TODO: TEST ME
-	//retValues := make(columnResultValuesType, len(oids))
-	columnResults := newFetchColumnResults(len(oids))
-
 	columnOids := getOidsMapKeys(oids)
 	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
 	batches, err := createStringBatches(columnOids, oidBatchSize)
@@ -27,65 +18,39 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
-	// create a channel for work "tasks"
-	ch := make(chan []string)
+	// TODO: TEST ME
+	if fetchWorkers > 1 {
+		columnValues := fetchColumnOidsWithBatchingAsync(session, oids, fetchWorkers, batches)
+		return columnValues, nil
+	}
+	return fetchColumnOidsWithBatchingSequential(session, oids, batches)
+}
 
+func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string, fetchWorkers int, batches [][]string) columnResultValuesType {
+	columnResults := newFetchColumnResults(len(oids))
+
+	ch := make(chan []string)
 	wg := sync.WaitGroup{}
 
-	// start the workers
 	log.Debugf("fetch column oids with %d workers", fetchWorkers)
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
 		go processBatchAsync(ch, &wg, session, oids, columnResults)
 	}
 
-	// push the lines to the queue channel for processing
-	//for _, line := range fileline {
-	//	ch <- line
-	//}
 	for _, batchColumnOids := range batches {
 		ch <- batchColumnOids
 	}
 
-	// this will cause the workers to stop and exit their receive loop
-	close(ch)
+	close(ch) // close to indicate there is no more bathes
 
-	// make sure they all exit
-	wg.Wait()
-	//for _, batchColumnOids := range batches {
-	//	oidsToFetch := make(map[string]string, len(batchColumnOids))
-	//	for _, oid := range batchColumnOids {
-	//		oidsToFetch[oid] = oids[oid]
-	//	}
-	//
-	//	results, err := fetchColumnOids(session, oidsToFetch)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("failed to fetch column oids: %s", err)
-	//	}
-	//
-	//	for columnOid, instanceOids := range results {
-	//		if _, ok := retValues[columnOid]; !ok {
-	//			retValues[columnOid] = instanceOids
-	//			continue
-	//		}
-	//		for oid, value := range instanceOids {
-	//			retValues[columnOid][oid] = value
-	//		}
-	//	}
-	//}
-	return columnResults.values, nil
+	wg.Wait() // wait for all workers to finish
+
+	return columnResults.values
 }
 
-func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]string, oidBatchSize int) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]string, batches [][]string) (columnResultValuesType, error) {
 	columnResults := newFetchColumnResults(len(oids))
-
-	columnOids := getOidsMapKeys(oids)
-	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
-	batches, err := createStringBatches(columnOids, oidBatchSize)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
-	}
-
 	for _, batchColumnOids := range batches {
 		err := processBatch(batchColumnOids, session, oids, columnResults)
 		if err != nil {
@@ -96,13 +61,14 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 }
 
 func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+	defer wg.Done()
+
 	newSession := session.Copy()
 
 	// Create connection
 	connErr := newSession.Connect()
 	if connErr != nil {
 		log.Warnf("failed to connect: %v", connErr)
-		wg.Done()
 		return
 		//return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
@@ -120,7 +86,6 @@ func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI,
 			log.Warnf("failed to process batchColumnOids %v: %s", batchColumnOids, err)
 		}
 	}
-	wg.Done()
 }
 
 func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) error {
