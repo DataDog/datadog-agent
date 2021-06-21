@@ -741,6 +741,7 @@ def finish(
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
+        jmxfetch_version = _confirm_external_repo_version("jmxfetch", jmxfetch_version, highest_jmxfetch_version)
     print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
 
     if not omnibus_ruby_version:
@@ -762,6 +763,9 @@ def finish(
     if not security_agent_policies_version:
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
+        )
+        security_agent_policies_version = _confirm_external_repo_version(
+            "security-agent-policies", security_agent_policies_version, highest_security_agent_policies_version
         )
     print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
 
