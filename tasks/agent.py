@@ -89,7 +89,6 @@ IOT_AGENT_CORECHECKS = [
     "systemd",
 ]
 
-
 @task
 def apply_branding(ctx):
     """

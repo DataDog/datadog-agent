@@ -4,6 +4,7 @@ metadata:
   name: pod-headless-server
   labels:
     type: headless-server
+    test: pod-to-pod-headless
 spec:
   containers:
     - image: itsthenetwork/alpine-ncat
@@ -21,6 +22,7 @@ metadata:
   name: headless-service
   labels:
     type: headless-service
+    test: pod-to-pod-headless
 spec:
   type: ClusterIP
   clusterIP: None
@@ -34,6 +36,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: pod-headless-client
+  labels:
+    test: pod-to-pod-headless
 spec:
   containers:
     - image: jgkamat/netcat

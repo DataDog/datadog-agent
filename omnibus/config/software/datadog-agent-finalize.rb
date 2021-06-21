@@ -67,7 +67,9 @@ build do
             move "#{install_dir}/scripts/stackstate-agent-trace.conf", "/etc/init"
             move "#{install_dir}/scripts/stackstate-agent-process.conf", "/etc/init"
             move "#{install_dir}/scripts/stackstate-agent-sysprobe.conf", "/etc/init"
-            move "#{install_dir}/scripts/stackstate-agent-security.conf", "/etc/init"
+            if $enable_security_agent
+                move "#{install_dir}/scripts/stackstate-agent-security.conf", "/etc/init"
+            end
             systemd_directory = "/usr/lib/systemd/system"
             if debian?
                 # debian recommends using a different directory for systemd unit files
@@ -78,21 +80,27 @@ build do
                 move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
+                if $enable_security_agent
+                    move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
+                end
             end
             if suse?
                 mkdir "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/stackstate-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
+                if $enable_security_agent
+                    move "#{install_dir}/scripts/stackstate-agent-security", "/etc/init.d"
+                end
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/stackstate-agent.service", systemd_directory
             move "#{install_dir}/scripts/stackstate-agent-trace.service", systemd_directory
             move "#{install_dir}/scripts/stackstate-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/stackstate-agent-sysprobe.service", systemd_directory
-            move "#{install_dir}/scripts/stackstate-agent-security.service", systemd_directory
+            if $enable_security_agent
+                move "#{install_dir}/scripts/stackstate-agent-security.service", systemd_directory
+            end
 
             # Move configuration files
             mkdir "/etc/stackstate-agent"
