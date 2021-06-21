@@ -805,19 +805,19 @@ LIMIT 1
 			`INSERT INTO table ( field1 ) VALUES ( ? )`,
 		},
 		{
-			query: `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
+			query:    `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname !~ ?`,
 		},
 		{
-			query: `SELECT nspname FROM pg_class where nspname !~* '.*toIgnoreInsensitive.*'`,
+			query:    `SELECT nspname FROM pg_class where nspname !~* '.*toIgnoreInsensitive.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname !~* ?`,
 		},
 		{
-			query: `SELECT nspname FROM pg_class where nspname ~ '.*matching.*'`,
+			query:    `SELECT nspname FROM pg_class where nspname ~ '.*matching.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname ~ ?`,
 		},
 		{
-			query: `SELECT nspname FROM pg_class where nspname ~* '.*matchingInsensitive.*'`,
+			query:    `SELECT nspname FROM pg_class where nspname ~* '.*matchingInsensitive.*'`,
 			expected: `SELECT nspname FROM pg_class where nspname ~* ?`,
 		},
 	}
