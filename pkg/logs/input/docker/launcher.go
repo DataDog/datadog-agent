@@ -271,13 +271,20 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		serviceName = shortName
 	}
 
+	var sourceName string
+	if source.Name != config.ContainerCollectAll && source.Config.Source != "" {
+		sourceName = source.Config.Source
+	} else {
+		sourceName = shortName
+	}
+
 	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
 		Type:            config.FileType,
 		Identifier:      containerID,
 		Path:            l.getPath(containerID),
 		Service:         serviceName,
-		Source:          shortName,
+		Source:          sourceName,
 		Tags:            source.Config.Tags,
 		ProcessingRules: source.Config.ProcessingRules,
 	})
@@ -314,11 +321,11 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
-	if l.shouldTailFromFile(container) {
-		l.scheduleFileSource(container, source)
-	} else {
-		l.startSocketTailer(container, source)
-	}
+	// if l.shouldTailFromFile(container) {
+	l.scheduleFileSource(container, source)
+	// } else {
+	// 	l.startSocketTailer(container, source)
+	// }
 }
 
 func (l *Launcher) shouldTailFromFile(container *Container) bool {
