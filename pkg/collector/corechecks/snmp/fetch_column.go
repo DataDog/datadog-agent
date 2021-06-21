@@ -33,6 +33,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	wg := sync.WaitGroup{}
 
 	// start the workers
+	log.Debugf("fetch column oids with %d workers", fetchWorkers)
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
 		go processBatchAsync(ch, &wg, session, oids, columnResults)
@@ -95,8 +96,6 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 }
 
 func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
-	log.Debugf("worker processing batch oids: %v", oids)
-
 	newSession := session.Copy()
 
 	// Create connection
