@@ -11,6 +11,10 @@ import (
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
+	if fetchWorkers <= 1 {
+		return fetchColumnOidsWithBatchingSequential(session, oids, oidBatchSize)
+	}
+
 	//retValues := make(columnResultValuesType, len(oids))
 	columnResults := newFetchColumnResults(len(oids))
 
@@ -66,6 +70,25 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	//		}
 	//	}
 	//}
+	return columnResults.values, nil
+}
+
+func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]string, oidBatchSize int) (columnResultValuesType, error) {
+	columnResults := newFetchColumnResults(len(oids))
+
+	columnOids := getOidsMapKeys(oids)
+	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
+	batches, err := createStringBatches(columnOids, oidBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
+	}
+
+	for _, batchColumnOids := range batches {
+		err := doProcessBatch(batchColumnOids, session, oids, columnResults)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return columnResults.values, nil
 }
 
