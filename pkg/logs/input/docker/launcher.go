@@ -271,11 +271,9 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		serviceName = shortName
 	}
 
-	var sourceName string
+	sourceName := shortName
 	if source.Name != config.ContainerCollectAll && source.Config.Source != "" {
 		sourceName = source.Config.Source
-	} else {
-		sourceName = shortName
 	}
 
 	// New file source that inherit most of its parent properties
