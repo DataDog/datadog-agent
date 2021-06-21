@@ -8,15 +8,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
 	"syscall"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"net/http"
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	"os"
-	"os/signal"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/clcrunnerapi"
@@ -194,7 +194,7 @@ func StartAgent() error {
 			config.Datadog.GetBool("log_format_json"),
 		)
 
-		//Setup JMX logger
+		// Setup JMX logger
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
@@ -218,7 +218,7 @@ func StartAgent() error {
 			false, // not in json
 		)
 
-		//Setup JMX logger
+		// Setup JMX logger
 		if loggerSetupErr == nil {
 			loggerSetupErr = config.SetupJMXLogger(
 				jmxLoggerName,
@@ -271,19 +271,20 @@ func StartAgent() error {
 	}
 
 	// Setup expvar server
-	var port = config.Datadog.GetString("expvar_port")
+	expvarPort := config.Datadog.GetString("expvar_port")
+	expvarHost := config.Datadog.GetString("expvar_host")
 	if config.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
 	go func() {
-		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		err := http.ListenAndServe(fmt.Sprintf("%s:%s", expvarHost, expvarPort), http.DefaultServeMux)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+			log.Errorf("Error creating expvar server on port %v: %v", expvarPort, err)
 		}
 	}()
 
 	// Setup healthcheck port
-	var healthPort = config.Datadog.GetInt("health_port")
+	healthPort := config.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(common.MainCtx, healthPort)
 		if err != nil {
