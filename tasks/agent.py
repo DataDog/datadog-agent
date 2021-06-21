@@ -656,6 +656,17 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599
+        # In theory we'd need to have one format for each package type (deb, rpm, msi, pkg).
+        # However, there are a few things that allow us in practice to have only one variable for everything:
+        # - the deb and rpm safe version formats are identical (the only difference is an additional rule on Wind River Linux, which doesn't apply to us).
+        #   Moreover, of the two rules, we actually really only use the first one (because we always use inv agent.version --url-safe).
+        # - the msi version name uses the raw version string. The only difference with the deb / rpm versions
+        #   is therefore that dashes are replaced by tildes. We're already doing the reverse operation in agent-release-management
+        #   to get the correct msi name.
+        # - the pkg version name uses the raw version + a variation of the second rule (where a dash is used in place of an underscore).
+        #   Once again, replacing tildes by dashes (+ replacing underscore by dashes if we ever end up using the second rule for some reason)
+        #   in agent-release-management is enough. We're already replacing tildes by dashes in agent-release-management.
+        # TODO: investigate if having one format per package type in the agent.version method makes more sense.
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
