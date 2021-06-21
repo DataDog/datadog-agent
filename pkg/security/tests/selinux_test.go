@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,15 +40,23 @@ func TestSELinux(t *testing.T) {
 		},
 	}
 
+	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
+		t.Skipf("SELinux is not available, skipping tests")
+	}
+
+	// initial setup
+	currentEnforceStatus, err := getEnforceStatus()
+	if err != nil {
+		t.Errorf("failed to save enforce status")
+	}
+	setEnforceStatus("permissive")
+	defer setEnforceStatus(currentEnforceStatus)
+
 	test, err := newTestModule(nil, rules, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
-
-	if cmd := exec.Command("sudo", "-n", "sestatus"); cmd.Run() != nil {
-		t.Skipf("SELinux is not available, skipping tests")
-	}
 
 	savedBoolValue, err := getBoolValue(TEST_BOOL_NAME)
 	if err != nil {
@@ -161,7 +170,11 @@ func TestSELinux(t *testing.T) {
 		}
 
 		_, _, err = test.GetEventWithTimeout(1 * time.Second)
-		assert.Equal(t, err.Error(), "timeout", "wrong error type, expected timeout")
+		if err == nil {
+			t.Error("expected error")
+		} else {
+			assert.Equal(t, err.Error(), "timeout", "wrong error type, expected timeout")
+		}
 	})
 }
 
@@ -459,4 +472,25 @@ func getEnforceStatus() (string, error) {
 
 	status := strings.ToLower(strings.TrimSpace(string(output)))
 	return status, nil
+}
+
+func setEnforceStatus(status string) error {
+	enforceNumber := 0
+	switch status {
+	case "enforcing":
+		enforceNumber = 1
+	case "permissive":
+		enforceNumber = 0
+	case "disabled":
+		return nil
+	default:
+		return nil
+	}
+
+	cmd := exec.Command("sudo", "-n", "setenforce", strconv.Itoa(enforceNumber))
+	_, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	return nil
 }
