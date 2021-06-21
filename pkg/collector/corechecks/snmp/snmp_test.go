@@ -52,8 +52,8 @@ func (s *mockSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
-func (s *mockSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
+func (s *mockSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	args := s.Mock.Called(oids, bulkMaxRepetitions)
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
@@ -212,8 +212,8 @@ tags:
 	}
 
 	session.On("Get", mock.Anything).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, defaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -513,7 +513,7 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}).Return(&bulkPacket, nil)
+	}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -719,7 +719,7 @@ profiles:
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
 	session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -1203,7 +1203,7 @@ tags:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}).Return(&bulkPacket, nil)
+	}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
