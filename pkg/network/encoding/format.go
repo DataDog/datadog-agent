@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -278,7 +279,7 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomain(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -286,10 +287,10 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
 		for t, stat := range bytype {
 			var ms model.DNSStats
-			ms.DnsCountByRcode = stat.DNSCountByRcode
-			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
-			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
-			ms.DnsTimeouts = stat.DNSTimeouts
+			ms.DnsCountByRcode = stat.CountByRcode
+			ms.DnsFailureLatencySum = stat.FailureLatencySum
+			ms.DnsSuccessLatencySum = stat.SuccessLatencySum
+			ms.DnsTimeouts = stat.Timeouts
 			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
 		pos, ok := domainSet[d]

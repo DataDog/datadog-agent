@@ -198,6 +198,7 @@ build do
             strip_exclude("*offset-guess*")
             strip_exclude("*http*")
             strip_exclude("*runtime-security*")
+            strip_exclude("*dns*")
         end
 
         if osx?

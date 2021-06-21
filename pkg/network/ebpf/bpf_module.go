@@ -38,6 +38,21 @@ func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return ebpfReader, nil
 }
 
+// ReadDNSModule from the asset file
+func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	file := "dns.o"
+	if debug {
+		file = "dns-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
+}
+
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	file := "offset-guess.o"
