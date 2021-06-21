@@ -139,7 +139,7 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	question := dns.Questions[0]
-	if question.Class != layers.DNSClassIN || !isWantedRecordType(question.Type) {
+	if question.Class != layers.DNSClassIN || !isWantedQueryType(question.Type) {
 		return errSkippedPayload
 	}
 
@@ -191,7 +191,7 @@ func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourc
 
 func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
-		if record.Class != layers.DNSClassIN || !isWantedRecordType(record.Type) {
+		if record.Class != layers.DNSClassIN {
 			continue
 		}
 		if len(record.IP) == 0 {
@@ -205,7 +205,7 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 	}
 }
 
-func isWantedRecordType(checktype layers.DNSType) bool {
+func isWantedQueryType(checktype layers.DNSType) bool {
 	_, ok := recordedQueryTypes[checktype]
 	return ok
 }
