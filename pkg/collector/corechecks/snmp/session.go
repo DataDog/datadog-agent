@@ -129,13 +129,17 @@ func (s *snmpSession) GetVersion() gosnmp.SnmpVersion {
 }
 
 func (s *snmpSession) Copy() sessionAPI {
+	// TODO: TEST ME
 	newSession := snmpSession{}
 	newSession.gosnmpInst.Version = s.gosnmpInst.Version
 	newSession.gosnmpInst.Community = s.gosnmpInst.Community
-	newSession.gosnmpInst.MsgFlags = newSession.gosnmpInst.MsgFlags
-	newSession.gosnmpInst.ContextName = newSession.gosnmpInst.ContextName
-	newSession.gosnmpInst.SecurityModel = newSession.gosnmpInst.SecurityModel
-	newSession.gosnmpInst.SecurityParameters = newSession.gosnmpInst.SecurityParameters.Copy()
+	newSession.gosnmpInst.MsgFlags = s.gosnmpInst.MsgFlags
+	newSession.gosnmpInst.ContextName = s.gosnmpInst.ContextName
+	newSession.gosnmpInst.SecurityModel = s.gosnmpInst.SecurityModel
+	if newSession.gosnmpInst.SecurityParameters != nil {
+		// TODO: TEST ME
+		newSession.gosnmpInst.SecurityParameters = s.gosnmpInst.SecurityParameters.Copy()
+	}
 	newSession.gosnmpInst.Target = s.gosnmpInst.Target
 	newSession.gosnmpInst.Port = s.gosnmpInst.Port
 	newSession.gosnmpInst.Timeout = s.gosnmpInst.Timeout

@@ -11,10 +11,12 @@ import (
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
+	// TODO: TEST ME
 	if fetchWorkers <= 1 {
 		return fetchColumnOidsWithBatchingSequential(session, oids, oidBatchSize)
 	}
 
+	// TODO: TEST ME
 	//retValues := make(columnResultValuesType, len(oids))
 	columnResults := newFetchColumnResults(len(oids))
 
