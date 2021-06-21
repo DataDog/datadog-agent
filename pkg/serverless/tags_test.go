@@ -68,7 +68,7 @@ func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
 
-func TestBuildTagMapFromArnIncompleteWithComaAndSpaceTags(t *testing.T) {
+func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	arn := "function:my-function"
 	tagMap := buildTagMap(arn, []string{"tag0:value0", "tag1:value1,tag2:VALUE2", "TAG3:VALUE3"})
 	assert.Equal(t, 7, len(tagMap))
