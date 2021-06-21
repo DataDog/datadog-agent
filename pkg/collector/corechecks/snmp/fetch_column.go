@@ -33,7 +33,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	// start the workers
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
-		go processBatch(ch, &wg, session, oids, columnResults)
+		go processBatchAsync(ch, &wg, session, oids, columnResults)
 	}
 
 	// push the lines to the queue channel for processing
@@ -84,7 +84,7 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 	}
 
 	for _, batchColumnOids := range batches {
-		err := doProcessBatch(batchColumnOids, session, oids, columnResults)
+		err := processBatch(batchColumnOids, session, oids, columnResults)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +92,9 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 	return columnResults.values, nil
 }
 
-func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+	log.Debugf("worker processing batch oids: %v", oids)
+
 	newSession := session.Copy()
 
 	// Create connection
@@ -112,7 +114,7 @@ func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids
 
 	for batchColumnOids := range ch {
 		// do work
-		err := doProcessBatch(batchColumnOids, newSession, oids, accumulatedColumnResults)
+		err := processBatch(batchColumnOids, newSession, oids, accumulatedColumnResults)
 		if err != nil {
 			log.Warnf("failed to process batchColumnOids %v: %s", batchColumnOids, err)
 		}
@@ -120,7 +122,7 @@ func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids
 	wg.Done()
 }
 
-func doProcessBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) error {
+func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) error {
 	oidsToFetch := make(map[string]string, len(batchColumnOids))
 	for _, oid := range batchColumnOids {
 		oidsToFetch[oid] = oids[oid]
