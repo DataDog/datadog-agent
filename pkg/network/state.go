@@ -333,7 +333,7 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	}
 }
 
-func getDeepStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
+func getDeepDNSStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
 	var count int
 	for _, bykey := range stats {
 		for _, bydomain := range bykey {
@@ -346,7 +346,7 @@ func getDeepStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
 // storeDNSStats stores latest DNS stats for all clients
 func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[QueryType]DNSStats) {
 	for _, client := range ns.clients {
-		dnsStatsThisClient := getDeepStatsCount(stats)
+		dnsStatsThisClient := getDeepDNSStatsCount(client.dnsStats)
 		for key, statsByDomain := range stats {
 			for domain, statsByQtype := range statsByDomain {
 				for qtype, dns := range statsByQtype {

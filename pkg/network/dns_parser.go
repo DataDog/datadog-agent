@@ -4,7 +4,6 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
@@ -15,6 +14,10 @@ const maxIPBufferSize = 200
 var (
 	errTruncated      = errors.New("the packet is truncated")
 	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
+
+	// recordedRecordTypes defines a slice of DNS types that we'd like to capture.
+	// add additional types here to add DNSQueryTypes that will be recorded
+	recordedQueryTypes = []layers.DNSType{layers.DNSTypeA, layers.DNSTypeAAAA}
 )
 
 type dnsParser struct {
@@ -134,7 +137,7 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	question := dns.Questions[0]
-	if question.Class != layers.DNSClassIN {
+	if question.Class != layers.DNSClassIN || !isWantedRecordType(question.Type) {
 		return errSkippedPayload
 	}
 
@@ -156,7 +159,6 @@ func (p *dnsParser) parseAnswerInto(
 
 	var alias []byte
 	domainQueried := question.Name
-	log.Infof("answer for query %v %v", question.Type, string(domainQueried))
 	pktInfo.queryType = QueryType(question.Type)
 
 	// Retrieve the CNAME record, if available.
@@ -196,4 +198,13 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 			t.add(util.AddressFromNetIP(record.IP))
 		}
 	}
+}
+
+func isWantedRecordType(checktype layers.DNSType) bool {
+	for _, t := range recordedQueryTypes {
+		if checktype == t {
+			return true
+		}
+	}
+	return false
 }

@@ -36,14 +36,14 @@ type dnsPacketInfo struct {
 }
 
 type stateKey struct {
-	key   DNSKey
-	id    uint16
-	qtype QueryType
+	key DNSKey
+	id  uint16
 }
 
 type stateValue struct {
 	ts       uint64
 	question string
+	qtype    QueryType
 }
 
 type dnsStatKeeper struct {
@@ -94,7 +94,7 @@ func microSecs(t time.Time) uint64 {
 func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	sk := stateKey{key: info.key, id: info.transactionID, qtype: info.queryType}
+	sk := stateKey{key: info.key, id: info.transactionID}
 
 	if info.pktType == Query {
 		if len(d.state) == d.maxSize {
@@ -102,7 +102,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts)}
+			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts), qtype: info.queryType}
 		}
 		return
 	}
@@ -138,9 +138,8 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			return
 		}
 		byqtype.DNSCountByRcode = make(map[uint32]uint32)
+		d.numStats++
 	}
-
-	d.numStats++
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
