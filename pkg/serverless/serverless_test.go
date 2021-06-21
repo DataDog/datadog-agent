@@ -30,7 +30,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	deadlineMs := (time.Now().UnixNano())/1000000 + 20
 
 	//setting DD_TAGS and DD_EXTRA_TAGS
-	os.Setenv("DD_TAGS", "a1:valueA1 a2:valueA2 A_MAJ:valueAMaj")
+	os.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
 	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
@@ -41,6 +41,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"a3:valuea3",
 		"a4:valuea4",
 		"a_maj:valueamaj",
+		"account_id:123456789012",
 		"aws_account:123456789012",
 		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		"functionname:my-function",

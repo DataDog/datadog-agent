@@ -31,7 +31,10 @@ func buildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	for _, tag := range configTags {
-		tags = addTag(tags, tag)
+		splitTags := strings.Split(tag, ",")
+		for _, singleTag := range splitTags {
+			tags = addTag(tags, singleTag)
+		}
 	}
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
