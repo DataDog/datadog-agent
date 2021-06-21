@@ -9,6 +9,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -37,7 +38,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		dnsByDomainByQuerytype = map[int32]*model.DNSStatsByQueryType{
 			0: {
 				DnsStatsByQueryType: map[int32]*model.DNSStats{
-					int32(network.DNSTypeA): {
+					int32(dns.TypeA): {
 						DnsTimeouts:          0,
 						DnsSuccessLatencySum: 0,
 						DnsFailureLatencySum: 0,
@@ -135,13 +136,13 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomainByQueryType: map[string]map[network.QueryType]network.DNSStats{
+				DNSStatsByDomainByQueryType: map[string]map[dns.QueryType]dns.Stats{
 					"foo.com": {
-						network.DNSTypeA: {
-							DNSTimeouts:          0,
-							DNSSuccessLatencySum: 0,
-							DNSFailureLatencySum: 0,
-							DNSCountByRcode:      map[uint32]uint32{0: 1},
+						dns.TypeA: {
+							Timeouts:          0,
+							SuccessLatencySum: 0,
+							FailureLatencySum: 0,
+							CountByRcode:      map[uint32]uint32{0: 1},
 						},
 					},
 				},

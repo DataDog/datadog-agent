@@ -1,4 +1,6 @@
-package network
+//+build windows linux_bpf
+
+package dns
 
 import (
 	"encoding/binary"
