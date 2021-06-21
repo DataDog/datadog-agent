@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 	"testing"
 	"time"
@@ -23,60 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type mockSession struct {
-	mock.Mock
-	connectErr error
-	closeErr   error
-	version    gosnmp.SnmpVersion
-}
-
-func (s *mockSession) Configure(config snmpConfig) error {
-	return nil
-}
-
-func (s *mockSession) Connect() error {
-	return s.connectErr
-}
-
-func (s *mockSession) Close() error {
-	return s.closeErr
-}
-
-func (s *mockSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetVersion() gosnmp.SnmpVersion {
-	return s.version
-}
-
-func createMockSession() *mockSession {
-	session := &mockSession{}
-	session.version = gosnmp.Version2c
-	return session
-}
-
-func setConfdPathAndCleanProfiles() {
-	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
-	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
-	config.Datadog.Set("confd_path", file)
-}
 
 func TestBasicSample(t *testing.T) {
 	setConfdPathAndCleanProfiles()
@@ -1035,7 +983,7 @@ metrics:
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 
-	assert.Equal(t, strings.Count(logs, "failed to close session"), 1, logs)
+	assert.Equal(t, 1, strings.Count(logs, "failed to close session"), logs)
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {

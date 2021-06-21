@@ -25,6 +25,7 @@ type sessionAPI interface {
 	GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
+	Copy() sessionAPI
 }
 
 type snmpSession struct {
@@ -125,6 +126,23 @@ func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err err
 
 func (s *snmpSession) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
+}
+
+func (s *snmpSession) Copy() sessionAPI {
+	newSession := snmpSession{}
+	newSession.gosnmpInst.Version = s.gosnmpInst.Version
+	newSession.gosnmpInst.Community = s.gosnmpInst.Community
+	newSession.gosnmpInst.MsgFlags = newSession.gosnmpInst.MsgFlags
+	newSession.gosnmpInst.ContextName = newSession.gosnmpInst.ContextName
+	newSession.gosnmpInst.SecurityModel = newSession.gosnmpInst.SecurityModel
+	newSession.gosnmpInst.SecurityParameters = newSession.gosnmpInst.SecurityParameters.Copy()
+	newSession.gosnmpInst.Target = s.gosnmpInst.Target
+	newSession.gosnmpInst.Port = s.gosnmpInst.Port
+	newSession.gosnmpInst.Timeout = s.gosnmpInst.Timeout
+	newSession.gosnmpInst.Retries = s.gosnmpInst.Retries
+	newSession.gosnmpInst.Logger = s.gosnmpInst.Logger
+	newSession.loggerEnabled = s.loggerEnabled
+	return &newSession
 }
 
 func fetchSysObjectID(session sessionAPI) (string, error) {

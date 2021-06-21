@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(config snmpConfig, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
 	//retValues := make(columnResultValuesType, len(oids))
 	columnResults := newFetchColumnResults(len(oids))
 
@@ -29,7 +29,7 @@ func fetchColumnOidsWithBatching(config snmpConfig, oids map[string]string, oidB
 	// start the workers
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
-		go processBatch(ch, &wg, config, oids, columnResults)
+		go processBatch(ch, &wg, session, oids, columnResults)
 	}
 
 	// push the lines to the queue channel for processing
@@ -69,12 +69,8 @@ func fetchColumnOidsWithBatching(config snmpConfig, oids map[string]string, oidB
 	return columnResults.values, nil
 }
 
-func processBatch(ch chan []string, wg *sync.WaitGroup, config snmpConfig, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
-	var newSession sessionAPI
-	newSession = &snmpSession{}
-	newSession.Configure(config)
-
-
+func processBatch(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+	newSession := session.Copy()
 
 	// Create connection
 	connErr := newSession.Connect()
@@ -90,7 +86,6 @@ func processBatch(ch chan []string, wg *sync.WaitGroup, config snmpConfig, oids 
 			log.Warnf("failed to close session: %v", err)
 		}
 	}()
-
 
 	for batchColumnOids := range ch {
 		// do work
