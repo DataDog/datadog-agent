@@ -29,20 +29,20 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string, fetchWorkers int, batches [][]string) columnResultValuesType {
 	columnResults := newFetchColumnResults(len(oids))
 
-	ch := make(chan []string)
+	columnOidsBatchesChan := make(chan []string)
 	wg := sync.WaitGroup{}
 
 	log.Debugf("fetch column oids with %d workers", fetchWorkers)
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
-		go processBatchAsync(ch, &wg, session, oids, columnResults)
+		go processBatchAsync(columnOidsBatchesChan, &wg, session, oids, columnResults)
 	}
 
 	for _, batchColumnOids := range batches {
-		ch <- batchColumnOids
+		columnOidsBatchesChan <- batchColumnOids
 	}
 
-	close(ch) // close to indicate there is no more bathes
+	close(columnOidsBatchesChan) // close to indicate there is no more bathes
 
 	wg.Wait() // wait for all workers to finish
 
@@ -60,7 +60,7 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 	return columnResults.values, nil
 }
 
-func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+func processBatchAsync(columnOidsBatchesChan chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
 	defer wg.Done()
 
 	newSession := session.Copy()
@@ -79,7 +79,7 @@ func processBatchAsync(ch chan []string, wg *sync.WaitGroup, session sessionAPI,
 		}
 	}()
 
-	for batchColumnOids := range ch {
+	for batchColumnOids := range columnOidsBatchesChan {
 		// do work
 		err := processBatch(batchColumnOids, newSession, oids, accumulatedColumnResults)
 		if err != nil {
