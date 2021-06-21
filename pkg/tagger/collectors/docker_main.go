@@ -102,7 +102,7 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	var info *TagInfo
 
 	switch e.Action {
-	case docker.ContainerEventActionDie:
+	case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
 		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
 	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
 		inspectCached := e.Action == docker.ContainerEventActionStart
