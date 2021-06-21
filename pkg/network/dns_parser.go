@@ -191,7 +191,10 @@ func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourc
 
 func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
-		if record.Type != layers.DNSTypeA || record.Class != layers.DNSClassIN {
+		if record.Class != layers.DNSClassIN || !isWantedRecordType(record.Type) {
+			continue
+		}
+		if len(record.IP) == 0 {
 			continue
 		}
 
