@@ -268,7 +268,7 @@ func getKey(
 	}
 }
 
-func hasDomains(stats map[string]DNSStats, domains ...string) bool {
+func hasDomains(stats map[string]map[QueryType]DNSStats, domains ...string) bool {
 	for _, domain := range domains {
 		if _, ok := stats[domain]; !ok {
 			return false
@@ -413,7 +413,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		return hasDomains(allStats[key1], domains...)
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for TCP requests")
 	for _, d := range domains {
-		require.Equal(t, 1, len(allStats[key1][d].DNSCountByRcode))
+		require.Equal(t, 1, len(allStats[key1][d][DNSTypeA].DNSCountByRcode))
 		assert.Equal(t, uint32(1), allStats[key1][d][DNSTypeA].DNSCountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][d])
 	}
 
@@ -446,7 +446,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
-	assert.Equal(t, 0, len(allStats[key][domainQueried].DNSCountByRcode))
+	assert.Equal(t, 0, len(allStats[key][domainQueried][DNSTypeA].DNSCountByRcode))
 	assert.Equal(t, uint32(1), allStats[key][domainQueried][DNSTypeA].DNSTimeouts)
 	assert.Equal(t, uint64(0), allStats[key][domainQueried][DNSTypeA].DNSSuccessLatencySum)
 	assert.Equal(t, uint64(0), allStats[key][domainQueried][DNSTypeA].DNSFailureLatencySum)

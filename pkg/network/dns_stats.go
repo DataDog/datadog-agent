@@ -131,7 +131,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 		stats = make(map[QueryType]DNSStats)
 	}
-	byqtype, ok := stats[info.queryType]
+	byqtype, ok := stats[start.qtype]
 	if !ok {
 		if d.numStats >= d.maxStats {
 			d.droppedStats++
@@ -152,7 +152,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			byqtype.DNSFailureLatencySum += latency
 		}
 	}
-	stats[info.queryType] = byqtype
+	stats[start.qtype] = byqtype
 	allStats[start.question] = stats
 	d.stats[info.key] = allStats
 }
