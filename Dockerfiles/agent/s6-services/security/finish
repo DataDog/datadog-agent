@@ -1,9 +1,12 @@
 #!/usr/bin/execlineb -S1
 
+define SECURITY_AGENT_ENABLED 0
+
 # Disable the service it it exit(0), else wait 2 seconds before restarting it
 
-ifthenelse
-    { s6-test ${1} -eq 0 }
+ifthenelse { s6-test ${SECURITY_AGENT_ENABLED} -eq 1 }
+{
+    ifthenelse { s6-test ${1} -eq 0 }
     {
         foreground { /initlog.sh "security-agent exited with code ${1}, disabling" }
         foreground { /bin/s6-svc -d /var/run/s6/services/security/ }
@@ -12,3 +15,9 @@ ifthenelse
         foreground { /initlog.sh "security-agent exited with code ${1}, signal ${2}, restarting in 2 seconds" }
         foreground { s6-sleep 2 }
     }
+}
+{
+    foreground { /initlog.sh "security-agent is disabled, disabling the service.." }
+    foreground { /bin/s6-svc -d /var/run/s6/services/security/ }
+}
+
