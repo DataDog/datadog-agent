@@ -321,11 +321,11 @@ func newOverridenSource(standardService, shortName string, status *config.LogSta
 
 // startTailer starts a new tailer for the container matching with the source.
 func (l *Launcher) startTailer(container *Container, source *config.LogSource) {
-	// if l.shouldTailFromFile(container) {
-	l.scheduleFileSource(container, source)
-	// } else {
-	// 	l.startSocketTailer(container, source)
-	// }
+	if l.shouldTailFromFile(container) {
+		l.scheduleFileSource(container, source)
+	} else {
+		l.startSocketTailer(container, source)
+	}
 }
 
 func (l *Launcher) shouldTailFromFile(container *Container) bool {
