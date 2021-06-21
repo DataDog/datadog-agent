@@ -54,7 +54,7 @@ func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *conf
 	return start(getAC, true, logsChan, extraTags)
 }
 
-// buildEndpoint builds endpoints regarding the agent is in serverless mode or not
+// buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	if serverless {
 		return config.BuildServerlessEndpoints()
