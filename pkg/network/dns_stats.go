@@ -225,13 +225,13 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 				}
 				bytype = make(map[QueryType]DNSStats)
 			}
-			stats, ok := bytype[k.qtype]
+			stats, ok := bytype[v.qtype]
 			if !ok {
 				d.numStats++
 				stats.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			stats.DNSTimeouts++
-			bytype[k.qtype] = stats
+			bytype[v.qtype] = stats
 			allStats[v.question] = bytype
 			d.stats[k.key] = allStats
 		}

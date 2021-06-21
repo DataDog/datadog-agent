@@ -278,13 +278,15 @@ func hasDomains(stats map[string]DNSStats, domains ...string) bool {
 	return true
 }
 
-func countDNSResponses(stats map[DNSKey]map[string]DNSStats) int {
+func countDNSResponses(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
 	total := 0
 	for _, statsByDomain := range stats {
-		for _, s := range statsByDomain {
-			total += int(s.DNSTimeouts)
-			for _, count := range s.DNSCountByRcode {
-				total += int(count)
+		for _, statsByType := range statsByDomain {
+			for _, s := range statsByType {
+				total += int(s.DNSTimeouts)
+				for _, count := range s.DNSCountByRcode {
+					total += int(count)
+				}
 			}
 		}
 	}
