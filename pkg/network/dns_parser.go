@@ -15,9 +15,11 @@ var (
 	errTruncated      = errors.New("the packet is truncated")
 	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
 
-	// recordedRecordTypes defines a slice of DNS types that we'd like to capture.
+	// recordedRecordTypes defines a map of DNS types that we'd like to capture.
 	// add additional types here to add DNSQueryTypes that will be recorded
-	recordedQueryTypes = []layers.DNSType{layers.DNSTypeA, layers.DNSTypeAAAA}
+	recordedQueryTypes = map[layers.DNSType]struct{}{
+		layers.DNSTypeA:    {},
+		layers.DNSTypeAAAA: {}}
 )
 
 type dnsParser struct {
@@ -201,10 +203,6 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 }
 
 func isWantedRecordType(checktype layers.DNSType) bool {
-	for _, t := range recordedQueryTypes {
-		if checktype == t {
-			return true
-		}
-	}
-	return false
+	_, ok := recordedQueryTypes[checktype]
+	return ok
 }
