@@ -5,6 +5,8 @@ skip_branch_with_pr: true
 
 clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 
+image: "Visual Studio 2017"
+
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
@@ -12,7 +14,7 @@ environment:
   GOROOT: C:\go_1.15.11
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
-  Python3_ROOT_DIR: C:\Python37-x64
+  Python3_ROOT_DIR: C:\Python38-x64
   PIP3: pip3 -q
   MSYS_ROOT: C:\msys64
   # GLIB-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/glib/2.26/glib_2.26.1-1_win64.zip

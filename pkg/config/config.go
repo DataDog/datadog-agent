@@ -251,6 +251,12 @@ func InitConfig(config Config) {
 	// Whether to honour the value of PYTHONPATH, if set, on Windows. On other OSes we always do.
 	config.BindEnvAndSetDefault("windows_use_pythonpath", false)
 
+	// When the Python full interpreter path cannot be deduced via heuristics, the agent
+	// is expected to prevent rtloader from initializing. When set to true, this override
+	// allows us to proceed but with some capabilities unavailable (e.g. `multiprocessing`
+	// library support will not work reliably in those environments)
+	config.BindEnvAndSetDefault("allow_python_path_heuristics_failure", false)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win

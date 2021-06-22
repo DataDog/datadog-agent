@@ -28,11 +28,12 @@ public:
     /*!
       \param python_home A C-string with the path to the python home for the
       python interpreter.
+      \param python_exe A C-string with the path to the python interpreter.
 
       Basic constructor, initializes the _error string to an empty string and
-      errorFlag to false and set the supplied PYTHONHOME.
+      errorFlag to false and set the supplied PYTHONHOME and ProgramName.
     */
-    Three(const char *python_home, cb_memory_tracker_t memtrack_cb);
+    Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     /*!
@@ -131,6 +132,13 @@ private:
     */
     void initPythonHome(const char *pythonHome = NULL);
 
+    //! initPythonExe member.
+    /*!
+      \brief This member function sets the path to the underlying python3 interpreter.
+      \param python_exe A C-string to the target python executable.
+    */
+    void initPythonExe(const char *python_exe = NULL);
+
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified
@@ -172,6 +180,7 @@ private:
     typedef std::vector<std::string> PyPaths;
 
     wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
+    wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */
