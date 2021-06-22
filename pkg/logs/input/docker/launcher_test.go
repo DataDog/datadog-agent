@@ -163,7 +163,7 @@ func TestGetFileSource(t *testing.T) {
 			wantTags:        nil,
 		},
 		{
-			name:  "Source and service name overide when container collec tall",
+			name:  "Source and service name overide when container collect all",
 			sFunc: func(n, e string) string { return "" },
 			container: &Container{
 				container: types.ContainerJSON{
