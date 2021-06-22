@@ -819,7 +819,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     )
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version["major"], VERSION_RE
+        release_json, new_version["major"], VERSION_RE, is_first_rc=(new_version["rc"] == 1)
     )
 
     # Add new entry to the release.json object and return it
