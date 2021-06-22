@@ -206,7 +206,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 		for _, attr := range rspans.Resource.Attributes {
 			rattr[attr.Key] = anyValueString(attr.Value)
 		}
-		lang := rattr["telemetry.sdk.language"]
+		lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
 		if lang == "" {
 			lang = fastHeaderGet(header, headerLang)
 		}
@@ -216,7 +216,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 				LangVersion:     fastHeaderGet(header, headerLangVersion),
 				Interpreter:     fastHeaderGet(header, headerLangInterpreter),
 				LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
-				TracerVersion:   fmt.Sprintf("otlp-%s", rattr["telemetry.sdk.version"]),
+				TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.TelemetrySDKVersionKey)]),
 				EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
 			},
 		}
@@ -317,7 +317,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		ParentID: byteArrayToUint64(in.ParentSpanId),
 		Start:    int64(in.StartTimeUnixNano),
 		Duration: int64(in.EndTimeUnixNano) - int64(in.StartTimeUnixNano),
-		Service:  rattr["service.name"],
+		Service:  rattr[string(semconv.ServiceNameKey)],
 		Resource: in.Name,
 		Meta:     rattr,
 		Metrics: map[string]float64{
@@ -333,7 +333,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		span.Meta["otlp_ids.parent"] = hex.EncodeToString(in.ParentSpanId)
 	}
 	if _, ok := span.Meta["version"]; !ok {
-		if ver := rattr["service.version"]; ver != "" {
+		if ver := rattr[string(semconv.ServiceVersionKey)]; ver != "" {
 			span.Meta["version"] = ver
 		}
 	}
@@ -379,16 +379,16 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
 	var r string
-	if m := meta["http.method"]; m != "" {
+	if m := meta[string(semconv.HTTPMethodKey)]; m != "" {
 		r = m
-		if route := meta["http.route"]; route != "" {
+		if route := meta[string(semconv.HTTPRouteKey)]; route != "" {
 			r += " " + route
 		} else if route := meta["grpc.path"]; route != "" {
 			r += " " + route
 		}
-	} else if m := meta["messaging.operation"]; m != "" {
+	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
 		r = m
-		if dest := meta["messaging.destination"]; dest != "" {
+		if dest := meta[string(semconv.MessagingDestinationKey)]; dest != "" {
 			r += " " + dest
 		}
 	}
@@ -427,7 +427,7 @@ func spanKind2Type(kind otlppb.Span_SpanKind, span *pb.Span) string {
 		typ = "web"
 	case otlppb.Span_SPAN_KIND_CLIENT:
 		typ = "http"
-		db, ok := span.Meta["db.system"]
+		db, ok := span.Meta[string(semconv.DBSystemKey)]
 		if !ok {
 			break
 		}
