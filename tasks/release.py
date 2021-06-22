@@ -20,6 +20,12 @@ from tasks.utils import DEFAULT_BRANCH
 from .libs.common.user_interactions import yes_no_question
 from .modules import DEFAULT_MODULES
 
+# Generic version regex. Aims to match:
+# - X.Y.Z
+# - X.Y.Z-rc.t
+# - vX.Y(.Z) (security-agent-policies repo)
+VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
+
 
 @task
 def add_prelude(ctx, version):
@@ -387,6 +393,31 @@ def list_major_change(_, milestone):
         print("#{}: {} ({})".format(pr["number"], pr["title"], pr["html_url"]))
 
 
+#
+# release.json manipulation invoke tasks section
+#
+
+##
+## I/O functions
+##
+
+
+def _load_release_json():
+    with open("release.json", "r") as release_json_stream:
+        return json.load(release_json_stream, object_pairs_hook=OrderedDict)
+
+
+def _save_release_json(release_json):
+    with open("release.json", "w") as release_json_stream:
+        # Note, no space after the comma
+        json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
+
+
+##
+## Utils
+##
+
+
 def _is_version_higher(version_1, version_2):
     if not version_2:
         return True
@@ -462,23 +493,9 @@ def _query_github_api(auth_token, url):
     return response
 
 
-def _confirm_external_repo_version(repo, latest_version, highest_release_json_version):
-    confirmed_version = highest_release_json_version
-    if latest_version != highest_release_json_version:
-        print(
-            color_message(
-                "The latest version of {} ({}) does not match the latest version found in the release.json file ({}).".format(
-                    repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
-                ),
-                "orange",
-            )
-        )
-        if yes_no_question(
-            "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
-        ):
-            confirmed_version = latest_version
-
-    return confirmed_version
+##
+## Base functions to fetch candidate versions on other repositories
+##
 
 
 def _get_highest_repo_version(auth, repo, version_prefix, allowed_major_versions, version_re):
@@ -504,7 +521,7 @@ def _get_highest_repo_version(auth, repo, version_prefix, allowed_major_versions
 
         # The allowed_major_versions are listed in order of preference
         # If something matching a given major version exists, no need to
-        # go through the next ones
+        # go through the next ones.
         if highest_version:
             break
 
@@ -543,16 +560,111 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
     return highest_version
 
 
-def _get_windows_ddnpm_release_json_info(
-    release_json, major_version, version_re, is_first_rc=False,
+##
+## Variables needed for the repository version fetch functions
+##
+
+# COMPATIBLE_MAJOR_VERSIONS lists the major versions of tags
+# that can be used with a given Agent version
+# This is here for compatibility and simplicity reasons, as in most repos
+# we don't create both 6 and 7 tags for a combined Agent 6 & 7 release.
+COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+
+TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
+RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
+TAG_FOUND_TEMPLATE = "The {} tag is {}"
+
+
+##
+## Repository version fetch functions
+## The following functions aim at returning the correct version to use for a given
+## repository, after compatibility & user confirmations
+## The version object returned by such functions should be ready to be used to fill
+## the release.json entry.
+##
+
+
+def _fetch_dependency_repo_version(
+    repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
 ):
+    """
+    Fetches the latest tag on a given repository with the following constraints:
+    - the tag must have a major version that's in allowed_major_versions
+    - the tag must match compatible_version_re (the main usage is to restrict the compatible tags to the
+      ones with the same minor version as the Agent)?
+    
+    If check_for_rc is true, a warning will be emitted if the latest version that satisfies
+    the constraints is an RC. User confirmation is then needed to check that this is desired.
+    """
+
+    version = _get_highest_repo_version(github_token, repo_name, "", allowed_major_versions, compatible_version_re)
+    if not version:
+        raise Exit(TAG_NOT_FOUND_TEMPLATE.format(repo_name, _stringify_version(new_agent_version)), 1)
+    if check_for_rc and version["rc"] is not None:
+        if not yes_no_question(
+            RC_TAG_QUESTION_TEMPLATE.format(repo_name, _stringify_version(version)), "orange", False,
+        ):
+            raise Exit("Aborting release.json update.", 1)
+
+    print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
+    return version
+
+
+def _confirm_independent_repo_version(repo, latest_version, highest_release_json_version):
+    confirmed_version = highest_release_json_version
+    if latest_version != highest_release_json_version:
+        print(
+            color_message(
+                "The latest version of {} ({}) does not match the latest version found in the release.json file ({}).".format(
+                    repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
+                ),
+                "orange",
+            )
+        )
+        if yes_no_question(
+            "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
+        ):
+            confirmed_version = latest_version
+
+    return confirmed_version
+
+
+def _fetch_independent_dependency_repo_version(
+    repo_name, release_json, agent_major_version, github_token, release_json_key
+):
+    """
+    Fetches the latest tag on a given repository:
+    - first, we get the latest version used in release entries of the matching Agent major version
+    - then, we fetch the latest version available in the repository
+    - if the above two versions are different, emit a warning and ask for user confirmation before updating the version.
+    """
+
+    highest_version = _get_highest_version_from_release_json(
+        release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
+    )
+    # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
+    version = _get_highest_repo_version(github_token, repo_name, highest_version["prefix"], None, VERSION_RE)
+    version = _confirm_independent_repo_version(repo_name, version, highest_version)
+    print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
+
+    return version
+
+
+def _get_windows_ddnpm_release_json_info(
+    release_json, agent_major_version, version_re, is_first_rc=False,
+):
+    """
+    Gets the Windows NPM driver info from the previous entries in the release.json file.
+    """
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
     if is_first_rc:
         print("Using 'nightly' DDNPM values")
         release_json_version_data = release_json['nightly']
     else:
-        highest_release_json_version = _get_highest_version_from_release_json(release_json, major_version, version_re)
+        highest_release_json_version = _get_highest_version_from_release_json(
+            release_json, agent_major_version, version_re
+        )
         highest_release = _stringify_version(highest_release_json_version)
         print("Using '{}' DDNPM values".format(highest_release))
         release_json_version_data = release_json[highest_release]
@@ -564,10 +676,17 @@ def _get_windows_ddnpm_release_json_info(
     if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
         print("WARN: WINDOWS_DDNPM_DRIVER value '{}' is not valid".format(win_ddnpm_driver))
 
+    print("The windows ddnpm version is {}".format(win_ddnpm_version))
+
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
 
 
-def _update_release_json(
+##
+## release_json object update function
+##
+
+
+def _add_release_json_entry(
     release_json,
     new_version,
     integrations_version,
@@ -580,6 +699,9 @@ def _update_release_json(
     windows_ddnpm_version,
     windows_ddnpm_shasum,
 ):
+    """
+    Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
+    """
     import requests
 
     jmxfetch = requests.get(
@@ -625,15 +747,77 @@ def _update_release_json(
     return new_release_json
 
 
-def _load_release_json():
-    with open("release.json", "r") as release_json_stream:
-        return json.load(release_json_stream, object_pairs_hook=OrderedDict)
+##
+## Main functions
+##
 
 
-def _save_release_json(release_json):
-    with open("release.json", "w") as release_json_stream:
-        # Note, no space after the comma
-        json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
+def _update_release_json(release_json, new_version, github_token, check_for_rc=False):
+    """
+    Updates the provided release.json object by fetching compatible versions for all dependencies
+    of the provided Agent version, constructing the new entry, adding it to the release.json object
+    and returning it.
+    """
+
+    allowed_major_versions = COMPATIBLE_MAJOR_VERSIONS[new_version["major"]]
+
+    # Part 1: repositories which follow the Agent version scheme
+
+    # For repositories which follow the Agent version scheme, we want to only get
+    # tags with the same minor version, to avoid problems when releasing a bugfix
+    # version while a minor version release is ongoing.
+    compatible_version_re = re.compile(
+        r'(v)?([{}])[.]({})([.](\d+))?(-rc\.(\d+))?'.format("".join(allowed_major_versions), new_version["minor"])
+    )
+
+    integrations_version = _fetch_dependency_repo_version(
+        "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    )
+
+    omnibus_software_version = _fetch_dependency_repo_version(
+        "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    )
+
+    omnibus_ruby_version = _fetch_dependency_repo_version(
+        "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    )
+
+    macos_build_version = _fetch_dependency_repo_version(
+        "datadog-agent-macos-build",
+        new_version,
+        allowed_major_versions,
+        compatible_version_re,
+        github_token,
+        check_for_rc,
+    )
+
+    # Part 2: repositories which have their own version scheme
+    jmxfetch_version = _fetch_independent_dependency_repo_version(
+        "jmxfetch", release_json, new_version["major"], github_token, "JMXFETCH_VERSION"
+    )
+
+    security_agent_policies_version = _fetch_independent_dependency_repo_version(
+        "security-agent-policies", release_json, new_version["major"], github_token, "SECURITY_AGENT_POLICIES_VERSION"
+    )
+
+    windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
+        release_json, new_version["major"], VERSION_RE
+    )
+
+    # Add new entry to the release.json object and return it
+    return _add_release_json_entry(
+        release_json,
+        new_version,
+        integrations_version,
+        omnibus_software_version,
+        omnibus_ruby_version,
+        jmxfetch_version,
+        security_agent_policies_version,
+        macos_build_version,
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
+    )
 
 
 @task
@@ -642,7 +826,7 @@ def finish(
 ):
 
     """
-    Creates new entry in the release.json file for the new version. Removes all the RC entries.
+    Creates a new entry in the release.json file for the new version. Removes all the RC entries.
 
     Update internal module dependencies with the new version.
     """
@@ -666,154 +850,17 @@ def finish(
 
     release_json = _load_release_json()
 
-    # Generic version regex. Aims to match:
-    # - X.Y.Z
-    # - X.Y.Z-rc.t
-    # - vX.Y(.Z) (security-agent-policies repo)
-    version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
-
     for major_version in list_major_versions:
-        allowed_major_versions = COMPATIBLE_MAJOR_VERSIONS[major_version]
-
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, version_re)
-
-        new_version = highest_version.copy()
+        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
 
         # Set the new version
+        new_version = highest_version.copy()
         new_version["rc"] = None
         new_version_string = _stringify_version(new_version)
+        print("Creating {}".format(new_version_string))
 
-        # For repositories which follow the Agent version scheme, we want to only get
-        # tags with the same minor version, to avoid problems when releasing a bugfix
-        # version while a minor version release is ongoing.
-        compatible_version_re = re.compile(
-            r'(v)?([{}])[.]({})([.](\d+))?(-rc\.(\d+))?'.format("".join(allowed_major_versions), new_version["minor"])
-        )
-
-        integrations_version = _get_highest_repo_version(
-            github_token, "integrations-core", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not integrations_version:
-            raise Exit(
-                "Couldn't find an integrations-core version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        if integrations_version["rc"] is not None:
-            if not yes_no_question(
-                "The integrations-core tag found is an RC tag: {}. Are you sure you want to use it?".format(
-                    _stringify_version(integrations_version)
-                ),
-                "orange",
-                False,
-            ):
-                raise Exit("Aborting release.json update.", 1)
-        print("integrations-core's tag is {}".format(_stringify_version(integrations_version)))
-
-        omnibus_software_version = _get_highest_repo_version(
-            github_token, "omnibus-software", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not omnibus_software_version:
-            raise Exit(
-                "Couldn't find an omnibus-software version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        if omnibus_software_version["rc"] is not None:
-            if not yes_no_question(
-                "The omnibus-software tag found is an RC tag: {}. Are you sure you want to use it?".format(
-                    _stringify_version(omnibus_software_version)
-                ),
-                "orange",
-                False,
-            ):
-                raise Exit("Aborting release.json update.", 1)
-        print("omnibus-software's tag is {}".format(_stringify_version(omnibus_software_version)))
-
-        omnibus_ruby_version = _get_highest_repo_version(
-            github_token, "omnibus-ruby", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not omnibus_ruby_version:
-            raise Exit(
-                "Couldn't find an omnibus-ruby version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        if omnibus_ruby_version["rc"] is not None:
-            if not yes_no_question(
-                "The omnibus-ruby tag found is an RC tag: {}. Are you sure you want to use it?".format(
-                    _stringify_version(omnibus_ruby_version)
-                ),
-                "orange",
-                False,
-            ):
-                raise Exit("Aborting release.json update.", 1)
-        print("omnibus-ruby's tag is {}".format(_stringify_version(omnibus_ruby_version)))
-
-        macos_build_version = _get_highest_repo_version(
-            github_token,
-            "datadog-agent-macos-build",
-            new_version["prefix"],
-            allowed_major_versions,
-            compatible_version_re,
-        )
-        if not macos_build_version:
-            raise Exit(
-                "Couldn't find a datadog-agent-macos-build version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        if macos_build_version["rc"] is not None:
-            if not yes_no_question(
-                "The datadog-agent-macos-build tag found is an RC tag: {}. Are you sure you want to use it?".format(
-                    _stringify_version(macos_build_version)
-                ),
-                "orange",
-                False,
-            ):
-                raise Exit("Aborting release.json update.", 1)
-        print("datadog-agent-macos-build's tag is {}".format(_stringify_version(macos_build_version)))
-
-        # The following repositories have their own version scheme
-        highest_jmxfetch_version = _get_highest_version_from_release_json(
-            release_json, major_version, version_re, release_json_key="JMXFETCH_VERSION",
-        )
-        jmxfetch_version = _get_highest_repo_version(
-            github_token, "jmxfetch", highest_jmxfetch_version["prefix"], None, version_re
-        )
-        jmxfetch_version = _confirm_external_repo_version("jmxfetch", jmxfetch_version, highest_jmxfetch_version)
-        print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
-
-        highest_security_agent_policies_version = _get_highest_version_from_release_json(
-            release_json, major_version, version_re, release_json_key="SECURITY_AGENT_POLICIES_VERSION",
-        )
-        security_agent_policies_version = _get_highest_repo_version(
-            github_token, "security-agent-policies", highest_security_agent_policies_version["prefix"], None, version_re
-        )
-        security_agent_policies_version = _confirm_external_repo_version(
-            "security-agent-policies", security_agent_policies_version, highest_security_agent_policies_version
-        )
-        print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
-
-        # Get info on DDNPM
-        windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-            release_json, major_version, version_re
-        )
-        print("windows ddnpm version is {}".format(windows_ddnpm_version))
-
-        release_json = _update_release_json(
-            release_json,
-            new_version,
-            integrations_version,
-            omnibus_software_version,
-            omnibus_ruby_version,
-            jmxfetch_version,
-            security_agent_policies_version,
-            macos_build_version,
-            windows_ddnpm_driver,
-            windows_ddnpm_version,
-            windows_ddnpm_shasum,
-        )
+        # Update release.json object with the entry for the new version
+        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=True)
 
         # Erase RCs after we're done processing the new entry
         while highest_version["rc"] not in [0, None]:
@@ -827,13 +874,6 @@ def finish(
 
     # Update internal module dependencies
     update_modules(ctx, new_version_string)
-
-
-# COMPATIBLE_MAJOR_VERSIONS lists the major versions of tags
-# that can be used with a given Agent version
-# This is here for compatibility and simplicity reasons, as
-# we usually don't create both 6 and 7 tags for a release.
-COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 
 
 @task
@@ -868,16 +908,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
 
     release_json = _load_release_json()
 
-    # Generic version regex. Aims to match:
-    # - X.Y.Z
-    # - X.Y.Z-rc.t
-    # - vX.Y(.Z) (security-agent-policies repo)
-    version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
-
     for major_version in list_major_versions:
-        allowed_major_versions = COMPATIBLE_MAJOR_VERSIONS[major_version]
-
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, version_re)
+        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
 
         new_version = highest_version.copy()
         if new_version["rc"] is None:
@@ -893,102 +925,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
         new_version_string = _stringify_version(new_version)
         print("Creating {}".format(new_version_string))
 
-        # For repositories which follow the Agent version scheme, we want to only get
-        # tags with the same minor version, to avoid problems when releasing a bugfix
-        # version while a minor version release is ongoing.
-        compatible_version_re = re.compile(
-            r'(v)?([{}])[.]({})([.](\d+))?(-rc\.(\d+))?'.format("".join(allowed_major_versions), new_version["minor"])
-        )
-
-        integrations_version = _get_highest_repo_version(
-            github_token, "integrations-core", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not integrations_version:
-            raise Exit(
-                "Couldn't find an integrations-core version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        print("integrations-core's tag is {}".format(_stringify_version(integrations_version)))
-
-        omnibus_software_version = _get_highest_repo_version(
-            github_token, "omnibus-software", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not omnibus_software_version:
-            raise Exit(
-                "Couldn't find an omnibus-software version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        print("omnibus-software's tag is {}".format(_stringify_version(omnibus_software_version)))
-
-        omnibus_ruby_version = _get_highest_repo_version(
-            github_token, "omnibus-ruby", new_version["prefix"], allowed_major_versions, compatible_version_re
-        )
-        if not omnibus_ruby_version:
-            raise Exit(
-                "Couldn't find an omnibus-ruby version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        print("omnibus-ruby's tag is {}".format(_stringify_version(omnibus_ruby_version)))
-
-        macos_build_version = _get_highest_repo_version(
-            github_token,
-            "datadog-agent-macos-build",
-            highest_version["prefix"],
-            allowed_major_versions,
-            compatible_version_re,
-        )
-        if not macos_build_version:
-            raise Exit(
-                "Couldn't find a datadog-agent-macos-build version compatible with the new Agent version entry {}".format(
-                    new_version_string
-                )
-            )
-        print("datadog-agent-macos-build's tag is {}".format(_stringify_version(macos_build_version)))
-
-        # The following repositories have their own version scheme
-        highest_jmxfetch_version = _get_highest_version_from_release_json(
-            release_json, major_version, version_re, release_json_key="JMXFETCH_VERSION",
-        )
-        jmxfetch_version = _get_highest_repo_version(
-            github_token, "jmxfetch", highest_jmxfetch_version["prefix"], None, version_re
-        )
-        jmxfetch_version = _confirm_external_repo_version("jmxfetch", jmxfetch_version, highest_jmxfetch_version)
-        print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
-
-        highest_security_agent_policies_version = _get_highest_version_from_release_json(
-            release_json, major_version, version_re, release_json_key="SECURITY_AGENT_POLICIES_VERSION",
-        )
-        security_agent_policies_version = _get_highest_repo_version(
-            github_token, "security-agent-policies", highest_security_agent_policies_version["prefix"], None, version_re
-        )
-        security_agent_policies_version = _confirm_external_repo_version(
-            "security-agent-policies", security_agent_policies_version, highest_security_agent_policies_version
-        )
-        print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
-
-        # Get info on DDNPM
-        is_first_rc = highest_version["rc"] == 1
-        windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-            release_json, major_version, version_re, is_first_rc
-        )
-        print("windows ddnpm version is {}".format(windows_ddnpm_version))
-
-        release_json = _update_release_json(
-            release_json,
-            new_version,
-            integrations_version,
-            omnibus_software_version,
-            omnibus_ruby_version,
-            jmxfetch_version,
-            security_agent_policies_version,
-            macos_build_version,
-            windows_ddnpm_driver,
-            windows_ddnpm_version,
-            windows_ddnpm_shasum,
-        )
+        # Update release.json object with the entry for the new version
+        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=False)
 
     _save_release_json(release_json)
 
