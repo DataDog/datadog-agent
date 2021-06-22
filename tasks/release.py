@@ -499,7 +499,6 @@ def _query_github_api(auth_token, url):
 
 
 def _get_highest_repo_version(auth, repo, version_prefix, allowed_major_versions, version_re):
-    tags = []
     if not allowed_major_versions:
         allowed_major_versions = [""]
 
@@ -568,6 +567,8 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
 # that can be used with a given Agent version
 # This is here for compatibility and simplicity reasons, as in most repos
 # we don't create both 6 and 7 tags for a combined Agent 6 & 7 release.
+# The order matters, eg. when fetching matching tags for an Agent 6 entry,
+# tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 
 # Message templates for the below functions
