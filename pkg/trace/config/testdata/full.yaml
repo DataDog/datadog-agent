@@ -26,9 +26,6 @@ apm_config:
       - "apikey4              "
       - "apikey5\n \n         "
   env: test
-  otlp:
-    http_port: 50051
-    grpc_port: 50052
   receiver_port: 18126
   connection_limit: 123
   apm_non_local_traffic: yes
@@ -70,3 +67,8 @@ apm_config:
       enabled: true
     memcached:
       enabled: true
+experimental:
+  otlp:
+    http_port: 50051
+    grpc_port: 50052
+    

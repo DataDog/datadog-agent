@@ -280,8 +280,8 @@ func (c *AgentConfig) applyDatadogConfig() error {
 
 	c.OTLPReceiver = &OTLP{
 		BindHost:        c.ReceiverHost,
-		HTTPPort:        config.Datadog.GetInt("apm_config.otlp.http_port"),
-		GRPCPort:        config.Datadog.GetInt("apm_config.otlp.grpc_port"),
+		HTTPPort:        config.Datadog.GetInt("experimental.otlp.http_port"),
+		GRPCPort:        config.Datadog.GetInt("experimental.otlp.grpc_port"),
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
