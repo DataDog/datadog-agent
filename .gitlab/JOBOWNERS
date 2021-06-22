@@ -14,9 +14,6 @@ build_system-probe*                  @DataDog/agent-network
 cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
 cluster_agent-build*                 @DataDog/container-integrations
 
-# Kitchen testing
-kitchen_windows_*                    @DataDog/agent-platform
-
 # Image build
 docker_build*                        @DataDog/container-integrations
 
