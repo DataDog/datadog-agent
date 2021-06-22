@@ -171,14 +171,9 @@ def build_syscall_tester(ctx, build_dir):
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
 
-    ctx.run(
-        CLANG_EXE_CMD.format(
-            flags="-m32",
-            c_file=syscall_tester_c_file,
-            out_file=syscall_tester_exe_file,
-        )
-    )
+    ctx.run(CLANG_EXE_CMD.format(flags="-m32", c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file,))
     return syscall_tester_exe_file
+
 
 @task
 def build_embed_syscall_tester(ctx):
@@ -192,6 +187,7 @@ def build_embed_syscall_tester(ctx):
         "functionaltests,amd64",
         False,
     )
+
 
 @task
 def build_functional_tests(
