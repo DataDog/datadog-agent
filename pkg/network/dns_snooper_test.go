@@ -137,6 +137,10 @@ Loop:
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
+	//
+	// skipping for now as test seems to be flaky.  Should be reinserted when cause
+	// is discovered
+	t.Skip()
 	cfg := testConfig()
 	buf, err := netebpf.ReadBPFModule(cfg.BPFDir, false)
 	require.NoError(t, err)
