@@ -68,6 +68,19 @@ func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
 
+func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
+	arn := "function:my-function"
+	tagMap := buildTagMap(arn, []string{"tag0:value0", "tag1:value1,tag2:VALUE2", "TAG3:VALUE3"})
+	assert.Equal(t, 7, len(tagMap))
+	assert.Equal(t, "lambda", tagMap["_dd.origin"])
+	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
+	assert.Equal(t, "function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "value0", tagMap["tag0"])
+	assert.Equal(t, "value1", tagMap["tag1"])
+	assert.Equal(t, "value2", tagMap["tag2"])
+	assert.Equal(t, "value3", tagMap["tag3"])
+}
+
 func TestBuildTagMapFromArnComplete(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
