@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -213,7 +214,12 @@ func (c *AgentConfig) acquireHostname() error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if err != nil {
+	if hostnameIsEmpty := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || hostnameIsEmpty {
+		if hostnameIsEmpty {
+			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+		}
+		// There was either an error retrieving the hostname from the core agent, or
+		// it was empty and its disallowed by the disable_empty_hostname feature flag.
 		host, err2 := fallbackHostnameFunc()
 		if err2 != nil {
 			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)

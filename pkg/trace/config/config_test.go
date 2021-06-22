@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -138,6 +139,16 @@ func TestConfigHostname(t *testing.T) {
 			defer os.Remove(cfg.DDAgentBin)
 			assert.NoError(t, cfg.acquireHostname())
 			assert.Empty(t, cfg.Hostname)
+		})
+
+		t.Run("empty+disallowed", func(t *testing.T) {
+			features.Set("disable_empty_hostname")
+			defer func() { features.Set(os.Getenv("DD_APM_FEATURES")) }()
+
+			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
+			defer os.Remove(cfg.DDAgentBin)
+			assert.NoError(t, cfg.acquireHostname())
+			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
