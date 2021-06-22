@@ -78,7 +78,7 @@ func parseCPUSetFile(lines []string) int {
 			p1, _ := strconv.Atoi(lineParts[1])
 			numCPUs += p1 - p0 + 1
 		} else if len(lineParts) == 1 {
-			numCPUs += 1
+			numCPUs++
 		}
 	}
 
