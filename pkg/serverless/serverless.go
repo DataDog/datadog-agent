@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -96,7 +95,7 @@ func (s ShutdownReason) String() string {
 }
 
 // InvocationHandler is the invocation handler signature
-type InvocationHandler func(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool)
+type InvocationHandler func(daemon *Daemon, arn string, coldstart bool)
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -275,8 +274,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 
-	daemon.finishInvocationOnce = sync.Once{}
-
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
@@ -309,23 +306,22 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 }
 
 func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
+	daemon.StartInvocation()
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	doneChannel := make(chan bool)
-	go invocationHandler(doneChannel, daemon, arn, coldstart)
+	go invocationHandler(daemon, arn, coldstart)
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		daemon.FinishInvocation()
 		return
-	case <-doneChannel:
+	case <-daemon.doneChannel:
 		return
 	}
 }
 
-func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool) {
-	daemon.StartInvocation()
+func handleInvocation(daemon *Daemon, arn string, coldstart bool) {
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
 	aws.SetARN(arn)
@@ -355,8 +351,11 @@ func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldsta
 	} else {
 		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
 	}
-	daemon.WaitForDaemon()
-	doneChannel <- true
+	if !daemon.clientLibReady {
+		daemon.FinishInvocation()
+	} else {
+		<-daemon.doneChannel
+	}
 }
 
 func buildURL(route string) string {

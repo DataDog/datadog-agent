@@ -330,6 +330,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
 			ta = traceAgent.NewAgent(traceAgentCtx, tc)
+			log.Debugf("---- ENDPOINT => %s", tc.Endpoints[0].Host)
 			go func() {
 				ta.Run()
 			}()

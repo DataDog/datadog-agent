@@ -72,15 +72,9 @@ type Daemon struct {
 	// (i.e. that the DogStatsD server is properly instantiated)
 	ReadyWg *sync.WaitGroup
 
-	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
-	// work before finishing an invocation
-	InvcWg *sync.WaitGroup
-
 	extraTags []string
 
-	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
-	// this should be reset before each invocation
-	finishInvocationOnce sync.Once
+	doneChannel chan bool
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -117,9 +111,6 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // In some circumstances, it may switch to another flush strategy after the flush.
 // isLastFlush indicates whether this is the last flush before the shutdown or not.
 func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
-	// Increment the invocation wait group which tracks whether work is in progress for the daemon
-	d.InvcWg.Add(1)
-	defer d.InvcWg.Done()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	wg.Add(1)
@@ -154,6 +145,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	if !isLastFlush {
 		d.UpdateStrategy()
 	}
+	d.doneChannel <- true
 }
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
@@ -215,7 +207,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		stopTraceAgent:   stopTraceAgent,
 		mux:              mux,
 		ReadyWg:          &sync.WaitGroup{},
-		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
@@ -254,21 +245,12 @@ func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage,
 
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
-	d.InvcWg.Add(1)
+	d.doneChannel = make(chan bool)
 }
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.finishInvocationOnce.Do(func() {
-		d.InvcWg.Done()
-	})
-}
-
-// WaitForDaemon waits until invocation finished any pending work
-func (d *Daemon) WaitForDaemon() {
-	if d.clientLibReady {
-		d.InvcWg.Wait()
-	}
+	d.doneChannel <- true
 }
 
 // WaitUntilClientReady will wait until the client library has called the /hello route, or timeout

@@ -121,6 +121,7 @@ func (w *TraceWriter) Run() {
 	if w.syncMode {
 		w.runSync()
 	} else {
+		log.Debug("----> run async")
 		w.runAsync()
 	}
 }
@@ -132,11 +133,14 @@ func (w *TraceWriter) runAsync() {
 	for {
 		select {
 		case pkg := <-w.In:
+			log.Debug("----> add span")
 			w.addSpans(pkg)
 		case <-w.stop:
+			log.Debug("----> stop")
 			w.drainAndFlush()
 			return
 		case <-t.C:
+			log.Debug("----> report and flush")
 			w.report()
 			w.flush()
 		}
@@ -149,11 +153,14 @@ func (w *TraceWriter) runSync() {
 	for {
 		select {
 		case pkg := <-w.In:
+			log.Debug("----> add span s")
 			w.addSpans(pkg)
 		case notify := <-w.flushChan:
+			log.Debug("----> drain flush s")
 			w.drainAndFlush()
 			notify <- struct{}{}
 		case <-w.stop:
+			log.Debug("----> stop")
 			w.drainAndFlush()
 			return
 		}
