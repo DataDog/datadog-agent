@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Kubernetes Autodiscovery now supports extra template variables:
+    ``%%extra_pod_name%%``, ``%%extra_pod_namespace%%`` and ``%%extra_pod_uid%%``.

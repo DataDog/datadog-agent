@@ -599,6 +599,25 @@ func TestResolve(t *testing.T) {
 				Entity:        "a5901276aed1",
 			},
 		},
+		{
+			testName: "Kubelet extra config",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				ExtraConfig:   map[string]string{"pod_name": "redis", "pod_namespace": "default", "pod_uid": "05567616-cb47-41ea-af04-295c1297e957"},
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("pod_name: %%extra_pod_name%%\npod_namespace: %%extra_pod_namespace%%\npod_uid: %%extra_pod_uid%%")},
+			},
+			out: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
+				Entity:        "a5901276aed1",
+			},
+		},
 	}
 	validTemplates := 0
 
