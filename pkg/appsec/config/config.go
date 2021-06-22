@@ -40,9 +40,11 @@ type Config struct {
 
 	// Intake API URL
 	IntakeURL *url.URL
-	ApiKey    string
+	APIKey    string
 }
 
+// FromAgentConfig creates and returns the AppSec config from the overall agent
+// config.
 func FromAgentConfig(cfg AgentConfig) (*Config, error) {
 	intakeURL, err := intakeURL(cfg)
 	if err != nil {
@@ -51,7 +53,7 @@ func FromAgentConfig(cfg AgentConfig) (*Config, error) {
 	return &Config{
 		Enabled:   cfg.GetBool("appsec_config.enabled"),
 		IntakeURL: intakeURL,
-		ApiKey:    cfg.GetString("api_key"),
+		APIKey:    cfg.GetString("api_key"),
 	}, nil
 }
 

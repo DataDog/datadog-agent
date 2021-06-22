@@ -1,4 +1,4 @@
-package v0_1_0
+package v010
 
 import (
 	"net/http"
@@ -8,11 +8,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/appsec/config"
 )
 
+// NewServeMux creates and returns the HTTP request multiplexer serving the
+// AppSec HTTP API. It can be attached to other
 func NewServeMux(cfg *config.Config) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	s := serveMux{
-		proxy: backend.NewReverseProxy(cfg.IntakeURL, cfg.ApiKey),
+		proxy: backend.NewReverseProxy(cfg.IntakeURL, cfg.APIKey),
 	}
 	mux.HandleFunc("/", s.HandleEvents)
 	return mux

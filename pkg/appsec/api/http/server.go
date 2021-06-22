@@ -7,13 +7,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/appsec/config"
 )
 
-type Server struct {
-	server *http.Server
-}
-
+// NewServeMux creates and returns the HTTP request multiplexer serving the
+// AppSec HTTP API. The API is versioned with a
 func NewServeMux(cfg *config.Config) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.Handle("/", newAPIVersionHandler(v0_1_0.NewServeMux(cfg)))
+	mux.Handle("/", newAPIVersionHandler(v010.NewServeMux(cfg)))
 	return mux
 }
 
