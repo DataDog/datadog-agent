@@ -6,6 +6,69 @@
 
 package main
 
+//#include <windows.h>
+//
+//BOOL LaunchUnelevated(LPCWSTR CommandLine)
+//{
+//    BOOL result = FALSE;
+//    HWND hwnd = GetShellWindow();
+//
+//    if (hwnd != NULL)
+//    {
+//        DWORD pid;
+//        if (GetWindowThreadProcessId(hwnd, &pid) != 0)
+//        {
+//            HANDLE process = OpenProcess(PROCESS_CREATE_PROCESS, FALSE, pid);
+//
+//            if (process != NULL)
+//            {
+//                SIZE_T size;
+//                if ((!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) && (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
+//                {
+//                    LPPROC_THREAD_ATTRIBUTE_LIST p = (LPPROC_THREAD_ATTRIBUTE_LIST)malloc(size);
+//                    if (p != NULL)
+//                    {
+//                        if (InitializeProcThreadAttributeList(p, 1, 0, &size))
+//                        {
+//                            if (UpdateProcThreadAttribute(p, 0,
+//                                                          PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
+//                                                          &process, sizeof(process),
+//                                                          NULL, NULL))
+//                            {
+//                                STARTUPINFOEXW siex = {0};
+//                                siex.lpAttributeList = p;
+//                                siex.StartupInfo.cb = sizeof(siex);
+//                                PROCESS_INFORMATION pi = {0};
+//
+//                                size_t cmdlen = wcslen(CommandLine);
+//                                size_t rawcmdlen = (cmdlen + 1) * sizeof(WCHAR);
+//                                PWSTR cmdstr = (PWSTR)malloc(rawcmdlen);
+//                                if (cmdstr != NULL)
+//                                {
+//                                    memcpy(cmdstr, CommandLine, rawcmdlen);
+//                                    if (CreateProcessW(NULL, cmdstr, NULL, NULL, FALSE,
+//                                                       CREATE_NEW_CONSOLE | EXTENDED_STARTUPINFO_PRESENT,
+//                                                       NULL, NULL, &siex.StartupInfo, &pi))
+//                                    {
+//                                        result = TRUE;
+//                                        CloseHandle(pi.hProcess);
+//                                        CloseHandle(pi.hThread);
+//                                    }
+//                                    free(cmdstr);
+//                                }
+//                            }
+//                        }
+//                        free(p);
+//                    }
+//                }
+//                CloseHandle(process);
+//            }
+//        }
+//    }
+//    return result;
+//}
+import "C"
+
 import (
 	"flag"
 	"fmt"
@@ -13,8 +76,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelog "github.com/cihub/seelog"
@@ -244,7 +307,15 @@ func main() {
 
 // opens a browser window at the specified URL
 func open(url string) error {
-	return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	cmdptr := windows.StringToUTF16Ptr("rundll32.exe url.dll,FileProtocolHandler " + url)
+	if C.LaunchUnelevated(C.LPCWSTR(unsafe.Pointer(cmdptr))) == 0 {
+		// Failed to run process non-elevated, retry with normal launch.
+		log.Warnf("Failed to launch configuration page as non-elevated, will launch as current process.")
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	}
+
+	// Succeeded, return no error.
+	return nil
 }
 
 func enableLoggingToFile() {
@@ -269,7 +340,7 @@ func enableLoggingToConsole() {
 	log.ReplaceLogger(logger)
 }
 
-// execCmdOrElevate carries out a command. If current process is not elevated and is not supposely to be elevated, it will launch
+// execCmdOrElevate carries out a command. If current process is not elevated and is not supposed to be elevated, it will launch
 // itself as elevated and quit from the current instance.
 func execCmdOrElevate(cmd string) {
 	if !launchelev && !isUserAdmin {
@@ -296,10 +367,10 @@ func relaunchElevated(cmd string) {
 	xargs := []string{"-launch-elev=true", "-launch-cmd=" + cmd}
 	args := strings.Join(xargs, " ")
 
-	verbPtr, _ := syscall.UTF16PtrFromString(verb)
-	exePtr, _ := syscall.UTF16PtrFromString(exe)
-	cwdPtr, _ := syscall.UTF16PtrFromString(cwd)
-	argPtr, _ := syscall.UTF16PtrFromString(args)
+	verbPtr, _ := windows.UTF16PtrFromString(verb)
+	exePtr, _ := windows.UTF16PtrFromString(exe)
+	cwdPtr, _ := windows.UTF16PtrFromString(cwd)
+	argPtr, _ := windows.UTF16PtrFromString(args)
 
 	var showCmd int32 = 1 //SW_NORMAL
 
