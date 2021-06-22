@@ -408,11 +408,11 @@ func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.S
 		}
 		for _, attr := range e.Attributes {
 			switch attr.Key {
-			case "exception.message":
+			case string(semconv.ExceptionMessageKey):
 				span.Meta["error.msg"] = anyValueString(attr.Value)
-			case "exception.type":
+			case string(semconv.ExceptionTypeKey):
 				span.Meta["error.type"] = anyValueString(attr.Value)
-			case "exception.stacktrace":
+			case string(semconv.ExceptionStacktraceKey):
 				span.Meta["error.stack"] = anyValueString(attr.Value)
 			}
 		}
