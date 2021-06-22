@@ -933,6 +933,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
                 new_version["patch"] = new_version["patch"] + 1
             else:
                 new_version["minor"] = new_version["minor"] + 1
+                new_version["patch"] = 0
             new_version["rc"] = 1
         else:
             # An RC exists, create next RC
