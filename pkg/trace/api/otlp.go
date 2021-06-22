@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/otel/semconv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -350,7 +351,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
-		if env := span.Meta["deployment.environment"]; env != "" {
+		if env := span.Meta[string(semconv.DeploymentEnvironmentKey)]; env != "" {
 			span.Meta["env"] = env
 		}
 	}
@@ -363,7 +364,7 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	if lib.Version != "" {
 		span.Meta["instrumentation_library.version"] = lib.Version
 	}
-	if svc := span.Meta["peer.service"]; svc != "" {
+	if svc := span.Meta[string(semconv.PeerServiceKey)]; svc != "" {
 		span.Service = svc
 	}
 	if r := resourceFromTags(span.Meta); r != "" {
