@@ -35,7 +35,7 @@ func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string
 	log.Debugf("fetch column oids with %d workers", fetchWorkers)
 	for t := 0; t < fetchWorkers; t++ {
 		wg.Add(1)
-		go processBatchAsync(columnOidsBatchesChan, &wg, session, oids, columnResults)
+		go processBatchAsync(columnOidsBatchesChan, &wg, session, oids, bulkMaxRepetitions, columnResults)
 	}
 
 	for _, batchColumnOids := range batches {
@@ -60,7 +60,7 @@ func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]s
 	return columnResults.values, nil
 }
 
-func processBatchAsync(columnOidsBatchesChan chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) {
+func processBatchAsync(columnOidsBatchesChan chan []string, wg *sync.WaitGroup, session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32, accumulatedColumnResults *fetchColumnResults) {
 	defer wg.Done()
 
 	newSession := session.Copy()
@@ -81,7 +81,7 @@ func processBatchAsync(columnOidsBatchesChan chan []string, wg *sync.WaitGroup, 
 
 	for batchColumnOids := range columnOidsBatchesChan {
 		// do work
-		err := processBatch(batchColumnOids, newSession, oids, accumulatedColumnResults)
+		err := processBatch(batchColumnOids, newSession, oids, bulkMaxRepetitions, accumulatedColumnResults)
 		if err != nil {
 			log.Warnf("failed to process batchColumnOids %v: %s", batchColumnOids, err)
 		}
@@ -94,10 +94,10 @@ func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]
 		oidsToFetch[oid] = oids[oid]
 	}
 
-		results, err := fetchColumnOids(session, oidsToFetch, bulkMaxRepetitions)
-		if err != nil {
-			return fmt.Errorf("failed to fetch column oids: %s", err)
-		}
+	results, err := fetchColumnOids(session, oidsToFetch, bulkMaxRepetitions)
+	if err != nil {
+		return fmt.Errorf("failed to fetch column oids: %s", err)
+	}
 
 	for columnOid, instanceOids := range results {
 		accumulatedColumnResults.addOids(columnOid, instanceOids)
