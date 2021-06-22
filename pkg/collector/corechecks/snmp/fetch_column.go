@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, fetchWorkers int) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchWorkers int) (columnResultValuesType, error) {
 	columnOids := getOidsMapKeys(oids)
 	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
 	batches, err := createStringBatches(columnOids, oidBatchSize)
@@ -20,13 +20,13 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 
 	// TODO: TEST ME
 	if fetchWorkers > 1 {
-		columnValues := fetchColumnOidsWithBatchingAsync(session, oids, fetchWorkers, batches)
+		columnValues := fetchColumnOidsWithBatchingAsync(session, oids, bulkMaxRepetitions, fetchWorkers, batches)
 		return columnValues, nil
 	}
-	return fetchColumnOidsWithBatchingSequential(session, oids, batches)
+	return fetchColumnOidsWithBatchingSequential(session, oids, batches, bulkMaxRepetitions)
 }
 
-func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string, fetchWorkers int, batches [][]string) columnResultValuesType {
+func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32, fetchWorkers int, batches [][]string) columnResultValuesType {
 	columnResults := newFetchColumnResults(len(oids))
 
 	columnOidsBatchesChan := make(chan []string)
@@ -49,10 +49,10 @@ func fetchColumnOidsWithBatchingAsync(session sessionAPI, oids map[string]string
 	return columnResults.values
 }
 
-func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]string, batches [][]string) (columnResultValuesType, error) {
+func fetchColumnOidsWithBatchingSequential(session sessionAPI, oids map[string]string, batches [][]string, bulkMaxRepetitions uint32) (columnResultValuesType, error) {
 	columnResults := newFetchColumnResults(len(oids))
 	for _, batchColumnOids := range batches {
-		err := processBatch(batchColumnOids, session, oids, columnResults)
+		err := processBatch(batchColumnOids, session, oids, bulkMaxRepetitions, columnResults)
 		if err != nil {
 			return nil, err
 		}
@@ -88,16 +88,16 @@ func processBatchAsync(columnOidsBatchesChan chan []string, wg *sync.WaitGroup, 
 	}
 }
 
-func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, accumulatedColumnResults *fetchColumnResults) error {
+func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32, accumulatedColumnResults *fetchColumnResults) error {
 	oidsToFetch := make(map[string]string, len(batchColumnOids))
 	for _, oid := range batchColumnOids {
 		oidsToFetch[oid] = oids[oid]
 	}
 
-	results, err := fetchColumnOids(session, oidsToFetch)
-	if err != nil {
-		return fmt.Errorf("failed to fetch column oids: %s", err)
-	}
+		results, err := fetchColumnOids(session, oidsToFetch, bulkMaxRepetitions)
+		if err != nil {
+			return fmt.Errorf("failed to fetch column oids: %s", err)
+		}
 
 	for columnOid, instanceOids := range results {
 		accumulatedColumnResults.addOids(columnOid, instanceOids)
@@ -108,7 +108,7 @@ func processBatch(batchColumnOids []string, session sessionAPI, oids map[string]
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,
 // the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
 // The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultValuesType, error) {
+func fetchColumnOids(session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (columnResultValuesType, error) {
 	returnValues := make(columnResultValuesType, len(oids))
 	curOids := oids
 	for {
@@ -125,7 +125,7 @@ func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultVa
 		sort.Strings(columnOids)
 		sort.Strings(requestOids)
 
-		results, err := getResults(session, requestOids)
+		results, err := getResults(session, requestOids, bulkMaxRepetitions)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func fetchColumnOids(session sessionAPI, oids map[string]string) (columnResultVa
 	return returnValues, nil
 }
 
-func getResults(session sessionAPI, requestOids []string) (*gosnmp.SnmpPacket, error) {
+func getResults(session sessionAPI, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
 	if session.GetVersion() == gosnmp.Version1 {
 		// snmp v1 doesn't support GetBulk
@@ -148,7 +148,7 @@ func getResults(session sessionAPI, requestOids []string) (*gosnmp.SnmpPacket, e
 		results = getNextResults
 		log.Debugf("fetch column: GetNext results Variables: %v", results.Variables)
 	} else {
-		getBulkResults, err := session.GetBulk(requestOids)
+		getBulkResults, err := session.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
 			log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)

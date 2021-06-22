@@ -110,11 +110,13 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 oid_batch_size: 10
+bulk_max_repetitions: 20
 `)
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, check.config.oidBatchSize)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
@@ -335,6 +337,76 @@ oid_batch_size: 15
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 	assert.Equal(t, 20, check.config.oidBatchSize)
+}
+
+func TestBulkMaxRepetitionConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default batch size
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
+
+	// TEST Instance config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: 10
+`)
+	err = check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
+
+	// TEST Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+bulk_max_repetitions: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(15), check.config.bulkMaxRepetitions)
+
+	// TEST Instance & Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+bulk_max_repetitions: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
+
+	// TEST invalid value
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: -5
+`)
+	// language=yaml
+	rawInitConfig = []byte(``)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.EqualError(t, err, "build config failed: bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
 func TestGlobalMetricsConfigurations(t *testing.T) {

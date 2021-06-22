@@ -135,7 +135,7 @@ CONNECT:
 							d.addLabels(ev.ContainerID, container.Config.Labels)
 						}
 					}
-				} else if ev.Action == docker.ContainerEventActionDie {
+				} else if ev.Action == docker.ContainerEventActionDie || ev.Action == docker.ContainerEventActionDied {
 					// delay for short lived detection
 					time.AfterFunc(delayDuration, func() {
 						d.Lock()
