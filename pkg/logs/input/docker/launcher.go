@@ -262,6 +262,9 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	// Update parent source with additional information
 	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
 
+	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
+	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
+	// name for the service name and always use the short image name for the source name.
 	var serviceName string
 	if source.Name != config.ContainerCollectAll && source.Config.Service != "" {
 		serviceName = source.Config.Service
