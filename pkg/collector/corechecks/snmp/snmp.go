@@ -149,6 +149,11 @@ func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
 	c.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
 	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
+
+	c.sender.gauge("datadog.snmp.get_calls", float64(c.session.GetNumGetCalls()), "", newTags)
+	c.sender.gauge("datadog.snmp.getnext_calls", float64(c.session.GetNumGetNextCalls()), "", newTags)
+	c.sender.gauge("datadog.snmp.getbulk_calls", float64(c.session.GetNumGetBulkCalls()), "", newTags)
+	c.session.ResetCallCounts()
 }
 
 // Configure configures the snmp checks

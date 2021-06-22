@@ -49,6 +49,21 @@ func (s *mockSession) Copy() sessionAPI {
 	return s
 }
 
+func (s *mockSession) GetNumGetCalls() int {
+	return 0
+}
+
+func (s *mockSession) GetNumGetBulkCalls() int {
+	return 0
+}
+
+func (s *mockSession) GetNumGetNextCalls() int {
+	return 0
+}
+
+func (s *mockSession) ResetCallCounts() {
+}
+
 func createMockSession() *mockSession {
 	session := &mockSession{}
 	session.version = gosnmp.Version2c

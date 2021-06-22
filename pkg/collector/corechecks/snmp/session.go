@@ -26,11 +26,18 @@ type sessionAPI interface {
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
 	Copy() sessionAPI
+	GetNumGetCalls() int
+	GetNumGetBulkCalls() int
+	GetNumGetNextCalls() int
+	ResetCallCounts()
 }
 
 type snmpSession struct {
-	gosnmpInst    gosnmp.GoSNMP
-	loggerEnabled bool
+	gosnmpInst      gosnmp.GoSNMP
+	loggerEnabled   bool
+	numGetCalls     int
+	numGetBulkCalls int
+	numGetNextCalls int
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
@@ -113,19 +120,40 @@ func (s *snmpSession) Close() error {
 }
 
 func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.numGetCalls++
 	return s.gosnmpInst.Get(oids)
 }
 
 func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.numGetBulkCalls++
 	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetition)
 }
 
 func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.numGetNextCalls++
 	return s.gosnmpInst.GetNext(oids)
 }
 
 func (s *snmpSession) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
+}
+
+func (s *snmpSession) GetNumGetCalls() int {
+	return s.numGetCalls
+}
+
+func (s *snmpSession) GetNumGetBulkCalls() int {
+	return s.numGetBulkCalls
+}
+
+func (s *snmpSession) GetNumGetNextCalls() int {
+	return s.numGetNextCalls
+}
+
+func (s *snmpSession) ResetCallCounts() {
+	s.numGetCalls = 0
+	s.numGetBulkCalls = 0
+	s.numGetNextCalls = 0
 }
 
 func (s *snmpSession) Copy() sessionAPI {
