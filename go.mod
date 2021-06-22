@@ -56,7 +56,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/sketches-go v1.0.0
-	github.com/DataDog/viper v1.8.0
+	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/goutils v1.1.1 // indirect
@@ -108,7 +108,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210125172800-10e9aeb4a998
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.31.0
+	github.com/gosnmp/gosnmp v1.32.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.1
