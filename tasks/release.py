@@ -767,7 +767,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     # tags with the same minor version, to avoid problems when releasing a bugfix
     # version while a minor version release is ongoing.
     compatible_version_re = re.compile(
-        r'(v)?([{}])[.]({})([.](\d+))?(-rc\.(\d+))?'.format("".join(allowed_major_versions), new_version["minor"])
+        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), new_version["minor"])
     )
 
     integrations_version = _fetch_dependency_repo_version(
