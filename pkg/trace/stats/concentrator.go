@@ -210,10 +210,14 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 
 // resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
 func resolveContainerTags(p *pb.ClientStatsPayload) {
+	if p.ContainerID == "" {
+		p.Tags = nil
+		return
+	}
 	ctags, err := tagger.Tag("container_id://"+p.ContainerID, collectors.HighCardinality)
 	switch {
 	case err != nil:
-		log.Errorf("Error resolving container tags for %q: %v", p.ContainerID, err)
+		log.Tracef("Error resolving container tags for %q: %v", p.ContainerID, err)
 		p.ContainerID = ""
 		p.Tags = nil
 	case len(ctags) == 0:
