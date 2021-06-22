@@ -600,7 +600,7 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "Kubelet extra config",
+			testName: "Kubelet meta config",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -609,7 +609,7 @@ func TestResolve(t *testing.T) {
 			tpl: integration.Config{
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pod_name: %%extra_pod_name%%\npod_namespace: %%extra_pod_namespace%%\npod_uid: %%extra_pod_uid%%")},
+				Instances:     []integration.Data{integration.Data("pod_name: %%meta_pod_name%%\npod_namespace: %%meta_pod_namespace%%\npod_uid: %%meta_pod_uid%%")},
 			},
 			out: integration.Config{
 				Name:          "redis",
