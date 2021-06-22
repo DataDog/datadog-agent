@@ -733,6 +733,11 @@ api_key:
   #
   # compression_level: 6
 
+  ## @param batch_wait - integer - optional - default: 5
+  ## The maximum time the Datadog Agent waits to fill each batch (either in content size or number of logs).
+  #
+  # batch_wait: 5
+  
 {{ end -}}
 {{- if .TraceAgent }}
 
