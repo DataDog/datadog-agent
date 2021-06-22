@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    APM: Trace info stats now have the 'debug' log level instead of the 'info' log level.

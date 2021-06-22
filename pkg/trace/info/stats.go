@@ -98,14 +98,14 @@ func (rs *ReceiverStats) LogStats() {
 	defer rs.RUnlock()
 
 	if len(rs.Stats) == 0 {
-		log.Info("No data received")
+		log.Debug("No data received")
 		return
 	}
 
 	for _, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
-			log.Infof("%v -> %s", tags, ts.infoString())
+			log.Debugf("%v -> %s", tags, ts.infoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {
 				log.Warnf("%v -> %s. Enable debug logging for more details.", tags, warnString)
