@@ -216,9 +216,9 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 		creationTime: crTime,
 		ready:        kubelet.IsPodReady(pod),
 		extraConfig: map[string]string{
-			"pod_name":      pod.Metadata.Name,
-			"pod_namespace": pod.Metadata.Namespace,
-			"pod_uid":       pod.Metadata.UID,
+			"pod_name":  pod.Metadata.Name,
+			"namespace": pod.Metadata.Namespace,
+			"pod_uid":   pod.Metadata.UID,
 		},
 	}
 	podName := pod.Metadata.Name

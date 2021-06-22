@@ -600,16 +600,16 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "Kubelet meta config",
+			testName: "extra kube_* config",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				ExtraConfig:   map[string]string{"pod_name": "redis", "pod_namespace": "default", "pod_uid": "05567616-cb47-41ea-af04-295c1297e957"},
+				ExtraConfig:   map[string]string{"pod_name": "redis", "namespace": "default", "pod_uid": "05567616-cb47-41ea-af04-295c1297e957"},
 			},
 			tpl: integration.Config{
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
-				Instances:     []integration.Data{integration.Data("pod_name: %%meta_pod_name%%\npod_namespace: %%meta_pod_namespace%%\npod_uid: %%meta_pod_uid%%")},
+				Instances:     []integration.Data{integration.Data("pod_name: %%kube_pod_name%%\npod_namespace: %%kube_namespace%%\npod_uid: %%kube_pod_uid%%")},
 			},
 			out: integration.Config{
 				Name:          "redis",

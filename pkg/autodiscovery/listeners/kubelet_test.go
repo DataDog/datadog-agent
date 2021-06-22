@@ -258,7 +258,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -289,7 +289,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -320,7 +320,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -351,7 +351,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -385,7 +385,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -416,7 +416,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -448,7 +448,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
@@ -479,7 +479,7 @@ func TestProcessNewPod(t *testing.T) {
 		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-uid"), podUID)
-		podNamespace, err := service.GetExtraConfig([]byte("pod_namespace"))
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
