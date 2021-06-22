@@ -266,7 +266,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 		log.Error(resolutionError)
 
 		if ignoreErrors {
-			return "", nil
+			return name, nil
 		}
 
 		return "", resolutionError
