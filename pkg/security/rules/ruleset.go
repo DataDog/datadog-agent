@@ -109,6 +109,7 @@ type RuleSet struct {
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
+	pool   *eval.ContextPool
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -196,12 +197,12 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
-			return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("internal rule ID conflict")}
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrInternalIDConflict}
 		}
 	}
 
 	if _, exists := rs.rules[ruleDef.ID]; exists {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("multiple definition with the same ID")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrDefinitionIDConflict}
 	}
 
 	var tags []string
@@ -229,19 +230,19 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	eventTypes := rule.GetEventTypes()
 
 	if len(eventTypes) == 0 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no event in the rule definition")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutEvent}
 	}
 
 	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
 	if len(eventTypes) > 1 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("rule with multiple events is not supported")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithMultipleEvents}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		et := eventTypes[0]
 		if _, exists := rs.opts.EventTypeEnabled[et]; !exists {
-			return nil, nil
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrEventTypeNotEnabled}
 		}
 	}
 
@@ -356,7 +357,8 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := rs.pool.Get(event.GetPointer())
+	defer rs.pool.Put(ctx)
 
 	for _, rule := range bucket.rules {
 		isTrue, err := rule.PartialEval(ctx, field)
@@ -369,7 +371,8 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := eval.NewContext(event.GetPointer())
+	ctx := rs.pool.Get(event.GetPointer())
+	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
 
@@ -469,5 +472,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           opts.Logger,
+		pool:             eval.NewContextPool(),
 	}
 }

@@ -5,13 +5,15 @@
 
 package traceutil
 
-import "github.com/DataDog/datadog-agent/pkg/trace/config"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+)
 
 // MaxResourceLen the maximum length the resource can have
 var MaxResourceLen = 5000
 
 func init() {
-	if config.HasFeature("big_resource") {
+	if features.Has("big_resource") {
 		MaxResourceLen = 15000
 	}
 }

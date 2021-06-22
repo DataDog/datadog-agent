@@ -5,7 +5,7 @@
                 "centos-69": "urn,OpenLogic:CentOS:6.9:6.9.20180530",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
-                "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2020020415"
+                "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910"
             }
         },
         "ec2": {
@@ -39,8 +39,8 @@
     "suse" : {
         "azure": {
             "x86_64": {
-                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2020.09.21",
-                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2020.09.21"
+                "sles-12": "urn,SUSE:sles-12-sp5-byos:gen1:2021.03.03",
+                "sles-15": "urn,SUSE:sles-15-sp2-byos:gen1:2021.03.03"
             }
         },
         "ec2": {

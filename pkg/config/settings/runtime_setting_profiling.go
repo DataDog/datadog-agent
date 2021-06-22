@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -66,6 +67,9 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,
+			profiling.DefaultProfilingPeriod,
+			15*time.Second,
+			config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {

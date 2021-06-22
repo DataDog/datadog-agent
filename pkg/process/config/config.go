@@ -16,12 +16,12 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -79,29 +79,33 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled              bool
-	HostName             string
-	APIEndpoints         []apicfg.Endpoint
-	LogFile              string
-	LogLevel             string
-	LogToConsole         bool
-	QueueSize            int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes    int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	Blacklist            []*regexp.Regexp
-	Scrubber             *DataScrubber
-	MaxPerMessage        int
-	MaxConnsPerMessage   int
-	AllowRealTime        bool
-	Transport            *http.Transport `json:"-"`
-	DDAgentBin           string
-	StatsdHost           string
-	StatsdPort           int
-	ProcessExpVarPort    int
-	ProfilingEnabled     bool
-	ProfilingSite        string
-	ProfilingURL         string
-	ProfilingAPIKey      string
-	ProfilingEnvironment string
+	Enabled                   bool
+	HostName                  string
+	APIEndpoints              []apicfg.Endpoint
+	LogFile                   string
+	LogLevel                  string
+	LogToConsole              bool
+	QueueSize                 int // The number of items allowed in each delivery queue.
+	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist                 []*regexp.Regexp
+	Scrubber                  *DataScrubber
+	MaxPerMessage             int
+	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
+	MaxConnsPerMessage        int
+	AllowRealTime             bool
+	Transport                 *http.Transport `json:"-"`
+	DDAgentBin                string
+	StatsdHost                string
+	StatsdPort                int
+	ProcessExpVarPort         int
+	ProfilingEnabled          bool
+	ProfilingSite             string
+	ProfilingURL              string
+	ProfilingAPIKey           string
+	ProfilingEnvironment      string
+	ProfilingPeriod           time.Duration
+	ProfilingCPUDuration      time.Duration
+	ProfilingWithGoroutines   bool
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -141,8 +145,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint = "https://process.datadoghq.com"
-	maxMessageBatch        = 100
+	defaultProcessEndpoint         = "https://process.datadoghq.com"
+	maxMessageBatch                = 100
+	defaultMaxCtrProcsMessageBatch = 10000
+	maxCtrProcsMessageBatch        = 30000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -186,13 +192,14 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
 		QueueSize: 256,
 
-		MaxPerMessage:      100,
-		MaxConnsPerMessage: 600,
-		AllowRealTime:      true,
-		HostName:           "",
-		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
-		ContainerHostType:  model.ContainerHostType_notSpecified,
+		MaxPerMessage:             maxMessageBatch,
+		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
+		MaxConnsPerMessage:        600,
+		AllowRealTime:             true,
+		HostName:                  "",
+		Transport:                 NewDefaultTransport(),
+		ProcessExpVarPort:         6062,
+		ContainerHostType:         model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
@@ -381,6 +388,8 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
+		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
+		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

@@ -1,16 +1,16 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_libbcc*                        @DataDog/networks
-build_clang*                         @DataDog/networks
+build_libbcc*                        @DataDog/agent-network
+build_clang*                         @DataDog/agent-network
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
-tests_ebpf                           @DataDog/networks
+tests_ebpf                           @DataDog/agent-network
 
 # Binary build
-build_system-probe*                  @DataDog/networks
+build_system-probe*                  @DataDog/agent-network
 cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
 cluster_agent-build*                 @DataDog/container-integrations
 
@@ -37,9 +37,9 @@ deploy_*docker_hub*                  @DataDog/container-integrations
 deploy_*google_container_repository* @DataDog/container-integrations
 
 # Functional test
-kitchen_*_sysprobe*                  @DataDog/networks
+kitchen_*_sysprobe*                  @DataDog/agent-network
 kitchen_*_security_agent*            @DataDog/agent-security
-cleanup_kitchen_functional_test      @DataDog/networks @DataDog/agent-security
+cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
 
 # E2E
 pupernetes-*                         @DataDog/container-integrations

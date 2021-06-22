@@ -118,7 +118,7 @@ CONNECT:
 				// only these two event types will change what containers appear.
 				// Container labels cannot change once they are created, so we don't need to react on
 				// other lifecycle events.
-				if ev.Action == "start" {
+				if ev.Action == docker.ContainerEventActionStart {
 					container, err := d.dockerUtil.Inspect(ev.ContainerID, false)
 					if err != nil {
 						log.Warnf("Error inspecting container: %s", err)
@@ -135,7 +135,7 @@ CONNECT:
 							d.addLabels(ev.ContainerID, container.Config.Labels)
 						}
 					}
-				} else if ev.Action == "die" {
+				} else if ev.Action == docker.ContainerEventActionDie || ev.Action == docker.ContainerEventActionDied {
 					// delay for short lived detection
 					time.AfterFunc(delayDuration, func() {
 						d.Lock()
@@ -197,4 +197,9 @@ func parseDockerLabels(containers map[string]map[string]string) ([]integration.C
 
 func init() {
 	RegisterProvider("docker", NewDockerConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the DockerConfigProvider
+func (d *DockerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

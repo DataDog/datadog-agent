@@ -33,16 +33,19 @@ type RouteIdx struct {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats model.HTTPAggregations) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats *model.HTTPAggregations) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
 	c.Raddr = formatAddr(conn.Dest, conn.DPort)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
+	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
+	c.LastPacketsSent = conn.LastSentPackets
+	c.LastPacketsReceived = conn.LastRecvPackets
 	c.LastRetransmits = conn.LastRetransmits
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
@@ -61,7 +64,10 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
-	c.HttpAggregations, _ = proto.Marshal(&httpStats)
+
+	if httpStats != nil {
+		c.HttpAggregations, _ = proto.Marshal(httpStats)
+	}
 
 	return c
 }
@@ -133,9 +139,9 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 }
 
 // FormatHTTPStats converts the HTTP map into a suitable format for serialization
-func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model.HTTPAggregations {
+func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*model.HTTPAggregations {
 	var (
-		aggregationsByKey = make(map[http.Key]model.HTTPAggregations, len(httpData))
+		aggregationsByKey = make(map[http.Key]*model.HTTPAggregations, len(httpData))
 
 		// Pre-allocate some of the objects
 		dataPool = make([]model.HTTPStats_Data, len(httpData)*http.NumStatusClasses)
@@ -145,16 +151,22 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 
 	for key, stats := range httpData {
 		path := key.Path
+		method := key.Method
 		key.Path = ""
+		key.Method = http.MethodUnknown
 
-		httpAggregations := aggregationsByKey[key]
-		statsByPath := httpAggregations.ByPath
-		if statsByPath == nil {
-			statsByPath = make(map[string]*model.HTTPStats)
-			aggregationsByKey[key] = model.HTTPAggregations{ByPath: statsByPath}
+		httpAggregations, ok := aggregationsByKey[key]
+		if !ok {
+			httpAggregations = &model.HTTPAggregations{
+				EndpointAggregations: make([]*model.HTTPStats, 0, 10),
+			}
+
+			aggregationsByKey[key] = httpAggregations
 		}
 
 		ms := &model.HTTPStats{
+			Path:                  path,
+			Method:                model.HTTPMethod(method),
 			StatsByResponseStatus: ptrPool[poolIdx : poolIdx+http.NumStatusClasses],
 		}
 
@@ -172,7 +184,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]model
 		}
 
 		poolIdx += http.NumStatusClasses
-		statsByPath[path] = ms
+		httpAggregations.EndpointAggregations = append(httpAggregations.EndpointAggregations, ms)
 	}
 
 	return aggregationsByKey
@@ -184,16 +196,13 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	laddr, lport := nat.GetLocalAddress(c)
 	raddr, rport := nat.GetRemoteAddress(c)
 
-	if http.IsHTTP(int(rport)) {
-		return http.NewKey(laddr, raddr, lport, rport, "")
+	// HTTP data is always indexed as (client, server), so we flip
+	// the lookup key if necessary using the port range heuristic
+	if network.IsEphemeralPort(int(lport)) {
+		return http.NewKey(laddr, raddr, lport, rport, "", http.MethodUnknown)
 	}
 
-	if http.IsHTTP(int(lport)) {
-		// Since HTTP data is always indexed as (client, server), we flip the lookup key
-		return http.NewKey(raddr, laddr, rport, lport, "")
-	}
-
-	return http.Key{}
+	return http.NewKey(raddr, laddr, rport, lport, "", http.MethodUnknown)
 }
 
 func returnToPool(c *model.Connections) {
@@ -256,6 +265,16 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
+func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
+	switch e {
+	case network.EphemeralTrue:
+		return model.EphemeralPortState_ephemeralTrue
+	case network.EphemeralFalse:
+		return model.EphemeralPortState_ephemeralFalse
+	default:
+		return model.EphemeralPortState_ephemeralUnspecified
+	}
+}
 func formatDNSStatsByDomain(stats map[string]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, s := range stats {

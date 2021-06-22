@@ -25,7 +25,7 @@ var (
 
 	// PrunedEntities tracks the number of pruned tagger entities.
 	PrunedEntities = telemetry.NewGaugeWithOpts("tagger", "pruned_entities",
-		[]string{"prune_type"}, "Number of pruned tagger entities.",
+		[]string{}, "Number of pruned tagger entities.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	// Queries tracks the number of queries made against the tagger.

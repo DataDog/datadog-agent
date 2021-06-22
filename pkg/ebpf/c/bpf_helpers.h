@@ -60,6 +60,7 @@ static int (*bpf_tail_call)(void* ctx, void* map, int key) = (void*)BPF_FUNC_tai
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
 static u64 (*bpf_get_current_task)(void) = (void*)BPF_FUNC_get_current_task;
+static int (*bpf_probe_write_user)(void *dst, const void *src, int size) = (void *) BPF_FUNC_probe_write_user;
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)

@@ -77,6 +77,31 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	DNS                         map[util.Address][]string
@@ -119,6 +144,12 @@ type ConnectionStats struct {
 	MonotonicRecvBytes uint64
 	LastRecvBytes      uint64
 
+	MonotonicSentPackets uint64
+	LastSentPackets      uint64
+
+	MonotonicRecvPackets uint64
+	LastRecvPackets      uint64
+
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
 
@@ -148,6 +179,7 @@ type ConnectionStats struct {
 	Type                   ConnectionType
 	Family                 ConnectionFamily
 	Direction              ConnectionDirection
+	SPortIsEphemeral       EphemeralPortType
 	IPTranslation          *IPTranslation
 	IntraHost              bool
 	DNSSuccessfulResponses uint32

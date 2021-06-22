@@ -7,3 +7,6 @@ type Client interface {
 	List() (map[string]RuntimeSettingResponse, error)
 	FullConfig() (string, error)
 }
+
+// ClientBuilder represents a function returning a runtime settings API client
+type ClientBuilder func() (Client, error)

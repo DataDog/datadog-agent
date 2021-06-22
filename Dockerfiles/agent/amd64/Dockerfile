@@ -2,7 +2,7 @@
 #  Preparation stage: extract and cleanup  #
 ############################################
 
-FROM ubuntu:20.10 AS extract
+FROM ubuntu:21.04 AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_amd64.deb
@@ -39,7 +39,6 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_amd64.deb' ! -name "$DD_AGE
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
-    opt/datadog-agent/embedded/lib/python*/site-packages/Cryptodome/SelfTest \
     opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
  && if [ "$PYTHON_VERSION" = "2" ]; then \
         rm -rf \
@@ -76,7 +75,7 @@ COPY install_info etc/datadog-agent/
 #  Actual docker image construction  #
 ######################################
 
-FROM ubuntu:20.10 AS release
+FROM ubuntu:21.04 AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION

@@ -6,6 +6,7 @@ Agent namespaced tasks
 import datetime
 import glob
 import os
+import re
 import shutil
 import sys
 from distutils.dir_util import copy_tree
@@ -102,7 +103,9 @@ def build(
     """
 
     if not exclude_rtloader and not iot:
-        rtloader_make(ctx, python_runtimes=python_runtimes)
+        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
+        # in the embedded path folder because that's what is used in get_build_flags()
+        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path)
         rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -362,8 +365,10 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    if 'INTEGRATIONS_CORE_VERSION' in os.environ:
-        env['INTEGRATIONS_CORE_VERSION'] = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+    # Only overrides the env var if the value is a non-empty string.
+    if integrations_core_version:
+        env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
@@ -531,6 +536,33 @@ def omnibus_build(
 
 
 @task
+def build_dep_tree(
+    ctx, git_ref="",
+):
+    """
+    Generates a file representing the Golang dependency tree in the current
+    directory. Use the "--git-ref=X" argument to specify which tag you would like
+    to target otherwise current repo state will be used.
+    """
+    saved_branch = None
+    if git_ref:
+        print("Tag {} specified. Checking out the branch...".format(git_ref))
+
+        result = ctx.run("git rev-parse --abbrev-ref HEAD", hide='stdout')
+        saved_branch = result.stdout
+
+        ctx.run("git checkout {}".format(git_ref))
+    else:
+        print("No tag specified. Using the current state of repository.")
+
+    try:
+        ctx.run("go run tools/dep_tree_resolver/go_deps.go")
+    finally:
+        if saved_branch:
+            ctx.run("git checkout {}".format(saved_branch), hide='stdout')
+
+
+@task
 def omnibus_manifest(
     ctx,
     platform=None,
@@ -609,16 +641,32 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):
+def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7'):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
+    omnibus_format: performs the same transformations omnibus does on version names to
+                    get the exact same string that's used in package names
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
-    print(
-        get_version(
-            ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version
-        )
+    version = get_version(
+        ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version
     )
+    if omnibus_format:
+        # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599
+        # In theory we'd need to have one format for each package type (deb, rpm, msi, pkg).
+        # However, there are a few things that allow us in practice to have only one variable for everything:
+        # - the deb and rpm safe version formats are identical (the only difference is an additional rule on Wind River Linux, which doesn't apply to us).
+        #   Moreover, of the two rules, we actually really only use the first one (because we always use inv agent.version --url-safe).
+        # - the msi version name uses the raw version string. The only difference with the deb / rpm versions
+        #   is therefore that dashes are replaced by tildes. We're already doing the reverse operation in agent-release-management
+        #   to get the correct msi name.
+        # - the pkg version name uses the raw version + a variation of the second rule (where a dash is used in place of an underscore).
+        #   Once again, replacing tildes by dashes (+ replacing underscore by dashes if we ever end up using the second rule for some reason)
+        #   in agent-release-management is enough. We're already replacing tildes by dashes in agent-release-management.
+        # TODO: investigate if having one format per package type in the agent.version method makes more sense.
+        version = re.sub('-', '~', version)
+        version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
+    print(version)

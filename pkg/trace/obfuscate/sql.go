@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,16 +69,22 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 			// closing bracket counter-part. See GitHub issue DataDog/datadog-trace-agent#475.
 			return FilteredBracketedIdentifier, nil, nil
 		}
+		if features.Has("keep_sql_alias") {
+			return token, buffer, nil
+		}
 		return Filtered, nil, nil
 	}
 
 	// filters based on the current token; if the next token should be ignored,
 	// return the same token value (not FilteredGroupable) and nil
 	switch token {
-	case As:
-		return As, nil, nil
 	case Comment, ';':
 		return markFilteredGroupable(token), nil, nil
+	case As:
+		if !features.Has("keep_sql_alias") {
+			return As, nil, nil
+		}
+		fallthrough
 	default:
 		return token, buffer, nil
 	}
@@ -106,7 +112,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		}
 	}
 	switch token {
-	case String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
+	case DollarQuotedString, String, Number, Null, Variable, PreparedStatement, BooleanLiteral, EscapeSequence:
 		return markFilteredGroupable(token), questionMark, nil
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
@@ -309,8 +315,8 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 
 	var (
-		storeTableNames    = config.HasFeature("table_names")
-		quantizeTableNames = config.HasFeature("quantize_sql_tables")
+		storeTableNames    = features.Has("table_names")
+		quantizeTableNames = features.Has("quantize_sql_tables")
 		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err                error
 		lastToken          TokenKind

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"go.etcd.io/etcd/client"
+	"go.etcd.io/etcd/client/v2"
 	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -221,4 +221,9 @@ func hasTemplateFields(nodes client.Nodes) bool {
 
 func init() {
 	RegisterProvider("etcd", NewEtcdConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the EtcdConfigProvider
+func (p *EtcdConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

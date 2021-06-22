@@ -8,7 +8,6 @@ package tracer
 import "C"
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"math"
 	"sync"
@@ -37,19 +36,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var (
-	expvarEndpoints map[string]*expvar.Map
-	expvarTypes     = []string{"conntrack", "state", "tracer", "ebpf", "kprobes", "dns", "http", "compiler"}
-)
-
 const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
-
-func init() {
-	expvarEndpoints = make(map[string]*expvar.Map, len(expvarTypes))
-	for _, name := range expvarTypes {
-		expvarEndpoints[name] = expvar.NewMap(name)
-	}
-}
 
 type Tracer struct {
 	m *manager.Manager
@@ -293,8 +280,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	go tr.expvarStats()
-
 	return tr, nil
 }
 
@@ -437,38 +422,6 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	}
 	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
 	return editors, nil
-}
-
-func (t *Tracer) expvarStats() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	// trigger first get immediately
-	_ = t.populateExpvarStats()
-	for {
-		select {
-		case <-t.stop:
-			return
-		case <-ticker.C:
-			_ = t.populateExpvarStats()
-		}
-	}
-}
-
-func (t *Tracer) populateExpvarStats() error {
-	stats, err := t.getTelemetry()
-	if err != nil {
-		return err
-	}
-
-	for name, stat := range stats {
-		for metric, val := range stat.(map[string]int64) {
-			currVal := &expvar.Int{}
-			currVal.Set(val)
-			expvarEndpoints[name].Set(snakeToCapInitialCamel(metric), currVal)
-		}
-	}
-	return nil
 }
 
 // initPerfPolling starts the listening on perf buffer events to grab closed connections
@@ -881,26 +834,6 @@ func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	return defaultUDPConnTimeoutNanoSeconds
 }
 
-// getTelemetry calls GetStats and extract telemetry from the state structure
-func (t *Tracer) getTelemetry() (map[string]interface{}, error) {
-	stats, err := t.GetStats()
-	if err != nil {
-		return nil, err
-	}
-
-	if states, ok := stats["state"]; ok {
-		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-			stats["state"] = telemetry
-		}
-	}
-	if states, ok := stats["http"]; ok {
-		if telemetry, ok := states.(map[string]interface{})["telemetry"]; ok {
-			stats["http"] = telemetry
-		}
-	}
-	return stats, nil
-}
-
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	if t.state == nil {
@@ -931,7 +864,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 
 	ret := map[string]interface{}{
 		"conntrack": conntrackStats,
-		"state":     stateStats,
+		"state":     stateStats["telemetry"],
 		"tracer":    tracerStats,
 		"ebpf":      t.getEbpfTelemetry(),
 		"kprobes":   ddebpf.GetProbeStats(),
@@ -995,12 +928,18 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 		return true
 	}
 
-	ok, err := ctr.Exists(conn)
+	exists, err := ctr.Exists(conn)
 	if err != nil {
-		log.Warnf("error checking conntrack for connection %s: %s", *conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", conn, err)
+	}
+	if !exists {
+		exists, err = ctr.ExistsInRootNS(conn)
+		if err != nil {
+			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn, err)
+		}
 	}
 
-	return !ok
+	return !exists
 }
 
 func (t *Tracer) connVia(cs *network.ConnectionStats) {

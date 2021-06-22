@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.3.1
+install_script_version=1.4.0
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -15,9 +15,11 @@ LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
 ETCDIR="/etc/datadog-agent"
 CONF="$ETCDIR/datadog.yaml"
 
-# A2923DFF56EDA6E76E55E492D3A80E30382E94DE expires in 2022
-# D75CEA17048B9ACBF186794B32637D44F14F620E expires in 2032
-APT_GPG_KEYS=("A2923DFF56EDA6E76E55E492D3A80E30382E94DE" "D75CEA17048B9ACBF186794B32637D44F14F620E")
+# DATADOG_APT_KEY_CURRENT.public always contains key used to sign current
+# repodata and newly released packages
+# DATADOG_APT_KEY_382E94DE.public expires in 2022
+# DATADOG_APT_KEY_F14F620E.public expires in 2032
+APT_GPG_KEYS=("DATADOG_APT_KEY_CURRENT.public" "DATADOG_APT_KEY_F14F620E.public" "DATADOG_APT_KEY_382E94DE.public")
 
 # DATADOG_RPM_KEY_CURRENT.public always contains key used to sign current
 # repodata and newly released packages
@@ -66,6 +68,24 @@ function on_read_error() {
   yn="n"
 }
 
+function get_email() {
+  emaillocalpart='^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}'
+  hostnamepart='[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+  email_regex="$emaillocalpart@$hostnamepart"
+  cntr=0
+  until [[ "$cntr" -eq 3 ]]
+  do
+      read -p "Enter an email address so we can follow up: " -r email
+      if [[ "$email" =~ $email_regex ]]; then
+        isEmailValid=true
+        break
+      else
+        ((cntr=cntr+1))
+        echo -e "\033[33m($cntr/3) Email address invalid: $email\033[0m\n"
+      fi
+  done
+}
+
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
@@ -83,8 +103,12 @@ Troubleshooting and basic usage information for the Agent are available at:
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
           [Yy]* )
-            read -p "Enter an email address so we can follow up: " -r email
-            report
+            get_email
+            if [[ -n "$isEmailValid" ]]; then
+              report
+            else
+              fallback_msg
+            fi
             break;;
           [Nn]*|"" )
             fallback_msg
@@ -96,6 +120,19 @@ Troubleshooting and basic usage information for the Agent are available at:
     done
 }
 trap on_error ERR
+
+function verify_agent_version(){
+    local ver_separator="$1"
+    if [ -z "$agent_version_custom" ]; then
+        echo -e "
+  \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst\033[0m"
+        fallback_msg
+        exit 1;
+    else
+        agent_flavor+="$ver_separator$agent_version_custom"
+    fi
+}
 
 echo -e "\033[34m\n* Datadog Agent install script v${install_script_version}\n\033[0m"
 
@@ -143,6 +180,18 @@ else
   yum_url="yum.${repository_url}"
 fi
 
+# We turn off `repo_gpgcheck` for custom REPO_URL, unless explicitly turned
+# on via DD_RPM_REPO_GPGCHECK.
+# There is more logic for redhat/suse in their specific code branches below
+rpm_repo_gpgcheck=
+if [ -n "$DD_RPM_REPO_GPGCHECK" ]; then
+    rpm_repo_gpgcheck=$DD_RPM_REPO_GPGCHECK
+else
+    if [ -n "$REPO_URL" ]; then
+        rpm_repo_gpgcheck=0
+    fi
+fi
+
 if [ -n "$TESTING_APT_URL" ]; then
   apt_url=$TESTING_APT_URL
 else
@@ -163,6 +212,14 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
   echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+fi
+
+if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+  # Examples:
+  #  - 20   = defaults to highest patch version x.20.2
+  #  - 20.0 = sets explicit patch version x.20.0
+  # Note: Specifying an invalid minor version will terminate the script.
+  agent_minor_version=$DD_AGENT_MINOR_VERSION
 fi
 
 agent_flavor="datadog-agent"
@@ -189,14 +246,6 @@ if [ -n "$TESTING_APT_REPO_VERSION" ]; then
   apt_repo_version=$TESTING_APT_REPO_VERSION
 else
   apt_repo_version="${agent_dist_channel} ${agent_major_version}"
-fi
-
-keyserver="hkp://keyserver.ubuntu.com:80"
-backup_keyserver="hkp://pool.sks-keyservers.net:80"
-# use this env var to specify another key server, such as
-# hkp://p80.pool.sks-keyservers.net:80 for example.
-if [ -n "$DD_KEYSERVER" ]; then
-  keyserver="$DD_KEYSERVER"
 fi
 
 report_failure_url="https://api.datadoghq.com/agent_stats/report_failure"
@@ -258,6 +307,16 @@ if [ "$OS" = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
+    # Because of https://bugzilla.redhat.com/show_bug.cgi?id=1792506, we disable
+    # repo_gpgcheck on RHEL/CentOS 8.1
+    if [ -z "$rpm_repo_gpgcheck" ]; then
+        if grep -q "8\.1\(\b\|\.\)" /etc/redhat-release 2>/dev/null; then
+            rpm_repo_gpgcheck=0
+        else
+            rpm_repo_gpgcheck=1
+        fi
+    fi
+
     if [ "$agent_major_version" -eq 7 ]; then
       gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_E09422B3.public"
     else
@@ -275,7 +334,7 @@ if [ "$OS" = "RedHat" ]; then
       done
     fi
 
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=0\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean metadata
@@ -288,42 +347,49 @@ if [ "$OS" = "RedHat" ]; then
       dnf_flag="--best"
     fi
 
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent-7.20.2-1
+        pkg_pattern="$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(yum -y --disablerepo=* --enablerepo=datadog list --showduplicates datadog-agent | sort -r | grep -E "$pkg_pattern" -om1)" || true
+        verify_agent_version "-"
+    fi
+    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install $dnf_flag "$agent_flavor" || $sudo_cmd yum -y install $dnf_flag "$agent_flavor"
 
 elif [ "$OS" = "Debian" ]; then
+    apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+    apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
-    printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
+    printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
-    $sudo_cmd apt-get install -y apt-transport-https
-    # Only install dirmngr if it's available in the cache
-    # it may not be available on Ubuntu <= 14.04 but it's not required there
-    cache_output=`apt-cache search dirmngr`
-    if [ ! -z "$cache_output" ]; then
-      $sudo_cmd apt-get install -y dirmngr
+    # installing curl might trigger install of additional version of libssl; this will fail the installation process,
+    # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
+    if [ -z "$sudo_cmd" ]; then
+        # if $sudo_cmd is empty, doing `$sudo_cmd X=Y command` fails with
+        # `X=Y: command not found`; therefore we don't prefix the command with
+        # $sudo_cmd at all in this case
+        DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
+    else
+        $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
+    $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
+
+    if [ ! -f $apt_usr_share_keyring ]; then
+        $sudo_cmd touch $apt_usr_share_keyring
+    fi
 
     for key in "${APT_GPG_KEYS[@]}"; do
-      for retries in {0..4}; do
-        $sudo_cmd apt-key adv --recv-keys --keyserver "${keyserver}" "${key}" && break
-        if [ "$retries" -eq 4 ]; then
-          ERROR_MESSAGE="ERROR
-  Couldn't fetch Datadog public key ${key}.
-  This might be due to a connectivity error with the key server
-  or a temporary service interruption.
-  *****
-  "
-          false
-        fi
-        printf "\033[33m\napt-key failed to retrieve Datadog's public key ${key}, retrying in 5 seconds...\n\033[0m\n"
-        sleep 5
-        if [ "$retries" -eq 1 ]; then
-          printf "\033[34mSwitching to backup keyserver\n\033[0m\n"
-          keyserver="${backup_keyserver}"
-        fi
-      done
+        $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
+        $sudo_cmd cat "/tmp/${key}" | $sudo_cmd gpg --import --batch --no-default-keyring --keyring "$apt_usr_share_keyring"
     done
+
+    release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
+    if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
+       { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
+        $sudo_cmd cp $apt_usr_share_keyring $apt_trusted_d_keyring
+    fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
     ERROR_MESSAGE="ERROR
@@ -341,6 +407,15 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
+    
+    if [ -n "$agent_minor_version" ]; then
+        # Example: datadog-agent=1:7.20.2-1
+        pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+        agent_version_custom="$(apt-cache madison datadog-agent | grep -E "$pkg_pattern" -om1)" || true
+        verify_agent_version "="
+    fi
+    echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
     $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
@@ -352,6 +427,10 @@ elif [ "$OS" = "SUSE" ]; then
       ARCHI="aarch64"
   else
       ARCHI="x86_64"
+  fi
+
+  if [ -z "$rpm_repo_gpgcheck" ]; then
+      rpm_repo_gpgcheck=1
   fi
 
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
@@ -401,12 +480,21 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://${yum_url}/suse/${yum_version_path}/${ARCHI}\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\ngpgkey=${gpgkeys}' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-checks refresh datadog
-
+  
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
+
+  if [ -n "$agent_minor_version" ]; then
+      # Example: datadog-agent-1:7.20.2-1
+      pkg_pattern="([[:digit:]]:)?$agent_major_version\.${agent_minor_version%.}(\.[[:digit:]]+){0,1}(-[[:digit:]])?"
+      agent_version_custom="$(zypper search -s datadog-agent | grep -E "$pkg_pattern" -om1)" || true
+      verify_agent_version "-"
+  fi
+  echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
+
   $sudo_cmd zypper --non-interactive install "$agent_flavor"
 
 else

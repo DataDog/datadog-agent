@@ -125,6 +125,13 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	return 40, nil
 }
 
+func unmarshalTime(data []byte) time.Time {
+	if t := int64(ByteOrder.Uint64(data)); t != 0 {
+		return time.Unix(0, t)
+	}
+	return time.Time{}
+}
+
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
@@ -137,7 +144,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ExecTimestamp = ByteOrder.Uint64(data[read : read+8])
+	e.ExecTime = time.Unix(0, int64(ByteOrder.Uint64(data[read:read+8])))
 	read += 8
 
 	var ttyRaw [64]byte
@@ -157,8 +164,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.Cookie = ByteOrder.Uint32(data[read : read+4])
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
-	e.ForkTimestamp = ByteOrder.Uint64(data[read+8 : read+16])
-	e.ExitTimestamp = ByteOrder.Uint64(data[read+16 : read+24])
+	e.ForkTime = unmarshalTime(data[read+8 : read+16])
+	e.ExitTime = unmarshalTime(data[read+16 : read+24])
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t
@@ -206,14 +213,6 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.ID = ByteOrder.Uint32(data[0:4])
 	e.Size = ByteOrder.Uint32(data[4:8])
 	SliceToArray(data[8:136], unsafe.Pointer(&e.ValuesRaw))
-	values, err := UnmarshalStringArray(e.ValuesRaw[:e.Size])
-	if err != nil || e.Size == 128 {
-		if len(values) > 0 {
-			values[len(values)-1] = values[len(values)-1] + "..."
-		}
-		e.IsTruncated = true
-	}
-	e.Values = values
 
 	return 136, nil
 }

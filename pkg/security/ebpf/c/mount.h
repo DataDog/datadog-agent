@@ -44,12 +44,19 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key, 0);
 
     struct super_block *sb = get_dentry_sb(dentry);
     struct file_system_type *s_type = get_super_block_fs(sb);
     bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
 
+    syscall->resolver.key = syscall->mount.root_key;
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
     return 0;
 }
 
@@ -67,17 +74,28 @@ int kprobe__propagate_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
-    resolve_dentry(dentry, syscall->mount.root_key, 0);
 
     struct super_block *sb = get_dentry_sb(dentry);
     struct file_system_type *s_type = get_super_block_fs(sb);
     bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
 
+    syscall->resolver.key = syscall->mount.root_key;
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
     return 0;
 }
 
-int __attribute__((always_inline)) do_sys_mount_ret(void *ctx, struct syscall_cache_t *syscall, int retval) {
+int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_type) {
     if (retval)
+        return 0;
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
+    if (!syscall)
         return 0;
 
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
@@ -85,14 +103,44 @@ int __attribute__((always_inline)) do_sys_mount_ret(void *ctx, struct syscall_ca
         .mount_id = get_mount_mount_id(syscall->mount.dest_mnt),
         .ino = get_dentry_ino(dentry),
     };
+    syscall->mount.path_key = path_key;
+
+    syscall->resolver.key = path_key;
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MOUNT_CALLBACK_KPROBE_KEY : DR_MOUNT_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_MOUNT);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_mount")
+int tracepoint_syscalls_sys_exit_mount(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_mount_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_COMPAT_KRETPROBE(mount) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_mount_ret(ctx, retval, DR_KPROBE);
+}
+
+int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
+    if (!syscall)
+        return 0;
 
     struct mount_event_t event = {
         .syscall.retval = retval,
         .mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .device = get_mount_dev(syscall->mount.src_mnt),
-        .parent_mount_id = path_key.mount_id,
-        .parent_ino = path_key.ino,
+        .parent_mount_id = syscall->mount.path_key.mount_id,
+        .parent_ino = syscall->mount.path_key.ino,
         .root_ino = syscall->mount.root_key.ino,
         .root_mount_id = syscall->mount.root_key.mount_id,
     };
@@ -105,29 +153,20 @@ int __attribute__((always_inline)) do_sys_mount_ret(void *ctx, struct syscall_ca
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
 
-    resolve_dentry(dentry, path_key, 0);
-
     send_event(ctx, EVENT_MOUNT, event);
 
     return 0;
 }
 
-SEC("tracepoint/handle_sys_mount_exit")
-int handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
-    if (!syscall)
-        return 0;
-
-    return do_sys_mount_ret(args, syscall, args->ret);
+SEC("kprobe/dr_mount_callback")
+int __attribute__((always_inline)) kprobe_dr_mount_callback(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    return dr_mount_callback(ctx, ret);
 }
 
-SYSCALL_COMPAT_KRETPROBE(mount) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
-    return do_sys_mount_ret(ctx, syscall, retval);
+SEC("tracepoint/dr_mount_callback")
+int __attribute__((always_inline)) tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_mount_callback(args, args->ret);
 }
 
 #endif

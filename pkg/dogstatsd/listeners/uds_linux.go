@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -49,48 +50,58 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 }
 
 // processUDSOrigin reads ancillary data to determine a packet's origin,
-// it returns a string identifying the source.
+// it returns an integer with the ancillary PID,  a string identifying the
+// source, and an error if any.
 // PID is added to ancillary data by the Linux kernel if we added the
 // SO_PASSCRED to the socket, see enableUDSPassCred.
-func processUDSOrigin(ancillary []byte) (string, error) {
+func processUDSOrigin(ancillary []byte) (int, string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
-		return packets.NoOrigin, err
+		return 0, packets.NoOrigin, err
 	}
 	if len(messages) == 0 {
-		return packets.NoOrigin, fmt.Errorf("ancillary data empty")
+		return 0, packets.NoOrigin, fmt.Errorf("ancillary data empty")
 	}
 	cred, err := unix.ParseUnixCredentials(&messages[0])
 	if err != nil {
-		return packets.NoOrigin, err
+		return 0, packets.NoOrigin, err
 	}
 
 	if cred.Pid == 0 {
-		return packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
+		return 0, packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
 			"probably to another namespace. Is the agent in host PID mode?")
 	}
 
-	entity, err := getEntityForPID(cred.Pid)
-	if err != nil {
-		return packets.NoOrigin, err
+	capture := false
+	pid := cred.Pid
+	if cred.Gid == replay.GUID {
+		pid = int32(cred.Uid)
+		capture = true
 	}
-	return entity, nil
+
+	entity, err := getEntityForPID(pid, capture)
+	if err != nil {
+		return int(pid), packets.NoOrigin, err
+	}
+	return int(pid), entity, nil
 }
 
 // getEntityForPID returns the container entity name and caches the value for future lookups
 // As the result is cached and the lookup is really fast (parsing local files), it can be
 // called from the intake goroutine.
-func getEntityForPID(pid int32) (string, error) {
+func getEntityForPID(pid int32, capture bool) (string, error) {
 	key := cache.BuildAgentKey(pidToEntityCacheKeyPrefix, strconv.Itoa(int(pid)))
 	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
 	}
 
-	entity, err := entityForPID(pid)
+	entity, err := entityForPID(pid, capture)
 	switch err {
 	case nil:
 		// No error, yay!
-		cache.Cache.Set(key, entity, pidToEntityCacheDuration)
+		if !capture {
+			cache.Cache.Set(key, entity, pidToEntityCacheDuration)
+		}
 		return entity, nil
 	case errNoContainerMatch:
 		// No runtime detected, cache the `packets.NoOrigin` result
@@ -104,7 +115,11 @@ func getEntityForPID(pid int32) (string, error) {
 
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
-func entityForPID(pid int32) (string, error) {
+func entityForPID(pid int32, capture bool) (string, error) {
+	if capture {
+		return replay.ContainerIDForPID(pid)
+	}
+
 	cID, err := providers.ContainerImpl().ContainerIDForPID(int(pid))
 	if err != nil {
 		return "", err

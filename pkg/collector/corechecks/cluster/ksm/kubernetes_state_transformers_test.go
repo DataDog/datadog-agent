@@ -1681,6 +1681,27 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "ephemeral_storage",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 64,
+					Labels: map[string]string{
+						"resource": "ephemeral_storage",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.ephemeral_storage_allocatable",
+				val:      64,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "no resource label",
 			args: args{
 				name: "kube_node_status_allocatable",
@@ -1776,6 +1797,27 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.pods_capacity",
 				val:      100,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "ephemeral_storage",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 129,
+					Labels: map[string]string{
+						"resource": "ephemeral_storage",
+						"unit":     "byte",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.ephemeral_storage_capacity",
+				val:      129,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
 			},

@@ -309,10 +309,15 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	l.m.Lock()
 	defer l.m.Unlock()
 	old, found := l.services[entity]
-	if found && kubeletSvcEqual(old, &svc) {
-		log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
-		return
+	if found {
+		if kubeletSvcEqual(old, &svc) {
+			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
+			return
+		}
+		log.Tracef("Kubelet service '%s' has been updated, removing the old one", svc.entity)
+		l.delService <- old
 	}
+
 	l.services[entity] = &svc
 
 	l.newService <- &svc
@@ -406,7 +411,7 @@ func (s *KubeContainerService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeContainerService) GetTaggerEntity() string {
 	taggerEntity, err := kubelet.KubeContainerIDToTaggerEntityID(s.entity)
 	if err != nil {
@@ -482,7 +487,7 @@ func (s *KubePodService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubePodService) GetTaggerEntity() string {
 	taggerEntity, err := kubelet.KubePodUIDToTaggerEntityID(s.entity)
 	if err != nil {

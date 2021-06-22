@@ -236,6 +236,10 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	_ = conn.SetDeadline(time.Time{})
 	_ = conn.SetWriteDeadline(time.Time{})
 
+	done := make(chan struct{})
+	defer close(done)
+	logChan := logMessageReceiver.Filter(&filters, done)
+	flushTimer := time.NewTicker(time.Second)
 	for {
 		// Handlers for detecting a closed connection (from either the server or client)
 		select {
@@ -243,11 +247,9 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-r.Context().Done():
 			return
-		default:
-		}
-		if line, ok := logMessageReceiver.Next(&filters); ok {
+		case line := <-logChan:
 			fmt.Fprint(w, line)
-		} else {
+		case <-flushTimer.C:
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
 			flusher.Flush()
 		}

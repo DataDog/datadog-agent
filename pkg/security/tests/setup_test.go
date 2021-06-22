@@ -27,18 +27,17 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cihub/seelog"
+	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 	is "gotest.tools/assert/cmp"
 
-	"github.com/cihub/seelog"
-	"github.com/pkg/errors"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -53,7 +52,10 @@ var (
 	logger              seelog.LoggerInterface
 )
 
-const grpcAddr = "127.0.0.1:18787"
+const (
+	grpcAddr        = "127.0.0.1:18787"
+	getEventTimeout = 3 * time.Second
+)
 
 const testConfig = `---
 log_level: DEBUG
@@ -80,6 +82,8 @@ runtime_security_config:
 {{if .DisableDiscarders}}
   enable_discarders: false
 {{end}}
+  erpc_dentry_resolution_enabled: {{ .ErpcDentryResolutionEnabled }}
+  map_dentry_resolution_enabled: {{ .MapDentryResolutionEnabled }}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -102,9 +106,10 @@ rules:
 `
 
 var (
-	testEnvironment string
-	useReload       bool
-	logLevelStr     string
+	disableERPCDentryResolution bool
+	testEnvironment             string
+	useReload                   bool
+	logLevelStr                 string
 )
 
 const (
@@ -118,13 +123,15 @@ type testEvent struct {
 }
 
 type testOpts struct {
-	testDir              string
-	disableFilters       bool
-	disableApprovers     bool
-	disableDiscarders    bool
-	wantProbeEvents      bool
-	eventsCountThreshold int
-	reuseProbeHandler    bool
+	testDir                     string
+	disableFilters              bool
+	disableApprovers            bool
+	disableDiscarders           bool
+	wantProbeEvents             bool
+	eventsCountThreshold        int
+	reuseProbeHandler           bool
+	disableERPCDentryResolution bool
+	disableMapDentryResolution  bool
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
@@ -133,7 +140,9 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
-		to.reuseProbeHandler == opts.reuseProbeHandler
+		to.reuseProbeHandler == opts.reuseProbeHandler &&
+		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
+		to.disableMapDentryResolution == opts.disableMapDentryResolution
 }
 
 type testModule struct {
@@ -187,7 +196,8 @@ func (h *testEventHandler) ClearEventsChannels() {
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	testMod.module.HandleEvent(event)
-	e := event.Clone()
+
+	e := event.Retain()
 	select {
 	case h.GetActiveEventsChan() <- &e:
 		break
@@ -255,7 +265,7 @@ func assertReturnValue(t *testing.T, retval, expected int64) {
 	assert.Equal(t, retval, expected, "wrong return value")
 }
 
-func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
+func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -265,7 +275,7 @@ func assertFieldEqual(t *testing.T, e *probe.Event, field string, value interfac
 	}
 }
 
-func assertFieldOneOf(t *testing.T, e *probe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
+func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -285,12 +295,24 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 		opts.eventsCountThreshold = 100000000
 	}
 
+	erpcDentryResolutionEnabled := true
+	if opts.disableERPCDentryResolution {
+		erpcDentryResolutionEnabled = false
+	}
+
+	mapDentryResolutionEnabled := true
+	if opts.disableMapDentryResolution {
+		mapDentryResolutionEnabled = false
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":      dir,
-		"DisableApprovers":     opts.disableApprovers,
-		"DisableDiscarders":    opts.disableDiscarders,
-		"EventsCountThreshold": opts.eventsCountThreshold,
+		"TestPoliciesDir":             dir,
+		"DisableApprovers":            opts.disableApprovers,
+		"DisableDiscarders":           opts.disableDiscarders,
+		"EventsCountThreshold":        opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
 	}); err != nil {
 		return "", err
 	}
@@ -395,6 +417,9 @@ func newTestModule(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 		return nil, errors.Wrap(err, "failed to create config")
 	}
 
+	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
+	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
+
 	mod, err := module.NewModule(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create module")
@@ -467,7 +492,8 @@ func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, e
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	te := testEvent{Event: &e, rule: rule.Rule}
 	select {
 	case tm.events <- te:
@@ -477,7 +503,8 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	discarder := &testDiscarder{event: &e, field: field, eventType: eventType}
 	select {
 	case tm.discarders <- discarder:
@@ -487,7 +514,7 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 }
 
 func (tm *testModule) GetEvent() (*sprobe.Event, *eval.Rule, error) {
-	timeout := time.After(3 * time.Second)
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {
@@ -835,16 +862,20 @@ func (tm *testModule) flushChannels(duration time.Duration) {
 	}
 }
 
-func waitForDiscarder(test *testModule, key string, value interface{}) (*probe.Event, error) {
+func waitForDiscarder(test *testModule, key string, value interface{}, eventType model.EventType) (*sprobe.Event, error) {
 	timeout := time.After(5 * time.Second)
 
 	for {
 		select {
 		case discarder := <-test.discarders:
-			v, _ := discarder.event.GetFieldValue(key)
+			e := discarder.event.(*sprobe.Event)
+			if e == nil || (e != nil && e.GetEventType() != eventType) {
+				continue
+			}
+			v, _ := e.GetFieldValue(key)
 			if v == value {
 				test.flushChannels(time.Second)
-				return discarder.event.(*sprobe.Event), nil
+				return e, nil
 			}
 		case <-timeout:
 			return nil, errors.New("timeout")
@@ -867,13 +898,16 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
-// contain a rule on "open.filename"
-func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.Event, error) {
-	timeout := time.After(3 * time.Second)
+// contain a rule on "open.file.path"
+func waitForProbeEvent(test *testModule, key string, value interface{}, eventType model.EventType) (*sprobe.Event, error) {
+	timeout := time.After(getEventTimeout)
 
 	for {
 		select {
 		case e := <-test.probeHandler.GetActiveEventsChan():
+			if e.GetEventType() != eventType {
+				continue
+			}
 			if v, _ := e.GetFieldValue(key); v == value {
 				test.flushChannels(time.Second)
 				return e, nil
@@ -884,12 +918,12 @@ func waitForProbeEvent(test *testModule, key string, value interface{}) (*probe.
 	}
 }
 
-func waitForOpenDiscarder(test *testModule, filename string) (*probe.Event, error) {
-	return waitForDiscarder(test, "open.file.path", filename)
+func waitForOpenDiscarder(test *testModule, filename string) (*sprobe.Event, error) {
+	return waitForDiscarder(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
-func waitForOpenProbeEvent(test *testModule, filename string) (*probe.Event, error) {
-	return waitForProbeEvent(test, "open.file.path", filename)
+func waitForOpenProbeEvent(test *testModule, filename string) (*sprobe.Event, error) {
+	return waitForProbeEvent(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
 func TestEnv(t *testing.T) {

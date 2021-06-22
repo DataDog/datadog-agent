@@ -267,12 +267,12 @@ func getLogsMeta() *LogsMeta {
 }
 
 func getProxyMeta() *ProxyMeta {
-	httputils.NoProxyWarningMapMutex.Lock()
-	defer httputils.NoProxyWarningMapMutex.Unlock()
+	httputils.NoProxyMapMutex.Lock()
+	defer httputils.NoProxyMapMutex.Unlock()
 
 	return &ProxyMeta{
 		NoProxyNonexactMatch: config.Datadog.GetBool("no_proxy_nonexact_match"),
-		ProxyBehaviorChanged: len(httputils.NoProxyWarningMap) > 0,
+		ProxyBehaviorChanged: len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
 	}
 }
 

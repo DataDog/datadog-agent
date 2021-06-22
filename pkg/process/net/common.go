@@ -3,6 +3,7 @@
 package net
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
+	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -81,12 +84,23 @@ func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
 }
 
 // GetProcStats returns a set of process stats by querying system-probe
-func (r *RemoteSysProbeUtil) GetProcStats() (*model.ProcStatsWithPermByPID, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s", procStatsURL), nil)
+func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
+	procReq := &pbgo.ProcessStatRequest{
+		Pids: pids,
+	}
+
+	reqBody, err := reqEncoding.GetMarshaler(reqEncoding.ContentTypeProtobuf).Marshal(procReq)
 	if err != nil {
 		return nil, err
 	}
+
+	req, err := http.NewRequest("POST", procStatsURL, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
 	req.Header.Set("Accept", contentTypeProtobuf)
+	req.Header.Set("Content-Type", procEncoding.ContentTypeProtobuf)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err

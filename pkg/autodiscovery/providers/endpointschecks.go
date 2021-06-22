@@ -106,3 +106,8 @@ func (c *EndpointsChecksConfigProvider) initClient() error {
 func init() {
 	RegisterProvider("endpointschecks", NewEndpointsChecksConfigProvider)
 }
+
+// GetConfigErrors is not implemented for the EndpointsChecksConfigProvider
+func (c *EndpointsChecksConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
+}

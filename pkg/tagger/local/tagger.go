@@ -246,17 +246,21 @@ IterCollectors:
 				continue IterCollectors // source was in cache, don't lookup again
 			}
 		}
+
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
-		low, orch, high, err := collector.Fetch(entity)
+
 		cacheMiss := false
+		var expiryDate time.Time
+		low, orch, high, err := collector.Fetch(entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 			cacheMiss = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			continue // don't store empty tags, retry next time
+			expiryDate = time.Now().Add(1 * time.Second)
 		}
+
 		tagArrays = append(tagArrays, low)
 		if cardinality == collectors.OrchestratorCardinality {
 			tagArrays = append(tagArrays, orch)
@@ -264,6 +268,7 @@ IterCollectors:
 			tagArrays = append(tagArrays, orch)
 			tagArrays = append(tagArrays, high)
 		}
+
 		// Submit to cache for next lookup
 		t.store.processTagInfo([]*collectors.TagInfo{
 			{
@@ -273,6 +278,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
+				ExpiryDate:           expiryDate,
 			},
 		})
 	}
@@ -322,6 +328,18 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 	}
 
 	return tags, nil
+}
+
+// GetEntity returns the entity corresponding to the specified id and an error
+func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
+
+	tags, err := t.store.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	entity := tags.toEntity()
+	return &entity, nil
 }
 
 // List the content of the tagger

@@ -16,22 +16,24 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventHandler represents an handler for the events sent by the probe
@@ -49,7 +51,7 @@ type Probe struct {
 	config         *config.Config
 	statsdClient   *statsd.Client
 	startTime      time.Time
-	kernelVersion  kernel.Version
+	kernelVersion  *kernel.Version
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
@@ -89,12 +91,21 @@ func (p *Probe) Map(name string) (*lib.Map, error) {
 	return m, nil
 }
 
-func (p *Probe) detectKernelVersion() {
-	if kernelVersion, err := kernel.HostVersion(); err != nil {
-		log.Warn("unable to detect the kernel version")
-	} else {
-		p.kernelVersion = kernelVersion
+func (p *Probe) detectKernelVersion() error {
+	kernelVersion, err := kernel.NewKernelVersion()
+	if err != nil {
+		return errors.Wrap(err, "unable to detect the kernel version")
 	}
+	p.kernelVersion = kernelVersion
+	return nil
+}
+
+// VerifyOSVersion returns an error if the current kernel version is not supported
+func (p *Probe) VerifyOSVersion() error {
+	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
+		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
+	}
+	return nil
 }
 
 // Init initializes the probe
@@ -136,8 +147,6 @@ func (p *Probe) Init(client *statsd.Client) error {
 		defer bytecodeReader.Close()
 	}
 
-	p.manager = ebpf.NewRuntimeSecurityManager()
-
 	var ok bool
 	if p.perfMap, ok = p.manager.GetPerfMap("events"); !ok {
 		return errors.New("couldn't find events perf map")
@@ -151,7 +160,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "system_probe_pid",
-			Value: uint64(os.Getpid()),
+			Value: uint64(utils.Getpid()),
 		})
 	}
 
@@ -203,10 +212,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	if err := p.monitor.Start(p.ctx); err != nil {
-		return err
-	}
-	return nil
+	return p.monitor.Start(p.ctx)
 }
 
 // SetEventHandler set the probe event handler
@@ -271,6 +277,11 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 }
 
 func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+	// sanity check
+	if mountID == 0 || inode == 0 {
+		log.Errorf("invalid mount_id/inode tuple %d:%d", mountID, inode)
+	}
+
 	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
 		log.Tracef("remove all dentry entries for mount id %d", mountID)
 		p.resolvers.DentryResolver.DelCacheEntries(mountID)
@@ -438,6 +449,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
+
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
@@ -457,6 +471,8 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.SetProcessUsersGroups(event.processCacheEntry)
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessContext.Pid, event.processCacheEntry)
 
@@ -504,6 +520,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
 }
 
 // OnRuleMatch is called when a rule matches just before sending
@@ -749,9 +768,13 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	// We need to stop the manager first, otherwise there can be a dead lock between the eBPF perf map reader and the
+	// reorderer (at the channel level)
+	if err := p.manager.Stop(manager.CleanAll); err != nil {
+		return err
+	}
 	p.cancelFnc()
-
-	return p.manager.Stop(manager.CleanAll)
+	return p.resolvers.Close()
 }
 
 // GetDebugStats returns the debug stats
@@ -785,13 +808,27 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p := &Probe{
 		config:         config,
 		approvers:      make(map[eval.EventType]activeApprovers),
+		manager:        ebpf.NewRuntimeSecurityManager(),
 		managerOptions: ebpf.NewDefaultOptions(),
 		ctx:            ctx,
 		cancelFnc:      cancel,
 		statsdClient:   client,
 		erpc:           erpc,
 	}
-	p.detectKernelVersion()
+
+	if err = p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
+		return nil, err
+	}
+	if err = p.VerifyOSVersion(); err != nil {
+		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
+	}
+
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse CPU count")
+	}
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
@@ -804,6 +841,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "runtime_pid",
+			Value: uint64(utils.Getpid()),
+		},
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
 			Value: getDoForkInput(p),
@@ -820,19 +861,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "sb_magic_offset",
 			Value: getSuperBlockMagicOffset(p),
 		},
+		manager.ConstantEditor{
+			Name:  "getattr2",
+			Value: getAttr2(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
-
-	// kretprobe fallback for kernel < 4.12
-	if p.kernelVersion < kernel4_12 {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "kretprobe_fallback",
-			Value: uint64(1),
-		})
-	}
 
 	// constants syscall monitor
 	if p.config.SyscallMonitor {
@@ -845,7 +882,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	// tail calls
 	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
 
-	resolvers, err := NewResolvers(config, p, client)
+	resolvers, err := NewResolvers(config, p)
 	if err != nil {
 		return nil, err
 	}

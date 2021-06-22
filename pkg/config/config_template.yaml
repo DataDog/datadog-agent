@@ -12,6 +12,8 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
+## Set to 'us3.datadoghq.com' to send data to the US3 site.
+## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
 
@@ -70,6 +72,8 @@ api_key:
 
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
@@ -212,12 +216,6 @@ api_key:
 #
 # forwarder_storage_max_disk_ratio: 0.95
 
-## @param forwarder_storage_path - string - optional - default: /opt/datadog-agent/run/transactions_to_retry (c:\ProgramData\Datadog\run\transactions_to_retry on Windows)
-## `forwarder_storage_path` defines the root folder where the transactions of the forwarder are stored when
-## the retry queue is full.
-#
-# forwarder_storage_path: /opt/datadog-agent/run/transactions_to_retry
-
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
 ## being discarded. During the Agent restart, if a retry file contains transactions that were
@@ -307,6 +305,18 @@ api_key:
 ## Timeout in milliseconds on calls to the GCE metadata endpoints.
 #
 # gce_metadata_timeout: 1000
+
+## @param azure_hostname_style - string - optional - default: "os"
+## Changes how agent hostname is set on Azure virtual machines.
+##
+## Possible values:
+##   "os" - use the hostname reported by the operating system (default)
+##   "name" - use the instance name
+##   "name_and_resource_group" - use a combination of the instance name and resource group name
+##   "full" - use a combination of the instance name, resource group name and subscription id
+##   "vmid" - use the instance id
+#
+# azure_hostname_style: "os"
 
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
@@ -469,7 +479,7 @@ api_key:
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -485,10 +495,10 @@ api_key:
 #
 # secret_backend_output_max_size: 1048576
 
-## @param secret_backend_timeout - integer - optional - default: 5
+## @param secret_backend_timeout - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
-# secret_backend_timeout: 5
+# secret_backend_timeout: 30
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
@@ -510,12 +520,12 @@ api_key:
   #
   # discovery_interval: 3600
 
-  ## @param allowed_failures - integer - optional - default: 3
+  ## @param discovery_allowed_failures - integer - optional - default: 3
   ## The number of failed requests to a given SNMP device before removing it from the list of monitored
   ## devices.
-  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
   #
-  # allowed_failures: 3
+  # discovery_allowed_failures: 3
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
@@ -531,14 +541,14 @@ api_key:
   ##      - 10.0.1.1
   #
   # configs:
-    ## @param network - string - required
+    ## @param network_address - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
     ## All unignored IP addresses in the CIDR range are scanned.
     ## For optimal discovery time, be sure to use the smallest network mask
     ## possible as is appropriate for your network topology.
     ## Ex: 10.0.1.0/24
     #
-    # - network: <NETWORK>
+    # - network_address: <NETWORK>
 
     ## @param ignored_ip_addresses - list of strings - optional
     ## A list of IP addresses to ignore when scanning the network.
@@ -552,12 +562,12 @@ api_key:
     #
     # port: 161
 
-    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## @param snmp_version - integer - optional - default: <BEST_GUESS>
     ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
     ## If unset, the Agent tries to guess the correct version based on other configuration
     ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
     #
-    # version: <VERSION>
+    # snmp_version: <VERSION>
 
     ## @param timeout - integer - optional - default: 5
     ## The number of seconds before timing out.
@@ -569,11 +579,11 @@ api_key:
     #
     # retries: 3
 
-    ## @param community - string - optional
+    ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
     ## Ex: 'public'
     #
-    # community: <COMMUNITY>
+    # community_string: <COMMUNITY>
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -581,33 +591,33 @@ api_key:
     #
     # user: <USERNAME>
 
-    ## @param authentication_key - string - optional
+    ## @param authKey - string - optional
     ## The passphrase to use with your Authentication type.
     ## SNMPv3 only.
     #
-    # authentication_key: <AUTHENTICATION_KEY>
+    # authKey: <AUTHENTICATION_KEY>
 
-    ## @param authentication_protocol - string - optional
+    ## @param authProtocol - string - optional
     ## The authentication protocol to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA.
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
-    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+    # authProtocol: <AUTHENTICATION_PROTOCOL>
 
-    ## @param privacy_key - string - optional
+    ## @param privKey - string - optional
     ## The passphrase to use with your privacy protocol.
     ## SNMPv3 only.
     #
-    # privacy_key: <PRIVACY_KEY>
+    # privKey: <PRIVACY_KEY>
 
-    ## @param privacy_protocol - string - optional
+    ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
     ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
-    # privacy_protocol: <PRIVACY_PROTOCOL>
+    # privProtocol: <PRIVACY_PROTOCOL>
 
     ## @param context_name - string - optional
     ## The name of your context (optional SNMP v3-only parameter).
@@ -987,6 +997,10 @@ api_key:
   ## @param check_interval - duration - optional - default: 20m
   ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
   # check_interval: 20m
+
+  ## @param check_max_events_per_run - integer
+  ## - optional - default: 100
+  # check_max_events_per_run: 100
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -1462,6 +1476,12 @@ api_key:
 #
 # log_format_rfc3339: false
 
+## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
+## If enabled, when the health probe of an internal component fails, the stack traces
+## of all the goroutines are logged.
+#
+# log_all_goroutines_when_unhealthy: false
+
 {{ end -}}
 {{- if .Autoconfig }}
 
@@ -1919,7 +1939,7 @@ api_key:
 ## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
 ## Set this to false to disable tag collection for the Agent.
 ## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#kubernetes
 #
 # kubernetes_collect_metadata_tags: true
 
@@ -1937,7 +1957,7 @@ api_key:
 ## Set `collect_kubernetes_events` to true to enable log collection.
 ## Note: leader election must be enabled must be enabled  bellow to to collect events.
 ##       Only the leader Agent collects events.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#event-collection
 #
 # collect_kubernetes_events: false
 
@@ -1948,7 +1968,7 @@ api_key:
 
 ## @param leader_election - boolean - optional - default: false
 ## Set the parameter to true to enable leader election on this node.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#leader-election
 #
 # leader_election: false
 

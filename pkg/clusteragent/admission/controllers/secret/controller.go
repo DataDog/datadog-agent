@@ -10,6 +10,8 @@ package secret
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -30,25 +32,28 @@ import (
 // Controller is responsible for creating and refreshing the Secret object
 // that contains the certificate of the Admission Webhook.
 type Controller struct {
-	clientSet     kubernetes.Interface
-	secretsLister corelisters.SecretLister
-	secretsSynced cache.InformerSynced
-	config        Config
-	hosts         []string
-	queue         workqueue.RateLimitingInterface
-	isLeaderFunc  func() bool
+	clientSet      kubernetes.Interface
+	secretsLister  corelisters.SecretLister
+	secretsSynced  cache.InformerSynced
+	config         Config
+	dnsNames       []string
+	dnsNamesDigest uint64
+	queue          workqueue.RateLimitingInterface
+	isLeaderFunc   func() bool
 }
 
 // NewController returns a new Secret Controller.
 func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, config Config) *Controller {
+	dnsNames := generateDNSNames(config.GetNs(), config.GetSvc())
 	controller := &Controller{
-		clientSet:     client,
-		config:        config,
-		secretsLister: secretInformer.Lister(),
-		secretsSynced: secretInformer.Informer().HasSynced,
-		hosts:         generateHosts(config.GetNs(), config.GetSvc()),
-		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
-		isLeaderFunc:  isLeaderFunc,
+		clientSet:      client,
+		config:         config,
+		secretsLister:  secretInformer.Lister(),
+		secretsSynced:  secretInformer.Informer().HasSynced,
+		dnsNames:       dnsNames,
+		dnsNamesDigest: digestDNSNames(dnsNames),
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
+		isLeaderFunc:   isLeaderFunc,
 	}
 	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
@@ -154,31 +159,38 @@ func (c *Controller) reconcile() error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Create the Secret if it doesn't exist
-			log.Debugf("Secret %s/%s was not found, creating it", c.config.GetNs(), c.config.GetName())
+			log.Infof("Secret %s/%s was not found, creating it", c.config.GetNs(), c.config.GetName())
 			return c.createSecret()
 		}
 		return err
 	}
 
-	// Check certificate and refresh it if needed
-	durationBeforeExpiration, err := certificate.GetDurationBeforeExpiration(secret.Data)
+	cert, err := certificate.GetCertFromSecret(secret.Data)
 	if err != nil {
 		return err
 	}
 
+	// Check the certificate expiration date and refresh it if needed
+	durationBeforeExpiration := certificate.GetDurationBeforeExpiration(cert)
 	metrics.CertificateDuration.Set(durationBeforeExpiration.Hours())
 	if durationBeforeExpiration < c.config.GetCertExpiration() {
-		log.Debugf("The certificate is expiring soon (%v), refreshing it", durationBeforeExpiration)
+		log.Infof("The certificate is expiring soon (%v), refreshing it", durationBeforeExpiration)
 		return c.updateSecret(secret)
 	}
 
-	log.Debugf("The certificate is not expiring soon (%v), doing nothing", durationBeforeExpiration)
+	// Check the certificate dns names and update it if needed
+	if c.dnsNamesDigest != digestDNSNames(certificate.GetDNSNames(cert)) {
+		log.Info("The certificate DNS names are outdated, updating the certificate")
+		return c.updateSecret(secret)
+	}
+
+	log.Debugf("The certificate is up-to-date, doing nothing. Duration before expiration: %v", durationBeforeExpiration)
 	return nil
 }
 
 // createSecret creates a new Secret object with a new certificate
 func (c *Controller) createSecret() error {
-	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.hosts)
+	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.dnsNames)
 	if err != nil {
 		return fmt.Errorf("failed to generate the Secret data: %v", err)
 	}
@@ -197,7 +209,7 @@ func (c *Controller) createSecret() error {
 
 // updateSecret stores a new certificate in the Secret object
 func (c *Controller) updateSecret(secret *corev1.Secret) error {
-	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.hosts)
+	data, err := certificate.GenerateSecretData(notBefore(), c.notAfter(), c.dnsNames)
 	if err != nil {
 		return fmt.Errorf("failed to generate the Secret data: %v", err)
 	}
@@ -218,13 +230,27 @@ func notBefore() time.Time {
 	return time.Now().Add(-5 * time.Minute)
 }
 
-// generateHosts returns the hosts used as DNS
+// generateDNSNames returns the hosts used as DNS
 // names for the certificate creation.
-func generateHosts(ns, svc string) []string {
+func generateDNSNames(ns, svc string) []string {
 	return []string{
 		svc,
 		svc + "." + ns,
 		svc + "." + ns + ".svc",
 		svc + "." + ns + ".svc.cluster.local",
 	}
+}
+
+// digestDNSNames returns a digest to identify a list of dns names.
+func digestDNSNames(dnsNames []string) uint64 {
+	dnsNamesCopy := make([]string, len(dnsNames))
+	copy(dnsNamesCopy, dnsNames)
+	sort.Strings(dnsNamesCopy)
+
+	h := fnv.New64()
+	for _, name := range dnsNamesCopy {
+		_, _ = h.Write([]byte(name))
+	}
+
+	return h.Sum64()
 }
