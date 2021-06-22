@@ -309,10 +309,15 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	l.m.Lock()
 	defer l.m.Unlock()
 	old, found := l.services[entity]
-	if found && kubeletSvcEqual(old, &svc) {
-		log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
-		return
+	if found {
+		if kubeletSvcEqual(old, &svc) {
+			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
+			return
+		}
+		log.Tracef("Kubelet service '%s' has been updated, removing the old one", svc.entity)
+		l.delService <- old
 	}
+
 	l.services[entity] = &svc
 
 	l.newService <- &svc

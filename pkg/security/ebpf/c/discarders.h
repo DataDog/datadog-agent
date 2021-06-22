@@ -277,11 +277,6 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
 }
 
 int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid) {
-    u32 system_probe_pid = get_system_probe_pid();
-    if (system_probe_pid && system_probe_pid == tgid) {
-        return 1;
-    }
-
     struct pid_discarder_t key = {
         .tgid = tgid,
     };
@@ -290,10 +285,15 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
 }
 
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
-    if (mode != NO_FILTER) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
 
+    u32 system_probe_pid = get_system_probe_pid();
+    if (system_probe_pid && system_probe_pid == tgid) {
+        return 1;
+    }
+
+    if (mode != NO_FILTER) {
         // try with pid first
         if (is_discarded_by_pid(event_type, tgid))
             return 1;

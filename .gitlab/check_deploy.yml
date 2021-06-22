@@ -4,23 +4,12 @@
 # alteady exists (in the apt staging repo), or if the release branch is "none".
 # In both cases, these jobs fail in order to prevent the pipeline from deploying artifacts.
 
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 # Check that the current version hasn't already been deployed (we don't want to
 # overwrite a public package). To update an erroneous package, first remove it
 # from our S3 bucket.
 check_already_deployed_version_6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -33,9 +22,7 @@ check_already_deployed_version_6:
 
 check_already_deployed_version_7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a7]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -49,7 +36,7 @@ check_already_deployed_version_7:
 # If we trigger a build only pipeline we stop here.
 check_if_build_only:
   rules:
-    - <<: *if_deploy
+    !reference [.on_deploy]
   stage: check_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

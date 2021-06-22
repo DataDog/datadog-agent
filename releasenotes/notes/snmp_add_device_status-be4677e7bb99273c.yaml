@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    Fix handling of CPU metric collected from cgroups when the cgroup file is missing.
+    Add device status snmp corecheck metadata 

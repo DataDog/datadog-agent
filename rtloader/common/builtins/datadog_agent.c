@@ -233,7 +233,7 @@ PyObject *get_config(PyObject *self, PyObject *args)
     different places:
 
      1. github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/utils/headers.py
-     2. github.com/DataDog/datadog-agent/blob/master/pkg/util/common.go
+     2. github.com/DataDog/datadog-agent/blob/main/pkg/util/common.go
 */
 PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs)
 {

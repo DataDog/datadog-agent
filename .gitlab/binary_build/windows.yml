@@ -1,12 +1,8 @@
 ---
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 # Entrypoint for the Windows Docker image
 build_windows_container_entrypoint:
   rules:
-    - <<: *if_version_7
-      when: on_success
+    !reference [.on_a7]
   stage: binary_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["tests_windows-x64"]

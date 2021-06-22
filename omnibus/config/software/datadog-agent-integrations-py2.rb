@@ -43,13 +43,10 @@ if linux?
   dependency 'libkrb5'
   # needed for glusterfs
   dependency 'gstatus'
-
-  unless suse? || arm?
-    dependency 'aerospike-py2'
-  end
 end
 
 relative_path 'integrations-core'
+whitelist_file "embedded/lib/python2.7/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python2.7/site-packages/psycopg2"
 whitelist_file "embedded/lib/python2.7/site-packages/wrapt"
 whitelist_file "embedded/lib/python2.7/site-packages/pymqi"
@@ -77,11 +74,12 @@ blacklist_folders = [
 blacklist_packages = Array.new
 
 # We build these manually
-blacklist_packages.push(/^aerospike==/)
 blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
-  blacklist_folders.push('aerospike')  # Temporarily blacklist Aerospike until builder supports new dependency
+  # Temporarily blacklist Aerospike until builder supports new dependency
+  blacklist_packages.push(/^aerospike==/)
+  blacklist_folders.push('aerospike')
 end
 
 if osx?
@@ -98,11 +96,18 @@ if osx?
 
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
   blacklist_folders.push('aerospike')
+
+  # Temporarily blacklist Aerospike until builder supports new dependency
+  blacklist_packages.push(/^aerospike==/)
+  blacklist_folders.push('aerospike')
 end
 
 if arm?
-  # These two checks don't build on ARM
+  # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_folders.push('aerospike')
+  blacklist_packages.push(/^aerospike==/)
+
+  # This doesn't build on ARM
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
 end

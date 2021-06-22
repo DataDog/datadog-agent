@@ -68,6 +68,24 @@ function on_read_error() {
   yn="n"
 }
 
+function get_email() {
+  emaillocalpart='^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}'
+  hostnamepart='[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+  email_regex="$emaillocalpart@$hostnamepart"
+  cntr=0
+  until [[ "$cntr" -eq 3 ]]
+  do
+      read -p "Enter an email address so we can follow up: " -r email
+      if [[ "$email" =~ $email_regex ]]; then
+        isEmailValid=true
+        break
+      else
+        ((cntr=cntr+1))
+        echo -e "\033[33m($cntr/3) Email address invalid: $email\033[0m\n"
+      fi
+  done
+}
+
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
@@ -85,8 +103,12 @@ Troubleshooting and basic usage information for the Agent are available at:
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
           [Yy]* )
-            read -p "Enter an email address so we can follow up: " -r email
-            report
+            get_email
+            if [[ -n "$isEmailValid" ]]; then
+              report
+            else
+              fallback_msg
+            fi
             break;;
           [Nn]*|"" )
             fallback_msg
@@ -104,7 +126,7 @@ function verify_agent_version(){
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
-  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst\033[0m"
         fallback_msg
         exit 1;
     else

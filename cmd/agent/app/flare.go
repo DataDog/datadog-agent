@@ -22,10 +22,14 @@ import (
 )
 
 var (
-	customerEmail string
-	autoconfirm   bool
-	forceLocal    bool
-	profiling     int
+	customerEmail        string
+	autoconfirm          bool
+	forceLocal           bool
+	profiling            int
+	profileMutex         bool
+	profileMutexFraction int
+	profileBlocking      bool
+	profileBlockingRate  int
 )
 
 func init() {
@@ -35,6 +39,10 @@ func init() {
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
+	flareCmd.Flags().BoolVarP(&profileMutex, "profile-mutex", "M", false, "Add mutex profile to the performance data in the flare")
+	flareCmd.Flags().IntVarP(&profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
+	flareCmd.Flags().BoolVarP(&profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
+	flareCmd.Flags().IntVarP(&profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -79,6 +87,12 @@ var flareCmd = &cobra.Command{
 }
 
 func readProfileData(pdata *flare.ProfileData) error {
+	prevSettings, err := setRuntimeProfilingSettings()
+	if err != nil {
+		return err
+	}
+	defer resetRuntimeProfilingSettings(prevSettings)
+
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
 	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
 	if err := flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata); err != nil {
@@ -206,4 +220,66 @@ func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 		return "", e
 	}
 	return filePath, nil
+}
+
+func setRuntimeProfilingSettings() (map[string]interface{}, error) {
+	prev := make(map[string]interface{})
+	if profileMutex && profileMutexFraction > 0 {
+		old, err := setRuntimeSetting("runtime_mutex_profile_fraction", profileMutexFraction)
+		if err != nil {
+			return nil, err
+		}
+		prev["runtime_mutex_profile_fraction"] = old
+	}
+	if profileBlocking && profileBlockingRate > 0 {
+		old, err := setRuntimeSetting("runtime_block_profile_rate", profileBlockingRate)
+		if err != nil {
+			return nil, err
+		}
+		prev["runtime_block_profile_rate"] = old
+	}
+	return prev, nil
+}
+
+func setRuntimeSetting(name string, new int) (interface{}, error) {
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize settings client: %v", err)
+	}
+
+	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, new))
+
+	if err := util.SetAuthToken(); err != nil {
+		return nil, fmt.Errorf("unable to set up authentication token: %v", err)
+	}
+
+	oldVal, err := c.Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
+	}
+
+	if _, err := c.Set(name, fmt.Sprint(new)); err != nil {
+		return nil, fmt.Errorf("failed to set %s to %v: %v", name, new, err)
+	}
+
+	return oldVal, nil
+}
+
+func resetRuntimeProfilingSettings(prev map[string]interface{}) {
+	if len(prev) == 0 {
+		return
+	}
+
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString("Failed to restore runtime settings: %v", err))
+		return
+	}
+
+	for name, value := range prev {
+		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
+		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
+			fmt.Fprintln(color.Output, color.RedString("Failed to restore previous value of %s: %v", name, err))
+		}
+	}
 }

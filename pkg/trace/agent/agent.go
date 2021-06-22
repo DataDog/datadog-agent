@@ -319,7 +319,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 func mergeDuplicates(s pb.ClientStatsBucket) {
 	indexes := make(map[stats.Aggregation]int, len(s.Stats))
 	for i, g := range s.Stats {
-		a := stats.NewAggregationFromGroup("", "", "", g)
+		a := stats.NewAggregationFromGroup(g)
 		if j, ok := indexes[a]; ok {
 			s.Stats[j].Hits += g.Hits
 			s.Stats[j].Errors += g.Errors

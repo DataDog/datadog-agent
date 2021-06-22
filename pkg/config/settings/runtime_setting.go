@@ -8,6 +8,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 var runtimeSettings = make(map[string]RuntimeSetting)
@@ -94,4 +95,23 @@ func GetBool(v interface{}) (bool, error) {
 		return false, fmt.Errorf("GetBool: bad parameter value provided")
 	}
 	return b, nil
+}
+
+// GetInt returns the integer value contained in value.
+// If value is a integer, returns its value
+// If value is a string, it parses the string into an integer.
+// Else, returns an error.
+func GetInt(v interface{}) (int, error) {
+	switch v := v.(type) {
+	case int:
+		return v, nil
+	case string:
+		i, err := strconv.ParseInt(v, 10, 0)
+		if err != nil {
+			return 0, fmt.Errorf("GetInt: %s", err)
+		}
+		return int(i), nil
+	default:
+		return 0, fmt.Errorf("GetInt: bad parameter value provided: %v", v)
+	}
 }

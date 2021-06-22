@@ -8,73 +8,56 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(configCommand)
+	ClusterAgentCmd.AddCommand(commands.Config(getSettingsClient))
 }
 
-var configCommand = &cobra.Command{
-	Use:   "config",
-	Short: "Print the runtime configuration of a running cluster agent",
-	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
+func setupConfig() error {
+	if flagNoColor {
+		color.NoColor = true
+	}
 
-		if flagNoColor {
-			color.NoColor = true
-		}
+	// we'll search for a config file named `datadog-cluster.yaml`
+	config.Datadog.SetConfigName("datadog-cluster")
+	err := common.SetupConfig(confPath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
+	}
 
-		// we'll search for a config file named `datadog-cluster.yaml`
-		config.Datadog.SetConfigName("datadog-cluster")
-		err := common.SetupConfig(confPath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
-		}
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	if err != nil {
+		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+		return err
+	}
 
-		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
-		err = util.SetAuthToken()
-		if err != nil {
-			return err
-		}
-
-		runtimeConfig, err := requestConfig()
-		if err != nil {
-			return err
-		}
-
-		fmt.Println(runtimeConfig)
-		return nil
-	},
+	return util.SetAuthToken()
 }
 
-func requestConfig() (string, error) {
+func getSettingsClient() (commonsettings.Client, error) {
+	err := setupConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	c := util.GetClient(false)
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/config", config.Datadog.GetInt("cluster_agent.cmd_port"))
 
-	r, err := util.DoGet(c, apiConfigURL)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return "", fmt.Errorf(e)
-		}
+	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent"), nil
+}
 
-		return "", fmt.Errorf("Could not reach cluster agent: %v \nMake sure the cluster agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
-	}
-
-	return string(r), nil
+// initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
+func initRuntimeSettings() error {
+	return commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{})
 }

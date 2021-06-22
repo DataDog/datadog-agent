@@ -5,24 +5,10 @@
 # include:
 #   - /.gitlab/docker_common/tag_job_templates.yml
 
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
 dev_branch_docker_hub-a7-windows:
   extends: .docker_tag_windows_job_definition
   rules:
-    - <<: *if_version_7
-      when: manual
-      allow_failure: true
+    !reference [.on_a7_manual]
   ## For Future Reference. Must update to do this job from the newest OS version
   ## that we're publishing (.e.g. adding windows2104 will require also using the
   ## 2104 builder)
@@ -87,9 +73,7 @@ dev_branch_docker_hub-a7-windows:
 dev_master_docker_hub-a7-windows:
   extends: .docker_tag_windows_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_master_branch
+    !reference [.on_main_a7]
   ## For Future Reference. Must update to do this job from the newest OS version
   ## that we're publishing (.e.g. adding windows2104 will require also using the
   ## 2104 builder)
@@ -154,9 +138,7 @@ dev_master_docker_hub-a7-windows:
 dev_nightly_docker_hub-a7-windows:
   extends: .docker_tag_windows_job_definition
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   ##
   ## For Future Reference.  Must update to do this job from the newest OS version
   ## that we're publishing (.e.g. adding windows2104 will require also using the

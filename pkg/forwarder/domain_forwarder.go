@@ -11,14 +11,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	chanBufferSize = 100
-	flushInterval  = 5 * time.Second
+	flushInterval = 5 * time.Second
 )
 
 // domainForwarder is in charge of sending Transactions to Datadog backend over
@@ -170,9 +170,13 @@ func (f *domainForwarder) scheduleConnectionResets() {
 }
 
 func (f *domainForwarder) init() {
-	f.highPrio = make(chan transaction.Transaction, chanBufferSize)
-	f.lowPrio = make(chan transaction.Transaction, chanBufferSize)
-	f.requeuedTransaction = make(chan transaction.Transaction, chanBufferSize)
+	highPrioBuffSize := config.Datadog.GetInt("forwarder_high_prio_buffer_size")
+	lowPrioBuffSize := config.Datadog.GetInt("forwarder_low_prio_buffer_size")
+	requeuedTransactionBuffSize := config.Datadog.GetInt("forwarder_requeue_buffer_size")
+
+	f.highPrio = make(chan transaction.Transaction, highPrioBuffSize)
+	f.lowPrio = make(chan transaction.Transaction, lowPrioBuffSize)
+	f.requeuedTransaction = make(chan transaction.Transaction, requeuedTransactionBuffSize)
 	f.stopRetry = make(chan bool)
 	f.stopConnectionReset = make(chan bool)
 	f.workers = []*Worker{}

@@ -100,6 +100,14 @@ func (p *Probe) detectKernelVersion() error {
 	return nil
 }
 
+// VerifyOSVersion returns an error if the current kernel version is not supported
+func (p *Probe) VerifyOSVersion() error {
+	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
+		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
+	}
+	return nil
+}
+
 // Init initializes the probe
 func (p *Probe) Init(client *statsd.Client) error {
 	p.startTime = time.Now()
@@ -152,7 +160,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
 			Name:  "system_probe_pid",
-			Value: uint64(os.Getpid()),
+			Value: uint64(utils.Getpid()),
 		})
 	}
 
@@ -512,6 +520,9 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	}
 
 	p.DispatchEvent(event, dataLen, int(CPU), p.perfMap)
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
 }
 
 // OnRuleMatch is called when a rule matches just before sending
@@ -757,11 +768,12 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
-	p.cancelFnc()
-
+	// We need to stop the manager first, otherwise there can be a dead lock between the eBPF perf map reader and the
+	// reorderer (at the channel level)
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
 	}
+	p.cancelFnc()
 	return p.resolvers.Close()
 }
 
@@ -803,9 +815,20 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		statsdClient:   client,
 		erpc:           erpc,
 	}
+
 	if err = p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
 		return nil, err
 	}
+	if err = p.VerifyOSVersion(); err != nil {
+		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
+	}
+
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse CPU count")
+	}
+	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU)
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
