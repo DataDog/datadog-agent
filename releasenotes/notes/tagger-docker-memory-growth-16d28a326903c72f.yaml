@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Agent collecting Docker containers on hosts with a lot of container churn
+    now uses less memory by properly purging the respective tags after the
+    containers exit. Other container runtimes were not affected by the issue.
