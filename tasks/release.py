@@ -18,7 +18,6 @@ from tasks.libs.common.color import color_message
 from tasks.utils import DEFAULT_BRANCH
 
 from .libs.common.user_interactions import yes_no_question
-
 from .modules import DEFAULT_MODULES
 
 
