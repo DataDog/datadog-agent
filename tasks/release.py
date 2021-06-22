@@ -570,6 +570,12 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
 # we don't create both 6 and 7 tags for a combined Agent 6 & 7 release.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 
+# Message templates for the below functions
+# Defined here either because they're long and would make the code less legible,
+# or because they're used multiple times.
+DIFFERENT_TAGS_TEMPLATE = (
+    "The latest version of {} ({}) does not match the latest version found in the release.json file ({})."
+)
 TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
@@ -588,7 +594,8 @@ def _fetch_dependency_repo_version(
     repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
 ):
     """
-    Fetches the latest tag on a given repository with the following constraints:
+    Fetches the latest tag on a given repository whose version scheme matches the one used for the Agent,
+    with the following constraints:
     - the tag must have a major version that's in allowed_major_versions
     - the tag must match compatible_version_re (the main usage is to restrict the compatible tags to the
       ones with the same minor version as the Agent)?
@@ -610,12 +617,17 @@ def _fetch_dependency_repo_version(
     return version
 
 
-def _confirm_independent_repo_version(repo, latest_version, highest_release_json_version):
+def _confirm_independent_dependency_repo_version(repo, latest_version, highest_release_json_version):
+    """
+    Checks if the two versions of a repository we found (from release.json and from the available repo tags)
+    are different. If they are, asks the user for confirmation before updating the version.
+    """
+
     confirmed_version = highest_release_json_version
     if latest_version != highest_release_json_version:
         print(
             color_message(
-                "The latest version of {} ({}) does not match the latest version found in the release.json file ({}).".format(
+                DIFFERENT_TAGS_TEMPLATE.format(
                     repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
                 ),
                 "orange",
@@ -633,7 +645,7 @@ def _fetch_independent_dependency_repo_version(
     repo_name, release_json, agent_major_version, github_token, release_json_key
 ):
     """
-    Fetches the latest tag on a given repository:
+    Fetches the latest tag on a given repository whose version scheme doesn't match the one used for the Agent:
     - first, we get the latest version used in release entries of the matching Agent major version
     - then, we fetch the latest version available in the repository
     - if the above two versions are different, emit a warning and ask for user confirmation before updating the version.
@@ -644,7 +656,10 @@ def _fetch_independent_dependency_repo_version(
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
     version = _get_highest_repo_version(github_token, repo_name, highest_version["prefix"], None, VERSION_RE)
-    version = _confirm_independent_repo_version(repo_name, version, highest_version)
+    if not version:
+        raise Exit("Couldn't find any {} version.".format(repo_name), 1)
+
+    version = _confirm_independent_dependency_repo_version(repo_name, version, highest_version)
     print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
 
     return version
@@ -665,6 +680,9 @@ def _get_windows_ddnpm_release_json_info(
         highest_release_json_version = _get_highest_version_from_release_json(
             release_json, agent_major_version, version_re
         )
+        if not highest_release_json_version:
+            raise Exit("Couldn't find any ddnpm version in release.json", 1)
+
         highest_release = _stringify_version(highest_release_json_version)
         print("Using '{}' DDNPM values".format(highest_release))
         release_json_version_data = release_json[highest_release]
@@ -764,7 +782,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     # Part 1: repositories which follow the Agent version scheme
 
     # For repositories which follow the Agent version scheme, we want to only get
-    # tags with the same minor version, to avoid problems when releasing a bugfix
+    # tags with the same minor version, to avoid problems when releasing a patch
     # version while a minor version release is ongoing.
     compatible_version_re = re.compile(
         r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), new_version["minor"])
@@ -821,14 +839,11 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
 
 
 @task
-def finish(
-    ctx, major_versions="6,7",
-):
-
+def finish(ctx, major_versions="6,7"):
     """
     Creates a new entry in the release.json file for the new version. Removes all the RC entries.
 
-    Update internal module dependencies with the new version.
+    Updates internal module dependencies with the new version.
     """
 
     if sys.version_info[0] < 3:
@@ -881,12 +896,12 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     """
     Takes whatever version is the highest in release.json and adds a new RC to it.
     If there was no RC, creates one, and:
-    - by default bumps the minor version
-    - if --patch-version is specified, bumps the patch version
+    - by default bumps the minor version.
+    - if --patch-version is specified, bumps the patch version.
     
     If there was an RC, create RC + 1.
 
-    Update internal module dependencies with the new RC.
+    Updates internal module dependencies with the new RC.
     """
 
     if sys.version_info[0] < 3:
