@@ -8,15 +8,19 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -119,6 +123,10 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	if err := m.endToEndInjectionTest(); err != nil {
+		return err
+	}
+
 	if err := m.Reload(); err != nil {
 		return err
 	}
@@ -207,8 +215,7 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-// Reload the rule set
-func (m *Module) Reload() error {
+func (m *Module) reloadWithPoliciesDir(policiesDir string) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -229,11 +236,11 @@ func (m *Module) Reload() error {
 
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
-	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
-	loadApproversErr := rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -276,6 +283,84 @@ func (m *Module) Reload() error {
 	// report that a new policy was loaded
 	monitor := m.probe.GetMonitor()
 	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
+
+	return nil
+}
+
+// Reload the rule set
+func (m *Module) Reload() error {
+	return m.reloadWithPoliciesDir(m.config.PoliciesDir)
+}
+
+const e2eTestPolicy = `---
+rules:
+- id: {{.RuleName}}
+  expression: open.file.path == "{{.TestFileName}}"
+...
+`
+
+func (m *Module) endToEndInjectionTest() error {
+	// Create temp directory to put rules in
+	tmpDir, err := ioutil.TempDir("", "injection_test_rule")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	targetFile, err := ioutil.TempFile(tmpDir, "target_file")
+	if err != nil {
+		return err
+	}
+	targetFilePath := targetFile.Name()
+
+	if err := targetFile.Close(); err != nil {
+		return err
+	}
+
+	policyDir, err := ioutil.TempDir(tmpDir, "policies")
+	if err != nil {
+		return err
+	}
+
+	policyFilePath := path.Join(policyDir, "test.policy")
+	policyFile, err := os.Create(policyFilePath)
+	if err != nil {
+		return err
+	}
+
+	templateArgs := map[string]string{
+		"RuleName":     "e2e_test_policy",
+		"TestFileName": targetFile.Name(),
+	}
+
+	tmpl, err := template.New("injection-test").Parse(e2eTestPolicy)
+	if err != nil {
+		return err
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, templateArgs); err != nil {
+		return err
+	}
+
+	if _, err := policyFile.Write(buffer.Bytes()); err != nil {
+		return err
+	}
+
+	if err := policyFile.Close(); err != nil {
+		return err
+	}
+
+	err = m.reloadWithPoliciesDir(policyDir)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(targetFilePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
 	return nil
 }

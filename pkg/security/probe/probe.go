@@ -230,6 +230,12 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 		seclog.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
+	// TODO: remove this
+	prettyEvent := event.String()
+	if strings.Contains(prettyEvent, "/tmp/injection_test_rule") {
+		log.Debugf("Interesting event %s\n", prettyEvent)
+	}
+
 	if p.handler != nil {
 		p.handler.HandleEvent(event)
 	}
