@@ -49,7 +49,8 @@ func FormatStatus(data []byte) (string, error) {
 	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
-	autodiscoveryErrors := stats["autodiscoveryErrors"]
+	adConfigErrors := stats["adConfigErrors"]
+	filterErrors := stats["filterErrors"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderStatusTemplate(b, "/header.tmpl", stats)
@@ -71,7 +72,7 @@ func FormatStatus(data []byte) (string, error) {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
 	if config.IsContainerized() {
-		renderStatusTemplate(b, "/autodiscovery.tmpl", autodiscoveryErrors)
+		renderAutodiscoveryStats(b, adConfigErrors, filterErrors)
 	}
 
 	return b.String(), nil
@@ -185,6 +186,13 @@ func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) 
 	status := make(map[string]interface{})
 	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
 	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
+}
+
+func renderAutodiscoveryStats(w io.Writer, adConfigErrors interface{}, filterErrors interface{}) {
+	autodiscoveryStats := make(map[string]interface{})
+	autodiscoveryStats["adConfigErrors"] = adConfigErrors
+	autodiscoveryStats["FilterErrors"] = filterErrors
+	renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
