@@ -256,7 +256,7 @@ func (s *sender) sendPayload(p *payload) {
 
 		if r := atomic.AddInt32(&p.retries, 1); (r&(r-1)) == 0 && r > 3 {
 			// Only log a warning if the retry attempt is a power of 2
-			// and larger than 3, to avoid alerting the user unnecesarily.
+			// and larger than 3, to avoid alerting the user unnecessarily.
 			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
