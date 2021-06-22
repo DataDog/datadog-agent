@@ -33,7 +33,6 @@ type ContextKey uint64
 // Not safe for concurrent usage
 type KeyGenerator struct {
 	intb uint64
-	//	hashCache *hashCache
 }
 
 // NewKeyGenerator creates a new key generator
@@ -41,32 +40,11 @@ func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{}
 }
 
-//type hashCache struct {
-//	cache   map[string]uint64
-//	maxSize int
-//}
-//
-//func newHashCache(maxSize int) *hashCache {
-//	return &hashCache{
-//		cache:   make(map[string]uint64),
-//		maxSize: maxSize,
-//	}
-//}
-//
-//func (c *hashCache) LoadOrStore(key string) uint64 {
-//	if h, found := c.cache[key]; found {
-//		return h
-//	}
-//	if len(c.cache) >= c.maxSize {
-//		c.cache = make(map[string]uint64)
-//	}
-//	c.cache[key] = murmur3.StringSum64(key)
-//	return c.cache[key]
-//}
-
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+
+	// Ensure the list of tags is deduplicated the fastest way possible
 	if len(tags) > util.InsertionSortThreshold {
 		sort.Strings(tags)
 		util.UniqSorted(tags)
@@ -78,8 +56,6 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	g.intb = g.intb ^ xxhash.Sum64String(name)
 	g.intb = g.intb ^ xxhash.Sum64String(hostname)
 	for i := range tags {
-		//			intb = intb ^ g.hashCache.LoadOrStore(tags[i]) // NOTE(remy): we can maybe use a faster hash here (even if it has more collisions than murmur3)
-		//                                                         // XXX(remy): it seems that using a cache, which itself uses some hashing for its map, is not making things better
 		g.intb = g.intb ^ xxhash.Sum64String(tags[i])
 	}
 	return ContextKey(g.intb)
