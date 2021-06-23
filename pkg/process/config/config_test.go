@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +31,14 @@ import (
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
+	providers.Deregister()
+
 	config.Datadog = originalConfig
 }
 
 func newConfig() {
+	providers.Register(providerMocks.FakeContainerImpl{})
+
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(config.Datadog)
 	// force timeout to 0s, otherwise each test waits 60s
@@ -580,6 +586,9 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
+	providers.Register(providerMocks.FakeContainerImpl{})
+	defer providers.Deregister()
+
 	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
 	agentConfig, err := NewAgentConfig(
 		"test",

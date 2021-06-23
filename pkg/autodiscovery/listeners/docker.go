@@ -212,7 +212,7 @@ func (l *DockerListener) processEvent(ctx context.Context, e *docker.ContainerEv
 
 	if found {
 		switch e.Action {
-		case docker.ContainerEventActionDie:
+		case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
 			l.removeService(cID)
 		case docker.ContainerEventActionStart:
 			// Container restarted with the same ID within 5 seconds.

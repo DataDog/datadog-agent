@@ -11,6 +11,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -84,6 +85,10 @@ func TestChown(t *testing.T) {
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -137,6 +142,10 @@ func TestChown(t *testing.T) {
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -184,6 +193,10 @@ func TestChown(t *testing.T) {
 
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
 			}
 		}
 	})
@@ -247,6 +260,10 @@ func TestChown(t *testing.T) {
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -309,6 +326,10 @@ func TestChown(t *testing.T) {
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -358,6 +379,10 @@ func TestChown(t *testing.T) {
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
 			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -405,6 +430,10 @@ func TestChown(t *testing.T) {
 
 			if event.Chown.File.CTime.After(now) || event.Chown.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.Chown.File.CTime)
+			}
+
+			if !validateChownSchema(t, event) {
+				t.Fatal(event.String())
 			}
 		}
 	})

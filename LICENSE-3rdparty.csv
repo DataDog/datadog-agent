@@ -523,8 +523,12 @@ core,"github.com/xeipuuv/gojsonpointer",Apache-2.0
 core,"github.com/xeipuuv/gojsonreference",Apache-2.0
 core,"github.com/xeipuuv/gojsonschema",Apache-2.0
 core,"github.com/xi2/xz",UNKNOWN
+core,"go.etcd.io/etcd/api/v3/version",Apache-2.0
 core,"go.etcd.io/etcd/auth/authpb",Apache-2.0
-core,"go.etcd.io/etcd/client",Apache-2.0
+core,"go.etcd.io/etcd/client/pkg/v3/pathutil",Apache-2.0
+core,"go.etcd.io/etcd/client/pkg/v3/srv",Apache-2.0
+core,"go.etcd.io/etcd/client/pkg/v3/types",Apache-2.0
+core,"go.etcd.io/etcd/client/v2",Apache-2.0
 core,"go.etcd.io/etcd/clientv3",Apache-2.0
 core,"go.etcd.io/etcd/clientv3/balancer",Apache-2.0
 core,"go.etcd.io/etcd/clientv3/balancer/connectivity",Apache-2.0
@@ -536,8 +540,6 @@ core,"go.etcd.io/etcd/etcdserver/etcdserverpb",Apache-2.0
 core,"go.etcd.io/etcd/mvcc/mvccpb",Apache-2.0
 core,"go.etcd.io/etcd/pkg/fileutil",Apache-2.0
 core,"go.etcd.io/etcd/pkg/logutil",Apache-2.0
-core,"go.etcd.io/etcd/pkg/pathutil",Apache-2.0
-core,"go.etcd.io/etcd/pkg/srv",Apache-2.0
 core,"go.etcd.io/etcd/pkg/systemd",Apache-2.0
 core,"go.etcd.io/etcd/pkg/tlsutil",Apache-2.0
 core,"go.etcd.io/etcd/pkg/transport",Apache-2.0
@@ -686,13 +688,12 @@ core,"google.golang.org/protobuf/internal/encoding/messageset",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/encoding/tag",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/encoding/text",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/errors",BSD-3-Clause
-core,"google.golang.org/protobuf/internal/fieldsort",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/filedesc",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/filetype",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/flags",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/genid",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/impl",BSD-3-Clause
-core,"google.golang.org/protobuf/internal/mapsort",BSD-3-Clause
+core,"google.golang.org/protobuf/internal/order",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/pragma",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/set",BSD-3-Clause
 core,"google.golang.org/protobuf/internal/strs",BSD-3-Clause

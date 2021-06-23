@@ -9,12 +9,12 @@ dependency tree.
 _Note that this program only calculates the output based on the content of the main
 `go.mod` and its dependencies and it does not handle depndencies declared in a
 other isolated modules (e.g.
-[`tools.go`](https://github.com/DataDog/datadog-agent/blob/master/internal/tools/tools.go)._
+[`tools.go`](https://github.com/DataDog/datadog-agent/blob/main/internal/tools/tools.go)._
 
 ## Usage
 
 1. Ensure that you have a version of Golang that can handle modules (though having
-   the exact version from [go.mod](https://github.com/DataDog/datadog-agent/blob/master/go.mod#L3)
+   the exact version from [go.mod](https://github.com/DataDog/datadog-agent/blob/main/go.mod#L3)
    is preferrable).
 2. Ensure that you are in the root of the desired project
 3. Run the script:

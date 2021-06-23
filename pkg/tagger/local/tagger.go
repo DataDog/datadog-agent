@@ -256,17 +256,15 @@ IterCollectors:
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 
 		cacheMiss := false
-		skipCache := false
+		var expiryDate time.Time
 		low, orch, high, err := collector.Fetch(context.TODO(), entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 			cacheMiss = true
-		case errors.IsPartial(err):
-			skipCache = true
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			continue // don't store empty tags, retry next time
+			expiryDate = time.Now().Add(1 * time.Second)
 		}
 
 		tagArrays = append(tagArrays, low)
@@ -286,7 +284,7 @@ IterCollectors:
 				OrchestratorCardTags: orch,
 				HighCardTags:         high,
 				CacheMiss:            cacheMiss,
-				SkipCache:            skipCache,
+				ExpiryDate:           expiryDate,
 			},
 		})
 	}

@@ -599,7 +599,7 @@ func (p *ProcessResolver) resolveWithProcfs(pid uint32, maxDepth int) *model.Pro
 
 	parent := p.resolveWithProcfs(uint32(filledProc.Ppid), maxDepth-1)
 	entry, inserted := p.syncCache(proc)
-	if inserted && entry != nil {
+	if inserted && entry != nil && parent != nil {
 		entry.SetAncestor(parent)
 	}
 

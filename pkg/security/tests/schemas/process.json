@@ -112,13 +112,9 @@
                 "uid",
                 "gid",
                 "euid",
-                "euser",
                 "egid",
-                "egroup",
                 "fsuid",
-                "fsuser",
                 "fsgid",
-                "fsgroup",
                 "cap_effective",
                 "cap_permitted"
             ]

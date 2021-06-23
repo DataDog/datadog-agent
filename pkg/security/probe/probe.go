@@ -100,6 +100,14 @@ func (p *Probe) detectKernelVersion() error {
 	return nil
 }
 
+// VerifyOSVersion returns an error if the current kernel version is not supported
+func (p *Probe) VerifyOSVersion() error {
+	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
+		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
+	}
+	return nil
+}
+
 // Init initializes the probe
 func (p *Probe) Init(client *statsd.Client) error {
 	p.startTime = time.Now()
@@ -809,7 +817,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 
 	if err = p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
 		return nil, err
+	}
+	if err = p.VerifyOSVersion(); err != nil {
+		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
 	numCPU, err := utils.NumCPU()

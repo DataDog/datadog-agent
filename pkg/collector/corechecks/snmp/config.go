@@ -19,10 +19,16 @@ var defaultRetries = 3
 var defaultTimeout = 2
 var subnetTagPrefix = "autodiscovery_subnet"
 
+// Using too high max repetitions might lead to tooBig SNMP error messages.
+// - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
+// - snmp-net uses 10
+const defaultBulkMaxRepetitions = uint32(10)
+
 type snmpInitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
 	GlobalMetrics         []metricsConfig  `yaml:"global_metrics"`
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
+	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
 }
 
@@ -34,6 +40,7 @@ type snmpInstanceConfig struct {
 	Timeout               Number            `yaml:"timeout"`
 	Retries               Number            `yaml:"retries"`
 	OidBatchSize          Number            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions    Number            `yaml:"bulk_max_repetitions"`
 	User                  string            `yaml:"user"`
 	AuthProtocol          string            `yaml:"authProtocol"`
 	AuthKey               string            `yaml:"authKey"`
@@ -70,6 +77,7 @@ type snmpConfig struct {
 	metrics               []metricsConfig
 	metricTags            []metricTagConfig
 	oidBatchSize          int
+	bulkMaxRepetitions    uint32
 	profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
@@ -224,6 +232,19 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	} else {
 		c.oidBatchSize = defaultOidBatchSize
 	}
+
+	var bulkMaxRepetitions int
+	if instance.BulkMaxRepetitions != 0 {
+		bulkMaxRepetitions = int(instance.BulkMaxRepetitions)
+	} else if initConfig.BulkMaxRepetitions != 0 {
+		bulkMaxRepetitions = int(initConfig.BulkMaxRepetitions)
+	} else {
+		bulkMaxRepetitions = int(defaultBulkMaxRepetitions)
+	}
+	if bulkMaxRepetitions <= 0 {
+		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
+	}
+	c.bulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 
 	"github.com/dgraph-io/ristretto"
@@ -49,7 +49,7 @@ func (c *measuredCache) statsLoop() {
 
 // newMeasuredCache returns a new measuredCache.
 func newMeasuredCache() *measuredCache {
-	if !config.HasFeature("sql_cache") {
+	if !features.Has("sql_cache") {
 		// a nil *ristretto.Cache is a no-op cache
 		return &measuredCache{}
 	}

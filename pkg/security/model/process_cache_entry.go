@@ -40,8 +40,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
 
-	// empty and mark as exit previous entry
-	pc.ExitTime = entry.ExecTime
+	// use exec time a exit time
+	pc.Exit(entry.ExecTime)
 
 	// keep some context
 	copyProcessContext(pc, entry)

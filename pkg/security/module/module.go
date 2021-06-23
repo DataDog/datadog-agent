@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -148,6 +149,23 @@ func (m *Module) getEventTypeEnabled() map[eval.EventType]bool {
 	return enabled
 }
 
+func logMultiErrors(msg string, m *multierror.Error) {
+	var errorLevel bool
+	for _, err := range m.Errors {
+		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
+				errorLevel = true
+			}
+		}
+	}
+
+	if errorLevel {
+		log.Errorf(msg, m.Error())
+	} else {
+		log.Warnf(msg, m.Error())
+	}
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -171,15 +189,15 @@ func (m *Module) Reload() error {
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
 	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
-	if loadErr.ErrorOrNil() != nil {
-		log.Errorf("error while loading policies: %+v", loadErr.Error())
-	}
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
-	loadErr = rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	loadApproversErr := rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+
 	if loadErr.ErrorOrNil() != nil {
-		log.Errorf("error while loading policies: %+v", loadErr.Error())
+		logMultiErrors("error while loading policies: %+v", loadErr)
+	} else if loadApproversErr.ErrorOrNil() != nil {
+		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())

@@ -102,7 +102,12 @@ func (c *DockerCollector) Fetch(ctx context.Context, entity string) ([]string, [
 	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
-	low, orchestrator, high, _, err := c.fetchForDockerID(ctx, cID, true)
+
+	low, orchestrator, high, _, err := c.fetchForDockerID(ctx, cID, fetchOptions{
+		inspectCached: false,
+		skipExited:    true,
+	})
+
 	return low, orchestrator, high, err
 }
 
@@ -110,11 +115,16 @@ func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerE
 	var info *TagInfo
 
 	switch e.Action {
-	case docker.ContainerEventActionDie:
-		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
+	case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
+		info = &TagInfo{
+			Entity:       e.ContainerEntityName(),
+			Source:       dockerCollectorName,
+			DeleteEntity: true,
+		}
 	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
-		inspectCached := e.Action == docker.ContainerEventActionStart
-		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID, inspectCached)
+		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID, fetchOptions{
+			inspectCached: e.Action == docker.ContainerEventActionStart,
+		})
 
 		if err != nil {
 			log.Debugf("Error fetching tags for container '%s': %v", e.ContainerName, err)
@@ -133,16 +143,21 @@ func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerE
 	c.infoOut <- []*TagInfo{info}
 }
 
-func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string, inspectCached bool) ([]string, []string, []string, []string, error) {
+type fetchOptions struct {
+	inspectCached bool
+	skipExited    bool
+}
+
+func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string, options fetchOptions) ([]string, []string, []string, []string, error) {
 	var (
 		co  types.ContainerJSON
 		err error
 	)
 
-	if inspectCached {
-		co, err = c.dockerUtil.Inspect(ctx, cID, false)
-	} else {
+	if options.inspectCached {
 		co, err = c.dockerUtil.InspectNoCache(ctx, cID, false)
+	} else {
+		co, err = c.dockerUtil.Inspect(ctx, cID, false)
 	}
 
 	if err != nil {
@@ -151,6 +166,11 @@ func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string, insp
 		}
 		return nil, nil, nil, nil, err
 	}
+
+	if options.skipExited && (co.State.Status == "exited" || co.State.Status == "died") {
+		return nil, nil, nil, nil, nil
+	}
+
 	low, orchestrator, high, standard := c.extractFromInspect(co)
 	return low, orchestrator, high, standard, nil
 }

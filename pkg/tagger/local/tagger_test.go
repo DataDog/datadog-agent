@@ -300,7 +300,6 @@ func TestErrNotFound(t *testing.T) {
 	c := &DummyCollector{}
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
 
-	badErr := fmt.Errorf("test failure")
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
 	}
@@ -308,23 +307,17 @@ func TestErrNotFound(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	// Result should not be cached
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, badErr).Once()
+	// Result should be cached
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err := tagger.Tag("invalid", collectors.HighCardinality)
 	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 1)
-
-	// Nil result should be cached now
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
-	_, err = tagger.Tag("invalid", collectors.HighCardinality)
-	assert.NoError(t, err)
-	c.AssertNumberOfCalls(t, "Fetch", 2)
 
 	// Fetch will not be called again
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", collectors.HighCardinality)
 	assert.NoError(t, err)
-	c.AssertNumberOfCalls(t, "Fetch", 2)
+	c.AssertNumberOfCalls(t, "Fetch", 1)
 }
 
 func TestSafeCache(t *testing.T) {
