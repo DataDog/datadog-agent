@@ -26,7 +26,8 @@ var templateVariables = map[string]variableGetter{
 	"pid":      getPid,
 	"port":     getPort,
 	"hostname": getHostname,
-	"extra":    getExtra,
+	"extra":    getAdditionalTplVariables,
+	"kube":     getAdditionalTplVariables,
 }
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
@@ -245,8 +246,12 @@ func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	return []byte(name), nil
 }
 
-// getExtra returns specific data
-func getExtra(tplVar []byte, svc listeners.Service) ([]byte, error) {
+// getAdditionalTplVariables returns listener-specific template variables.
+// It resolves template variables prefixed with kube_ or extra_
+// Even though it gets the data from the same listener method GetExtraConfig, the kube_ and extra_
+// prefixes are customer facing, we support both of them for a better user experience depending on
+// the AD listener and what the template variable represents.
+func getAdditionalTplVariables(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	value, err := svc.GetExtraConfig(tplVar)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)

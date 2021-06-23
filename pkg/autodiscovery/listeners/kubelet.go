@@ -56,6 +56,7 @@ type KubeContainerService struct {
 	checkNames      []string
 	metricsExcluded bool
 	logsExcluded    bool
+	extraConfig     map[string]string
 }
 
 // Make sure KubeContainerService implements the Service interface
@@ -214,6 +215,11 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 		entity:       entity,
 		creationTime: crTime,
 		ready:        kubelet.IsPodReady(pod),
+		extraConfig: map[string]string{
+			"pod_name":  pod.Metadata.Name,
+			"namespace": pod.Metadata.Namespace,
+			"pod_uid":   pod.Metadata.UID,
+		},
 	}
 	podName := pod.Metadata.Name
 
@@ -460,9 +466,14 @@ func (s *KubeContainerService) IsReady() bool {
 	return s.ready
 }
 
-// GetExtraConfig isn't supported
+// GetExtraConfig resolves kubelet-specific template variables.
 func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
+	result, found := s.extraConfig[string(key)]
+	if !found {
+		return []byte{}, fmt.Errorf("extra config %q is not supported", key)
+	}
+
+	return []byte(result), nil
 }
 
 // GetCheckNames returns names of checks defined in pod annotations
