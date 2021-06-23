@@ -183,11 +183,11 @@ unit_tests:
     - conda activate $CONDA_ENV
     # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
     - inv deps
-    - inv -e agent.build --race --precompile-only --major-version $MAJOR_VERSION
+    - inv -e agent.build --race --precompile-only --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
     # TODO: check why formatting rules differ from previous step
     - gofmt -l -w -s ./pkg ./cmd
     - inv -e rtloader.test
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
 
@@ -221,11 +221,11 @@ build_binaries:
     - deps_deb
   script:
     - conda activate $CONDA_ENV
-    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION
+    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.make
     - inv -e rtloader.install
     - cd $SRC_PATH
-    - inv -e agent.build --major-version $MAJOR_VERSION
+    - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
 
