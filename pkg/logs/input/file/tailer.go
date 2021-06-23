@@ -208,9 +208,9 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 	t.osFile.Close()
 	t.decoder.Stop()
+	log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel

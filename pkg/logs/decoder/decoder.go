@@ -75,7 +75,9 @@ type Decoder struct {
 	lineParser      LineParser
 	contentLenLimit int
 	rawDataLen      int
-	linesDecoded    int64
+
+	// The number of raw lines decoded from the input before they are processed.
+	linesDecoded int64
 }
 
 // InitializeDecoder returns a properly initialized Decoder
