@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -67,7 +68,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
-		scanPeriod: 			coreConfig.Datadog.GetInt("logs_config.file_scan_period"))*time.Second,
+		scanPeriod:             time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period") * float64(time.Second)),
 	}
 }
 
