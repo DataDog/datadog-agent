@@ -79,7 +79,8 @@ dev_branch_docker_hub-a6-windows:
   ## 2104 builder)
   tags: ["runner:windows-docker", "windowsversion:2004"]
   needs:
-    - docker_build_agent6_windows1909
+    - docker_build_agent6_windows1809_core
+    - docker_build_agent6_windows1909_core
   variables:
     VARIANT: 2004
   script:
@@ -87,7 +88,9 @@ dev_branch_docker_hub-a6-windows:
     - |
       @"
       # On newer Kernel we can pull/push older images even though these images won't run
-      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-win1909-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-win1909
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-win1809-servercore-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-win1809-servercore
+      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
+      inv -e docker.publish --signed-push ${SRC_AGENT}:${SRC_TAG}-6-win1909-servercore-amd64 datadog/agent-dev:${CI_COMMIT_REF_SLUG}-win1909-servercore
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | Add-Content ci-scripts/publish.ps1
     - cat ci-scripts/publish.ps1
