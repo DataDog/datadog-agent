@@ -298,6 +298,8 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 	cpuLines, err := readLines(cpusetFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", cpusetFile)
+	} else if err != nil {
+		return 0, err
 	} else {
 		numCPUs := parseCPUSetFile(cpuLines)
 		if numCPUs > 0 {
