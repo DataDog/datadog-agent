@@ -16,8 +16,11 @@ import (
 	basecmd "github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd"
 	"github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider"
 	"github.com/spf13/pflag"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics/api/generated/openapi"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -34,7 +37,9 @@ type DatadogMetricsAdapter struct {
 }
 
 const (
-	metricsServerConf string = "external_metrics_provider.config"
+	metricsServerConf = "external_metrics_provider.config"
+	adapterName       = "datadog-custom-metrics-adapter"
+	adapterVersion    = "1.0.0"
 )
 
 // RunServer creates and start a k8s custom metrics API server
@@ -45,7 +50,12 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 	}
 
 	cmd = &DatadogMetricsAdapter{}
-	cmd.Name = "datadog-custom-metrics-adapter"
+	cmd.Name = adapterName
+
+	cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(apiserver.Scheme))
+	cmd.OpenAPIConfig.Info.Title = adapterName
+	cmd.OpenAPIConfig.Info.Version = adapterVersion
+
 	cmd.FlagSet = pflag.NewFlagSet(cmd.Name, pflag.ExitOnError)
 
 	var c []string

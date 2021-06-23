@@ -95,6 +95,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/go-ini/ini v1.62.0
 	github.com/go-ole/go-ole v1.2.5
+	github.com/go-openapi/spec v0.20.3
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
 	github.com/gobwas/glob v0.2.3
@@ -189,10 +190,12 @@ require (
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
+	k8s.io/apiserver v0.20.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.20.1
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
+	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a
 	k8s.io/kubernetes v1.20.5
 	k8s.io/metrics v0.20.5
