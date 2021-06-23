@@ -81,6 +81,7 @@ grep -R "datadog_checks" ./opt/stackstate-agent/embedded/ \
   | grep -v "datadog_checks_shared" \
   | grep -v "site-packages" \
   | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-three.so" \
+  | grep -v "/opt/stackstate-agent/embedded/lib/libdatadog-agent-two.so" \
   | tee -a out.txt \
 
 echo "========Output:========================="
