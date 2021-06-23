@@ -221,7 +221,7 @@ build_binaries:
     - deps_deb
   script:
     - conda activate $CONDA_ENV
-    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION
     - inv -e rtloader.make
     - inv -e rtloader.install
     - cd $SRC_PATH
