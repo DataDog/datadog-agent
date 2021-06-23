@@ -4,19 +4,6 @@ import unittest
 from . import release
 
 
-class TestIsDictVersionField(unittest.TestCase):
-    def test_non_version_fields_return_false(self):
-        for key in ['FOO', 'BAR', 'WINDOWS_DDNPM_DRIVER', 'JMXFETCH_HASH']:
-            self.assertFalse(release._is_dict_version_field(key))
-
-    def test_version_fields_return_true(self):
-        for key in ['FOO_VERSION', 'BAR_VERSION', 'JMXFETCH_VERSION']:
-            self.assertTrue(release._is_dict_version_field(key))
-
-    def test_version_fields_return_false_for_win_ddnpm_version(self):
-        self.assertFalse(release._is_dict_version_field('WINDOWS_DDNPM_VERSION'))
-
-
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     test_version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
     test_release_json = {

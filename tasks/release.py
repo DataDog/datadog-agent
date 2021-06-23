@@ -430,28 +430,18 @@ def _create_version_from_match(match):
     return version
 
 
-def _is_dict_version_field(key):
-    """
-    Returns a bool to indicate if the field should be stringified from a dictionary or not.
-
-    Generally all `*_VERSION` fields are parsed with regex but `WINDOWS_DDNPM_VERSION`
-    should be used as-is.
-    """
-    return "VERSION" in key and key != "WINDOWS_DDNPM_VERSION"
-
-
 def _stringify_config(config_dict):
     """
     Takes a config dict of the following form:
     {
-        "xxx_VERSION": { "major": x, "minor": y, "patch": z, "rc": t },
+        "xxx_VERSION": Version(major: x, minor: y, patch: z, rc: t, prefix: "pre"),
         "xxx_HASH": "hashvalue",
         ...
     }
 
-    and transforms all VERSIONs into their string representation.
+    and transforms all VERSIONs into their string representation (using the Version object's __str__).
     """
-    return {key: str(value) if _is_dict_version_field(key) else value for key, value in config_dict.items()}
+    return {key: str(value) for key, value in config_dict.items()}
 
 
 def _query_github_api(auth_token, url):
