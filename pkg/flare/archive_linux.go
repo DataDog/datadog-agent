@@ -22,3 +22,11 @@ func zipLinuxKrobeEvents(tempDir, hostname string) error {
 func zipLinuxPid1MountInfo(tempDir, hostname string) error {
 	return zipFile("/proc/1/mountinfo", filepath.Join(tempDir, hostname, "mountinfo"))
 }
+
+func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
+	return zipFile("/sys/kernel/debug/tracing/available_events", filepath.Join(tempDir, hostname, "available_events"))
+}
+
+func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
+	return zipFile("/sys/kernel/debug/tracing/available_filter_functions", filepath.Join(tempDir, hostname, "available_filter_functions"))
+}

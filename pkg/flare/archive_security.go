@@ -98,6 +98,16 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 		log.Infof("Error while getting kprobe_events: %s", err)
 	}
 
+	err = zipLinuxTracingAvailableEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
+	err = zipLinuxTracingAvailableFilterFunctions(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
 	if err != nil {
 		log.Infof("Error while creating permissions.log infos file: %s", err)

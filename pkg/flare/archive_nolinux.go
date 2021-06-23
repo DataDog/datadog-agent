@@ -18,3 +18,11 @@ func zipLinuxKrobeEvents(tempDir, hostname string) error {
 func zipLinuxPid1MountInfo(tempDir, hostname string) error {
 	return nil
 }
+
+func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
+	return nil
+}
+
+func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
+	return nil
+}
