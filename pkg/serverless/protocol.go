@@ -74,6 +74,7 @@ type Daemon struct {
 
 	extraTags []string
 
+	// doneChannel is used to flag the end of an invocation (either sucess or timeout)
 	doneChannel chan bool
 }
 
