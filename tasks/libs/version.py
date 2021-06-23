@@ -63,12 +63,12 @@ class Version:
         new_version = deepcopy(self)
 
         if bump_patch:
-            new_version.patch += 1
+            new_version.patch = self._safe_value("patch") + 1
         elif bump_minor:
-            new_version.minor += 1
+            new_version.minor = self._safe_value("minor") + 1
             new_version.patch = 0
         elif bump_major:
-            new_version.major += 1
+            new_version.major = self._safe_value("major") + 1
             new_version.minor = 0
             new_version.patch = 0
 

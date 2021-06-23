@@ -4,7 +4,7 @@ import unittest
 from .version import Version
 
 
-class TestVersionMethod(unittest.TestCase):
+class TestVersionComparison(unittest.TestCase):
     def _get_version(self, major, minor, patch, rc):
         return Version(major, minor, patch=patch, rc=rc)
 
@@ -112,6 +112,60 @@ class TestVersionMethod(unittest.TestCase):
             self._get_version(version.major, version.minor, version.patch + increment, None)
             > self._get_version(version.major, version.minor, None, None)
         )
+
+
+class TestNextVersion(unittest.TestCase):
+    version = Version(major=1, minor=0)
+
+    def test_next_version_major(self):
+        new_version = self.version.next_version(bump_major=True)
+        expected_version = Version(major=2, minor=0)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_minor(self):
+        new_version = self.version.next_version(bump_minor=True)
+        expected_version = Version(major=1, minor=1)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_patch(self):
+        new_version = self.version.next_version(bump_patch=True)
+        expected_version = Version(major=1, minor=0, patch=1)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_major_rc(self):
+        new_version = self.version.next_version(bump_major=True, rc=True)
+        expected_version = Version(major=2, minor=0, rc=1)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_minor_rc(self):
+        new_version = self.version.next_version(bump_minor=True, rc=True)
+        expected_version = Version(major=1, minor=1, rc=1)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_patch_rc(self):
+        new_version = self.version.next_version(bump_patch=True, rc=True)
+        expected_version = Version(major=1, minor=0, patch=1, rc=1)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_rc(self):
+        version = self.version.next_version(bump_patch=True, rc=True)  # 1.0.1-rc.1
+        new_version = version.next_version(rc=True)
+        expected_version = Version(major=1, minor=0, patch=1, rc=2)
+
+        self.assertEqual(new_version, expected_version)
+
+    def test_next_version_promote_rc(self):
+        version = self.version.next_version(bump_patch=True, rc=True)  # 1.0.1-rc.1
+        new_version = version.next_version(rc=False)
+        expected_version = Version(major=1, minor=0, patch=1)
+
+        self.assertEqual(new_version, expected_version)
 
 
 if __name__ == '__main__':
