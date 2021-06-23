@@ -120,7 +120,6 @@ func TestGetFileSource(t *testing.T) {
 		container       *Container
 		source          *config.LogSource
 		wantServiceName string
-		wantSourceName  string
 		wantPath        string
 		wantTags        []string
 		wantRules       []*config.ProcessingRule
@@ -137,9 +136,8 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName", Source: "configSourceName", Tags: []string{"foo:bar", "foo:baz"}}),
+			source:          config.NewLogSource("from container", &config.LogsConfig{Service: "configServiceName", Tags: []string{"foo:bar", "foo:baz"}}),
 			wantServiceName: "configServiceName",
-			wantSourceName:  "configSourceName",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
 			wantTags:        []string{"foo:bar", "foo:baz"},
 		},
@@ -155,28 +153,8 @@ func TestGetFileSource(t *testing.T) {
 				},
 				service: &service.Service{Identifier: "123456"},
 			},
-			source:          config.NewLogSource("from container", &config.LogsConfig{ProcessingRules: testRules, Source: "stdSourceName"}),
+			source:          config.NewLogSource("from container", &config.LogsConfig{ProcessingRules: testRules}),
 			wantServiceName: "stdServiceName",
-			wantSourceName:  "stdSourceName",
-			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
-			wantRules:       testRules,
-			wantTags:        nil,
-		},
-		{
-			name:  "Source and service name overide when container collect all",
-			sFunc: func(n, e string) string { return "" },
-			container: &Container{
-				container: types.ContainerJSON{
-					ContainerJSONBase: &types.ContainerJSONBase{
-						Name:  "fooName",
-						Image: "fooImage",
-					},
-				},
-				service: &service.Service{Identifier: "123456"},
-			},
-			source:          config.NewLogSource(config.ContainerCollectAll, &config.LogsConfig{ProcessingRules: testRules, Source: "stdSourceName"}),
-			wantServiceName: "fooImage",
-			wantSourceName:  "fooImage",
 			wantPath:        "/var/lib/docker/containers/123456/123456-json.log",
 			wantRules:       testRules,
 			wantTags:        nil,
@@ -186,13 +164,11 @@ func TestGetFileSource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := &Launcher{
 				serviceNameFunc: tt.sFunc,
-				collectAllInfo:  config.NewMappedInfo("Container Info"),
 			}
 			fileSource := l.getFileSource(tt.container, tt.source)
 			assert.Equal(t, config.FileType, fileSource.source.Config.Type)
 			assert.Equal(t, tt.container.service.Identifier, fileSource.source.Config.Identifier)
 			assert.Equal(t, tt.wantServiceName, fileSource.source.Config.Service)
-			assert.Equal(t, tt.wantSourceName, fileSource.source.Config.Source)
 			assert.Equal(t, tt.wantTags, fileSource.source.Config.Tags)
 			assert.Equal(t, tt.wantRules, fileSource.source.Config.ProcessingRules)
 		})
