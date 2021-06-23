@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "exec.json",
+    "$id": "rename.json",
     "type": "object",
     "anyOf": [
         {
@@ -41,6 +41,24 @@
                         "required": [
                             "container_path"
                         ]
+                    }
+                }
+            }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ],
+                    "properties": {
+                        "destination": {
+                            "type": "object",
+                            "required": [
+                                "mode"
+                            ]
+                        }
                     }
                 }
             }

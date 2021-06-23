@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "exec.json",
+    "$id": "chown.json",
     "type": "object",
     "anyOf": [
         {
@@ -42,6 +42,16 @@
                             "container_path"
                         ]
                     }
+                }
+            }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ]
                 }
             }
         }
