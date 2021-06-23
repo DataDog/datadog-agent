@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -274,8 +273,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
-
-	daemon.finishInvocationOnce = sync.Once{}
+	daemon.StartInvocation()
 
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
@@ -325,7 +323,6 @@ func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyB
 }
 
 func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool) {
-	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
 	aws.SetARN(arn)
