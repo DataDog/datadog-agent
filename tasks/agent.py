@@ -999,7 +999,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, git_sha_length=7, major_version='7'):
+def version(ctx, url_safe=False, git_sha_length=7, major_version=''):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url

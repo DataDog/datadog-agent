@@ -111,7 +111,7 @@ deps_deb:
   script:
     - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
-    - inv version -u > version.txt
+    - inv version --major-version $MAJOR_VERSION -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -135,7 +135,7 @@ deps_rpm:
   script:
     - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
-    - inv version -u > version.txt
+    - inv version --major-version $MAJOR_VERSION -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -158,7 +158,7 @@ deps_win:
   script:
     - conda activate $CONDA_ENV
     - inv deps
-    - inv version -u > version.txt
+    - inv version --major-version $MAJOR_VERSION -u > version.txt
     - cd $Env:GOPATH/pkg ; tar --force-local -czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $Env:GOPATH/bin ; tar --force-local -czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $Env:CI_PROJECT_DIR/vendor ; tar --force-local -czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -285,7 +285,7 @@ build_deb:
     - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
     - conda activate $CONDA_ENV
-    - inv version
+    - inv version --major-version $MAJOR_VERSION
     - cat version.txt || true
     - source ./.gitlab-scripts/setup_artifactory.sh
 
@@ -339,7 +339,7 @@ build_rpm:
     - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
     - conda activate $CONDA_ENV
-    - inv version
+    - inv version --major-version $MAJOR_VERSION
     - cat version.txt || true
     - source ./.gitlab-scripts/setup_artifactory.sh
 
