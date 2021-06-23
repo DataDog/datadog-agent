@@ -712,7 +712,8 @@ func InitConfig(config Config) {
 	// It may be useful to increase it when logs writing is slowed down, that
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
-	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10)
+	// Time in seconds
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.

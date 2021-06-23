@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -56,7 +55,7 @@ type Scanner struct {
 
 // NewScanner returns a new scanner.
 func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
-	tailerSleepDuration time.Duration, validatePodContainerID bool) *Scanner {
+	tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration) *Scanner {
 	return &Scanner{
 		pipelineProvider:       pipelineProvider,
 		tailingLimit:           tailingLimit,
@@ -68,7 +67,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
-		scanPeriod:             time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period") * float64(time.Second)),
+		scanPeriod:             scanPeriod,
 	}
 }
 
