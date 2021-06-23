@@ -276,21 +276,15 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	// sanity check
 	if mountID == 0 || inode == 0 {
 		log.Errorf("invalid mount_id/inode tuple %d:%d", mountID, inode)
+		return
 	}
 
-	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
-		seclog.Tracef("remove all dentry entries for mount id %d", mountID)
-		p.resolvers.DentryResolver.DelCacheEntries(mountID)
-
-		p.inodeDiscarders.setRevision(mountID, revision)
-	} else {
-		seclog.Tracef("remove dentry cache entry for inode %d", inode)
-		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-	}
+	seclog.Tracef("remove dentry cache entry for inode %d", inode)
+	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
@@ -334,7 +328,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
+		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
 
 		return
 	case model.ArgsEnvsEventType:
@@ -398,7 +392,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.DiscarderRevision)
+		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
 	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -406,14 +400,14 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.DiscarderRevision)
+		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
 	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode, event.Rename.DiscarderRevision)
+		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
 	case model.FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)

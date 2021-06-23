@@ -10,8 +10,6 @@ struct rename_event_t {
     struct syscall_t syscall;
     struct file_t old;
     struct file_t new;
-    u32 discarder_revision;
-    u32 padding;
 };
 
 int __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *syscall) {
@@ -184,7 +182,6 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
         .syscall.retval = retval,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,
-        .discarder_revision = get_discarder_revision(syscall->rename.target_file.path_key.mount_id),
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
