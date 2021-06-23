@@ -1,9 +1,11 @@
 ---
-docker_build_agent6_windows1809:
+# Powershell not support on servercore 1809
+docker_build_agent6_windows1909:
   extends:
     - .docker_build_agent6_windows_common
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1909"]
   variables:
-    VARIANT: 1809
+    VARIANT: 1909
     TAG_SUFFIX: -6
     WITH_JMX: "false"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
