@@ -10,11 +10,11 @@ package secrets
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -80,51 +80,9 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	//
-	// when getting the SID for the secret user, unlike above, we provide
-	// the buffer. So this SID should *not* be passed to FreeSid() (the
-	// way the other ones are. So much for API consistency
-	//
-	// also, *must* provide adequate buffer for the domain name, or the
-	// function will fail (even though we aren't going to use it for anything)
-	//
-	var secretusersyscall *syscall.SID
-	var cchRefDomain uint32
-	var sidUse uint32
-	var sidlen uint32
-	var domainptr uint16
+	secretuser, err := security.GetSidFromUser()
+	defer windows.FreeSid(secretuser)
 
-	// first call to get the sidbuf and domainbuf length
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainptr,
-		&cchRefDomain,
-		&sidUse)
-	if err != error(syscall.ERROR_INSUFFICIENT_BUFFER) {
-		// should never happen
-		return fmt.Errorf("could not query %s SID : %v", username, err)
-	}
-
-	sidbuf := make([]uint8, sidlen+1)
-	domainbuf := make([]uint16, cchRefDomain+1)
-	secretusersyscall = (*syscall.SID)(unsafe.Pointer(&sidbuf[0]))
-
-	// second call to actually fetch the SID for username
-	err = syscall.LookupAccountName(nil, // local system lookup
-		windows.StringToUTF16Ptr(username),
-		secretusersyscall,
-		&sidlen,
-		&domainbuf[0],
-		&cchRefDomain,
-		&sidUse)
-	if err != nil {
-		// should never happen
-		return fmt.Errorf("could not query %s SID: %s", username, err)
-	}
-
-	secretuser := (*windows.SID)(unsafe.Pointer(secretusersyscall))
 	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce

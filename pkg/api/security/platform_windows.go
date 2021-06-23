@@ -49,25 +49,9 @@ func lookupUsernameAndDomain(usid *syscall.SID) (username, domain string, e erro
 func saveAuthToken(token, tokenPath string) error {
 	// get the current user
 	var sidString string
-	log.Infof("Getting sidstring from user")
-	tok, e := syscall.OpenCurrentProcessToken()
-	if e != nil {
-		log.Warnf("Couldn't get process token %v", e)
-		return e
-	}
-	defer tok.Close()
-	user, e := tok.GetTokenUser()
-	if e != nil {
-		log.Warnf("Couldn't get  token user %v", e)
-		return e
-	}
-	sidString, e = user.User.Sid.String()
-	if e != nil {
-		log.Warnf("Couldn't get  user sid string %v", e)
-		return e
-	}
+
 	log.Infof("Getting sidstring from current user")
-	currUserSid, err := windows.StringToSid(sidString)
+	currUserSid, err := GetSidFromUser()
 	if err != nil {
 		log.Warnf("Unable to get current user sid %v", err)
 		return err
@@ -84,4 +68,28 @@ func saveAuthToken(token, tokenPath string) error {
 		log.Infof("Wrote auth token acl %v", err)
 	}
 	return err
+}
+
+// GetSidFromUser grabs and returns the windows SID for the current user or an error
+func GetSidFromUser() (*windows.SID, error) {
+	log.Infof("Getting sidstring from user")
+	tok, e := syscall.OpenCurrentProcessToken()
+	if e != nil {
+		log.Warnf("Couldn't get process token %v", e)
+		return e
+	}
+	defer tok.Close()
+	user, e := tok.GetTokenUser()
+	if e != nil {
+		log.Warnf("Couldn't get  token user %v", e)
+		return e
+	}
+
+	sidString, e := user.User.Sid.String()
+	if e != nil {
+		log.Warnf("Couldn't get  user sid string %v", e)
+		return e
+	}
+
+	return windows.StringToSid(sidString)
 }
