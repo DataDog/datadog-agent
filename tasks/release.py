@@ -498,7 +498,9 @@ def _query_github_api(auth_token, url):
 ##
 
 
-def _get_highest_repo_version(auth, repo, version_prefix, allowed_major_versions, version_re):
+def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_major_versions=None):
+    # If allowed_major_versions is not specified, search for all versions by using an empty
+    # major version prefix.
     if not allowed_major_versions:
         allowed_major_versions = [""]
 
@@ -523,6 +525,9 @@ def _get_highest_repo_version(auth, repo, version_prefix, allowed_major_versions
         # go through the next ones.
         if highest_version:
             break
+
+    if not highest_version:
+        raise Exit("Couldn't find any matching {} version.".format(repo), 1)
 
     return highest_version
 
@@ -552,6 +557,9 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
                                 _stringify_version(this_version), release_json_key, value.get(release_json_key, "")
                             )
                         )
+
+    if not highest_version:
+        raise Exit("Couldn't find any matching {} version.".format(release_json_key), 1)
 
     if release_json_key is not None:
         return highest_component_version
@@ -605,9 +613,10 @@ def _fetch_dependency_repo_version(
     the constraints is an RC. User confirmation is then needed to check that this is desired.
     """
 
-    version = _get_highest_repo_version(github_token, repo_name, "", allowed_major_versions, compatible_version_re)
-    if not version:
-        raise Exit(TAG_NOT_FOUND_TEMPLATE.format(repo_name, _stringify_version(new_agent_version)), 1)
+    version = _get_highest_repo_version(
+        github_token, repo_name, new_agent_version["prefix"], compatible_version_re, allowed_major_versions
+    )
+
     if check_for_rc and version["rc"] is not None:
         if not yes_no_question(
             RC_TAG_QUESTION_TEMPLATE.format(repo_name, _stringify_version(version)), "orange", False,
@@ -624,22 +633,23 @@ def _confirm_independent_dependency_repo_version(repo, latest_version, highest_r
     are different. If they are, asks the user for confirmation before updating the version.
     """
 
-    confirmed_version = highest_release_json_version
-    if latest_version != highest_release_json_version:
-        print(
-            color_message(
-                DIFFERENT_TAGS_TEMPLATE.format(
-                    repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
-                ),
-                "orange",
-            )
-        )
-        if yes_no_question(
-            "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
-        ):
-            confirmed_version = latest_version
+    if latest_version == highest_release_json_version:
+        return highest_release_json_version
 
-    return confirmed_version
+    print(
+        color_message(
+            DIFFERENT_TAGS_TEMPLATE.format(
+                repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
+            ),
+            "orange",
+        )
+    )
+    if yes_no_question(
+        "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
+    ):
+        return latest_version
+
+    return highest_release_json_version
 
 
 def _fetch_independent_dependency_repo_version(
@@ -656,9 +666,7 @@ def _fetch_independent_dependency_repo_version(
         release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(github_token, repo_name, highest_version["prefix"], None, VERSION_RE)
-    if not version:
-        raise Exit("Couldn't find any {} version.".format(repo_name), 1)
+    version = _get_highest_repo_version(github_token, repo_name, highest_version["prefix"], VERSION_RE)
 
     version = _confirm_independent_dependency_repo_version(repo_name, version, highest_version)
     print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
@@ -681,8 +689,6 @@ def _get_windows_ddnpm_release_json_info(
         highest_release_json_version = _get_highest_version_from_release_json(
             release_json, agent_major_version, version_re
         )
-        if not highest_release_json_version:
-            raise Exit("Couldn't find any ddnpm version in release.json", 1)
 
         highest_release = _stringify_version(highest_release_json_version)
         print("Using '{}' DDNPM values".format(highest_release))
