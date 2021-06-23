@@ -8,6 +8,7 @@
 package kubernetesapiserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -302,8 +303,8 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 			k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
 		}
 	}
-	hostname, _ := util.GetHostname()
-	clusterName := clustername.GetClusterName(hostname)
+	hostname, _ := util.GetHostname(context.TODO())
+	clusterName := clustername.GetClusterName(context.TODO(), hostname)
 	for _, bundle := range eventsByObject {
 		datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
 		if err != nil {

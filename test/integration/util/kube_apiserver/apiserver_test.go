@@ -11,11 +11,12 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -162,6 +163,7 @@ func (suite *testSuite) TestKubeEvents() {
 }
 
 func (suite *testSuite) TestHostnameProvider() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	// Init own client to write the events
@@ -179,12 +181,12 @@ func (suite *testSuite) TestHostnameProvider() {
 	dummyPod := createPodOnNode("default", myHostname, "target.host")
 
 	// Register it in the apiserver
-	_, err = core.Pods("default").Create(context.TODO(), dummyPod, v1.CreateOptions{})
+	_, err = core.Pods("default").Create(ctx, dummyPod, v1.CreateOptions{})
 	require.NoError(suite.T(), err)
-	defer core.Pods("default").Delete(context.TODO(), myHostname, v1.DeleteOptions{})
+	defer core.Pods("default").Delete(ctx, myHostname, v1.DeleteOptions{})
 
 	// Hostname provider should return the expected value
-	foundHost, err := hostname_apiserver.HostnameProvider()
+	foundHost, err := hostname_apiserver.HostnameProvider(ctx)
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -194,6 +196,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = hostname_apiserver.HostnameProvider()
+	foundHost, err = hostname_apiserver.HostnameProvider(ctx)
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

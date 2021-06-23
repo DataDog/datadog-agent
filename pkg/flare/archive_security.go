@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

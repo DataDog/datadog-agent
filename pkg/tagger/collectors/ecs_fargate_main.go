@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -36,10 +37,10 @@ type ECSFargateCollector struct {
 }
 
 // Detect tries to connect to the ECS metadata API
-func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *ECSFargateCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	var err error
 
-	if !ecsutil.IsFargateInstance() {
+	if !ecsutil.IsFargateInstance(ctx) {
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 	}
 
@@ -64,8 +65,8 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 }
 
 // Pull looks for new containers and computes deletions
-func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := c.client.GetTask()
+func (c *ECSFargateCollector) Pull(ctx context.Context) error {
+	taskMeta, err := c.client.GetTask(ctx)
 	if err != nil {
 		return err
 	}
@@ -96,8 +97,8 @@ func (c *ECSFargateCollector) Pull() error {
 
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
-func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := c.client.GetTask()
+func (c *ECSFargateCollector) Fetch(ctx context.Context, container string) ([]string, []string, []string, error) {
+	taskMeta, err := c.client.GetTask(ctx)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

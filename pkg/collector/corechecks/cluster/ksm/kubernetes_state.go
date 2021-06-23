@@ -425,8 +425,8 @@ func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
 	}
-	hostname, _ := util.GetHostname()
-	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
+	hostname, _ := util.GetHostname(context.TODO())
+	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+clusterName)
 	}
 }

@@ -150,8 +150,8 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	o.orchestratorConfig.ExtraTags = corecfg.Datadog.GetStringSlice("orchestrator_explorer.extra_tags")
 
 	// check if cluster name is set
-	hostname, _ := coreutil.GetHostname()
-	o.orchestratorConfig.KubeClusterName = clustername.GetClusterName(hostname)
+	hostname, _ := coreutil.GetHostname(context.TODO())
+	o.orchestratorConfig.KubeClusterName = clustername.GetClusterName(context.TODO(), hostname)
 	if o.orchestratorConfig.KubeClusterName == "" {
 		return errors.New("orchestrator check is configured but the cluster name is empty")
 	}

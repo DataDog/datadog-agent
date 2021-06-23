@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -35,7 +36,7 @@ type DockerCollector struct {
 }
 
 // Detect tries to connect to the docker socket and returns success
-func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *DockerCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return NoCollection, err
@@ -57,7 +58,9 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 // Stream runs the continuous event watching loop and sends new info
 // to the channel. But be called in a goroutine.
 func (c *DockerCollector) Stream() error {
-	healthHandle := health.RegisterLiveness("tagger-docker")
+	ctx, cancel := context.WithCancel(context.Background())
+
+	health := health.RegisterLiveness("tagger-docker")
 
 	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
 	if err != nil {
@@ -67,16 +70,21 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			healthHandle.Deregister() //nolint:errcheck
+			health.Deregister() //nolint:errcheck
+			cancel()
 			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
-		case <-healthHandle.C:
+		case healthDeadline := <-health.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case msg := <-messages:
-			c.processEvent(msg)
+			c.processEvent(ctx, msg)
 		case err := <-errs:
 			if err != nil && err != io.EOF {
 				log.Errorf("stopping collection: %s", err)
+				cancel()
 				return err
 			}
+			cancel()
 			return nil
 		}
 	}
@@ -89,13 +97,13 @@ func (c *DockerCollector) Stop() error {
 }
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
-func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *DockerCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	entityType, cID := containers.SplitEntityName(entity)
 	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
 
-	low, orchestrator, high, _, err := c.fetchForDockerID(cID, fetchOptions{
+	low, orchestrator, high, _, err := c.fetchForDockerID(ctx, cID, fetchOptions{
 		inspectCached: false,
 		skipExited:    true,
 	})
@@ -103,7 +111,7 @@ func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, er
 	return low, orchestrator, high, err
 }
 
-func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
+func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerEvent) {
 	var info *TagInfo
 
 	switch e.Action {
@@ -114,7 +122,7 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 			DeleteEntity: true,
 		}
 	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
-		low, orchestrator, high, standard, err := c.fetchForDockerID(e.ContainerID, fetchOptions{
+		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID, fetchOptions{
 			inspectCached: e.Action == docker.ContainerEventActionStart,
 		})
 
@@ -140,16 +148,16 @@ type fetchOptions struct {
 	skipExited    bool
 }
 
-func (c *DockerCollector) fetchForDockerID(cID string, options fetchOptions) ([]string, []string, []string, []string, error) {
+func (c *DockerCollector) fetchForDockerID(ctx context.Context, cID string, options fetchOptions) ([]string, []string, []string, []string, error) {
 	var (
 		co  types.ContainerJSON
 		err error
 	)
 
 	if options.inspectCached {
-		co, err = c.dockerUtil.InspectNoCache(cID, false)
+		co, err = c.dockerUtil.InspectNoCache(ctx, cID, false)
 	} else {
-		co, err = c.dockerUtil.Inspect(cID, false)
+		co, err = c.dockerUtil.Inspect(ctx, cID, false)
 	}
 
 	if err != nil {

@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -27,7 +28,7 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var metadataByNsPods apiv1.NamespacesPodsStringsSet
 	if c.isClusterAgentEnabled() && c.dcaClient.Version().Major >= 1 && c.dcaClient.Version().Minor >= 3 {
 		var nodeName string
-		nodeName, err = c.kubeUtil.GetNodename()
+		nodeName, err = c.kubeUtil.GetNodename(context.TODO())
 		if err != nil {
 			log.Errorf("Could not retrieve the Nodename, err: %v", err)
 			return nil

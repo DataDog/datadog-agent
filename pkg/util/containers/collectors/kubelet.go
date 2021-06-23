@@ -8,6 +8,8 @@
 package collectors
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -34,7 +36,7 @@ func (c *KubeletCollector) Detect() error {
 
 // List gets all running containers
 func (c *KubeletCollector) List() ([]*containers.Container, error) {
-	return c.kubeUtil.ListContainers()
+	return c.kubeUtil.ListContainers(context.TODO())
 }
 
 // UpdateMetrics updates metrics on an existing list of containers
