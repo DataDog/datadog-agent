@@ -15,6 +15,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestWaitForDaemonTimeout(t *testing.T) {
+	assert := assert.New(t)
+	_, cancel := context.WithCancel(context.Background())
+	d := StartDaemon(cancel)
+	d.ReadyWg.Done()
+	defer d.Stop(false)
+
+	// WaitForDaemon blocks if the client library has hit /hello route
+	d.clientLibReady = true
+
+	shortTimeout := time.Now().Add(time.Millisecond * 100) // making sure that we will finish the invocation due to a timeout
+	deadlineMs := shortTimeout.UnixNano() / 1000000
+	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
+	<-d.doneChannel
+	assert.True(true, "timeout unblocks the daemon")
+}
+
 func TestWaitForDaemonNonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	_, cancel := context.WithCancel(context.Background())
@@ -26,7 +43,7 @@ func TestWaitForDaemonNonBlocking(t *testing.T) {
 	// registered with the extension's /hello route
 	d.clientLibReady = false
 
-	tomorrow := time.Now().Add(time.Hour * 24)
+	tomorrow := time.Now().Add(time.Hour * 24) // making sure that we don't timeout -> finish invocation
 	deadlineMs := tomorrow.UnixNano() / 1000000
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
 	<-d.doneChannel
@@ -40,8 +57,7 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	d.ReadyWg.Done()
 	defer d.Stop(false)
 
-	// WaitForDaemon blocks if the client library hasn't
-	// registered with the extension's /hello route
+	// WaitForDaemon blocks if the client library has hit /hello route
 	d.clientLibReady = true
 	complete := false
 

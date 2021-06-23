@@ -24,7 +24,8 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d.clientLibReady = false
 
 	//deadline = current time + 20 ms
-	deadlineMs := (time.Now().UnixNano())/1000000 + 20
+	shortTimeout := time.Now().Add(time.Millisecond * 20)
+	deadlineMs := shortTimeout.UnixNano() / 1000000
 
 	//setting DD_TAGS and DD_EXTRA_TAGS
 	os.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
