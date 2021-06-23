@@ -86,7 +86,7 @@ scan_master-dogstatsd:
   extends: .docker_job_definition
   stage: image_scan
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs:
     - docker_build_dogstatsd_amd64
   trigger:
@@ -103,7 +103,7 @@ scan_master-a6:
   extends: .docker_job_definition
   stage: image_scan
   rules:
-    !reference [.on_master_a6]
+    !reference [.on_main_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -125,7 +125,7 @@ scan_master-a7:
   extends: .docker_job_definition
   stage: image_scan
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -147,7 +147,7 @@ dca_scan_master:
   extends: .docker_job_definition
   stage: image_scan
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs: ["docker_build_cluster_agent_amd64"]
   trigger:
     project: DataDog/public-images

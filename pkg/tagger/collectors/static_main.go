@@ -6,6 +6,8 @@
 package collectors
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
@@ -23,7 +25,7 @@ type StaticCollector struct {
 }
 
 // Detect detects static tags
-func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *StaticCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.infoOut = out
 	// Extract DD_TAGS environment variable
 	c.ddTagsEnvVar = config.GetConfiguredTags(false)
@@ -32,7 +34,7 @@ func (c *StaticCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 }
 
 // Fetch fetches static tags
-func (c *StaticCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *StaticCollector) Fetch(_ context.Context, entity string) ([]string, []string, []string, error) {
 	tagInfoList := c.getTagInfo(entity)
 
 	c.infoOut <- tagInfoList
@@ -46,7 +48,7 @@ func staticFactory() Collector {
 
 func init() {
 	// Only register collector if it is an ECS Fargate or EKS Fargate instance
-	if fargate.IsFargateInstance() {
+	if fargate.IsFargateInstance(context.TODO()) {
 		registerCollector(staticCollectorName, staticFactory, NodeOrchestrator)
 	}
 }

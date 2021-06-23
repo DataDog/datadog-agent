@@ -15,7 +15,7 @@ The COM concurrency model may be set in different ways, it also has to be called
 
 To support Python checks which use COM, we call  `CoInitializeEx(0)` in the python loader while checks are loading, and run `CoUninitialize()` immediately after loading. By doing so, `pythoncom` is imported during the loading of checks and the concurrency model is already set.
 ### WMI
-WMI is implemented via COM. Therefore, all of the above apply to any code that directly or indirectly uses WMI.  _All_ use of WMI in the core agent is removed, along with the [removal](https://github.com/DataDog/datadog-agent/blob/master/tasks/go.py#L295-L299) of the `gopsutil` dependency to ensure that this dependency is not reintroduced.
+WMI is implemented via COM. Therefore, all of the above apply to any code that directly or indirectly uses WMI.  _All_ use of WMI in the core agent is removed, along with the [removal](https://github.com/DataDog/datadog-agent/blob/main/tasks/go.py#L295-L299) of the `gopsutil` dependency to ensure that this dependency is not reintroduced.
 
 
 However, Python checks do continue to make these calls. Python checks will set/use the concurrency model as they please (typically the single-threaded model). This has a few implications:

@@ -333,6 +333,52 @@ def generate_failure_messages(base):
 
 
 @task
+def trigger_child_pipeline(_, git_ref, project_name, variables=""):
+    """
+    Trigger a child pipeline on a target repository and git ref.
+    Used in CI jobs only (requires CI_JOB_TOKEN).
+
+    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+
+    Examples:
+    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
+
+    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "VAR1,VAR2,VAR3"
+    """
+
+    if not os.environ.get('CI_JOB_TOKEN'):
+        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
+
+    # The Gitlab lib requires `GITLAB_TOKEN` to be set, though
+    # we won't use it here
+    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+
+    gitlab = Gitlab()
+
+    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
+
+    # Fill the environment variables to pass to the child pipeline.
+    for v in variables.split(','):
+        data['variables'][v] = os.environ[v]
+
+    print(
+        "Creating child pipeline in repo {}, on git ref {} with params: {}".format(
+            project_name, git_ref, data['variables']
+        )
+    )
+
+    res = gitlab.trigger_pipeline(project_name, data)
+
+    if 'id' not in res:
+        raise Exit("Failed to create child pipeline: {}".format(res), 1)
+
+    print("Created a child pipeline with id={}, url={}".format(res['id'], res['web_url']))
+
+    # TODO: Add mode where we follow the pipeline, for jobs that need to depend on the child
+    # pipeline.
+
+
+@task
 def notify_failure(_, notification_type="merge", print_to_stdout=False):
     """
     Send failure notifications for the current pipeline. CI-only task.

@@ -44,7 +44,7 @@ dev_master-a7-windows:
   extends: .docker_job_definition
   stage: image_deploy
   rules:
-    !reference [.on_master_a7]
+    !reference [.on_main_a7]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx

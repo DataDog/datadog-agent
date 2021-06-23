@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 
 	"github.com/fatih/color"
 )
@@ -47,12 +46,7 @@ func getSettingsClient() (commonsettings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return nil, err
-	}
-	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "datadog-agent"), nil
+	return common.NewSettingsClient()
 }
 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
@@ -61,10 +55,19 @@ func initRuntimeSettings() error {
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
 		return err
 	}
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction")); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
+		return err
+	}
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {
 		return err
 	}
 	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("internal_profiling"))

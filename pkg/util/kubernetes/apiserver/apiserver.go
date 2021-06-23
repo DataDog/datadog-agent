@@ -521,8 +521,8 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
-func (c *APIClient) GetNodeForPod(namespace, podName string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+func (c *APIClient) GetNodeForPod(ctx context.Context, namespace, podName string) (string, error) {
+	pod, err := c.Cl.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}

@@ -8,6 +8,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -129,7 +130,7 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	co, err := du.InspectSelf()
+	co, err := du.InspectSelf(context.TODO())
 	if err != nil {
 		return "host", nil
 	}

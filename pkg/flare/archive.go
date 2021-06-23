@@ -113,6 +113,16 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			Name: prefix + "-2nd-heap.pprof",
 			URL:  debugURL + "/heap",
 		},
+		{
+			// mutex profile
+			Name: prefix + "-mutex.pprof",
+			URL:  debugURL + "/mutex",
+		},
+		{
+			// goroutine blocking profile
+			Name: prefix + "-block.pprof",
+			URL:  debugURL + "/block",
+		},
 	} {
 		b, err := apiutil.DoGet(c, prof.URL)
 		if err != nil {
@@ -143,7 +153,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
