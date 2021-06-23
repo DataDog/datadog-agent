@@ -236,6 +236,51 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
         self.assertDictEqual(release_json, expected_release_json)
 
 
+class TestGetHighestVersionFromReleaseJson(unittest.TestCase):
+    test_release_json = {
+        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
+        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
+        "6.28.1": {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
+        "7.28.1": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
+        "6.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
+        "7.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
+        "6.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
+        "7.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
+    }
+
+    def test_highest_release_version_6(self):
+        version = release._get_highest_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
+        self.assertEqual(version, Version(major=6, minor=28, patch=1))
+
+    def test_highest_release_version_7(self):
+        version = release._get_highest_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
+        self.assertEqual(version, Version(major=7, minor=28, patch=1))
+
+    def test_highest_jmxfetch_version_6(self):
+        version = release._get_highest_version_from_release_json(
+            self.test_release_json, 6, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
+        )
+        self.assertEqual(version, Version(major=0, minor=43, patch=0))
+
+    def test_highest_jmxfetch_version_7(self):
+        version = release._get_highest_version_from_release_json(
+            self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
+        )
+        self.assertEqual(version, Version(major=0, minor=44, patch=1))
+
+    def test_highest_security_version_6(self):
+        version = release._get_highest_version_from_release_json(
+            self.test_release_json, 6, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
+        )
+        self.assertEqual(version, Version(prefix="v", major=0, minor=10))
+
+    def test_highest_security_version_7(self):
+        version = release._get_highest_version_from_release_json(
+            self.test_release_json, 7, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
+        )
+        self.assertEqual(version, Version(prefix="v", major=0, minor=10))
+
+
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     test_version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
     test_release_json = {
