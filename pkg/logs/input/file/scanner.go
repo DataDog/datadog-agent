@@ -22,9 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// scanPeriod represents the period of time between two scans.
-const scanPeriod = 10 * time.Second
-
 // rxContainerID is used in the shouldIgnore func to do a best-effort validation
 // that the file currently scanned for a source is attached to the proper container.
 // If the container ID we parse from the filename isn't matching this regexp, we *will*
@@ -53,6 +50,7 @@ type Scanner struct {
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
+	scanPeriod             time.Duration
 }
 
 // NewScanner returns a new scanner.
@@ -69,6 +67,7 @@ func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider p
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
+		scanPeriod: 			coreConfig.Datadog.GetInt("logs_config.file_scan_period"))*time.Second,
 	}
 }
 
@@ -86,7 +85,7 @@ func (s *Scanner) Stop() {
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Scanner) run() {
-	scanTicker := time.NewTicker(scanPeriod)
+	scanTicker := time.NewTicker(s.scanPeriod)
 	defer scanTicker.Stop()
 	for {
 		select {
