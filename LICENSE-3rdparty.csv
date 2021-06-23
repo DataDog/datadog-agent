@@ -425,6 +425,7 @@ core,"github.com/mattn/go-runewidth",MIT
 core,"github.com/matttproud/golang_protobuf_extensions/pbutil",Apache-2.0
 core,"github.com/mdlayher/netlink",MIT
 core,"github.com/mdlayher/netlink/nlenc",MIT
+core,"github.com/mdlayher/socket",MIT
 core,"github.com/mholt/archiver/v3",MIT
 core,"github.com/mitchellh/copystructure",MIT
 core,"github.com/mitchellh/go-homedir",MIT
