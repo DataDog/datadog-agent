@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
 
@@ -33,7 +32,7 @@ type tcpQueueLengthModule struct {
 	*probe.TCPQueueLengthTracer
 }
 
-func (t *tcpQueueLengthModule) Register(httpMux *mux.Router) error {
+func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check/tcp_queue_length", func(w http.ResponseWriter, req *http.Request) {
 		stats := t.TCPQueueLengthTracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

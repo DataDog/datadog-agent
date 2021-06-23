@@ -1,6 +1,5 @@
 # Configuration Options
 
-This information is available in the Datadog documentation:<br>
-[docs.datadoghq.com/agent/versions][1]
+See the [config_template.yaml][1] file for a list of configuration options and examples.
 
-[1]: https://docs.datadoghq.com/agent/versions
+[1]: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml

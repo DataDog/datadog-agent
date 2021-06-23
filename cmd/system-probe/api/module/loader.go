@@ -28,7 +28,7 @@ type loader struct {
 	modules map[config.ModuleName]Module
 	stats   map[string]interface{}
 	cfg     *config.Config
-	httpMux *mux.Router
+	router  *Router
 	closed  bool
 }
 
@@ -36,6 +36,7 @@ type loader struct {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
+	router := NewRouter(httpMux)
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("%s module disabled", factory.Name)
@@ -51,7 +52,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			continue
 		}
 
-		if err = module.Register(httpMux); err != nil {
+		if err = module.Register(router); err != nil {
 			log.Errorf("error registering HTTP endpoints for module `%s` error: %s", factory.Name, err)
 			continue
 		}
@@ -61,7 +62,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 		log.Infof("module: %s started", factory.Name)
 	}
 
-	l.httpMux = httpMux
+	l.router = router
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
@@ -99,7 +100,7 @@ func RestartModule(factory Factory) error {
 	}
 	log.Infof("module %s restarted", factory.Name)
 
-	err = newModule.Register(l.httpMux)
+	err = newModule.Register(l.router)
 	if err != nil {
 		return err
 	}

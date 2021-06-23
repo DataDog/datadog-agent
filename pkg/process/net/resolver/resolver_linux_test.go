@@ -308,7 +308,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				},
 			},
 			expectedLaddrID: "foo20",
-			expectedRaddrID: "foo21",
+			expectedRaddrID: "",
 		},
 		{
 			name: "cross namespace with dnat to loopback",
