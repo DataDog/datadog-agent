@@ -8,4 +8,4 @@ docker_build_agent6_windows1909:
     VARIANT: 1909
     TAG_SUFFIX: -6
     WITH_JMX: "false"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1909 --build-arg WITH_JMX=false"
