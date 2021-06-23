@@ -196,7 +196,8 @@ func (h *testEventHandler) ClearEventsChannels() {
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	testMod.module.HandleEvent(event)
-	e := event.Clone()
+
+	e := event.Retain()
 	select {
 	case h.GetActiveEventsChan() <- &e:
 		break
@@ -491,7 +492,8 @@ func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, e
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	te := testEvent{Event: &e, rule: rule.Rule}
 	select {
 	case tm.events <- te:
@@ -501,7 +503,8 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	discarder := &testDiscarder{event: &e, field: field, eventType: eventType}
 	select {
 	case tm.discarders <- discarder:

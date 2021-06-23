@@ -49,20 +49,26 @@ type Scanner struct {
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
+	// set to true if we want to use `ContainersLogsDir` to validate that a new
+	// pod log file is being attached to the correct containerID.
+	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
+	validatePodContainerID bool
 }
 
 // NewScanner returns a new scanner.
-func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry, tailerSleepDuration time.Duration) *Scanner {
+func NewScanner(sources *config.LogSources, tailingLimit int, pipelineProvider pipeline.Provider, registry auditor.Registry,
+	tailerSleepDuration time.Duration, validatePodContainerID bool) *Scanner {
 	return &Scanner{
-		pipelineProvider:    pipelineProvider,
-		tailingLimit:        tailingLimit,
-		addedSources:        sources.GetAddedForType(config.FileType),
-		removedSources:      sources.GetRemovedForType(config.FileType),
-		fileProvider:        NewProvider(tailingLimit),
-		tailers:             make(map[string]*Tailer),
-		registry:            registry,
-		tailerSleepDuration: tailerSleepDuration,
-		stop:                make(chan struct{}),
+		pipelineProvider:       pipelineProvider,
+		tailingLimit:           tailingLimit,
+		addedSources:           sources.GetAddedForType(config.FileType),
+		removedSources:         sources.GetRemovedForType(config.FileType),
+		fileProvider:           NewProvider(tailingLimit),
+		tailers:                make(map[string]*Tailer),
+		registry:               registry,
+		tailerSleepDuration:    tailerSleepDuration,
+		stop:                   make(chan struct{}),
+		validatePodContainerID: validatePodContainerID,
 	}
 }
 
@@ -231,7 +237,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 
 	// We also use the file scanner to look for containers and pods logs file, because of that
 	// we have to make sure that the file we just detected is tagged with the correct
-	// container ID.
+	// container ID. Enabled through `logs_config.validate_pod_container_id`.
 	// The way k8s is storing files in /var/log/pods doesn't let us do that properly
 	// (the filename doesn't contain the container ID).
 	// However, the symlinks present in /var/log/containers are pointing to /var/log/pods files,
@@ -240,7 +246,7 @@ func (s *Scanner) startNewTailer(file *File, m config.TailingMode) bool {
 	// See these links for more info:
 	//   - https://github.com/kubernetes/kubernetes/issues/58638
 	//   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-	if file.Source != nil &&
+	if s.validatePodContainerID && file.Source != nil &&
 		(file.Source.GetSourceType() == config.KubernetesSourceType || file.Source.GetSourceType() == config.DockerSourceType) &&
 		s.shouldIgnore(file) {
 		return false
