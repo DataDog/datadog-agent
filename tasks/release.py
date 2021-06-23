@@ -2,7 +2,6 @@
 Release helper tasks
 """
 
-
 import hashlib
 import json
 import os
@@ -18,6 +17,7 @@ from tasks.libs.common.color import color_message
 from tasks.utils import DEFAULT_BRANCH
 
 from .libs.common.user_interactions import yes_no_question
+from .libs.version import Version
 from .modules import DEFAULT_MODULES
 
 # Generic version regex. Aims to match:
@@ -418,34 +418,15 @@ def _save_release_json(release_json):
 ##
 
 
-def _is_version_higher(version_1, version_2):
-    if not version_2:
-        return True
-
-    for part in ["major", "minor", "patch"]:
-        # Consider that a None version part is equivalent to a 0 version part
-        version_1_part = version_1[part] if version_1[part] is not None else 0
-        version_2_part = version_2[part] if version_2[part] is not None else 0
-
-        if version_1_part != version_2_part:
-            return version_1_part > version_2_part
-
-    if version_1["rc"] is None or version_2["rc"] is None:
-        # Everything else being equal, version_1 can only be higher than version_2 if version_2 is not a released version
-        return version_2["rc"] is not None
-
-    return version_1["rc"] > version_2["rc"]
-
-
 def _create_version_dict_from_match(match):
     groups = match.groups()
-    version = {
-        "prefix": groups[0] if groups[0] else "",
-        "major": int(groups[1]),
-        "minor": int(groups[2]),
-        "patch": int(groups[4]) if groups[4] and groups[4] != 0 else None,
-        "rc": int(groups[6]) if groups[6] and groups[6] != 0 else None,
-    }
+    version = Version(
+        major=int(groups[1]),
+        minor=int(groups[2]),
+        patch=int(groups[4]) if groups[4] and groups[4] != 0 else None,
+        rc=int(groups[6]) if groups[6] and groups[6] != 0 else None,
+        prefix=groups[0] if groups[0] else "",
+    )
     return version
 
 
@@ -470,18 +451,7 @@ def _stringify_config(config_dict):
 
     and transforms all VERSIONs into their string representation.
     """
-    return {
-        key: _stringify_version(value) if _is_dict_version_field(key) else value for key, value in config_dict.items()
-    }
-
-
-def _stringify_version(version_dict):
-    version = "{}{}.{}".format(version_dict["prefix"], version_dict["major"], version_dict["minor"])
-    if version_dict["patch"] is not None:
-        version = "{}.{}".format(version, version_dict["patch"])
-    if version_dict["rc"] is not None and version_dict["rc"] != 0:
-        version = "{}-rc.{}".format(version, version_dict["rc"])
-    return version
+    return {key: str(value) if _is_dict_version_field(key) else value for key, value in config_dict.items()}
 
 
 def _query_github_api(auth_token, url):
@@ -517,7 +487,7 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
             match = version_re.search(tag["ref"])
             if match:
                 this_version = _create_version_dict_from_match(match)
-                if _is_version_higher(this_version, highest_version):
+                if this_version > highest_version:
                     highest_version = this_version
 
         # The allowed_major_versions are listed in order of preference
@@ -544,7 +514,7 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
         match = version_re.match(key)
         if match:
             this_version = _create_version_dict_from_match(match)
-            if _is_version_higher(this_version, highest_version) and this_version["major"] <= major_version:
+            if this_version > highest_version and this_version.major <= major_version:
                 highest_version = this_version
 
                 if release_json_key is not None:
@@ -554,7 +524,7 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
                     else:
                         print(
                             "{} does not have a valid {} ({}), ignoring".format(
-                                _stringify_version(this_version), release_json_key, value.get(release_json_key, "")
+                                this_version, release_json_key, value.get(release_json_key, "")
                             )
                         )
 
@@ -614,16 +584,14 @@ def _fetch_dependency_repo_version(
     """
 
     version = _get_highest_repo_version(
-        github_token, repo_name, new_agent_version["prefix"], compatible_version_re, allowed_major_versions
+        github_token, repo_name, new_agent_version.prefix, compatible_version_re, allowed_major_versions
     )
 
-    if check_for_rc and version["rc"] is not None:
-        if not yes_no_question(
-            RC_TAG_QUESTION_TEMPLATE.format(repo_name, _stringify_version(version)), "orange", False,
-        ):
+    if check_for_rc and version.is_rc():
+        if not yes_no_question(RC_TAG_QUESTION_TEMPLATE.format(repo_name, version), "orange", False):
             raise Exit("Aborting release.json update.", 1)
 
-    print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
+    print(TAG_FOUND_TEMPLATE.format(repo_name, version))
     return version
 
 
@@ -636,17 +604,8 @@ def _confirm_independent_dependency_repo_version(repo, latest_version, highest_r
     if latest_version == highest_release_json_version:
         return highest_release_json_version
 
-    print(
-        color_message(
-            DIFFERENT_TAGS_TEMPLATE.format(
-                repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
-            ),
-            "orange",
-        )
-    )
-    if yes_no_question(
-        "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
-    ):
+    print(color_message(DIFFERENT_TAGS_TEMPLATE.format(repo, latest_version, highest_release_json_version), "orange"))
+    if yes_no_question("Do you want to update {} to {}?".format(repo, latest_version), "orange", False):
         return latest_version
 
     return highest_release_json_version
@@ -666,10 +625,10 @@ def _fetch_independent_dependency_repo_version(
         release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(github_token, repo_name, highest_version["prefix"], VERSION_RE)
+    version = _get_highest_repo_version(github_token, repo_name, highest_version.prefix, VERSION_RE)
 
     version = _confirm_independent_dependency_repo_version(repo_name, version, highest_version)
-    print(TAG_FOUND_TEMPLATE.format(repo_name, _stringify_version(version)))
+    print(TAG_FOUND_TEMPLATE.format(repo_name, version))
 
     return version
 
@@ -689,10 +648,8 @@ def _get_windows_ddnpm_release_json_info(
         highest_release_json_version = _get_highest_version_from_release_json(
             release_json, agent_major_version, version_re
         )
-
-        highest_release = _stringify_version(highest_release_json_version)
-        print("Using '{}' DDNPM values".format(highest_release))
-        release_json_version_data = release_json[highest_release]
+        print("Using '{}' DDNPM values".format(highest_release_json_version))
+        release_json_version_data = release_json[str(highest_release_json_version)]
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -731,7 +688,7 @@ def _add_release_json_entry(
 
     jmxfetch = requests.get(
         "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/{0}/jmxfetch-{0}-jar-with-dependencies.jar".format(
-            _stringify_version(jmxfetch_version),
+            jmxfetch_version,
         )
     ).content
     jmxfetch_sha256 = hashlib.sha256(jmxfetch).hexdigest()
@@ -761,8 +718,7 @@ def _add_release_json_entry(
             new_release_json[key] = value
 
     # Then the new versions
-    new_version_string = _stringify_version(new_version)
-    new_release_json[new_version_string] = _stringify_config(new_version_config)
+    new_release_json[str(new_version)] = _stringify_config(new_version_config)
 
     # Then the rest of the versions
     for key, value in release_json.items():
@@ -784,7 +740,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     and returning it.
     """
 
-    allowed_major_versions = COMPATIBLE_MAJOR_VERSIONS[new_version["major"]]
+    allowed_major_versions = COMPATIBLE_MAJOR_VERSIONS[new_version.major]
 
     # Part 1: repositories which follow the Agent version scheme
 
@@ -792,7 +748,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     # tags with the same minor version, to avoid problems when releasing a patch
     # version while a minor version release is ongoing.
     compatible_version_re = re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), new_version["minor"])
+        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), new_version.minor)
     )
 
     integrations_version = _fetch_dependency_repo_version(
@@ -818,15 +774,15 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
 
     # Part 2: repositories which have their own version scheme
     jmxfetch_version = _fetch_independent_dependency_repo_version(
-        "jmxfetch", release_json, new_version["major"], github_token, "JMXFETCH_VERSION"
+        "jmxfetch", release_json, new_version.major, github_token, "JMXFETCH_VERSION"
     )
 
     security_agent_policies_version = _fetch_independent_dependency_repo_version(
-        "security-agent-policies", release_json, new_version["major"], github_token, "SECURITY_AGENT_POLICIES_VERSION"
+        "security-agent-policies", release_json, new_version.major, github_token, "SECURITY_AGENT_POLICIES_VERSION"
     )
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version["major"], VERSION_RE, is_first_rc=(new_version["rc"] == 1)
+        release_json, new_version.major, VERSION_RE, is_first_rc=(new_version.rc == 1)
     )
 
     # Add new entry to the release.json object and return it
@@ -876,26 +832,24 @@ def finish(ctx, major_versions="6,7"):
         highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
 
         # Set the new version
-        new_version = highest_version.copy()
-        new_version["rc"] = None
-        new_version_string = _stringify_version(new_version)
-        print("Creating {}".format(new_version_string))
+        new_version = highest_version.next_version(rc=False)
+        print("Creating {}".format(new_version))
 
         # Update release.json object with the entry for the new version
         release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=True)
 
         # Erase RCs after we're done processing the new entry
-        while highest_version["rc"] not in [0, None]:
+        while highest_version.is_rc():
             # In case we have skipped an RC in the file...
             try:
-                release_json.pop(_stringify_version(highest_version))
+                release_json.pop(str(highest_version))
             finally:
-                highest_version["rc"] = highest_version["rc"] - 1
+                highest_version.rc = highest_version.rc - 1
 
     _save_release_json(release_json)
 
     # Update internal module dependencies
-    update_modules(ctx, new_version_string)
+    update_modules(ctx, str(new_version))
 
 
 @task
@@ -933,20 +887,15 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     for major_version in list_major_versions:
         highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
 
-        new_version = highest_version.copy()
-        if new_version["rc"] is None:
-            # No RC exists, create one
-            if patch_version:
-                new_version["patch"] = new_version["patch"] + 1
-            else:
-                new_version["minor"] = new_version["minor"] + 1
-                new_version["patch"] = 0
-            new_version["rc"] = 1
+        if highest_version.is_rc():
+            # We're already on an RC, only bump the RC version
+            new_version = highest_version.next_version(rc=True)
         else:
-            # An RC exists, create next RC
-            new_version["rc"] = new_version["rc"] + 1
-        new_version_string = _stringify_version(new_version)
-        print("Creating {}".format(new_version_string))
+            if patch_version:
+                new_version = highest_version.next_version(bump_patch=True, rc=True)
+            else:
+                new_version = highest_version.next_version(bump_minor=True, rc=True)
+        print("Creating {}".format(new_version))
 
         # Update release.json object with the entry for the new version
         release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=False)
@@ -955,7 +904,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
 
     # Update internal module dependencies
     # Uses the last major version processed
-    update_modules(ctx, new_version_string)
+    update_modules(ctx, str(new_version))
 
 
 def check_version(agent_version):
