@@ -200,8 +200,9 @@ func getMockedPods() []*kubelet.Pod {
 			Spec:   kubeletSpec,
 			Status: kubeletStatus,
 			Metadata: kubelet.PodMetadata{
-				UID:  "mock-pod-uid",
-				Name: "mock-pod",
+				UID:       "mock-pod-uid",
+				Name:      "mock-pod",
+				Namespace: "mock-pod-namespace",
 				Annotations: map[string]string{
 					"ad.datadoghq.com/baz.check_names": "[\"baz_check\"]",
 					"ad.datadoghq.com/baz.instances":   "[]",
@@ -254,6 +255,15 @@ func TestProcessNewPod(t *testing.T) {
 		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
 		assert.Len(t, service.GetCheckNames(ctx), 0)
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "first service not in channel")
 	}
@@ -276,6 +286,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "second service not in channel")
 	}
@@ -298,6 +317,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []string{"baz_check"}, service.GetCheckNames(ctx))
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "third service not in channel")
 	}
@@ -320,6 +348,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "fourth service not in channel")
 	}
@@ -345,6 +382,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.True(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "fifth service not in channel")
 	}
@@ -367,6 +413,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.True(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "sixth service not in channel")
 	}
@@ -390,6 +445,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "eighth service not in channel")
 	}
@@ -412,6 +476,15 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "ninth service not in channel")
 	}
