@@ -70,6 +70,13 @@
             }
         }
     },
+    "oracle" : {
+        "azure": {
+            "x86_64": {
+                "oracle-7-9": "urn,Oracle:Oracle-Linux:79-gen2:7.9.14"
+            }
+        }
+    },
     "windows": {
         "azure" : {
             "x86_64": {

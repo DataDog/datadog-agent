@@ -42,8 +42,21 @@ if node['platform_family'] != 'windows'
       package 'xfsprogs'
     end
 
-    docker_service 'default' do
-      action [:create, :start]
+    if ['oracle'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker-engine'
+        package_options %q|-y|
+      end
+
+      service 'docker' do
+        action [ :enable, :start ]
+      end
+    else
+      docker_service 'default' do
+        action [:create, :start]
+      end
     end
 
     docker_image 'centos' do
