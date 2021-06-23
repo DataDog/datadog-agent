@@ -418,7 +418,7 @@ def _save_release_json(release_json):
 ##
 
 
-def _create_version_dict_from_match(match):
+def _create_version_from_match(match):
     groups = match.groups()
     version = Version(
         major=int(groups[1]),
@@ -486,7 +486,7 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
         for tag in tags:
             match = version_re.search(tag["ref"])
             if match:
-                this_version = _create_version_dict_from_match(match)
+                this_version = _create_version_from_match(match)
                 if this_version > highest_version:
                     highest_version = this_version
 
@@ -513,14 +513,14 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
     for key, value in release_json.items():
         match = version_re.match(key)
         if match:
-            this_version = _create_version_dict_from_match(match)
+            this_version = _create_version_from_match(match)
             if this_version > highest_version and this_version.major <= major_version:
                 highest_version = this_version
 
                 if release_json_key is not None:
                     match = version_re.match(value.get(release_json_key, ""))
                     if match:
-                        highest_component_version = _create_version_dict_from_match(match)
+                        highest_component_version = _create_version_from_match(match)
                     else:
                         print(
                             "{} does not have a valid {} ({}), ignoring".format(
