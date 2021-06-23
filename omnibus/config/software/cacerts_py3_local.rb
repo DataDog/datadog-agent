@@ -21,7 +21,7 @@ name "cacerts_py3_local"
 default_version "latest"
 
 source url: "https://curl.haxx.se/ca/cacert.pem",
-       sha256: "3a32ad57e7f5556e36ede625b854057ac51f996d59e0952c207040077cbe48a9",
+       sha256: "726889705b00f736200ed7999f7a50021b8735d53228d679c4e6665aa3b44987",
        target_filename: "cacert.pem"
 
 relative_path "cacerts-#{version}"
