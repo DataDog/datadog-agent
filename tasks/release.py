@@ -453,6 +453,17 @@ def _query_github_api(auth_token, url):
     return response
 
 
+def build_compatible_version_re(allowed_major_versions, minor_version):
+    """
+    Returns a regex that matches only versions whose major version is
+    in the provided list of allowed_major_versions, and whose minor version matches
+    the provided minor version.
+    """
+    return re.compile(
+        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
+    )
+
+
 ##
 ## Base functions to fetch candidate versions on other repositories
 ##
@@ -538,6 +549,7 @@ def _get_highest_version_from_release_json(release_json, major_version, version_
 # The order matters, eg. when fetching matching tags for an Agent 6 entry,
 # tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+
 
 # Message templates for the below functions
 # Defined here either because they're long and would make the code less legible,
@@ -737,9 +749,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     # For repositories which follow the Agent version scheme, we want to only get
     # tags with the same minor version, to avoid problems when releasing a patch
     # version while a minor version release is ongoing.
-    compatible_version_re = re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), new_version.minor)
-    )
+    compatible_version_re = build_compatible_version_re(allowed_major_versions, new_version.minor)
 
     integrations_version = _fetch_dependency_repo_version(
         "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc

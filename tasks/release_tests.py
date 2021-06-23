@@ -1,7 +1,239 @@
+import hashlib
 import re
 import unittest
+from typing import OrderedDict
+from unittest import mock
+
+from invoke.exceptions import Exit
 
 from . import release
+from .libs.version import Version
+
+
+def mocked_github_requests_get(*args, **_kwargs):
+    class MockResponse:
+        def __init__(self, json_data, status_code):
+            self.json_data = json_data
+            self.status_code = status_code
+
+        def json(self):
+            return self.json_data
+
+    if args[0][-1] == "6":
+        return MockResponse(
+            [
+                {"ref": "6.28.0-rc.1"},
+                {"ref": "6.28.0"},
+                {"ref": "6.28.1-rc.1"},
+                {"ref": "6.28.1"},
+                {"ref": "6.29.0-rc.1"},
+                {"ref": "6.29.0"},
+            ],
+            200,
+        )
+
+    if args[0][-1] == "7":
+        return MockResponse(
+            [
+                {"ref": "7.28.0-rc.1"},
+                {"ref": "7.28.0"},
+                {"ref": "7.28.1-rc.1"},
+                {"ref": "7.28.1"},
+                {"ref": "7.29.0-rc.1"},
+                {"ref": "7.29.0"},
+            ],
+            200,
+        )
+
+    return MockResponse(
+        [
+            {"ref": "6.28.0-rc.1"},
+            {"ref": "6.28.0"},
+            {"ref": "7.28.0-rc.1"},
+            {"ref": "7.28.0"},
+            {"ref": "6.28.1-rc.1"},
+            {"ref": "6.28.1"},
+            {"ref": "7.28.1-rc.1"},
+            {"ref": "7.28.1"},
+            {"ref": "6.29.0-rc.1"},
+            {"ref": "6.29.0"},
+            {"ref": "7.29.0-rc.1"},
+            {"ref": "7.29.0"},
+        ],
+        200,
+    )
+
+
+class TestGetHighestRepoVersion(unittest.TestCase):
+    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
+    def test_one_allowed_major_multiple_entries(self, _):
+        version = release._get_highest_repo_version(
+            "FAKE_TOKEN",
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 28),
+            release.COMPATIBLE_MAJOR_VERSIONS[7],
+        )
+        self.assertEqual(version, Version(major=7, minor=28, patch=1))
+
+    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
+    def test_one_allowed_major_one_entry(self, _):
+        version = release._get_highest_repo_version(
+            "FAKE_TOKEN",
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
+            release.COMPATIBLE_MAJOR_VERSIONS[7],
+        )
+        self.assertEqual(version, Version(major=7, minor=29, patch=0))
+
+    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
+    def test_multiple_allowed_majors_multiple_entries(self, _):
+        version = release._get_highest_repo_version(
+            "FAKE_TOKEN",
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 28),
+            release.COMPATIBLE_MAJOR_VERSIONS[6],
+        )
+        self.assertEqual(version, Version(major=6, minor=28, patch=1))
+
+    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
+    def test_multiple_allowed_majors_one_entry(self, _):
+        version = release._get_highest_repo_version(
+            "FAKE_TOKEN",
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 29),
+            release.COMPATIBLE_MAJOR_VERSIONS[6],
+        )
+        self.assertEqual(version, Version(major=6, minor=29, patch=0))
+
+    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
+    def test_nonexistant_minor(self, _):
+        self.assertRaises(
+            Exit,
+            release._get_highest_repo_version,
+            "FAKE_TOKEN",
+            "target-repo",
+            "",
+            release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 30),
+            release.COMPATIBLE_MAJOR_VERSIONS[7],
+        )
+
+
+MOCK_JMXFETCH_CONTENT = "jmxfetch content".encode('utf-8')
+
+
+def mocked_jmxfetch_requests_get(*_args, **_kwargs):
+    class MockResponse:
+        def __init__(self, content, status_code):
+            self.content = content
+            self.status_code = status_code
+
+    return MockResponse(MOCK_JMXFETCH_CONTENT, 200)
+
+
+class TestAddReleaseJsonEntry(unittest.TestCase):
+    @mock.patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
+    def test_add_release_json_entry(self, _):
+        self.maxDiff = None
+        initial_release_json = OrderedDict(
+            {
+                "nightly": {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                "nightly-a7": {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+            }
+        )
+
+        new_version = Version(major=7, minor=30, patch=1, rc=12)
+        integrations_version = Version(major=7, minor=30, patch=1, rc=2)
+        omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
+        omnibus_software_version = Version(major=7, minor=30, patch=0)
+        macos_build_version = Version(major=7, minor=30, patch=0)
+        jmxfetch_version = Version(major=0, minor=45, patch=0)
+        security_agent_policies_version = Version(prefix="v", major="0", minor="15")
+        windows_ddnpm_driver = "release-signed"
+        windows_ddnpm_version = "0.98.2.git.86.53d1ee4"
+        windows_ddnpm_shasum = "windowsddnpmshasum"
+
+        release_json = release._add_release_json_entry(
+            release_json=initial_release_json,
+            new_version=new_version,
+            integrations_version=integrations_version,
+            omnibus_ruby_version=omnibus_ruby_version,
+            omnibus_software_version=omnibus_software_version,
+            macos_build_version=macos_build_version,
+            jmxfetch_version=jmxfetch_version,
+            security_agent_policies_version=security_agent_policies_version,
+            windows_ddnpm_driver=windows_ddnpm_driver,
+            windows_ddnpm_version=windows_ddnpm_version,
+            windows_ddnpm_shasum=windows_ddnpm_shasum,
+        )
+
+        expected_release_json = OrderedDict(
+            {
+                "nightly": {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                "nightly-a7": {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                str(new_version): {
+                    "INTEGRATIONS_CORE_VERSION": str(integrations_version),
+                    "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
+                    "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
+                    "JMXFETCH_VERSION": str(jmxfetch_version),
+                    "JMXFETCH_HASH": hashlib.sha256(MOCK_JMXFETCH_CONTENT).hexdigest(),
+                    "MACOS_BUILD_VERSION": str(macos_build_version),
+                    "WINDOWS_DDNPM_DRIVER": str(windows_ddnpm_driver),
+                    "WINDOWS_DDNPM_VERSION": str(windows_ddnpm_version),
+                    "WINDOWS_DDNPM_SHASUM": str(windows_ddnpm_shasum),
+                    "SECURITY_AGENT_POLICIES_VERSION": str(security_agent_policies_version),
+                },
+            }
+        )
+
+        self.assertDictEqual(release_json, expected_release_json)
 
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
