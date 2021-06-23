@@ -126,8 +126,10 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	if err := m.endToEndInjectionTest(); err != nil {
-		log.Errorf("failed to run e2e injection test: %v", err)
+	if m.e2e.Enabled {
+		if err := m.endToEndInjectionTest(); err != nil {
+			log.Errorf("failed to run e2e injection test: %v", err)
+		}
 	}
 
 	if err := m.Reload(); err != nil {
@@ -581,7 +583,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 
-		e2e: NewE2ETester(true),
+		e2e: NewE2ETester(cfg.E2EStartTestEnabled),
 	}
 
 	seclog.SetPatterns(cfg.LogPatterns)
@@ -592,14 +594,14 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 }
 
 type E2ETester struct {
-	enabled         bool
+	Enabled         bool
 	waitingForEvent bool
 	EventChan       chan *sprobe.Event
 }
 
 func NewE2ETester(enabled bool) *E2ETester {
 	return &E2ETester{
-		enabled:         enabled,
+		Enabled:         enabled,
 		waitingForEvent: false,
 		EventChan:       make(chan *sprobe.Event),
 	}
@@ -614,7 +616,7 @@ func (t *E2ETester) EndWaitingForEvent() {
 }
 
 func (t *E2ETester) SendEvent(event *sprobe.Event) {
-	if t.enabled && t.waitingForEvent {
+	if t.Enabled && t.waitingForEvent {
 		t.EventChan <- event
 	}
 }
