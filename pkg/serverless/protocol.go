@@ -145,7 +145,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	if !isLastFlush {
 		d.UpdateStrategy()
 	}
-	d.doneChannel <- true
+	d.FinishInvocation()
 }
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
@@ -250,7 +250,18 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.doneChannel <- true
+	go func() {
+		d.doneChannel <- true
+	}()
+}
+
+// WaitForDaemon waits until invocation finished any pending work
+func (d *Daemon) WaitForDaemon() {
+	if d.clientLibReady {
+		<-d.doneChannel
+	} else {
+		d.FinishInvocation()
+	}
 }
 
 // WaitUntilClientReady will wait until the client library has called the /hello route, or timeout

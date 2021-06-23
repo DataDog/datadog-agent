@@ -7,8 +7,6 @@ package serverless
 
 import (
 	"context"
-	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWaitForDaemonBlocking(t *testing.T) {
+func TestWaitForDaemonNonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
@@ -27,21 +25,37 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
 	d.clientLibReady = false
-	d.WaitForDaemon()
 
-	// WaitForDaemon blocks if the client library has registered with the extension's /hello route
+	tomorrow := time.Now().Add(time.Hour * 24)
+	deadlineMs := tomorrow.UnixNano() / 1000000
+	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
+	<-d.doneChannel
+	assert.True(true, "daemon didn't block until FinishInvocation")
+}
+
+func TestWaitForDaemonBlocking(t *testing.T) {
+	assert := assert.New(t)
+	_, cancel := context.WithCancel(context.Background())
+	d := StartDaemon(cancel)
+	d.ReadyWg.Done()
+	defer d.Stop(false)
+
+	// WaitForDaemon blocks if the client library hasn't
+	// registered with the extension's /hello route
 	d.clientLibReady = true
-
-	d.StartInvocation()
-
 	complete := false
+
 	go func() {
 		<-time.After(100 * time.Millisecond)
 		complete = true
 		d.FinishInvocation()
 	}()
-	d.WaitForDaemon()
-	assert.Equal(complete, true, "daemon didn't block until FinishInvocation")
+
+	deltaMs := time.Now().Add(time.Millisecond * 200)
+	deadlineMs := deltaMs.UnixNano() / 1000000
+	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
+
+	assert.True(complete, "daemon is blocked until FinishInvocation")
 }
 
 func TestWaitUntilReady(t *testing.T) {
@@ -94,46 +108,4 @@ func TestProcessMessage(t *testing.T) {
 	case <-time.After(time.Second):
 		//nothing to do here
 	}
-}
-
-func GetValueSyncOnce(so *sync.Once) uint64 {
-	return reflect.ValueOf(so).Elem().FieldByName("done").Uint()
-}
-
-func TestFinishInvocationOnceStartOnly(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.finishInvocationOnce))
-}
-
-func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	d.FinishInvocation()
-
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
-}
-
-func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	d.FinishInvocation()
-	d.FinishInvocation()
-
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
 }

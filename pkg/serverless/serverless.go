@@ -322,6 +322,7 @@ func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyB
 }
 
 func handleInvocation(daemon *Daemon, arn string, coldstart bool) {
+
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
 	aws.SetARN(arn)
@@ -351,11 +352,7 @@ func handleInvocation(daemon *Daemon, arn string, coldstart bool) {
 	} else {
 		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
 	}
-	if !daemon.clientLibReady {
-		daemon.FinishInvocation()
-	} else {
-		<-daemon.doneChannel
-	}
+	daemon.WaitForDaemon()
 }
 
 func buildURL(route string) string {
