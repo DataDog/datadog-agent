@@ -1,3 +1,5 @@
+// +build windows,npm
+
 package tracer
 
 import "testing"
@@ -11,5 +13,5 @@ func httpSupported(t *testing.T) bool {
 }
 
 func connectionBufferCapacity(t *Tracer) int {
-	return t.connStatsActive.Capacity() + t.connStatsClosed.Capacity()
+	return t.connStatsActive.Capacity()
 }

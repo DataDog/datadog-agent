@@ -42,13 +42,13 @@ import (
 func dnsSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion < kernel.VersionCode(4, 1, 0)
+	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
-	return currKernelVersion < kernel.VersionCode(4, 1, 0)
+	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
 func connectionBufferCapacity(t *Tracer) int {
@@ -133,6 +133,59 @@ func TestTCPRemoveEntries(t *testing.T) {
 	assert.Equal(t, clientMessageSize, int(conn.MonotonicSentBytes))
 	assert.Equal(t, 0, int(conn.MonotonicRecvBytes))
 	assert.Equal(t, 0, int(conn.MonotonicRetransmits))
+	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+}
+
+func TestTCPRetransmit(t *testing.T) {
+	// Enable BPF-based system probe
+	tr, err := NewTracer(testConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	iptablesWrapper(t, func() {
+		for i := 0; i < 99; i++ {
+			// Send a bunch of messages
+			c.Write(genPayload(clientMessageSize))
+		}
+		time.Sleep(time.Second)
+	})
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts and there was at least 1 retransmission
+	connections := getConnections(t, tr)
+
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	assert.Equal(t, 100*clientMessageSize, int(conn.MonotonicSentBytes))
+	assert.True(t, int(conn.MonotonicRetransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 }
