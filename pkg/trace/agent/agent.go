@@ -35,6 +35,7 @@ const (
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
+	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          *stats.Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
@@ -86,6 +87,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf.OTLPReceiver)
 	return agnt
 }
 
@@ -99,6 +101,7 @@ func (a *Agent) Run() {
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
 		a.EventProcessor,
+		a.OTLPReceiver,
 	} {
 		starter.Start()
 	}
@@ -152,16 +155,21 @@ func (a *Agent) loop() {
 			if err := a.Receiver.Stop(); err != nil {
 				log.Error(err)
 			}
-			a.Concentrator.Stop()
-			a.ClientStatsAggregator.Stop()
-			a.TraceWriter.Stop()
-			a.StatsWriter.Stop()
-			a.PrioritySampler.Stop()
-			a.ErrorsSampler.Stop()
-			a.NoPrioritySampler.Stop()
-			a.ExceptionSampler.Stop()
-			a.EventProcessor.Stop()
-			a.obfuscator.Stop()
+			for _, stopper := range []interface{ Stop() }{
+				a.Concentrator,
+				a.ClientStatsAggregator,
+				a.TraceWriter,
+				a.StatsWriter,
+				a.PrioritySampler,
+				a.ErrorsSampler,
+				a.NoPrioritySampler,
+				a.ExceptionSampler,
+				a.EventProcessor,
+				a.OTLPReceiver,
+				a.obfuscator,
+			} {
+				stopper.Stop()
+			}
 			return
 		}
 	}

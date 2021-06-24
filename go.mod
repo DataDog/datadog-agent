@@ -168,6 +168,7 @@ require (
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
 	go.opencensus.io v0.22.6 // indirect
+	go.opentelemetry.io/otel v0.20.0
 	go.uber.org/automaxprocs v1.4.0
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
