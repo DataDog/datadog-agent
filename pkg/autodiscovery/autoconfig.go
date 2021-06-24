@@ -428,6 +428,11 @@ func (ac *AutoConfig) RemoveScheduler(name string) {
 }
 
 func decryptConfig(conf integration.Config) (integration.Config, error) {
+	if config.Datadog.GetBool("secret_backend_skip_checks") {
+		log.Debugf("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
+		return conf, nil
+	}
+
 	var err error
 
 	// init_config
