@@ -28,7 +28,6 @@ import (
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
 const httpServerPort int = 8124
-
 const httpLogsCollectionRoute string = "/lambda/logs"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
@@ -81,6 +80,11 @@ type Daemon struct {
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
 	finishInvocationOnce sync.Once
+}
+
+//SetMuxHandle configures the log collection route handler
+func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage) {
+	d.mux.Handle(route, &LogsCollection{daemon: d, ch: logsChan})
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.

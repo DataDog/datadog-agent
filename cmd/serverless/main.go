@@ -26,10 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -82,6 +84,19 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 const (
 	// loggerName is the name of the serverless agent logger
 	loggerName config.LoggerName = "SAGENT"
+
+	runtimeApiEnvVar = "AWS_LAMBDA_RUNTIME_API"
+
+	extensionRegistrationRoute   = "/2020-01-01/extension/register"
+	extensionRegistrationTimeout = 5 * time.Second
+
+	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationTimeout = 5 * time.Second
+	logsAPIHttpServerPort      = 8124
+	logsAPICollectionRoute     = "/lambda/logs"
+	logsAPITimeout             = 1000
+	logsAPIMaxBytes            = 262144
+	logsAPIMaxItems            = 1000
 )
 
 func init() {
@@ -155,8 +170,9 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// serverless parts
 	// ----------------
 
-	// register
-	serverlessID, err := serverless.Register()
+	// extension registration
+	extesionRegistrationUrl := registration.BuildURL(os.Getenv(runtimeApiEnvVar), extensionRegistrationRoute)
+	serverlessID, err := registration.RegisterExtension(extesionRegistrationUrl, extensionRegistrationTimeout)
 	if err != nil {
 		// at this point, we were not even able to register, thus, we don't have
 		// any ID assigned, thus, we can't report an error to the init error route
@@ -246,41 +262,26 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	// starts logs collection
 	// ----------------------
-
-	// type of logs we are subscribing to
-	var logsType []string
-	if envLogsType, exists := os.LookupEnv(logsLogsTypeSubscribed); exists {
-		parts := strings.Split(strings.TrimSpace(envLogsType), " ")
-		for _, part := range parts {
-			part = strings.ToLower(strings.TrimSpace(part))
-			switch part {
-			case "function", "platform", "extension":
-				logsType = append(logsType, part)
-			default:
-				log.Warn("While subscribing to logs, unknown log type", part)
-			}
-		}
-	} else {
-		logsType = append(logsType, "platform", "function", "extension")
-	}
-
 	log.Debug("Enabling logs collection HTTP route")
-	if httpAddr, logsChan, err := daemon.EnableLogsCollection(); err != nil {
-		log.Error("While starting the HTTP Logs Server:", err)
+
+	logRegistrationUrl := registration.BuildURL(os.Getenv(runtimeApiEnvVar), logsAPIRegistrationRoute)
+	logRegistrationError := registration.EnableLogsCollection(
+		serverlessID,
+		logRegistrationUrl,
+		logsAPIRegistrationTimeout,
+		os.Getenv(logsLogsTypeSubscribed),
+		logsAPIHttpServerPort,
+		logsAPICollectionRoute,
+		logsAPITimeout,
+		logsAPIMaxBytes,
+		logsAPIMaxItems)
+
+	if logRegistrationError != nil {
+		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		// subscribe to the logs on the platform
-		if err := serverless.SubscribeLogs(serverlessID, httpAddr, logsType); err != nil {
-			log.Error("Can't subscribe to logs:", err)
-		} else {
-			// we subscribed to the logs collection on the platform, let's instantiate
-			// a logs agent to collect/process/flush the logs.
-			if err := logs.StartServerless(
-				func() *autodiscovery.AutoConfig { return common.AC },
-				logsChan, nil,
-			); err != nil {
-				log.Error("Could not start an instance of the Logs Agent:", err)
-			}
-		}
+		logChannel := make(chan *logConfig.ChannelMessage)
+		daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
+		setupLogAgent(logChannel)
 	}
 
 	// setup the forwarder, serializer and aggregator
@@ -388,5 +389,16 @@ func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 			stopCh <- struct{}{}
 			return
 		}
+	}
+}
+
+func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
+	// we subscribed to the logs collection on the platform, let's instantiate
+	// a logs agent to collect/process/flush the logs.
+	if err := logs.StartServerless(
+		func() *autodiscovery.AutoConfig { return common.AC },
+		logChannel, nil,
+	); err != nil {
+		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -22,12 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	extensionName = "datadog-agent"
-
 	routeRegister      string = "/2020-01-01/extension/register"
 	routeEventNext     string = "/2020-01-01/extension/event/next"
 	routeInitError     string = "/2020-01-01/extension/init/error"
@@ -74,16 +72,8 @@ type ShutdownReason string
 // RuntimeEvent is an AWS Runtime event
 type RuntimeEvent string
 
-// ID is the extension ID within the AWS Extension environment.
-type ID string
-
 // ErrorEnum are errors reported to the AWS Extension environment.
 type ErrorEnum string
-
-// String returns the string value for this ID.
-func (i ID) String() string {
-	return string(i)
-}
 
 // String returns the string value for this ErrorEnum.
 func (e ErrorEnum) String() string {
@@ -108,119 +98,8 @@ type Payload struct {
 	//    RequestId string `json:"requestId"` // unused
 }
 
-// Register registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
-// Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
-// the environment) or an error.
-func Register() (ID, error) {
-	var err error
-
-	// create the POST register request
-	// we will want to add here every configuration field that the serverless
-	// agent supports.
-
-	payload := bytes.NewBuffer(nil)
-	payload.Write([]byte(`{"events":["INVOKE", "SHUTDOWN"]}`))
-
-	var request *http.Request
-	var response *http.Response
-
-	if request, err = http.NewRequest(http.MethodPost, buildURL(routeRegister), payload); err != nil {
-		return "", fmt.Errorf("Register: can't create the POST register request: %v", err)
-	}
-	request.Header.Set(headerExtName, extensionName)
-
-	// call the service to register and retrieve the given Id
-	client := &http.Client{Timeout: 5 * time.Second}
-	if response, err = client.Do(request); err != nil {
-		return "", fmt.Errorf("Register: error while POST register route: %v", err)
-	}
-
-	// read the response
-	// -----------------
-
-	var body []byte
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
-		return "", fmt.Errorf("Register: can't read the body: %v", err)
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != 200 {
-		return "", fmt.Errorf("Register: didn't receive an HTTP 200: %v -- Response body content: %v", response.StatusCode, string(body))
-	}
-
-	// read the ID
-	// -----------
-
-	id := response.Header.Get(headerExtID)
-	if len(id) == 0 {
-		return "", fmt.Errorf("Register: didn't receive an identifier -- Response body content: %v", string(body))
-	}
-
-	return ID(id), nil
-}
-
-// SubscribeLogs subscribes to the logs collection on the platform.
-// We send a request to AWS to subscribe for logs, indicating on which port we
-// are opening an HTTP server, to receive logs from AWS.
-// When we are receiving logs on this HTTP server, we're pushing them in a channel
-// tailed by the Logs Agent pipeline, these logs then go through the regular
-// Logs Agent pipeline to finally be sent on the intake when we receive a FLUSH
-// call from the Lambda function / client.
-// logsType contains the type of logs for which we are subscribing, possible
-// value: platform, extension and function.
-func SubscribeLogs(id ID, httpAddr string, logsType []string) error {
-	var err error
-	var request *http.Request
-	var response *http.Response
-	var jsonBytes []byte
-
-	if _, err := url.ParseRequestURI(httpAddr); err != nil || httpAddr == "" {
-		return fmt.Errorf("SubscribeLogs: wrong http addr provided: %s", httpAddr)
-	}
-
-	// send a hit on a route to subscribe to the logs collection feature
-	// --------------------
-
-	log.Debug("Subscribing to Logs for types:", logsType)
-
-	if jsonBytes, err = json.Marshal(map[string]interface{}{
-		"destination": map[string]string{
-			"URI":      httpAddr,
-			"protocol": "HTTP",
-		},
-		"types": logsType,
-		"buffering": map[string]int{ // TODO(remy): these should be better defined
-			"timeoutMs": 1000,
-			"maxBytes":  262144,
-			"maxItems":  1000,
-		},
-	}); err != nil {
-		return fmt.Errorf("SubscribeLogs: can't marshal subscribe JSON: %s", err)
-	}
-
-	if request, err = http.NewRequest(http.MethodPut, buildURL(routeSubscribeLogs), bytes.NewBuffer(jsonBytes)); err != nil {
-		return fmt.Errorf("SubscribeLogs: can't create the PUT request: %v", err)
-	}
-	request.Header.Set(headerExtID, id.String())
-	request.Header.Set(headerContentType, "application/json")
-
-	client := &http.Client{
-		Transport: &http.Transport{IdleConnTimeout: requestTimeout},
-		Timeout:   requestTimeout,
-	}
-	if response, err = client.Do(request); err != nil {
-		return fmt.Errorf("SubscribeLogs: while PUT subscribe request: %s", err)
-	}
-
-	if response.StatusCode >= 300 {
-		return fmt.Errorf("SubscribeLogs: received an HTTP %s", response.Status)
-	}
-
-	return nil
-}
-
 // ReportInitError reports an init error to the environment.
-func ReportInitError(id ID, errorEnum ErrorEnum) error {
+func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 	var err error
 	var content []byte
 	var request *http.Request
@@ -258,7 +137,7 @@ func ReportInitError(id ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id ID, coldstart bool) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id registration.ID, coldstart bool) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
