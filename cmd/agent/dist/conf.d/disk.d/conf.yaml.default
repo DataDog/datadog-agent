@@ -16,8 +16,9 @@ instances:
     ## Note: On some linux distributions, rootfs is found and tagged as a device.
     ## Add rootfs here to exclude.
     #
-    # excluded_filesystems:
-    #   - tmpfs
+    excluded_filesystems:
+      - tmpfs
+      - squashfs
 
     ## @param excluded_disks - list of strings - optional
     ## The `excluded_disks` parameter instructs the check to

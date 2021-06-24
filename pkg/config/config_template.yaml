@@ -897,6 +897,31 @@ network_tracer_config:
   initial_connections_from_proc: "true"
 # /[STS] defaults
 
+{{- if .NetworkTracer }}
+# Network tracer specific settings
+#
+# network_tracer_config:
+#   # A boolean indicating the enabled state of the network tracer.
+#   network_tracing_enabled: "true"
+#   # The full path to the file where network-tracer logs will be written.
+#   log_file: /var/log/stackstate-agent/process_agent.log
+#   # An integer indicating the amount of seconds for the retry interval for initializing the network tracer.
+#   network_tracer_retry_init_duration_sec: 5
+#   # An integer indicating the amount of retries to use for initializing the network tracer.
+#   network_tracer_retry_init_amount: 3
+#   # Whenever debugging statements of eBPF code of network tracer should be redirected to the agent log
+#   ebpf_debuglog_enabled: "false"
+#   # A boolean indicating the enabled state of the protocol inspection.
+#   protocol_inspection_enabled: "true"
+#   http_metrics:
+#     # Specifies which algorithm to use to collapse measurements: collapsing_lowest_dense, collapsing_highest_dense, unbounded
+#     sketch_type: collapsing_lowest_dense
+#     # A maximum number of bins of the ddSketch we use to store percentiles
+#     max_num_bins: 1024
+#     # Desired accuracy for computed percentiles. 0.01 means, for example, we can say that p99 is 100ms +- 1ms
+#     accuracy: 0.01
+{{ end -}}
+
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -1762,6 +1787,10 @@ network_tracer_config:
 ## @param skip_validate_clustername - boolean - optional - default: true
 ## Disables the kubernetes cluster name validation in the StackState cluster agent.
 skip_validate_clustername: true
+
+# Docker Swarm
+# To collect Docker Swarm topology, collect_swarm_topology set to true.
+# collect_swarm_topology: true
 
 {{ end -}}
 {{- if .CloudFoundryBBS }}

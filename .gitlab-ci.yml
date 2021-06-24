@@ -179,7 +179,15 @@ deps_deb_py2:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
 
+.agent_base: &agent_base
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+      when: never
+    - if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
+      when: on_success
+
 deps_rpm:
+  <<: *agent_base
   stage: prepare
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
@@ -203,6 +211,7 @@ deps_rpm:
     expire_in: 1 week
 
 deps_win:
+  <<: *agent_base
   stage: prepare
   before_script:
     - *configure_windows_ps1_env_script
@@ -230,11 +239,35 @@ deps_win:
 ## build_and_test stage
 
 unit_tests:
+  <<: *agent_base
   stage: build_and_test
+  needs:
+    - deps_deb
 #  variables: TODO: fix
 #    PYTHON_RUNTIMES: '2'
 #    INTEGRATIONS_VERSION: $RELEASE_VERSION_6
 #    CONDA_ENV: ddpy2
+  script:
+    # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
+    - inv deps
+    - inv -e agent.build --race --precompile-only --major-version 2
+    # TODO: check why formatting rules differ from previous step
+    - gofmt -l -w -s ./pkg ./cmd
+    # TODO: --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.test
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+  tags:
+    - sts-aws
+
+unit_tests_cluster_agent:
+  <<: *agent_base
+  stage: build_and_test
   needs:
     - deps_deb
   script:
@@ -245,7 +278,13 @@ unit_tests:
     - gofmt -l -w -s ./pkg ./cmd
     # TODO: --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.test
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2 --build-include docker,linux,kubeapiserver,cpython
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   tags:
     - sts-aws
 
@@ -260,6 +299,7 @@ unit_tests:
 #    - sts-aws
 
 filename_linting:
+  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
@@ -268,6 +308,7 @@ filename_linting:
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
+#  <<: *agent_base
 #  stage: build_and_test
 #  needs:
 #    - deps_deb
@@ -279,10 +320,17 @@ filename_linting:
 #    - docker:18.09-dind
 #  script:
 #    - inv -e docker.integration-tests
+#  retry:
+#    max: 2
+#    when:
+#      - runner_system_failure
+#      - stuck_or_timeout_failure
+#      - script_failure
 #  tags:
 #    - sts-aws
 
 build_binaries:
+  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
@@ -391,6 +439,11 @@ build_deb:
         - $CI_PROJECT_DIR/version.txt
         - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
 
 build_deb_py2:
   stage: build_and_test
@@ -443,6 +496,7 @@ build_deb_py2:
     expire_in: 1 week
 
 build_rpm:
+  <<: *agent_base
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
@@ -495,8 +549,14 @@ build_rpm:
         - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
         - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
 
 build_win:
+  <<: *agent_base
   stage: build_and_test
   variables:
     <<: *globalvariables
@@ -519,11 +579,18 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 
 ## pre_release stage
 
 test_deb_renaming:
+  <<: *agent_base
   stage: pre_release
   needs:
     - build_deb
@@ -533,6 +600,7 @@ test_deb_renaming:
     ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_2*.deb
 
 test_rpm_renaming:
+  <<: *agent_base
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
@@ -543,6 +611,7 @@ test_rpm_renaming:
     ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-2*.rpm
 
 pre_release_deb:
+  <<: *agent_base
   stage: pre_release
   needs:
     - deps_deb
@@ -560,6 +629,7 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
 
 pre_release_win:
+  <<: *agent_base
   stage: pre_release
   needs:
     - deps_win
@@ -586,8 +656,15 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 pre_release_rpm:
+  <<: *agent_base
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
@@ -618,6 +695,7 @@ pre_release_main_agent_image: &pre_release_image
     - sts-k8s-m-runner
 
 pre_release_trace_agent_image:
+  <<: *agent_base
   <<: *pre_release_image
   script:
     - cd $CI_PROJECT_DIR
@@ -646,8 +724,15 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 molecule_tests_vms:
+  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_deb
@@ -663,6 +748,7 @@ molecule_tests_vms:
     expire_in: 1 week
 
 molecule_tests_compose:
+  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_main_agent_image
@@ -676,6 +762,7 @@ molecule_tests_compose:
     expire_in: 1 week
 
 molecule_tests_integrations:
+  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_main_agent_image
@@ -703,6 +790,7 @@ molecule_tests_kubernetes:
     expire_in: 1 week
 
 molecule_tests_local_install:
+  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_deb
@@ -714,6 +802,7 @@ molecule_tests_local_install:
 #    - master
 
 molecule_tests_secrets:
+  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_deb
@@ -728,6 +817,19 @@ molecule_tests_secrets:
 #    - tags
 #    - master
 
+molecule_tests_swarm:
+  <<: *agent_base
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_image
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+    expire_in: 1 week
 
 ## release stage
 
@@ -787,6 +889,12 @@ release_win:
     - triggers
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 release_main_agent_image: &release_image
   stage: release

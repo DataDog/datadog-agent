@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: shipping
+  labels:
+    name: shipping
+    test: pod-http-metrics
+spec:
+  containers:
+    - name: shipping
+      image: weaveworksdemos/shipping:0.4.8
+      ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping
+  labels:
+    name: shipping
+    test: pod-http-metrics
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      protocol: TCP
+  selector:
+    name: shipping
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-client
+  labels:
+    test: pod-http-metrics
+spec:
+  containers:
+    - name: http-client
+      image: julianosk/continuous-requests-py:1.2
+      env:
+        - name: URL
+          value: "http://shipping/health/"
+        - name: INTERVAL
+          value: "2"

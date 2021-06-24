@@ -5,8 +5,8 @@
 [![GoDoc](https://godoc.org/github.com/StackVista/stackstate-agent?status.svg)](https://godoc.org/github.com/StackVista/stackstate-agent)
 [![Go Report Card](https://goreportcard.com/badge/github.com/StackVista/stackstate-agent)](https://goreportcard.com/report/github.com/StackVista/stackstate-agent)
 
-The present repository contains the source code of the Datadog Agent version 6. Please refer to the [Agent user documentation](docs/agent) for information about differences between Agent 5 and Agent 6. Additionally, we provide a list of prepackaged binaries for an easy install process [here](https://app.datadoghq.com/account/settings#agent)
-**Note:** the source code of Datadog Agent 5 is located in the
+The present repository contains the source code of the StackState Agent version 6. Please refer to the [Agent user documentation](docs/agent) for information about differences between Agent 5 and Agent 6. Additionally, we provide a list of prepackaged binaries for an easy install process [here](https://app.datadoghq.com/account/settings#agent)
+**Note:** the source code of StackState Agent 5 is located in the
 
 ## Documentation
 
@@ -144,4 +144,18 @@ Windows arguments:
 - `tags` = Agent host tags to use for all topology component (by default `os:windows` will be added)
 - `skipSSLValidation` = Skip ssl certificates validation when talking to the backend (defaults to `false`)
 - `agentVersion` = Version of the Agent to be installed (defaults to `latest`)
+
+## Install
+
+Installation instructions are available on the [StackState docs site](https://docs.stackstate.com/stackpacks/integrations/agent).
+
+##### Omnibus notes for windows build process
+
+We ended up checking in a patched gem file under omnibus/vendor/cache/libyajl2-1.2.1.gem, to make windows builds work with newer msys toolchain.
+The source of this can be found here https://github.com/StackVista/libyajl2-gem/tree/1.2.0-fixed-lssp. Ideally we'd be able to drop this hack once we
+bump the ruby version > 2.6.5 because libyajl2 compiles proper on those ruby versions.
+
+## GitLab cluster agent pipeline
+
+If you want to speed up the GitLab pipeline and run only the steps related to the cluster agent, include the string `[cluster-agent]` in your commit message.
 

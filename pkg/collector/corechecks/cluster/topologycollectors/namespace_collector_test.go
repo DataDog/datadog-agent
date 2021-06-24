@@ -30,6 +30,11 @@ func TestNamespaceCollector(t *testing.T) {
 	expectedCollectorName := "Namespace Collector"
 	RunCollectorTest(t, nsc, expectedCollectorName)
 
+	type test struct {
+		testCase string
+		expected *topology.Component
+	}
+
 	for _, tc := range []struct {
 		testCase string
 		expected *topology.Component

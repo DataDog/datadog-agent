@@ -42,6 +42,7 @@ instances:
     collect_image_size: true
     collect_disk_stats: true
     collect_exit_codes: true
+    collect_container_topology: true
     exclude: ["name:test", "container_name:some_image.*", "badly_formated", "image_name:some_image_2", "image:some_image_3"]
     include: ["unknown_key:test", "image:some_image_3"]
     tags: ["tag:value", "value"]
@@ -63,6 +64,7 @@ instances:
   collect_image_size: true
   collect_disk_stats: true
   collect_volume_count: true
+  collect_container_topology: true
   tags:
   - tag:value
   - value

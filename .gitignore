@@ -158,3 +158,16 @@ version.txt
 
 # molecule local json files
 /test/molecule-role/molecule/*/topic-*.json
+
+# cluster agent generated files
+Dockerfiles/cluster-agent/stackstate-cluster.yaml
+Dockerfiles/cluster-agent/auth_token
+Dockerfiles/cluster-agent/cluster_agent.auth_token
+Dockerfiles/cluster-agent/stackstate-cluster-agent
+Dockerfiles/cluster-agent/dist/
+
+# kubernetes test deployment
+deployment/kubernetes/k8s-*/
+
+# windows ami
+.cd-builders/windows/builder/runner/roles/sa_gitlab_runner_win
