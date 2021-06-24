@@ -822,7 +822,7 @@ molecule_tests_swarm:
   <<: *molecule_base
   needs:
     - pre_release_cluster_agent_image
-    - pre_release_image
+    - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s swarm
   artifacts:
