@@ -19,6 +19,8 @@ func TestProfiling(t *testing.T) {
 		ProfileCoreService,
 		time.Minute,
 		15*time.Second,
+		0,
+		0,
 		false,
 		"1.0.0",
 	)
