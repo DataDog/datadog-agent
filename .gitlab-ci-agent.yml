@@ -41,7 +41,7 @@ stages:
   Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
   conda activate $CONDA_ENV
   $current_dir=Get-Location
-  if not exist c:\\gopath\\src\\github.com\\StackVista mkdir -p c:\\gopath\\src\\github.com\\StackVista
+  cmd /c if not exist c:\\gopath\\src\\github.com\\StackVista mkdir -p c:\\gopath\\src\\github.com\\StackVista
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir
 
