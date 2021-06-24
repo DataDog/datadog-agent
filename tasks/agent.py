@@ -533,6 +533,8 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/datadog-iot-agent\/src/stackstate-iot-agent\/src/', "./omnibus/config/software/datadog-iot-agent.rb")
     do_sed_rename(ctx, 's/DataDog\/datadog-agent\/tools\/windows\/decompress_merge_module.ps1/StackVista\/stackstate-agent\/tools\/windows\/decompress_merge_module.ps1/',
                   "./omnibus/config/software/vc_redist_14.rb")
+    do_sed_rename(ctx, 's/DataDog\/datadog-agent/StackVista\/stackstate-agent/',
+                  "./omnibus/config/software/vc_redist.rb")
     do_sed_rename(ctx, 's/DataDog\/datadog-agent\/bin\/agent/StackVista\/stackstate-agent\/bin\/agent/',
                 "./omnibus/config/software/datadog-agent.rb")
     do_sed_rename(ctx, 's/\/etc\/datadog-agent/\/etc\/stackstate-agent/',
