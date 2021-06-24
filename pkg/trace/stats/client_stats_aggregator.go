@@ -116,7 +116,6 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (tim
 }
 
 func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
-	resolveContainerTags(&p)
 	for _, clientBucket := range p.Stats {
 		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
 		ts, shifted := a.getAggregationBucketTime(now, clientBucketStart)

@@ -214,8 +214,8 @@ func (c *AgentConfig) acquireHostname() error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if hostnameIsEmpty := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || hostnameIsEmpty {
-		if hostnameIsEmpty {
+	if hostnameDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || hostnameDisallowed {
+		if hostnameDisallowed {
 			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or

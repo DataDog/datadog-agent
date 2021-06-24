@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -202,29 +200,9 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 			Version:     k.Version,
 			Stats:       s,
 		}
-		resolveContainerTags(&p)
 		sb = append(sb, p)
 	}
 	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: info.Version}
-}
-
-// resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
-func resolveContainerTags(p *pb.ClientStatsPayload) {
-	if p.ContainerID == "" {
-		p.Tags = nil
-		return
-	}
-	ctags, err := tagger.Tag("container_id://"+p.ContainerID, collectors.HighCardinality)
-	switch {
-	case err != nil:
-		log.Tracef("Error resolving container tags for %q: %v", p.ContainerID, err)
-		p.ContainerID = ""
-		p.Tags = nil
-	case len(ctags) == 0:
-		p.Tags = nil
-	default:
-		p.Tags = ctags
-	}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.
