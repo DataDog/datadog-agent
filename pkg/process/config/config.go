@@ -101,7 +101,6 @@ type AgentConfig struct {
 	ProfilingEnabled          bool
 	ProfilingSite             string
 	ProfilingURL              string
-	ProfilingAPIKey           string
 	ProfilingEnvironment      string
 	ProfilingPeriod           time.Duration
 	ProfilingCPUDuration      time.Duration

@@ -192,7 +192,6 @@ func enableProfiling(cfg *config.Config) error {
 	}
 
 	return profiling.Start(
-		cfg.ProfilingAPIKey,
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",

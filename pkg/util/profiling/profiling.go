@@ -33,7 +33,7 @@ const (
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, withGoroutine bool, tags ...string) error {
+func Start(site, env, service string, period time.Duration, cpuDuration time.Duration, withGoroutine bool, tags ...string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if running {

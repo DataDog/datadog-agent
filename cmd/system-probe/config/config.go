@@ -62,7 +62,6 @@ type Config struct {
 	ProfilingEnabled     bool
 	ProfilingSite        string
 	ProfilingURL         string
-	ProfilingAPIKey      string
 	ProfilingEnvironment string
 	ProfilingPeriod      time.Duration
 	ProfilingCPUDuration time.Duration
@@ -145,7 +144,6 @@ func load(configPath string) (*Config, error) {
 		ProfilingEnabled:     cfg.GetBool(key(spNS, "internal_profiling.enabled")),
 		ProfilingSite:        cfg.GetString(key(spNS, "internal_profiling.site")),
 		ProfilingURL:         cfg.GetString(key(spNS, "internal_profiling.profile_dd_url")),
-		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
 		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
 		ProfilingPeriod:      cfg.GetDuration(key(spNS, "internal_profiling.period")),
 		ProfilingCPUDuration: cfg.GetDuration(key(spNS, "internal_profiling.cpu_duration")),
