@@ -385,7 +385,7 @@ build_win:
   script:
     - cmd.exe /c "%GOPATH%\src\github.com\StackVista\stackstate-agent\.gitlab-scripts\setup_artifactory.cmd"
     - conda activate $CONDA_ENV
-    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR_WIN --skip-sign --log-level debug --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-sign --log-level debug --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
