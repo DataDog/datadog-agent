@@ -42,14 +42,13 @@ func benchmarkDedupTags(b *testing.B, numberOfTags int) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {
 		// worst case since never the same tag
-		tags = append(tags, fmt.Sprintf("aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylong:tag%d", i))
+		tags = append(tags, fmt.Sprintf("anormal:tag%d", i))
 	}
 
 	tempTags := make([]string, len(tags))
 	copy(tempTags, tags)
 	b.ReportAllocs()
 	b.ResetTimer()
-
 	for n := 0; n < b.N; n++ {
 		copy(tempTags, tags)
 		DedupInPlace(tempTags)
@@ -57,7 +56,7 @@ func benchmarkDedupTags(b *testing.B, numberOfTags int) {
 }
 
 func BenchmarkDeduplicateTags(b *testing.B) {
-	for i := 1; i <= 128; i *= 2 {
+	for i := 1; i <= 50; i += 1 {
 		b.Run(fmt.Sprintf("deduplicate-%d-tags-in-place", i), func(b *testing.B) {
 			benchmarkDedupTags(b, i)
 		})
@@ -67,7 +66,7 @@ func BenchmarkDeduplicateTags(b *testing.B) {
 func benchmarkSortUniqTags(b *testing.B, numberOfTags int) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {
-		tags = append(tags, fmt.Sprintf("aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylong:tag%d", i))
+		tags = append(tags, fmt.Sprintf("anormal:tag%d", i))
 	}
 	// this is the worst case for the insertion sort we are using
 	sort.Sort(sort.Reverse(sort.StringSlice(tags)))
@@ -83,7 +82,7 @@ func benchmarkSortUniqTags(b *testing.B, numberOfTags int) {
 	}
 }
 func BenchmarkSortUniqTags(b *testing.B) {
-	for i := 1; i <= 128; i *= 2 {
+	for i := 1; i <= 50; i += 1 {
 		b.Run(fmt.Sprintf("sort-uniq-%d-tags-in-place", i), func(b *testing.B) {
 			benchmarkSortUniqTags(b, i)
 		})

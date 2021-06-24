@@ -33,13 +33,12 @@ OUTER:
 		el := elements[i]
 
 		for j := 0; j < idx; j++ {
-			if len(el) != len(elements[j]) || el != elements[j] {
-				continue
+			if el == elements[j] {
+				continue OUTER
 			}
-			continue OUTER
 		}
 
-		elements[idx] = elements[i]
+		elements[idx] = el
 		idx++
 	}
 
