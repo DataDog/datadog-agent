@@ -26,7 +26,7 @@ func TestExtractId(t *testing.T) {
 	expectedId := "blablabla"
 	response := &http.Response{
 		Header: map[string][]string{
-			HeaderExtID: []string{expectedId},
+			HeaderExtID: {expectedId},
 		},
 	}
 	assert.Equal(t, expectedId, extractId(response))
