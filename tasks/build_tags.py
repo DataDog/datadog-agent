@@ -26,6 +26,7 @@ ALL_TAGS = set(
         "kubelet",
         "linux_bpf",
         "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+        "npm",
         "orchestrator",
         "process",
         "python",
@@ -85,8 +86,8 @@ PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "o
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "kubeapiserver", "kubelet",])
 
-# PROCESS_AGENT_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf",]))
+# SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf", "npm",]))
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets",])
@@ -97,7 +98,7 @@ TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks",]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson",])
+LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson", "linux_bpf"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])
