@@ -5,6 +5,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/shirou/gopsutil/disk"
 	"github.com/stretchr/testify/assert"
@@ -87,26 +88,29 @@ func TestDiskTopologyCollector_BuildTopology(t *testing.T) {
 	assert.NoError(t, err)
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	expectedTopology := batcher.Topologies{
+	expectedTopology := batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"disk_topology": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "disk", URL: "agents"},
-			Components: []topology.Component{
-				{
-					ExternalID: fmt.Sprintf("urn:host:/%s", testHostname),
-					Type: topology.Type{
-						Name: "host",
-					},
-					Data: topology.Data{
-						"host":    testHostname,
-						"devices": []string{"abcd", "1234", "ecdf", "my/device/path"},
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "disk", URL: "agents"},
+				Components: []topology.Component{
+					{
+						ExternalID: fmt.Sprintf("urn:host:/%s", testHostname),
+						Type: topology.Type{
+							Name: "host",
+						},
+						Data: topology.Data{
+							"host":    testHostname,
+							"devices": []string{"abcd", "1234", "ecdf", "my/device/path"},
+						},
 					},
 				},
+				Relations: []topology.Relation{},
 			},
-			Relations: []topology.Relation{},
 		},
-	}
+	})
 
 	assert.Equal(t, expectedTopology, producedTopology)
 }

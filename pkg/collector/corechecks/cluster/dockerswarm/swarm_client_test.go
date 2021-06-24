@@ -31,7 +31,7 @@ var swarmService = containers.SwarmService{
 			ID:             "qwerty12345",
 			Name:           "/agent_stackstate-agent.1.skz8sp5d1y4f64qykw37mf3k2",
 			ContainerImage: "stackstate/stackstate-agent-2-test",
-			ContainerStatus: swarm.ContainerStatus{
+			ContainerStatus: &swarm.ContainerStatus{
 				ContainerID: "a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 				ExitCode:    0,
 				PID:         341,

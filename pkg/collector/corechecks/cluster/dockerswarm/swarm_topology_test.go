@@ -12,6 +12,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -130,20 +131,23 @@ func TestSwarmTopologyCollector_BuildSwarmTopology(t *testing.T) {
 	assert.NoError(t, err)
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	expectedTopology := batcher.Topologies{
+	expectedTopology := batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"swarm_topology": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
-			Components: []topology.Component{
-				*serviceComponent,
-				*containerComponent,
-			},
-			Relations: []topology.Relation{
-				*serviceRelation,
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
+				Components: []topology.Component{
+					*serviceComponent,
+					*containerComponent,
+				},
+				Relations: []topology.Relation{
+					*serviceRelation,
+				},
 			},
 		},
-	}
+	})
 	assert.EqualValues(t, producedTopology, expectedTopology)
 	// metrics assertion
 	sender.AssertExpectations(t)
