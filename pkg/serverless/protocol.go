@@ -28,7 +28,6 @@ import (
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
 const httpServerPort int = 8124
-const httpLogsCollectionRoute string = "/lambda/logs"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
