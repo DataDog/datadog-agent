@@ -15,7 +15,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path"
 	"sync"
@@ -363,34 +362,12 @@ func (m *Module) doSelfTest() error {
 	m.selfTester.BeginWaitingForEvent()
 	defer m.selfTester.EndWaitingForEvent()
 
-	// we need to use touch (or any other external program) as our PID is discarded by probes
-	// so the events would not be generated
-	cmd := exec.Command("touch", targetFilePath)
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error running touch: %v", err)
+	if err := m.selfTester.selfTestOpen(targetFilePath); err != nil {
 		return err
 	}
 
-	timer := time.After(10 * time.Second)
-	for {
-		select {
-		case event := <-m.selfTester.EventChan:
-			// success
-			eventOpenFilePath, err := event.GetFieldValue("open.file.path")
-			if err != nil {
-				return errors.Wrap(err, "failed to extract open file path from event")
-			}
-
-			if eventOpenFilePath != targetFilePath {
-				continue
-			}
-
-			log.Debugf("Successfully run e2e injection test")
-			return nil
-		case <-timer:
-			return errors.New("failed to receive expected event")
-		}
-	}
+	log.Debugf("Successfully run e2e injection test")
+	return nil
 }
 
 // Close the module

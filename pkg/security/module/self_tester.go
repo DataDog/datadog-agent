@@ -7,7 +7,14 @@
 
 package module
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+import (
+	"os/exec"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
+)
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
@@ -40,4 +47,41 @@ func (t *SelfTester) SendEventIfExpecting(event eval.Event) {
 	if t.Enabled && t.waitingForEvent {
 		t.EventChan <- event
 	}
+}
+
+func (t *SelfTester) expectEvent(predicate func(eval.Event) (bool, error)) error {
+	timer := time.After(10 * time.Second)
+	for {
+		select {
+		case event := <-t.EventChan:
+			ok, err := predicate(event)
+			if err != nil {
+				return err
+			}
+
+			if ok {
+				return nil
+			}
+		case <-timer:
+			return errors.New("failed to receive expected event")
+		}
+	}
+}
+
+func (t *SelfTester) selfTestOpen(targetFilePath string) error {
+	// we need to use touch (or any other external program) as our PID is discarded by probes
+	// so the events would not be generated
+	cmd := exec.Command("touch", targetFilePath)
+	if err := cmd.Run(); err != nil {
+		log.Debugf("error running touch: %v", err)
+		return err
+	}
+
+	return t.expectEvent(func(event eval.Event) (bool, error) {
+		eventOpenFilePath, err := event.GetFieldValue("open.file.path")
+		if err != nil {
+			return false, errors.Wrap(err, "failed to extract open file path from event")
+		}
+		return eventOpenFilePath == targetFilePath, nil
+	})
 }
