@@ -188,7 +188,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum        uint64
 	DNSFailureLatencySum        uint64
 	DNSCountByRcode             map[uint32]uint32
-	DnsStatsByDomainByQueryType map[string]map[QueryType]DNSStats
+	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
 
 	Via *Via
 }

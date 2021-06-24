@@ -63,7 +63,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
 	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
-	c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DnsStatsByDomainByQueryType, domainSet)
+	c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 
 	if httpStats != nil {

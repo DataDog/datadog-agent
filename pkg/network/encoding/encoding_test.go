@@ -47,7 +47,7 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DnsStatsByDomainByQueryType: map[string]map[network.QueryType]network.DNSStats{
+				DNSStatsByDomainByQueryType: map[string]map[network.QueryType]network.DNSStats{
 					"foo.com": {
 						network.DNSTypeA: {
 							DNSTimeouts:          0,
