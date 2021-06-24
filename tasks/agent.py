@@ -502,6 +502,7 @@ def apply_branding(ctx):
     do_sed_rename(ctx, 's/\/opt\/datadog/\/opt\/stackstate/g', "./omnibus/config/projects/agent.rb")
     do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
                   "./omnibus/config/projects/agent.rb")
+    do_sed_rename(ctx, 's/datadog-agent/stackstate-agent/g', "./omnibus/config/projects/agent.rb")
     do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
                   "./omnibus/config/projects/agent-binaries.rb")
     do_sed_rename(ctx, 's/\\\\\\\\etc\\\\\\\\datadog-agent\\\\\\\\extra_package_files/\\\\\\\\etc\\\\\\\\stackstate-agent\\\\\\\\extra_package_files/g',
