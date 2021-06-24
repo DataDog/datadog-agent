@@ -85,3 +85,21 @@ func (t *SelfTester) selfTestOpen(targetFilePath string) error {
 		return eventOpenFilePath == targetFilePath, nil
 	})
 }
+
+func (t *SelfTester) selfTestChmod(targetFilePath string) error {
+	// we need to use touch (or any other external program) as our PID is discarded by probes
+	// so the events would not be generated
+	cmd := exec.Command("chmod", "777", targetFilePath)
+	if err := cmd.Run(); err != nil {
+		log.Debugf("error running chmod: %v", err)
+		return err
+	}
+
+	return t.expectEvent(func(event eval.Event) (bool, error) {
+		eventOpenFilePath, err := event.GetFieldValue("chmod.file.path")
+		if err != nil {
+			return false, errors.Wrap(err, "failed to extract chmod file path from event")
+		}
+		return eventOpenFilePath == targetFilePath, nil
+	})
+}

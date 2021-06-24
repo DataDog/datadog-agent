@@ -295,16 +295,18 @@ func (m *Module) Reload() error {
 	return m.reloadWithPoliciesDir(m.config.PoliciesDir)
 }
 
-const e2eTestPolicy = `---
+const selfTestPolicyTemplate = `---
 rules:
-- id: {{.RuleName}}
+- id: {{.RuleName}}_open
   expression: open.file.path == "{{.TestFileName}}"
+- id: {{.RuleName}}_chmod
+  expression: chmod.file.path == "{{.TestFileName}}"
 ...
 `
 
 func (m *Module) doSelfTest() error {
 	// Create temp directory to put rules in
-	tmpDir, err := ioutil.TempDir("", "injection_test_rule")
+	tmpDir, err := ioutil.TempDir("", "self_test_rule")
 	if err != nil {
 		return err
 	}
@@ -332,11 +334,11 @@ func (m *Module) doSelfTest() error {
 	}
 
 	templateArgs := map[string]string{
-		"RuleName":     "e2e_test_policy",
+		"RuleName":     "self_test",
 		"TestFileName": targetFile.Name(),
 	}
 
-	tmpl, err := template.New("injection-test").Parse(e2eTestPolicy)
+	tmpl, err := template.New("self-test-rules").Parse(selfTestPolicyTemplate)
 	if err != nil {
 		return err
 	}
@@ -363,6 +365,10 @@ func (m *Module) doSelfTest() error {
 	defer m.selfTester.EndWaitingForEvent()
 
 	if err := m.selfTester.selfTestOpen(targetFilePath); err != nil {
+		return err
+	}
+
+	if err := m.selfTester.selfTestChmod(targetFilePath); err != nil {
 		return err
 	}
 
