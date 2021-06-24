@@ -254,6 +254,7 @@ func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage,
 
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
+	d.finishInvocationOnce = sync.Once{}
 	d.InvcWg.Add(1)
 }
 
