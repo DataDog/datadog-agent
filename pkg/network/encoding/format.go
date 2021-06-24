@@ -62,7 +62,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
-	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+	c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DnsStatsByDomainByQueryType, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 
 	if httpStats != nil {
@@ -281,14 +282,14 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 	for d, bytype := range stats {
 
 		byqtype := &model.DNSStatsByQueryType{}
-		byqtype.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
 		for t, stat := range bytype {
 			var ms model.DNSStats
 			ms.DnsCountByRcode = stat.DNSCountByRcode
 			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
 			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
 			ms.DnsTimeouts = stat.DNSTimeouts
-			byqtype.DnsStatsByDomain[int32(t)] = &ms
+			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
 		pos, ok := domainSet[d]
 		if !ok {

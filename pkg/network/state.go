@@ -243,14 +243,14 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
 			if ns.collectDNSDomains {
-				conn.DNSStatsByDomain = make(map[string]map[QueryType]DNSStats)
+				conn.DnsStatsByDomainByQueryType = make(map[string]map[QueryType]DNSStats)
 			} else {
 				conn.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			var total uint32
 			for domain, byType := range dnsStatsByDomain {
 				if ns.collectDNSDomains {
-					conn.DNSStatsByDomain[domain] = make(map[QueryType]DNSStats)
+					conn.DnsStatsByDomainByQueryType[domain] = make(map[QueryType]DNSStats)
 				}
 				for qtype, dnsStats := range byType {
 					if ns.collectDNSDomains {
@@ -263,7 +263,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 						for rcode, count := range dnsStats.DNSCountByRcode {
 							ds.DNSCountByRcode[rcode] = count
 						}
-						conn.DNSStatsByDomain[domain][qtype] = ds
+						conn.DnsStatsByDomainByQueryType[domain][qtype] = ds
 					} else {
 						conn.DNSSuccessfulResponses += dnsStats.DNSCountByRcode[DNSResponseCodeNoError]
 						conn.DNSTimeouts += dnsStats.DNSTimeouts

@@ -1225,7 +1225,7 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	conns := state.GetDelta(client1, latestEpochTime(), nil, getStats(), nil).Connections
 	require.Len(t, conns, 1)
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DnsStatsByDomainByQueryType[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
@@ -1233,14 +1233,14 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 	conns = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// DNS stats should be available for the new client
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DnsStatsByDomainByQueryType[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
 	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// 2nd client should get accumulated stats
-	assert.EqualValues(t, 3, conns[0].DNSStatsByDomain[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 3, conns[0].DnsStatsByDomainByQueryType[d][DNSTypeA].DNSCountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 }

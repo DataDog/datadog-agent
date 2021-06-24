@@ -47,7 +47,7 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomain: map[string]map[network.QueryType]network.DNSStats{
+				DnsStatsByDomainByQueryType: map[string]map[network.QueryType]network.DNSStats{
 					"foo.com": {
 						network.DNSTypeA: {
 							DNSTimeouts:          0,
@@ -136,10 +136,11 @@ func TestSerialization(t *testing.T) {
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
-				DnsCountByRcode: map[uint32]uint32{0: 1},
-				DnsStatsByDomain: map[int32]*model.DNSStatsByQueryType{
+				DnsCountByRcode:  map[uint32]uint32{0: 1},
+				DnsStatsByDomain: map[int32]*model.DNSStats{},
+				DnsStatsByDomainByQueryType: map[int32]*model.DNSStatsByQueryType{
 					0: {
-						DnsStatsByDomain: map[int32]*model.DNSStats{
+						DnsStatsByQueryType: map[int32]*model.DNSStats{
 							int32(network.DNSTypeA): {
 								DnsTimeouts:          0,
 								DnsSuccessLatencySum: 0,
@@ -250,6 +251,12 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+
+		// there seems to be a bug in protobuf maps with integer keys; it will
+		// not round-trip an empty map properly.  Temporarily hack around this problem
+		if result.Conns[0].DnsStatsByDomain == nil {
+			result.Conns[0].DnsStatsByDomain = map[int32]*model.DNSStats{}
+		}
 
 		assert.Equal(out, result)
 	})

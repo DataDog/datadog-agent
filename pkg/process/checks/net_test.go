@@ -186,41 +186,41 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns := makeConnections(4)
 
 	domains := []string{"foo.com", "bar.com", "baz.com"}
-	conns[1].DnsStatsByDomain = map[int32]*model.DNSStatsByQueryType{
+	conns[1].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
-			DnsStatsByDomain: map[int32]*model.DNSStats{
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(network.DNSTypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 	}
-	conns[2].DnsStatsByDomain = map[int32]*model.DNSStatsByQueryType{
+	conns[2].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
-			DnsStatsByDomain: map[int32]*model.DNSStats{
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(network.DNSTypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 		2: {
-			DnsStatsByDomain: map[int32]*model.DNSStats{
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(network.DNSTypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 	}
-	conns[3].DnsStatsByDomain = map[int32]*model.DNSStatsByQueryType{
+	conns[3].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		1: {
-			DnsStatsByDomain: map[int32]*model.DNSStats{
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(network.DNSTypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 		2: {
-			DnsStatsByDomain: map[int32]*model.DNSStats{
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(network.DNSTypeA): {
 					DnsTimeouts: 1,
 				},
