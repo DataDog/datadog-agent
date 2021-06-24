@@ -121,7 +121,7 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
-COPY entrypoint /etc/cont-init.d/
+COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
@@ -175,7 +175,11 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
-CMD ["/init"]
+# Single entrypoint
+COPY entrypoint.sh /bin/entrypoint.sh
+COPY entrypoint.d /opt/entrypoints
+
+CMD ["/bin/entrypoint.sh"]
 
 
 ################################################################

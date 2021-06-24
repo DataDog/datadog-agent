@@ -19,5 +19,9 @@ ADD entrypoint-ps1 ./entrypoint-ps1
 COPY datadog*.yaml C:/ProgramData/Datadog/
 COPY install_info C:/ProgramData/Datadog/
 
+# Single entrypoint
+COPY entrypoint.ps1 C:/entrypoint.ps1
+COPY entrypoint.d.windows C:/ProgramData/entrypoints
+
 ENTRYPOINT ["C:/entrypoint.exe"]
-CMD ["datadogagent"]
+CMD ["C:\entrypoint.ps1"]
