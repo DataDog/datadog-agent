@@ -56,7 +56,7 @@ func benchmarkDedupTags(b *testing.B, numberOfTags int) {
 }
 
 func BenchmarkDeduplicateTags(b *testing.B) {
-	for i := 1; i <= 50; i += 1 {
+	for i := 1; i <= 50; i++ {
 		b.Run(fmt.Sprintf("deduplicate-%d-tags-in-place", i), func(b *testing.B) {
 			benchmarkDedupTags(b, i)
 		})
@@ -82,7 +82,7 @@ func benchmarkSortUniqTags(b *testing.B, numberOfTags int) {
 	}
 }
 func BenchmarkSortUniqTags(b *testing.B) {
-	for i := 1; i <= 50; i += 1 {
+	for i := 1; i <= 50; i++ {
 		b.Run(fmt.Sprintf("sort-uniq-%d-tags-in-place", i), func(b *testing.B) {
 			benchmarkSortUniqTags(b, i)
 		})
