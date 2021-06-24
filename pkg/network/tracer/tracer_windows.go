@@ -17,6 +17,7 @@ import (
 
 const (
 	defaultPollInterval = int(15)
+	defaultBufferSize   = 512
 )
 
 // Tracer struct for tracking network state and connections
@@ -36,6 +37,10 @@ type Tracer struct {
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
 	stopInTickerRoutine chan bool
+
+	// Connections for the tracer to exclude
+	sourceExcludes []*network.ConnectionFilter
+	destExcludes   []*network.ConnectionFilter
 }
 
 // NewTracer returns an initialized tracer struct
@@ -70,9 +75,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		connStatsActive: network.NewDriverBuffer(512),
-		connStatsClosed: network.NewDriverBuffer(512),
+		connStatsActive: network.NewDriverBuffer(defaultBufferSize),
+		connStatsClosed: network.NewDriverBuffer(defaultBufferSize),
 		reverseDNS:      reverseDNS,
+		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	return tr, nil
@@ -104,8 +111,15 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	activeConnStats := t.connStatsActive.Connections()
 	closedConnStats := t.connStatsClosed.Connections()
 
+	for _, connStat := range activeConnStats {
+		if !t.shouldSkipConnection(&connStat) {
+			// TODO figure out way to filter active with allocating
+		}
+	}
 	for _, connStat := range closedConnStats {
-		t.state.StoreClosedConnection(&connStat)
+		if !t.shouldSkipConnection(&connStat) {
+			t.state.StoreClosedConnection(&connStat)
+		}
 	}
 
 	// check for expired clients in the state
