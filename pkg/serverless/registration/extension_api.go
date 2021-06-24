@@ -16,7 +16,7 @@ const (
 	extensionName = "datadog-agent"
 	headerExtName = "Lambda-Extension-Name"
 
-	//HeaderExtID is the header name for the extension identifer
+	//HeaderExtID is the header name for the extension identifier
 	HeaderExtID = "Lambda-Extension-Identifier"
 )
 

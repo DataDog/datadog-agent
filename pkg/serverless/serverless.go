@@ -26,15 +26,11 @@ import (
 )
 
 const (
-	routeRegister      string = "/2020-01-01/extension/register"
-	routeEventNext     string = "/2020-01-01/extension/event/next"
-	routeInitError     string = "/2020-01-01/extension/init/error"
-	routeSubscribeLogs string = "/2020-08-15/logs"
+	routeEventNext string = "/2020-01-01/extension/event/next"
+	routeInitError string = "/2020-01-01/extension/init/error"
 
-	headerExtName     string = "Lambda-Extension-Name"
-	headerExtID       string = "Lambda-Extension-Identifier"
-	headerExtErrType  string = "Lambda-Extension-Function-Error-Type"
-	headerContentType string = "Content-Type"
+	headerExtID      string = "Lambda-Extension-Identifier"
+	headerExtErrType string = "Lambda-Extension-Function-Error-Type"
 
 	requestTimeout     time.Duration = 5 * time.Second
 	clientReadyTimeout time.Duration = 2 * time.Second
