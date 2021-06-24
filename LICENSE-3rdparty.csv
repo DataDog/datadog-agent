@@ -508,7 +508,6 @@ core,"github.com/tinylib/msgp/parse",MIT
 core,"github.com/tinylib/msgp/printer",MIT
 core,"github.com/tklauser/go-sysconf",BSD-3-Clause
 core,"github.com/tklauser/numcpus",Apache-2.0
-core,"github.com/ttacon/chalk",MIT
 core,"github.com/twmb/murmur3",BSD-3-Clause
 core,"github.com/ulikunitz/xz",BSD-3-Clause
 core,"github.com/ulikunitz/xz/internal/hash",BSD-3-Clause
