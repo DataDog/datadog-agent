@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -16,11 +17,13 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -131,6 +134,29 @@ type AgentConfig struct {
 // Tag represents a key/value pair.
 type Tag struct {
 	K, V string
+}
+
+var (
+	isFargate     bool
+	isFargateOnce sync.Once
+)
+
+// IsFargateInstance reports whether we are in a Fargate instance.
+func IsFargateInstance() bool {
+	isFargateOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		go func() {
+			select {
+			case <-ctx.Done():
+				if err := ctx.Err(); err != nil && err != context.Canceled {
+					log.Errorf("Error detecting Fargate instance: %v. Assuming no. If you are in a Fargate instance, this will cause problems.", err)
+				}
+			}
+		}()
+		isFargate = fargate.IsFargateInstance(ctx)
+		cancel()
+	})
+	return isFargate
 }
 
 // New returns a configuration with the default values.
