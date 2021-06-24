@@ -697,6 +697,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
+func (e *Event) GetFieldTypes(field eval.Field) map[eval.Field]string {
+	return map[eval.Field]string{
+		{{range $Name, $Field := .Fields}}
+		"{{$Name}}": "{{$Field.ReturnType}}",
+		{{end}}
+	}
+}
+
 func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 		{{range $Name, $Field := .Fields}}
