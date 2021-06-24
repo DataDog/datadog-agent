@@ -6,6 +6,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -21,6 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+)
+
+const (
+	notFoundTTL = 5 * time.Minute
+	deletedTTL  = 5 * time.Minute
+	errTTL      = 30 * time.Second
 )
 
 // Tagger is the entry class for entity tagging. It holds collectors, memory store
@@ -61,7 +68,7 @@ func NewTagger(catalog collectors.Catalog) *Tagger {
 		fetchers:        make(map[string]collectors.Fetcher),
 		infoIn:          make(chan []*collectors.TagInfo, 5),
 		pullTicker:      time.NewTicker(5 * time.Second),
-		pruneTicker:     time.NewTicker(5 * time.Minute),
+		pruneTicker:     time.NewTicker(1 * time.Minute),
 		retryTicker:     time.NewTicker(30 * time.Second),
 		telemetryTicker: time.NewTicker(1 * time.Minute),
 		stop:            make(chan bool),
@@ -83,14 +90,16 @@ func (t *Tagger) Init() error {
 	// Only register the health check when the tagger is started
 	t.health = health.RegisterLiveness("tagger")
 
-	t.startCollectors()
+	// TODO(deps injection): add a context in the tagger struct to how the restart if the tagger
+	t.startCollectors(context.TODO())
 	go t.run() //nolint:errcheck
-	go t.pull()
+	go t.pull(context.TODO())
 
 	return nil
 }
 
 func (t *Tagger) run() error {
+	ctx, cancel := context.WithCancel(context.Background())
 	for {
 		select {
 		case <-t.stop:
@@ -107,14 +116,17 @@ func (t *Tagger) run() error {
 			t.retryTicker.Stop()
 			t.telemetryTicker.Stop()
 			t.health.Deregister() //nolint:errcheck
+			cancel()
 			return nil
-		case <-t.health.C:
+		case healthDeadline := <-t.health.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case msg := <-t.infoIn:
 			t.store.processTagInfo(msg)
 		case <-t.retryTicker.C:
-			go t.startCollectors()
+			go t.startCollectors(ctx)
 		case <-t.pullTicker.C:
-			go t.pull()
+			go t.pull(ctx)
 		case <-t.pruneTicker.C:
 			t.store.prune()
 		case <-t.telemetryTicker.C:
@@ -126,8 +138,8 @@ func (t *Tagger) run() error {
 // startCollectors iterates over the listener candidates and tries initializing them.
 // If the collector implements Retryer and return a FailWillRetry, we keep them in
 // the map and will retry at the next tick.
-func (t *Tagger) startCollectors() {
-	replies := t.tryCollectors()
+func (t *Tagger) startCollectors(ctx context.Context) {
+	replies := t.tryCollectors(ctx)
 	if len(replies) > 0 {
 		t.registerCollectors(replies)
 	}
@@ -137,7 +149,7 @@ func (t *Tagger) startCollectors() {
 	}
 }
 
-func (t *Tagger) tryCollectors() []collectorReply {
+func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 	t.RLock()
 	if t.candidates == nil {
 		log.Warnf("called with empty candidate map, skipping")
@@ -148,7 +160,7 @@ func (t *Tagger) tryCollectors() []collectorReply {
 
 	for name, factory := range t.candidates {
 		collector := factory()
-		mode, err := collector.Detect(t.infoIn)
+		mode, err := collector.Detect(ctx, t.infoIn)
 		if retry.IsErrWillRetry(err) {
 			log.Debugf("will retry %s later: %s", name, err)
 			continue // don't add it to the modes map as we want to retry later
@@ -204,10 +216,10 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 	t.Unlock()
 }
 
-func (t *Tagger) pull() {
+func (t *Tagger) pull(ctx context.Context) {
 	t.RLock()
 	for name, puller := range t.pullers {
-		err := puller.Pull()
+		err := puller.Pull(ctx)
 		if err != nil {
 			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
@@ -249,16 +261,19 @@ IterCollectors:
 
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 
-		cacheMiss := false
+		var cacheMiss bool
 		var expiryDate time.Time
-		low, orch, high, err := collector.Fetch(entity)
+		low, orch, high, err := collector.Fetch(context.TODO(), entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+
 			cacheMiss = true
+			expiryDate = time.Now().Add(notFoundTTL)
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			expiryDate = time.Now().Add(1 * time.Second)
+
+			expiryDate = time.Now().Add(errTTL)
 		}
 
 		tagArrays = append(tagArrays, low)

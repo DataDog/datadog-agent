@@ -8,6 +8,7 @@
 package kernel
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -26,6 +27,8 @@ var (
 	Kernel4_12 = kernel.VersionCode(4, 12, 0) //nolint:deadcode,unused
 	// Kernel4_13 is the KernelVersion representation of kernel version 4.13
 	Kernel4_13 = kernel.VersionCode(4, 13, 0) //nolint:deadcode,unused
+	// Kernel4_15 is the KernelVersion representation of kernel version 4.15
+	Kernel4_15 = kernel.VersionCode(4, 15, 0) //nolint:deadcode,unused
 	// Kernel4_16 is the KernelVersion representation of kernel version 4.16
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
@@ -36,6 +39,10 @@ var (
 type Version struct {
 	osRelease map[string]string
 	Code      kernel.Version
+}
+
+func (k *Version) String() string {
+	return fmt.Sprintf("kernel %s - %v", k.Code, k.osRelease)
 }
 
 // NewKernelVersion returns a new kernel version helper

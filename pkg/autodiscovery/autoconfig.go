@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"sync"
@@ -94,6 +95,8 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
 	defer tagFreshnessTicker.Stop()
 
@@ -101,19 +104,22 @@ func (ac *AutoConfig) serviceListening() {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
+			cancel()
 			return
-		case <-ac.healthListening.C:
+		case healthDeadline := <-ac.healthListening.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case svc := <-ac.newService:
-			ac.processNewService(svc)
+			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
 		case <-tagFreshnessTicker.C:
-			ac.checkTagFreshness()
+			ac.checkTagFreshness(ctx)
 		}
 	}
 }
 
-func (ac *AutoConfig) checkTagFreshness() {
+func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	// check if services tags are up to date
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
@@ -130,7 +136,7 @@ func (ac *AutoConfig) checkTagFreshness() {
 	for _, service := range servicesToRefresh {
 		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
 		ac.processDelService(service)
-		ac.processNewService(service)
+		ac.processNewService(ctx, service)
 	}
 }
 
@@ -213,7 +219,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
 
 	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect()
+		cfgs, err := pd.provider.Collect(context.TODO())
 		if err != nil {
 			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
 		}
@@ -578,7 +584,7 @@ func GetResolveWarnings() map[string][]string {
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(svc listeners.Service) {
+func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
 	ac.store.setTagsHashForService(
@@ -588,7 +594,7 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
-	ADIdentifiers, err := svc.GetADIdentifiers()
+	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
 		return

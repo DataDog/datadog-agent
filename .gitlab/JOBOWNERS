@@ -14,10 +14,6 @@ build_system-probe*                  @DataDog/agent-network
 cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
 cluster_agent-build*                 @DataDog/container-integrations
 
-# Kitchen testing
-# Don't notify on kitchen Windows tests since they are too flaky
-kitchen_windows_*                    @DataDog/do-not-notify
-
 # Image build
 docker_build*                        @DataDog/container-integrations
 

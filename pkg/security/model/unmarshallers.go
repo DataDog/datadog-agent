@@ -125,6 +125,13 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	return 40, nil
 }
 
+func unmarshalTime(data []byte) time.Time {
+	if t := int64(ByteOrder.Uint64(data)); t != 0 {
+		return time.Unix(0, t)
+	}
+	return time.Time{}
+}
+
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
@@ -157,8 +164,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.Cookie = ByteOrder.Uint32(data[read : read+4])
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
-	e.ForkTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+8:read+16])))
-	e.ExitTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+16:read+24])))
+	e.ForkTime = unmarshalTime(data[read+8 : read+16])
+	e.ExitTime = unmarshalTime(data[read+16 : read+24])
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t

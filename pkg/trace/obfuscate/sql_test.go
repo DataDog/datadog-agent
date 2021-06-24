@@ -804,10 +804,26 @@ LIMIT 1
 			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
 			`INSERT INTO table ( field1 ) VALUES ( ? )`,
 		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname !~ ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname !~* '.*toIgnoreInsensitive.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname !~* ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname ~ '.*matching.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname ~ ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname ~* '.*matchingInsensitive.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname ~* ?`,
+		},
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run(c.query, func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)

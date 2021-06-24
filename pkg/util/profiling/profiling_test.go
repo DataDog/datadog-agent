@@ -20,6 +20,7 @@ func TestProfiling(t *testing.T) {
 		ProfileCoreService,
 		time.Minute,
 		15*time.Second,
+		false,
 		"1.0.0",
 	)
 	assert.Nil(t, err)

@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -38,7 +39,7 @@ func IsECSInstance() bool {
 // It detects it by getting and unmarshalling the metadata API response.
 // This function identifies Fargate on ECS only. Make sure to use the Fargate pkg
 // to identify Fargate instances in other orchestrators (e.g EKS Fargate)
-func IsFargateInstance() bool {
+func IsFargateInstance(ctx context.Context) bool {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return false
 	}
@@ -59,7 +60,7 @@ func IsFargateInstance() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTask()
+		_, err = client.GetTask(ctx)
 		if err != nil {
 			log.Debug(err)
 			return newBoolEntry(false)
@@ -70,8 +71,8 @@ func IsFargateInstance() bool {
 }
 
 // IsRunningOn returns true if the agent is running on ECS/Fargate
-func IsRunningOn() bool {
-	return IsECSInstance() || IsFargateInstance()
+func IsRunningOn(ctx context.Context) bool {
+	return IsECSInstance() || IsFargateInstance(ctx)
 }
 
 // HasEC2ResourceTags returns whether the metadata endpoint in ECS exposes
@@ -86,7 +87,7 @@ func HasEC2ResourceTags() bool {
 			log.Debugf("failed to detect V3 metadata endpoint: %s", err)
 			return false, hasEC2ResourceTagsCacheExpiry
 		}
-		_, err = client.GetTaskWithTags()
+		_, err = client.GetTaskWithTags(context.TODO())
 		if err != nil {
 			log.Debugf("failed to get task with tags: %s", err)
 		}
@@ -96,7 +97,7 @@ func HasEC2ResourceTags() bool {
 
 // HasFargateResourceTags returns whether the metadata endpoint in Fargate
 // exposes resource tags.
-func HasFargateResourceTags() bool {
+func HasFargateResourceTags(ctx context.Context) bool {
 	return queryCacheBool(hasFargateResourceTagsCacheKey, func() (bool, time.Duration) {
 		client, err := ecsmeta.V2()
 		if err != nil {
@@ -104,15 +105,15 @@ func HasFargateResourceTags() bool {
 			return newBoolEntry(false)
 		}
 
-		_, err = client.GetTaskWithTags()
+		_, err = client.GetTaskWithTags(ctx)
 		return newBoolEntry(err == nil)
 	})
 }
 
 // GetNTPHosts returns the NTP hosts for ECS/Fargate if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
-func GetNTPHosts() []string {
-	if IsRunningOn() {
+func GetNTPHosts(ctx context.Context) []string {
+	if IsRunningOn(ctx) {
 		return []string{"169.254.169.123"}
 	}
 
