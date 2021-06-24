@@ -34,7 +34,6 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -157,7 +156,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayReport(report *probe.Report) {
+func (m *Module) displayReport(report *sprobe.Report) {
 	content, _ := json.Marshal(report)
 	log.Debugf("Policy report: %s", content)
 }
@@ -419,7 +418,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*probe.Event), field, eventType); err != nil {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		seclog.Trace(err)
 	}
 }
@@ -439,13 +438,13 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*probe.Event))
+	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*probe.Event).GetProcessServiceTag()
+	service := event.(*sprobe.Event).GetProcessServiceTag()
 
-	id := event.(*probe.Event).ContainerContext.ID
+	id := event.(*sprobe.Event).ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
