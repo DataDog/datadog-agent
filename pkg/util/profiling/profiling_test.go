@@ -14,7 +14,6 @@ import (
 
 func TestProfiling(t *testing.T) {
 	err := Start(
-		"fake-api",
 		"https://nowhere.testing.dev",
 		"testing",
 		ProfileCoreService,
