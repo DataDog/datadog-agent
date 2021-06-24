@@ -18,11 +18,12 @@ func (i ID) String() string {
 	return string(i)
 }
 
-// HttpClient represents an Http Client
-type HttpClient interface {
+// HTTPClient represents an Http Client
+type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// BuildURL builds and URL with a prefix and a route
 func BuildURL(prefix string, route string) string {
 	if len(prefix) == 0 {
 		return fmt.Sprintf("http://localhost:9001%s", route)

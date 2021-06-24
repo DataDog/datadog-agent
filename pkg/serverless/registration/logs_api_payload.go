@@ -9,21 +9,24 @@ import (
 	"encoding/json"
 )
 
-type Destination struct {
+type destination struct {
 	URI      string `json:"URI"`
 	Protocol string `json:"protocol"`
 }
-type Buffering struct {
+type buffering struct {
 	MaxBytes  int `json:"maxBytes"`
 	MaxItems  int `json:"maxItems"`
 	TimeoutMs int `json:"timeoutMs"`
 }
+
+// LogSubscriptionPayload is the payload we send while subscribing to the AWS Logs API
 type LogSubscriptionPayload struct {
-	Buffering   Buffering   `json:"buffering"`
-	Destination Destination `json:"destination"`
+	Buffering   buffering   `json:"buffering"`
+	Destination destination `json:"destination"`
 	Types       []string    `json:"types"`
 }
 
+// MarshalJSON marshals the given LogSubscriptionPayload object
 func (p *LogSubscriptionPayload) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing
 	type LogSubscriptionPayloadAlias LogSubscriptionPayload

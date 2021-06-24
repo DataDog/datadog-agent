@@ -43,16 +43,16 @@ func TestBuildLogRegistrationRequestError(t *testing.T) {
 	assert.Nil(t, request)
 }
 
-func TestIsValidHttpCodeSuccess(t *testing.T) {
-	assert.True(t, isValidHttpCode(200))
-	assert.True(t, isValidHttpCode(202))
-	assert.True(t, isValidHttpCode(204))
+func TestIsValidHTTPCodeSuccess(t *testing.T) {
+	assert.True(t, isValidHTTPCode(200))
+	assert.True(t, isValidHTTPCode(202))
+	assert.True(t, isValidHTTPCode(204))
 }
 
-func TestIsValidHttpCodeError(t *testing.T) {
-	assert.False(t, isValidHttpCode(300))
-	assert.False(t, isValidHttpCode(404))
-	assert.False(t, isValidHttpCode(400))
+func TestIsValidHTTPCodeError(t *testing.T) {
+	assert.False(t, isValidHTTPCode(300))
+	assert.False(t, isValidHTTPCode(404))
+	assert.False(t, isValidHTTPCode(400))
 }
 
 func TestSendLogRegistrationRequestFailure(t *testing.T) {

@@ -85,7 +85,7 @@ const (
 	// loggerName is the name of the serverless agent logger
 	loggerName config.LoggerName = "SAGENT"
 
-	runtimeApiEnvVar = "AWS_LAMBDA_RUNTIME_API"
+	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
 	extensionRegistrationRoute   = "/2020-01-01/extension/register"
 	extensionRegistrationTimeout = 5 * time.Second
@@ -171,8 +171,8 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// ----------------
 
 	// extension registration
-	extesionRegistrationUrl := registration.BuildURL(os.Getenv(runtimeApiEnvVar), extensionRegistrationRoute)
-	serverlessID, err := registration.RegisterExtension(extesionRegistrationUrl, extensionRegistrationTimeout)
+	extesionRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute)
+	serverlessID, err := registration.RegisterExtension(extesionRegistrationURL, extensionRegistrationTimeout)
 	if err != nil {
 		// at this point, we were not even able to register, thus, we don't have
 		// any ID assigned, thus, we can't report an error to the init error route
@@ -264,10 +264,10 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// ----------------------
 	log.Debug("Enabling logs collection HTTP route")
 
-	logRegistrationUrl := registration.BuildURL(os.Getenv(runtimeApiEnvVar), logsAPIRegistrationRoute)
+	logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
 	logRegistrationError := registration.EnableLogsCollection(
 		serverlessID,
-		logRegistrationUrl,
+		logRegistrationURL,
 		logsAPIRegistrationTimeout,
 		os.Getenv(logsLogsTypeSubscribed),
 		logsAPIHttpServerPort,

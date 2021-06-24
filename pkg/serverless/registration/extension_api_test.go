@@ -22,14 +22,14 @@ func TestCreateRegistrationPayload(t *testing.T) {
 	assert.Equal(t, "{\"events\":[\"INVOKE\", \"SHUTDOWN\"]}", payload.String())
 }
 
-func TestExtractId(t *testing.T) {
-	expectedId := "blablabla"
+func TestExtractID(t *testing.T) {
+	expectedID := "blablabla"
 	response := &http.Response{
 		Header: map[string][]string{
-			HeaderExtID: {expectedId},
+			HeaderExtID: {expectedID},
 		},
 	}
-	assert.Equal(t, expectedId, extractId(response))
+	assert.Equal(t, expectedID, extractID(response))
 }
 
 func TestIsValidResponseTrue(t *testing.T) {

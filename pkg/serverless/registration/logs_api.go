@@ -20,9 +20,10 @@ const (
 	headerContentType string = "Content-Type"
 )
 
+// EnableLogsCollection enables logs collections via AWS Logs API
 func EnableLogsCollection(
 	id ID,
-	registrationUrl string,
+	registrationURL string,
 	registrationTimeout time.Duration,
 	logsType string,
 	port int,
@@ -34,7 +35,7 @@ func EnableLogsCollection(
 	callBackURI := buildCallbackURI(port, collectionRoute)
 	payload := buildLogRegistrationPayload(callBackURI, logsType, timeout, maxBytes, maxItems)
 
-	return subscribeLogs(id, registrationUrl, registrationTimeout, payload)
+	return subscribeLogs(id, registrationURL, registrationTimeout, payload)
 }
 
 // subscribeLogs subscribes to the logs collection on the platform.
@@ -66,7 +67,7 @@ func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marsha
 		return fmt.Errorf("SubscribeLogs: while PUT subscribe request: %s", err)
 	}
 
-	if !isValidHttpCode(response.StatusCode) {
+	if !isValidHTTPCode(response.StatusCode) {
 		return fmt.Errorf("SubscribeLogs: received an HTTP %s", response.Status)
 	}
 
@@ -76,11 +77,11 @@ func subscribeLogs(id ID, url string, timeout time.Duration, payload json.Marsha
 func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs int, maxBytes int, maxItems int) *LogSubscriptionPayload {
 	logsTypeArray := getLogTypesToSubscribe(logsType)
 	log.Debug("Subscribing to Logs for types:", logsTypeArray)
-	destination := &Destination{
+	destination := &destination{
 		URI:      callBackURI,
 		Protocol: "HTTP",
 	}
-	buffering := &Buffering{
+	buffering := &buffering{
 		TimeoutMs: timeoutMs,
 		MaxBytes:  maxBytes,
 		MaxItems:  maxItems,
@@ -107,11 +108,11 @@ func buildLogRegistrationRequest(url string, headerExtID string, headerContentTy
 	return request, nil
 }
 
-func sendLogRegistrationRequest(httpClient HttpClient, request *http.Request) (*http.Response, error) {
-	return httpClient.Do(request)
+func sendLogRegistrationRequest(client HTTPClient, request *http.Request) (*http.Response, error) {
+	return client.Do(request)
 }
 
-func isValidHttpCode(statusCode int) bool {
+func isValidHTTPCode(statusCode int) bool {
 	return statusCode < 300
 }
 
@@ -129,7 +130,6 @@ func getLogTypesToSubscribe(envLogsType string) []string {
 			}
 		}
 		return logsType
-	} else {
-		return []string{"platform", "function", "extension"}
 	}
+	return []string{"platform", "function", "extension"}
 }

@@ -15,7 +15,9 @@ import (
 const (
 	extensionName = "datadog-agent"
 	headerExtName = "Lambda-Extension-Name"
-	HeaderExtID   = "Lambda-Extension-Identifier"
+
+	//HeaderExtID is the header name for the extension identifer
+	HeaderExtID = "Lambda-Extension-Identifier"
 )
 
 // RegisterExtension registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
@@ -38,7 +40,7 @@ func RegisterExtension(url string, timeout time.Duration) (ID, error) {
 		return "", fmt.Errorf("registerExtension: didn't receive an HTTP 200")
 	}
 
-	id := extractId(response)
+	id := extractID(response)
 	if len(id) == 0 {
 		return "", fmt.Errorf("registerExtension: didn't receive an identifier")
 	}
@@ -52,7 +54,7 @@ func createRegistrationPayload() *bytes.Buffer {
 	return payload
 }
 
-func extractId(response *http.Response) string {
+func extractID(response *http.Response) string {
 	return response.Header.Get(HeaderExtID)
 }
 
@@ -69,6 +71,6 @@ func buildRegisterRequest(headerExtensionName string, extensionName string, url 
 	return request, nil
 }
 
-func sendRequest(httpClient HttpClient, request *http.Request) (*http.Response, error) {
-	return httpClient.Do(request)
+func sendRequest(client HTTPClient, request *http.Request) (*http.Response, error) {
+	return client.Do(request)
 }
