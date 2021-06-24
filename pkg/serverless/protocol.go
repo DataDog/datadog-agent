@@ -245,17 +245,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 	return daemon
 }
 
-// EnableLogsCollection is adding the HTTP route on which the HTTP server will receive
-// logs from AWS.
-// Returns the HTTP URL on which AWS should send the logs.
-func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage, error) {
-	httpAddr := fmt.Sprintf("http://sandbox:%d%s", httpServerPort, httpLogsCollectionRoute)
-	logsChan := make(chan *logConfig.ChannelMessage)
-	d.mux.Handle(httpLogsCollectionRoute, &LogsCollection{daemon: d, ch: logsChan})
-	log.Debugf("Logs collection route has been initialized. Logs must be sent to %s", httpAddr)
-	return httpAddr, logsChan, nil
-}
-
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
 	d.InvcWg.Add(1)
