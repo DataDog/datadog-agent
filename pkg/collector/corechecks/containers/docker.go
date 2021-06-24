@@ -165,7 +165,7 @@ func (d *DockerCheck) Run() error {
 	if config.IsContainerized() {
 		if err != nil {
 			sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
-			d.Warnf("Error initialising check: %s", err)  //nolint:errcheck
+			d.Warnf("Error initialising check: %s", err) //nolint:errcheck
 			return err
 		}
 	} else {

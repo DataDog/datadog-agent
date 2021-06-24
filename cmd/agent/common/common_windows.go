@@ -297,7 +297,6 @@ func ImportRegistryConfig() error {
 		log.Debugf("Setting skip_ssl_validation to %s", val)
 	}
 
-
 	// apply overrides to the config
 	config.AddOverrides(overrides)
 

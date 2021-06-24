@@ -32,7 +32,7 @@ var (
 				},
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
 				},
 			},
@@ -47,7 +47,7 @@ var (
 			Name: "/agent_stackstate-agent.1.skz8sp5d1y4f64qykw37mf3k2",
 		},
 		Spec: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
+			ContainerSpec: &swarm.ContainerSpec{
 				Image: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
 			},
 		},
@@ -55,7 +55,7 @@ var (
 		NodeID:    "NodeStateReady",
 		Status: swarm.TaskStatus{
 			State: "running",
-			ContainerStatus: swarm.ContainerStatus{
+			ContainerStatus: &swarm.ContainerStatus{
 				ContainerID: "a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 				PID:         341,
 				ExitCode:    0,
@@ -89,7 +89,7 @@ var (
 				},
 			},
 			TaskTemplate: swarm.TaskSpec{
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
 				},
 			},
@@ -102,12 +102,12 @@ var (
 				ID:             "qwerty12345",
 				Name:           "/agent_stackstate-agent.1.skz8sp5d1y4f64qykw37mf3k2",
 				ContainerImage: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
-				ContainerStatus: swarm.ContainerStatus{
+				ContainerStatus: &swarm.ContainerStatus{
 					ContainerID: "a95f48f7f58b9154afa074d541d1bff142611e3a800f78d6be423e82f8178406",
 					ExitCode:    0,
 					PID:         341,
 				},
-				ContainerSpec: swarm.ContainerSpec{
+				ContainerSpec: &swarm.ContainerSpec{
 					Image: "stackstate/stackstate-agent-2-test:stac-12057-swarm-topology@sha256:1d463af3e8c407e08bff9f6127e4959d5286a25018ec5269bfad5324815eb367",
 				},
 				DesiredState: swarm.TaskStateRunning,

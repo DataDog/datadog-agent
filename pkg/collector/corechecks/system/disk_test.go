@@ -271,29 +271,29 @@ func TestDiskCheckTags(t *testing.T) {
 }
 
 func TestExcludedDiskFSFromConfig(t *testing.T) {
-	for _, tc :=  range []struct{
-		test string
-		config integration.Data
-		excludedDisks []string
+	for _, tc := range []struct {
+		test                string
+		config              integration.Data
+		excludedDisks       []string
 		excludedFileSystems []string
 	}{
 		{
-			test: "No file system and disk exclusions",
-			config: integration.Data("use_mount: true"),
+			test:                "No file system and disk exclusions",
+			config:              integration.Data("use_mount: true"),
 			excludedFileSystems: []string{"iso9660"},
 		},
 		{
-			test: "Exclude file systems",
-			config: integration.Data("use_mount: true\nexcluded_filesystems: \n  - tmpfs\n  - squashfs"),
+			test:                "Exclude file systems",
+			config:              integration.Data("use_mount: true\nexcluded_filesystems: \n  - tmpfs\n  - squashfs"),
 			excludedFileSystems: []string{"iso9660", "tmpfs", "squashfs"},
 		},
 		{
-			test: "Exclude disks",
-			config: integration.Data("use_mount: true\nexcluded_disks: \n  - /dev/nvme0n1p1\n  - /dev/sda1\n  - /dev/sda2"),
-			excludedDisks: []string{"/dev/nvme0n1p1", "/dev/sda1", "/dev/sda2"},
+			test:                "Exclude disks",
+			config:              integration.Data("use_mount: true\nexcluded_disks: \n  - /dev/nvme0n1p1\n  - /dev/sda1\n  - /dev/sda2"),
+			excludedDisks:       []string{"/dev/nvme0n1p1", "/dev/sda1", "/dev/sda2"},
 			excludedFileSystems: []string{"iso9660"},
 		},
-	}{
+	} {
 		t.Run(tc.test, func(t *testing.T) {
 			diskPartitions = diskSampler
 			diskCheck := diskFactory().(*DiskCheck)

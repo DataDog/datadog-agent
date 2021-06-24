@@ -156,7 +156,7 @@ func (dt *SwarmTopologyCollector) collectSwarmServices(hostname string, sender a
 		}
 		log.Infof("Creating a running metric for Service %s with value %d", s.Name, s.RunningTasks)
 		log.Infof("Creating a desired metric for Service %s with value %d", s.Name, s.DesiredTasks)
-		metricTags := []string{"serviceName:"+s.Name, "clusterName:"+clusterName}
+		metricTags := []string{"serviceName:" + s.Name, "clusterName:" + clusterName}
 		sender.Gauge("swarm.service.running_replicas", float64(s.RunningTasks), "", append(tags, metricTags...))
 		sender.Gauge("swarm.service.desired_replicas", float64(s.DesiredTasks), "", append(tags, metricTags...))
 
