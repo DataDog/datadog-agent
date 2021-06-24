@@ -296,7 +296,9 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(envtraces) > 0 {
 		in := stats.Input{Traces: envtraces}
-		if features.Has("fargate_stats_tags") && fargate.IsFargateInstance() {
+		if !features.Has("disable_cid_stats") && fargate.IsFargateInstance() {
+			// only allow the ContainerID stats dimension if we're in a Fargate instance
+			// and it's not prohibited by the disable_cid_stats feature flag.
 			in.ContainerID = p.ContainerID
 		}
 		a.Concentrator.In <- in
@@ -306,9 +308,9 @@ func (a *Agent) Process(p *api.Payload) {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	if !features.Has("fargate_stats_tags") || !fargate.IsFargateInstance() {
-		// only allow the usage of these fields inside Fargate when the fargate_stats_tags
-		// feature flag is set.
+	if features.Has("disable_cid_stats") || !fargate.IsFargateInstance() {
+		// this functionality is disabled by the disable_cid_stats feature flag
+		// or we're not in a Fargate instance.
 		in.ContainerID = ""
 		in.Tags = nil
 	}
