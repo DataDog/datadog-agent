@@ -7,16 +7,59 @@ package ckey
 
 import (
 	"fmt"
+	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func compareWithLen(left, right string) bool {
+	if len(left) != len(right) || left != right {
+		return false
+	}
+	return true
+}
+
+func compareWithoutLen(left, right string) bool {
+	if left != right {
+		return false
+	}
+	return true
+}
+
+func BenchmarkCompareWith(b *testing.B) {
+	for i := 1; i < 256; i *= 2 {
+		b.Run(fmt.Sprintf("%d-strings", i), func(b *testing.B) {
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				word1 := strconv.Itoa(rand.Int())
+				word2 := strconv.Itoa(rand.Int())
+				compareWithLen(word1, word2)
+			}
+		})
+	}
+}
+
+func BenchmarkCompareWithout(b *testing.B) {
+	for i := 1; i < 256; i *= 2 {
+		b.Run(fmt.Sprintf("%d-strings", i), func(b *testing.B) {
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				word1 := strconv.Itoa(rand.Int())
+				word2 := strconv.Itoa(rand.Int())
+				compareWithoutLen(word1, word2)
+			}
+		})
+	}
+}
 
 func TestIsZero(t *testing.T) {
 	var k ContextKey
 	assert.True(t, k.IsZero())
 }
 
+/*
 func TestGenerateReproductible(t *testing.T) {
 	assert := assert.New(t)
 
@@ -85,6 +128,7 @@ func TestCompare(t *testing.T) {
 	assert.True(t, Equals(base, same))
 	assert.False(t, Equals(base, diff))
 }
+*/
 
 func genTags(count int) []string {
 	var tags []string

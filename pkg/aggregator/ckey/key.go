@@ -6,10 +6,7 @@
 package ckey
 
 import (
-	"sort"
-
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/cespare/xxhash"
+	"github.com/twmb/murmur3"
 )
 
 // ContextKey is a non-cryptographic hash that allows to
@@ -29,35 +26,101 @@ import (
 // Note that benchmarks against fnv1a did not provide better performances (no inlining).
 type ContextKey uint64
 
-// KeyGenerator generates key
-// Not safe for concurrent usage
-type KeyGenerator struct {
-	intb uint64
-}
+/*
+#
+#// KeyGenerator generates key
+#// Not safe for concurrent usage
+#type KeyGenerator struct {
+#	buf []byte
+#}
+#
+#// NewKeyGenerator creates a new key generator
+#func NewKeyGenerator() *KeyGenerator {
+#	return &KeyGenerator{
+#		buf: make([]byte, 0, 1024),
+#	}
+#}
+#
+#// Generate returns the ContextKey hash for the given parameters.
+#// The tags array is sorted in place to avoid heap allocations.
+#func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+#	g.buf = g.buf[:0]
+#
+#	// Sort the tags in place. For typical tag slices, we use
+#	// the in-place insertion sort to avoid heap allocations.
+#	// We default to stdlib's sort package for longer slices.
+#	// See `pkg/util/sort.go` for info on the threshold.
+#	if len(tags) < util.InsertionSortThreshold {
+#		util.InsertionSort(tags)
+#	} else {
+#		sort.Strings(tags)
+#	}
+#
+#	g.buf = append(g.buf, name...)
+#	g.buf = append(g.buf, ',')
+#	for i := 0; i < len(tags); i++ {
+#		g.buf = append(g.buf, tags[i]...)
+#		g.buf = append(g.buf, ',')
+#	}
+#	g.buf = append(g.buf, hostname...)
+#
+#	return ContextKey(murmur3.Sum64(g.buf))
+#}
+#
+*/
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{}
 }
 
+// KeyGenerator generates key
+// Not safe for concurrent usage
+type KeyGenerator struct {
+	intb uint64
+
+	sli [512]uint64
+	idx int
+}
+
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
-
-	// Ensure the list of tags is deduplicated the fastest way possible
-	if len(tags) > util.InsertionSortThreshold {
-		sort.Strings(tags)
-		util.UniqSorted(tags)
-	} else {
-		util.DedupInPlace(tags)
-	}
-
+	//	if len(tags) < 20 {
+	//		goto INPLACE
+	//	} else if len(tags) < 40 {
+	//		util.SortUniqInPlace(tags)
+	//	} else {
+	//		goto INPLACE
+	//	}
+	//
+	//	g.intb = 0xc6a4a7935bd1e995
+	//	g.intb = g.intb ^ murmur3.StringSum64(name)
+	//	g.intb = g.intb ^ murmur3.StringSum64(hostname)
+	//	for i := range tags {
+	//		g.intb = g.intb ^ murmur3.StringSum64(tags[i])
+	//	}
+	//	return ContextKey(g.intb)
+	//
+	//INPLACE:
 	g.intb = 0xc6a4a7935bd1e995
-	g.intb = g.intb ^ xxhash.Sum64String(name)
-	g.intb = g.intb ^ xxhash.Sum64String(hostname)
+	g.intb = g.intb ^ murmur3.StringSum64(name)
+	g.intb = g.intb ^ murmur3.StringSum64(hostname)
+
+	g.idx = 0
+
+OUTER:
 	for i := range tags {
-		g.intb = g.intb ^ xxhash.Sum64String(tags[i])
+		h := murmur3.StringSum64(tags[i])
+		for j := 0; j < g.idx; j++ {
+			if g.sli[j] == h {
+				continue OUTER // we do not want to xor multiple times the same tag
+			}
+		}
+		g.intb = g.intb ^ h
+		g.idx++
 	}
+
 	return ContextKey(g.intb)
 }
 
