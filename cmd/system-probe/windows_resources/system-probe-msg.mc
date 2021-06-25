@@ -112,3 +112,9 @@ Language=English
 System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
 .
 
+MessageId=16
+SymbolicName=MSG_AGENT_PRE_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating pre-shutdown.
+.
