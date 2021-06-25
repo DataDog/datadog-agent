@@ -562,7 +562,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 
-		selfTester: NewSelfTester(cfg.E2EStartTestEnabled),
+		selfTester: NewSelfTester(cfg.SelfTestAtStartEnabled),
 	}
 	m.apiServer.module = m
 
