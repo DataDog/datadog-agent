@@ -568,6 +568,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 
 		selfTester: NewSelfTester(cfg.E2EStartTestEnabled),
 	}
+	m.apiServer.module = m
 
 	seclog.SetPatterns(cfg.LogPatterns)
 

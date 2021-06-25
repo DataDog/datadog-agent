@@ -43,6 +43,16 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 	return response, nil
 }
 
+func (c *RuntimeSecurityClient) RunSelfTest() (bool, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.RunSelfTest(context.Background(), &api.RunSelfTestParams{})
+	if err != nil {
+		return false, err
+	}
+	return response.Ok, nil
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()
