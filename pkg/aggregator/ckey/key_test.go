@@ -59,7 +59,6 @@ func TestIsZero(t *testing.T) {
 	assert.True(t, k.IsZero())
 }
 
-/*
 func TestGenerateReproductible(t *testing.T) {
 	assert := assert.New(t)
 
@@ -70,7 +69,7 @@ func TestGenerateReproductible(t *testing.T) {
 	generator := NewKeyGenerator()
 
 	firstKey := generator.Generate(name, hostname, tags)
-	assert.Equal(ContextKey(0x3777172ebed84057), firstKey)
+	assert.Equal(ContextKey(0x558b3fdbeb2ae197), firstKey)
 
 	// test that multiple generations with the same generator
 	// will lead to the same hash while providing the same (name, hostname, tags)
@@ -86,16 +85,16 @@ func TestGenerateReproductible(t *testing.T) {
 
 	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(firstKey, otherKey)
-	assert.Equal(ContextKey(0x74fe7cd2f068d669), otherKey)
+	assert.Equal(ContextKey(0x76fd4f64609a9375), otherKey)
 
 	otherKey = generator.Generate("othername", "anotherhostname", tags)
 	assert.NotEqual(firstKey, otherKey)
-	assert.Equal(ContextKey(0xaff3301bf26fa7c5), otherKey)
+	assert.Equal(ContextKey(0xfe408feccb71d2f0), otherKey)
 
 	tags = append(tags, "dev:meh")
 	otherKey = generator.Generate("othername", "anotherhostname", tags)
 	assert.NotEqual(firstKey, otherKey)
-	assert.Equal(ContextKey(0x21e67ef8623423ad), otherKey)
+	assert.Equal(ContextKey(0x6a0491ffa750f321), otherKey)
 }
 
 func TestTagsOrderDoesntMatter(t *testing.T) {
@@ -128,7 +127,6 @@ func TestCompare(t *testing.T) {
 	assert.True(t, Equals(base, same))
 	assert.False(t, Equals(base, diff))
 }
-*/
 
 func genTags(count int) []string {
 	var tags []string
@@ -141,7 +139,7 @@ func genTags(count int) []string {
 func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
-	for i := 1; i < 128; i += 2 {
+	for i := 1; i < 128; i *= 2 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := genTags(i)

@@ -71,7 +71,10 @@ type ContextKey uint64
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	return &KeyGenerator{}
+	return &KeyGenerator{
+		sli:   make([]uint64, 512, 512),
+		empty: make([]uint64, 512, 512),
+	}
 }
 
 // KeyGenerator generates key
@@ -79,8 +82,9 @@ func NewKeyGenerator() *KeyGenerator {
 type KeyGenerator struct {
 	intb uint64
 
-	sli [512]uint64
-	idx int
+	sli   []uint64
+	empty []uint64
+	idx   int
 }
 
 // Generate returns the ContextKey hash for the given parameters.
@@ -90,18 +94,38 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
 
-	g.idx = 0
-
-OUTER:
-	for i := range tags {
-		h := murmur3.StringSum64(tags[i])
-		for j := 0; j < g.idx; j++ {
-			if g.sli[j] == h {
-				continue OUTER // we do not want to xor multiple times the same tag
+	if len(tags) > 16 && len(tags) < 512 {
+		copy(g.sli, g.empty)
+	OUTER:
+		for i := range tags {
+			h := murmur3.StringSum64(tags[i])
+			j := h & 511
+			for {
+				if g.sli[j] == 0 {
+					g.sli[j] = h
+					break
+				} else if g.sli[j] == h {
+					continue OUTER
+				} else {
+					j = (j + 1) & 511
+				}
 			}
+			g.intb = g.intb ^ h
 		}
-		g.intb = g.intb ^ h
-		g.idx++
+	} else {
+		g.idx = 0
+	OUTER2:
+		for i := range tags {
+			h := murmur3.StringSum64(tags[i])
+			for j := 0; j < g.idx; j++ {
+				if g.sli[j] == h {
+					continue OUTER2 // we do not want to xor multiple times the same tag
+				}
+			}
+			g.intb = g.intb ^ h
+			g.sli[g.idx] = h
+			g.idx++
+		}
 	}
 
 	return ContextKey(g.intb)
