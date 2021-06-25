@@ -18,7 +18,7 @@ type SecretCollector struct {
 	ClusterTopologyCollector
 }
 
-// NewSecretCollector
+// NewSecretCollector creates a new instance of the secret collector
 func NewSecretCollector(componentChannel chan<- *topology.Component, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 	return &SecretCollector{
 		ComponentChan:            componentChannel,
@@ -27,11 +27,11 @@ func NewSecretCollector(componentChannel chan<- *topology.Component, clusterTopo
 }
 
 // GetName returns the name of the Collector
-func (_ *SecretCollector) GetName() string {
+func (*SecretCollector) GetName() string {
 	return "Secret Collector"
 }
 
-// Collects and Published the Secret Components
+// CollectorFunction Collects and Published the Secret Components
 func (cmc *SecretCollector) CollectorFunction() error {
 	secrets, err := cmc.GetAPIClient().GetSecrets()
 	if err != nil {

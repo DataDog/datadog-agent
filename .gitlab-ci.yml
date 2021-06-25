@@ -255,7 +255,7 @@ unit_tests:
     - gofmt -l -w -s ./pkg ./cmd
     # TODO: --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.test
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2 --build-exclude kubelet,kubeapiserver,orchestrator
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2
   retry:
     max: 2
     when:
@@ -278,7 +278,7 @@ unit_tests_cluster_agent:
     - gofmt -l -w -s ./pkg ./cmd
     # TODO: --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.test
-    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2 --build-include docker,linux,kubeapiserver,cpython,orchestrator,clusterchecks,zlib
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version 2 --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
   retry:
     max: 2
     when:

@@ -54,7 +54,7 @@ func NewVolumeCorrelator(componentChannel chan<- *topology.Component, relationCh
 }
 
 // GetName returns the name of the Correlator
-func (_ *VolumeCorrelator) GetName() string {
+func (VolumeCorrelator) GetName() string {
 	return "Volume Correlator"
 }
 
