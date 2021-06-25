@@ -30,6 +30,7 @@ message RunSelfTestParams{}
 
 message SecuritySelfTestResultMessage {
     bool Ok = 1;
+    string Error = 2;
 }
 
 service SecurityModule {

@@ -144,15 +144,15 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	}
 	defer client.Close()
 
-	selfTestOk, err := client.RunSelfTest()
+	selfTestResult, err := client.RunSelfTest()
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process self test")
 	}
 
-	if selfTestOk {
+	if selfTestResult.Ok {
 		fmt.Printf("Runtime self test: OK\n")
 	} else {
-		fmt.Printf("Runtime self test: ERROR\n")
+		fmt.Printf("Runtime self test: error: %v\n", selfTestResult.Error)
 	}
 	return nil
 }

@@ -208,24 +208,28 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 }
 
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	var res *api.SecuritySelfTestResultMessage
-
 	if a.module == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
+	var res *api.SecuritySelfTestResultMessage
 	if err := a.module.doSelfTest(); err != nil {
 		res = &api.SecuritySelfTestResultMessage{
-			Ok: false,
+			Ok:    false,
+			Error: err.Error(),
 		}
 	} else {
 		res = &api.SecuritySelfTestResultMessage{
-			Ok: true,
+			Ok:    true,
+			Error: "",
 		}
 	}
 
 	if err := a.module.Reload(); err != nil {
-		return nil, err
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    false,
+			Error: err.Error(),
+		}, nil
 	} else {
 		return res, nil
 	}
