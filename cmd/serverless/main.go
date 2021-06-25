@@ -263,6 +263,8 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		log.Error("No API key configured, exiting")
 	}
 
+	logChannel := make(chan *logConfig.ChannelMessage)
+
 	waitingChan := make(chan bool, 3)
 
 	// starts logs collection
@@ -284,8 +286,6 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			logChannel := make(chan *logConfig.ChannelMessage)
-			daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
 			setupLogAgent(logChannel)
 		}
 		waitingChan <- true
@@ -324,6 +324,8 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(metricAgent)
 	daemon.SetTraceAgent(traceAgent.Get())
+
+	daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

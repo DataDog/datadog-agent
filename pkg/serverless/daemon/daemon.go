@@ -120,6 +120,12 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 //SetMuxHandle configures the log collection route handler
 func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage) {
+	fmt.Println("IN MUX HANDLE")
+	fmt.Printf("ROUTE = %v \n", route)
+	fmt.Printf("d.ExtraTags = %v \n", d.ExtraTags)
+	fmt.Printf("logsChan = %v \n", logsChan)
+	fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
+
 	d.mux.Handle(route, &serverlessLog.LogsCollection{ExtraTags: d.ExtraTags, LogChannel: logsChan, MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
 }
 
@@ -249,7 +255,7 @@ func StartDaemon() *Daemon {
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
-		ExtraTags:        nil,
+		ExtraTags:        make([]string, 0),
 	}
 
 	log.Debug("Adaptive flush is enabled")
