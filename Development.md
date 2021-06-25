@@ -29,7 +29,7 @@ $ export ARTIFACTORY_URL=artifactory.stackstate.io/artifactory/api/pypi/pypi-loc
 $ conda activate ddpy3 && \
   inv deps && \
   inv agent.clean && \
-  inv -e agent.omnibus-build --base-dir /omnibus --skip-deps --skip-sign --major-version 2 --python-runtimes 3
+  inv -e agent.omnibus-build --base-dir /omnibus --skip-deps --skip-sign --major-version 3 --python-runtimes 3
 ```
 
 ### Build using Python2 interpreter
