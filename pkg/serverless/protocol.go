@@ -13,14 +13,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metric"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,7 +39,7 @@ type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
 
-	statsdServer *dogstatsd.Server
+	metricAgent *metric.ServerlessMetricAgent
 
 	traceAgent *traceAgent.Agent
 
@@ -59,9 +58,6 @@ type Daemon struct {
 	// clientLibReady indicates whether the datadog client library has initialised
 	// and called the /hello route on the agent
 	clientLibReady bool
-
-	// aggregator used by the statsd server
-	aggregator *aggregator.BufferedAggregator
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
@@ -83,20 +79,13 @@ func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMess
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
-func (d *Daemon) SetStatsdServer(statsdServer *dogstatsd.Server) {
-	d.statsdServer = statsdServer
+func (d *Daemon) SetStatsdServer(metricAgent *metric.ServerlessMetricAgent) {
+	d.metricAgent = metricAgent
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
 	d.traceAgent = traceAgent
-}
-
-// SetAggregator sets the aggregator used within the DogStatsD server.
-// Use this aggregator `GetChannels()` or `GetBufferedChannels()` to send metrics
-// directly to the aggregator, with caution.
-func (d *Daemon) SetAggregator(aggregator *aggregator.BufferedAggregator) {
-	d.aggregator = aggregator
 }
 
 // SetFlushStrategy sets the flush strategy to use.
@@ -126,8 +115,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
-		if d.statsdServer != nil {
-			d.statsdServer.Flush()
+		if d.metricAgent.DogStatDServer != nil {
+			d.metricAgent.DogStatDServer.Flush()
 		}
 		wg.Done()
 	}()
@@ -190,8 +179,8 @@ func (d *Daemon) Stop(isTimeout bool) {
 
 	log.Debug("Shutting down agents")
 
-	if d.statsdServer != nil {
-		d.statsdServer.Stop()
+	if d.metricAgent.DogStatDServer != nil {
+		d.metricAgent.DogStatDServer.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
@@ -208,7 +197,6 @@ func StartDaemon() *Daemon {
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
-		statsdServer:     nil,
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
@@ -272,8 +260,8 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.extraTags) == 0 {
 		tagMap := buildTagMap(arn, configTags)
 		tagArray := buildTagsFromMap(tagMap)
-		if d.statsdServer != nil {
-			d.statsdServer.SetExtraTags(tagArray)
+		if d.metricAgent.DogStatDServer != nil {
+			d.metricAgent.DogStatDServer.SetExtraTags(tagArray)
 		}
 		if d.traceAgent != nil {
 			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
@@ -310,7 +298,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
-	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
+	metricsChan := l.daemon.metricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 	metricTags := addColdStartTag(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
@@ -385,7 +373,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if f.daemon.statsdServer == nil {
+	if f.daemon.metricAgent.DogStatDServer == nil {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
 		f.daemon.FinishInvocation()

@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/serverless/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -32,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metric"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -320,9 +320,8 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	<-waitingChan
 
 	// DogStatsD daemon ready.
-	daemon.SetStatsdServer(metricAgent.Get())
+	daemon.SetStatsdServer(metricAgent)
 	daemon.SetTraceAgent(traceAgent.Get())
-	daemon.SetAggregator(aggregatorInstance)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

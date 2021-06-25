@@ -10,7 +10,8 @@ import (
 )
 
 type ServerlessMetricAgent struct {
-	statsdServer *dogstatsd.Server
+	DogStatDServer *dogstatsd.Server
+	Aggregator     *aggregator.BufferedAggregator
 }
 
 func (c *ServerlessMetricAgent) Start(aggregatorInstance *aggregator.BufferedAggregator, waitingChan chan bool) {
@@ -27,12 +28,13 @@ func (c *ServerlessMetricAgent) Start(aggregatorInstance *aggregator.BufferedAgg
 		// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
 		log.Errorf("Unable to start the DogStatsD server: %s", err)
 	}
-	c.statsdServer = statsd
-	c.statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
-	//need to set metricsChan somewhere
+	statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
+	c.DogStatDServer = statsd
+	c.Aggregator = aggregatorInstance
+
 	waitingChan <- true
 }
 
 func (c *ServerlessMetricAgent) Get() *dogstatsd.Server {
-	return c.statsdServer
+	return c.DogStatDServer
 }

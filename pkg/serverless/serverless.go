@@ -173,7 +173,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := addColdStartTag(daemon.extraTags)
-			metricsChan := daemon.aggregator.GetBufferedMetricsWithTsChannel()
+			metricsChan := daemon.metricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 		daemon.Stop(isTimeout)
