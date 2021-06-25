@@ -29,11 +29,11 @@ int kprobe__security_sb_umount(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
-    if (retval)
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
     if (!syscall)
+        return 0;
+
+    if (retval)
         return 0;
 
     int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
@@ -61,6 +61,11 @@ int handle_sys_umount_exit(struct tracepoint_syscalls_sys_exit_t *args) {
 SYSCALL_KRETPROBE(umount) {
     int retval = PT_REGS_RC(ctx);
     return sys_umount_ret(ctx, retval);
+}
+
+SEC("tracepoint/handle_sys_umount_exit")
+int tracepoint_handle_sys_umount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_umount_ret(args, args->ret);
 }
 
 #endif
