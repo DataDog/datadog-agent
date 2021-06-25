@@ -207,6 +207,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 	return &api.SecurityConfigMessage{}, nil
 }
 
+// RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
 	if a.module == nil {
 		return nil, errors.New("failed to found module in APIServer")
@@ -230,9 +231,9 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 			Ok:    false,
 			Error: err.Error(),
 		}, nil
-	} else {
-		return res, nil
 	}
+
+	return res, nil
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog

@@ -43,6 +43,7 @@ func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) 
 	return response, nil
 }
 
+// RunSelfTest instructs the system probe to run a self test
 func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessage, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
