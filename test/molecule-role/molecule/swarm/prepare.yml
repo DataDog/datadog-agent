@@ -5,39 +5,19 @@
   vars_files:
     - common_vars.yml
   tasks:
-    - name: Install python for Ansible
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
-      become: true
-      changed_when: false
-    - name: Gather facts
-      setup:
-    - name: Add Docker GPG APT key
-      become: true
-      apt_key: url=https://download.docker.com/linux/ubuntu/gpg
-    - name: Add Docker APT repository
-      become: true
-      apt_repository:
-        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
-    - name: Install APT packages
-      become: true
+    - name: Install provisioning dependencies (1/2)
       apt:
-        name: [apt-transport-https, ca-certificates, curl, software-properties-common, docker-ce]
+        name:
+          python3-pip
         state: present
-        update_cache: yes
-      register: apt_res
-      retries: 5
+      become: yes
+      register: pip3_res
+      retries: 15
       delay: 5
-      until: apt_res is success
-    - name: Add user to docker group
-      become: true
-      user:
-        name: ubuntu
-        groups: docker
-        append: True
-    - name: Restart sshd to apply group change
-      shell: sleep 1; pkill -u {{ ansible_ssh_user }} sshd
-      async: 3
-      poll: 2
+      until: pip3_res is success
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
 
 - name: Register Swarm Master Node
   hosts: swarm_master_vm
@@ -88,6 +68,12 @@
         src: files/docker-compose.yml
         dest: /home/ubuntu/
         mode: preserve
+    - name: Configure .env file used by docker-swarm
+      copy:
+        content: |
+          AGENT_VERSION={{ agent_current_branch }}
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+        dest: /home/ubuntu/.env
     - name: Create StacSktate Agent Service on Master
       command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
       args:
