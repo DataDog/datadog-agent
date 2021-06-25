@@ -31,11 +31,6 @@ func TestSecretCollector(t *testing.T) {
 	expectedCollectorName := "Secret Collector"
 	RunCollectorTest(t, cmc, expectedCollectorName)
 
-	type test struct {
-		testCase string
-		expected *topology.Component
-	}
-
 	for _, tc := range []struct {
 		testCase string
 		expected *topology.Component

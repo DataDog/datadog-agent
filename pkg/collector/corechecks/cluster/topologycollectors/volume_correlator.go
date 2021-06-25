@@ -206,17 +206,6 @@ func (vc *VolumeCorrelator) containerToVolumeStackStateRelation(containerExterna
 	return relation
 }
 
-// Create a StackState relation from a Kubernetes / OpenShift Projected Volume to a Projection
-func (vc *VolumeCorrelator) projectedVolumeToProjectionStackStateRelation(projectedVolumeExternalID, projectionExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes projected volume to projection relation: %s -> %s", projectedVolumeExternalID, projectionExternalID)
-
-	relation := vc.CreateRelation(projectedVolumeExternalID, projectionExternalID, "projects")
-
-	log.Tracef("Created StackState projected volume -> projection relation %s->%s", relation.SourceID, relation.TargetID)
-
-	return relation
-}
-
 func (vc *VolumeCorrelator) CreateStackStateVolumeSourceComponent(pod PodIdentifier, volume v1.Volume, externalID string, identifiers []string, addTags map[string]string) (*VolumeComponentsToCreate, error) {
 
 	tags := vc.initTags(metav1.ObjectMeta{Namespace: pod.Namespace})

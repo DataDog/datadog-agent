@@ -47,7 +47,7 @@ func TestDiskTopologyCollector_createComponent(t *testing.T) {
 	}
 	diskComponent := dtc.createDiskComponent(testHostname, partitions)
 	assert.Equal(t, fmt.Sprintf("urn:host:/%s", testHostname), diskComponent.ExternalID)
-	assert.Equal(t, topology.Type(topology.Type{Name: "host"}), diskComponent.Type)
+	assert.Equal(t, topology.Type{Name: "host"}, diskComponent.Type)
 	expectedData := topology.Data{
 		"host":    testHostname,
 		"devices": []string{"abcd", "1234", "ecdf", "my/device/path"},

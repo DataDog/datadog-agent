@@ -36,7 +36,6 @@ type SwarmConfig struct {
 type SwarmCheck struct {
 	core.CheckBase
 	instance       *SwarmConfig
-	dockerHostname string
 	// sts
 	topologyCollector *SwarmTopologyCollector
 }
