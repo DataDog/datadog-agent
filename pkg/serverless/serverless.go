@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -133,7 +132,7 @@ func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan chan []metrics.MetricSample, id registration.ID, coldstart bool) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration.ID, coldstart bool) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
@@ -174,6 +173,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, metricsChan cha
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := addColdStartTag(daemon.extraTags)
+			metricsChan := daemon.aggregator.GetBufferedMetricsWithTsChannel()
 			sendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 		daemon.Stop(isTimeout)

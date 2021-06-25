@@ -42,8 +42,7 @@ type Daemon struct {
 
 	statsdServer *dogstatsd.Server
 
-	traceAgent     *traceAgent.Agent
-	stopTraceAgent context.CancelFunc
+	traceAgent *traceAgent.Agent
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
@@ -66,9 +65,6 @@ type Daemon struct {
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
-	// Wait on this WaitGroup in controllers to be sure that the Daemon is ready.
-	// (i.e. that the DogStatsD server is properly instantiated)
-	ReadyWg *sync.WaitGroup
 
 	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
 	// work before finishing an invocation
@@ -164,7 +160,6 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 func (d *Daemon) Stop(isTimeout bool) {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
-	d.ReadyWg.Wait()
 
 	if d.stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
@@ -194,7 +189,7 @@ func (d *Daemon) Stop(isTimeout bool) {
 	d.TriggerFlush(context.Background(), true)
 
 	log.Debug("Shutting down agents")
-	d.stopTraceAgent()
+
 	if d.statsdServer != nil {
 		d.statsdServer.Stop()
 	}
@@ -208,16 +203,14 @@ func (d *Daemon) Stop(isTimeout bool) {
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
+func StartDaemon() *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
 		statsdServer:     nil,
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
-		stopTraceAgent:   stopTraceAgent,
 		mux:              mux,
-		ReadyWg:          &sync.WaitGroup{},
 		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
@@ -230,9 +223,6 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
-
-	// this wait group will be blocking until the DogStatsD server has been instantiated
-	daemon.ReadyWg.Add(1)
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
@@ -306,8 +296,6 @@ type LogsCollection struct {
 
 // ServeHTTP - see type LogsCollection comment.
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// If the DogStatsD daemon isn't ready, wait for it.
-	l.daemon.ReadyWg.Wait()
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -377,7 +365,6 @@ func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	// if the DogStatsD daemon isn't ready, wait for it.
 	h.daemon.clientLibReady = true
-	h.daemon.ReadyWg.Wait()
 }
 
 // Flush is the route to call to do an immediate flush on the serverless agent.
@@ -398,7 +385,6 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	f.daemon.ReadyWg.Wait()
 	if f.daemon.statsdServer == nil {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))

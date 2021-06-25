@@ -20,10 +20,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/serverless/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -32,12 +33,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
-	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
-	traceConfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+type ServerlessAgent interface {
+	Start()
+	Ready()
+	Stop()
+}
 
 var (
 	// serverlessAgentCmd is the root command
@@ -66,8 +71,6 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
 		},
 	}
-
-	statsdServer *dogstatsd.Server
 
 	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
 	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
@@ -140,8 +143,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 	startTime := time.Now()
 
-	traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
-
 	// setup logger
 	// -----------
 
@@ -165,7 +166,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon = serverless.StartDaemon(stopTraceAgent)
+	daemon = serverless.StartDaemon()
 
 	// serverless parts
 	// ----------------
@@ -260,32 +261,35 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Error("No API key configured, exiting")
 	}
 
+	waitingChan := make(chan bool, 3)
+
 	// starts logs collection
 	// ----------------------
-	log.Debug("Enabling logs collection HTTP route")
+	go func(waitingChan chan bool) {
+		log.Debug("Enabling logs collection HTTP route")
+		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
+		logRegistrationError := registration.EnableLogsCollection(
+			serverlessID,
+			logRegistrationURL,
+			logsAPIRegistrationTimeout,
+			os.Getenv(logsLogsTypeSubscribed),
+			logsAPIHttpServerPort,
+			logsAPICollectionRoute,
+			logsAPITimeout,
+			logsAPIMaxBytes,
+			logsAPIMaxItems)
 
-	logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-	logRegistrationError := registration.EnableLogsCollection(
-		serverlessID,
-		logRegistrationURL,
-		logsAPIRegistrationTimeout,
-		os.Getenv(logsLogsTypeSubscribed),
-		logsAPIHttpServerPort,
-		logsAPICollectionRoute,
-		logsAPITimeout,
-		logsAPIMaxBytes,
-		logsAPIMaxItems)
+		if logRegistrationError != nil {
+			log.Error("Can't subscribe to logs:", logRegistrationError)
+		} else {
+			logChannel := make(chan *logConfig.ChannelMessage)
+			daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
+			setupLogAgent(logChannel)
+		}
+		waitingChan <- true
+	}(waitingChan)
 
-	if logRegistrationError != nil {
-		log.Error("Can't subscribe to logs:", logRegistrationError)
-	} else {
-		logChannel := make(chan *logConfig.ChannelMessage)
-		daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
-		setupLogAgent(logChannel)
-	}
-
-	// setup the forwarder, serializer and aggregator
-	// ----------------------------------------------
+	metricAgent := &metric.ServerlessMetricAgent{}
 
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -294,48 +298,31 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		// of reporting non-critical init errors.
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
+
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
-
 	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
-	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
-	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
-	// by setting this option to 1ms, all packets received will directly be sent to the parser
-	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+	go metricAgent.Start(aggregatorInstance, waitingChan)
 
-	// initializes the DogStatsD server
-	// --------------------------------
-
-	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, nil)
-	if err != nil {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
-		// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
-		log.Errorf("Unable to start the DogStatsD server: %s", err)
-	}
-	statsdServer.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
-
-	// initializes the trace agent
-	// --------------------------------
-	var ta *traceAgent.Agent
+	traceAgent := &trace.ServerlessTraceAgent{}
 	if config.Datadog.GetBool("apm_config.enabled") {
-		tc, confErr := traceConfig.Load(datadogConfigPath)
-		tc.Hostname = ""
-		tc.SynchronousFlushing = true
-		if confErr != nil {
-			log.Errorf("Unable to load trace agent config: %s", confErr)
-		} else {
-			ta = traceAgent.NewAgent(traceAgentCtx, tc)
-			go func() {
-				ta.Run()
-			}()
-		}
+		traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
+		go traceAgent.Start(datadogConfigPath, traceAgentCtx, stopTraceAgent, waitingChan)
 	}
+
+	//here block for metric and trace to be set
+	<-waitingChan
+	<-waitingChan
+	<-waitingChan
+
+	// DogStatsD daemon ready.
+	daemon.SetStatsdServer(metricAgent.Get())
+	daemon.SetTraceAgent(traceAgent.Get())
+	daemon.SetAggregator(aggregatorInstance)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -343,17 +330,12 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	go func() {
 		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, metricsChan, serverlessID, coldstart); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, daemon, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
 			coldstart = false
 		}
 	}()
-
-	// DogStatsD daemon ready.
-	daemon.SetStatsdServer(statsdServer)
-	daemon.SetTraceAgent(ta)
-	daemon.SetAggregator(aggregatorInstance)
 
 	// restore the current function ARN and request ID from the cache in case the extension was restarted
 	// ---------------------------
@@ -365,8 +347,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Debug("Restored from previous state")
 		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
 	}
-
-	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return
