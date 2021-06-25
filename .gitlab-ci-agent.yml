@@ -484,7 +484,7 @@ pre_release_main_agent_image: &pre_release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - cp ./outcomes/pkg/stackstate-agent*_amd64.deb ./Dockerfiles/agent
+    - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb ./Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
   tags:
     - sts-k8s-m-runner
@@ -676,7 +676,7 @@ release_main_agent_image: &release_image
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - export PUSH_LATEST=true
-    - cp ./outcomes/pkg/stackstate-agent*_amd64.deb Dockerfiles/agent
+    - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
   when: manual
   only:
