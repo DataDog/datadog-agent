@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package daemon
 
 import (
 	"time"
@@ -82,9 +82,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 func (d *Daemon) UpdateStrategy() {
 	if d.useAdaptiveFlush {
 		newStrat := d.AutoSelectStrategy()
-		if newStrat.String() != d.flushStrategy.String() {
+		if newStrat.String() != d.FlushStrategy.String() {
 			log.Debug("Switching to flush strategy:", newStrat)
-			d.flushStrategy = newStrat
+			d.FlushStrategy = newStrat
 		}
 	}
 }

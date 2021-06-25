@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package tags
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ const (
 	executedVersionKey       = "executedversion"
 )
 
-func buildTagMap(arn string, configTags []string) map[string]string {
+func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	for _, tag := range configTags {
@@ -63,7 +63,7 @@ func buildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
-func buildTagsFromMap(tags map[string]string) []string {
+func BuildTagsFromMap(tags map[string]string) []string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
 	for k, v := range tags {
@@ -79,7 +79,7 @@ func buildTagsFromMap(tags map[string]string) []string {
 	return tagsArray
 }
 
-func buildTracerTags(tags map[string]string) map[string]string {
+func BuildTracerTags(tags map[string]string) map[string]string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{resourceKey}
 	for k, v := range tags {

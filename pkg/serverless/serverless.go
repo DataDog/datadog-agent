@@ -19,7 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -81,7 +83,7 @@ func (s ShutdownReason) String() string {
 }
 
 // InvocationHandler is the invocation handler signature
-type InvocationHandler func(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool)
+type InvocationHandler func(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool)
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -132,7 +134,7 @@ func ReportInitError(id registration.ID, errorEnum ErrorEnum) error {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration.ID, coldstart bool) error {
+func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id registration.ID, coldstart bool) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
@@ -149,7 +151,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 
-	daemon.finishInvocationOnce = sync.Once{}
+	daemon.FinishInvocationOnce = sync.Once{}
 
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
@@ -172,9 +174,9 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := addColdStartTag(daemon.extraTags)
-			metricsChan := daemon.metricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
-			sendTimeoutEnhancedMetric(metricTags, metricsChan)
+			metricTags := metrics.AddColdStartTag(daemon.ExtraTags)
+			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
+			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
 		daemon.Stop(isTimeout)
 		stopCh <- struct{}{}
@@ -183,7 +185,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *Daemon, id registration
 	return nil
 }
 
-func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
+func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -199,7 +201,7 @@ func callInvocationHandler(daemon *Daemon, arn string, deadlineMs int64, safetyB
 	}
 }
 
-func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldstart bool) {
+func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool) {
 	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
@@ -221,14 +223,14 @@ func handleInvocation(doneChannel chan bool, daemon *Daemon, arn string, coldsta
 	// route). That's why we use a context.Context with a timeout `flushTimeout``
 	// to avoid blocking for too long.
 	// This flushTimeout is re-using the forwarder_timeout value.
-	if daemon.flushStrategy.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.flushStrategy, flush.Starting)
+	if daemon.FlushStrategy.ShouldFlush(flush.Starting, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.FlushStrategy, flush.Starting)
 		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		daemon.TriggerFlush(ctx, false)
 		cancel() // free the resource of the context
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.flushStrategy, flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.FlushStrategy, flush.Starting)
 	}
 	daemon.WaitForDaemon()
 	doneChannel <- true

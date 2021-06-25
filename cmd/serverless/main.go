@@ -30,8 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	serverlessDaemon "github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
-	"github.com/DataDog/datadog-agent/pkg/serverless/metric"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -139,7 +141,7 @@ func main() {
 	}
 }
 
-func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
+func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 
 	startTime := time.Now()
 
@@ -166,7 +168,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon = serverless.StartDaemon()
+	daemon = serverlessDaemon.StartDaemon()
 
 	// serverless parts
 	// ----------------
@@ -289,7 +291,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		waitingChan <- true
 	}(waitingChan)
 
-	metricAgent := &metric.ServerlessMetricAgent{}
+	metricAgent := &metrics.ServerlessMetricAgent{}
 
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -353,7 +355,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 
 // handleSignals handles OS signals, if a SIGTERM is received,
 // the serverless agent stops.
-func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
+func handleSignals(daemon *serverlessDaemon.Daemon, stopCh chan struct{}) {
 	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)

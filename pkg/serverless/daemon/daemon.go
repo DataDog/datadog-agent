@@ -1,14 +1,8 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-package serverless
+package daemon
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -16,10 +10,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
-	"github.com/DataDog/datadog-agent/pkg/serverless/metric"
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,7 +34,7 @@ type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
 
-	metricAgent *metric.ServerlessMetricAgent
+	MetricAgent *metrics.ServerlessMetricAgent
 
 	traceAgent *traceAgent.Agent
 
@@ -49,7 +44,7 @@ type Daemon struct {
 
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
-	flushStrategy flush.Strategy
+	FlushStrategy flush.Strategy
 
 	// useAdaptiveFlush is set to false when the flush strategy has been forced
 	// through configuration.
@@ -66,21 +61,71 @@ type Daemon struct {
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
 
-	extraTags []string
+	ExtraTags []string
 
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
-	finishInvocationOnce sync.Once
+	FinishInvocationOnce sync.Once
+}
+
+// Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
+// to know that the serverless agent is running. It is blocking until the DogStatsD daemon is ready.
+type Hello struct {
+	daemon *Daemon
+}
+
+// ServeHTTP - see type Hello comment.
+func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Debug("Hit on the serverless.Hello route.")
+	// if the DogStatsD daemon isn't ready, wait for it.
+	h.daemon.clientLibReady = true
+}
+
+// Flush is the route to call to do an immediate flush on the serverless agent.
+// Returns 503 if the DogStatsD is not ready yet, 200 otherwise.
+type Flush struct {
+	daemon *Daemon
+}
+
+// ServeHTTP - see type Flush comment.
+func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Debug("Hit on the serverless.Flush route.")
+	if !f.daemon.FlushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+		log.Debug("The flush strategy", f.daemon.FlushStrategy, " has decided to not flush in moment:", flush.Stopping)
+		f.daemon.FinishInvocation()
+		return
+	}
+
+	log.Debug("The flush strategy", f.daemon.FlushStrategy, " has decided to flush in moment:", flush.Stopping)
+
+	// if the DogStatsD daemon isn't ready, wait for it.
+	if f.daemon.MetricAgent.DogStatDServer == nil {
+		w.WriteHeader(503)
+		w.Write([]byte("DogStatsD server not ready"))
+		f.daemon.FinishInvocation()
+		return
+	}
+
+	// note that I am not using the request context because I think that we don't
+	// want the flush to be canceled if the client is closing the request.
+	go func() {
+		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		f.daemon.TriggerFlush(ctx, false)
+		f.daemon.FinishInvocation()
+		cancel()
+	}()
+
 }
 
 //SetMuxHandle configures the log collection route handler
 func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage) {
-	d.mux.Handle(route, &LogsCollection{daemon: d, ch: logsChan})
+	d.mux.Handle(route, &serverlessLog.LogsCollection{ExtraTags: d.ExtraTags, LogChannel: logsChan, MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
-func (d *Daemon) SetStatsdServer(metricAgent *metric.ServerlessMetricAgent) {
-	d.metricAgent = metricAgent
+func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
+	d.MetricAgent = metricAgent
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
@@ -90,8 +135,8 @@ func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.flushStrategy.String())
-	d.flushStrategy = strategy
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.FlushStrategy.String())
+	d.FlushStrategy = strategy
 }
 
 // UseAdaptiveFlush sets whether we use the adaptive flush or not.
@@ -115,8 +160,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
-		if d.metricAgent.DogStatDServer != nil {
-			d.metricAgent.DogStatDServer.Flush()
+		if d.MetricAgent.DogStatDServer != nil {
+			d.MetricAgent.DogStatDServer.Flush()
 		}
 		wg.Done()
 	}()
@@ -179,8 +224,8 @@ func (d *Daemon) Stop(isTimeout bool) {
 
 	log.Debug("Shutting down agents")
 
-	if d.metricAgent.DogStatDServer != nil {
-		d.metricAgent.DogStatDServer.Stop()
+	if d.MetricAgent.DogStatDServer != nil {
+		d.MetricAgent.DogStatDServer.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
@@ -203,8 +248,8 @@ func StartDaemon() *Daemon {
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
-		flushStrategy:    &flush.AtTheEnd{},
-		extraTags:        nil,
+		FlushStrategy:    &flush.AtTheEnd{},
+		ExtraTags:        nil,
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -229,7 +274,7 @@ func (d *Daemon) StartInvocation() {
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.finishInvocationOnce.Do(func() {
+	d.FinishInvocationOnce.Do(func() {
 		d.InvcWg.Done()
 	})
 }
@@ -257,137 +302,19 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
-	if len(d.extraTags) == 0 {
-		tagMap := buildTagMap(arn, configTags)
-		tagArray := buildTagsFromMap(tagMap)
-		if d.metricAgent.DogStatDServer != nil {
-			d.metricAgent.DogStatDServer.SetExtraTags(tagArray)
+	if len(d.ExtraTags) == 0 {
+		tagMap := tags.BuildTagMap(arn, configTags)
+		tagArray := tags.BuildTagsFromMap(tagMap)
+		if d.MetricAgent.DogStatDServer != nil {
+			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
 		}
 		if d.traceAgent != nil {
-			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
+			d.traceAgent.SetGlobalTags(tags.BuildTracerTags(tagMap))
 		}
-		d.extraTags = tagArray
+		d.ExtraTags = tagArray
 		source := aws.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
 	}
-}
-
-// LogsCollection is the route on which the AWS environment is sending the logs
-// for the extension to collect them. It is attached to the main HTTP server
-// already receiving hits from the libraries client.
-type LogsCollection struct {
-	daemon *Daemon
-	ch     chan *logConfig.ChannelMessage
-}
-
-// ServeHTTP - see type LogsCollection comment.
-func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
-	data, _ := ioutil.ReadAll(r.Body)
-	defer r.Body.Close()
-
-	messages, err := aws.ParseLogsAPIPayload(data)
-	if err != nil {
-		w.WriteHeader(400)
-	} else {
-		processLogMessages(l, messages)
-		w.WriteHeader(200)
-	}
-}
-
-func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
-	metricsChan := l.daemon.metricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
-	metricTags := addColdStartTag(l.daemon.extraTags)
-	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
-	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
-	arn := aws.GetARN()
-	lastRequestID := aws.GetRequestID()
-	for _, message := range messages {
-		processMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, metricsChan)
-		// We always collect and process logs for the purpose of extracting enhanced metrics.
-		// However, if logs are not enabled, we do not send them to the intake.
-		if logsEnabled {
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID)
-			l.ch <- logMessage
-		}
-	}
-}
-
-// processMessage performs logic about metrics and tags on the message
-func processMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
-	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-	// First, if the log has a Request ID, set the global Request ID variable
-	if message.Type == aws.LogTypePlatformStart {
-		if len(message.ObjectRecord.RequestID) > 0 {
-			aws.SetRequestID(message.ObjectRecord.RequestID)
-			lastRequestID = message.ObjectRecord.RequestID
-		}
-	}
-
-	if !aws.ShouldProcessLog(arn, lastRequestID, message) {
-		return
-	}
-
-	if computeEnhancedMetrics {
-		generateEnhancedMetrics(message, metricTags, metricsChan)
-	}
-
-	switch message.Type {
-	case aws.LogTypePlatformReport:
-		aws.SetColdStart(false)
-	case aws.LogTypePlatformLogsDropped:
-		log.Debug("Logs were dropped by the AWS Lambda Logs API")
-	}
-}
-
-// Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
-// to know that the serverless agent is running. It is blocking until the DogStatsD daemon is ready.
-type Hello struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Hello comment.
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Hello route.")
-	// if the DogStatsD daemon isn't ready, wait for it.
-	h.daemon.clientLibReady = true
-}
-
-// Flush is the route to call to do an immediate flush on the serverless agent.
-// Returns 503 if the DogStatsD is not ready yet, 200 otherwise.
-type Flush struct {
-	daemon *Daemon
-}
-
-// ServeHTTP - see type Flush comment.
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Flush route.")
-	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
-		f.daemon.FinishInvocation()
-		return
-	}
-
-	log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to flush in moment:", flush.Stopping)
-
-	// if the DogStatsD daemon isn't ready, wait for it.
-	if f.daemon.metricAgent.DogStatDServer == nil {
-		w.WriteHeader(503)
-		w.Write([]byte("DogStatsD server not ready"))
-		f.daemon.FinishInvocation()
-		return
-	}
-
-	// note that I am not using the request context because I think that we don't
-	// want the flush to be canceled if the client is closing the request.
-	go func() {
-		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		f.daemon.TriggerFlush(ctx, false)
-		f.daemon.FinishInvocation()
-		cancel()
-	}()
-
 }

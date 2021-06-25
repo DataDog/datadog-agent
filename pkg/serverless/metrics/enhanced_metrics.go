@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package metrics
 
 import (
 	"fmt"
@@ -107,7 +107,7 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 }
 
 // sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
-func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
 	metricsChan <- []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.timeouts",
 		Value:      1.0,
@@ -118,8 +118,8 @@ func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricS
 	}}
 }
 
-// addColdStartTag appends the cold_start tag to existing tags
-func addColdStartTag(tags []string) []string {
+// AddColdStartTag appends the cold_start tag to existing tags
+func AddColdStartTag(tags []string) []string {
 	coldStart := aws.GetColdStart()
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
 	return tags
@@ -135,8 +135,8 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) floa
 	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
 }
 
-// generateEnhancedMetrics generates enhanced metrics from logs and dispatch them to the chan
-func generateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
+// GenerateEnhancedMetrics generates enhanced metrics from logs and dispatch them to the chan
+func GenerateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
 	switch message.Type {
 	case aws.LogTypeFunction:
 		generateEnhancedMetricsFromFunctionLog(message, tags, metricsChan)
