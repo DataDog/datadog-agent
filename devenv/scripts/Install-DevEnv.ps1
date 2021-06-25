@@ -33,11 +33,8 @@ cinst -y visualstudio2017buildtools --params "--add Microsoft.VisualStudio.Compo
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Visual C++ Workload'
 cinst -y visualstudio2017-workload-vctools
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installinc VC Tools for Python 2.7'l
-cinst -y vcpython27
-
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Wix'
-cinst -y wixtoolset --version 3.11
+cinst -y wixtoolset --version 3.11.2
 [Environment]::SetEnvironmentVariable(
     "Path",
     [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\WiX Toolset v3.11\bin",
@@ -83,14 +80,20 @@ $Env:Path="$Env:Path;c:\go\bin;"
 
 Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 2'
-cinst -y python2
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 3'
+cinst -y python3
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Ruby'
 cinst -y ruby --version 2.4.3.1
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MSYS'
 cinst -y msys2 --params "/NoUpdate" # install msys2 without system update
+
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MINGW'
+cinst -y mingw
+
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Make'
+cinst -y make
 
 # Reload environment to get ruby in path
 Update-SessionEnvironment
@@ -100,5 +103,10 @@ ridk install 2 3 # use ruby's ridk to update the system and install development 
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Bundler'
 gem install bundler
+
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Creating GOPATH'
+cd ~
+mkdir go\src\github.com\DataDog
+[Environment]::SetEnvironmentVariable("GOPATH", "${env:HOMEDRIVE}${env:HOMEPATH}\go", [EnvironmentVariableTarget]::User)
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen ' * DONE *'
