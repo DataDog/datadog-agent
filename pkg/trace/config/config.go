@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -47,7 +46,8 @@ type Endpoint struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	Enabled bool
+	Enabled   bool
+	IsFargate bool // specifies whether we are in a Fargate instance
 
 	// Global
 	Hostname   string
@@ -136,33 +136,17 @@ type Tag struct {
 	K, V string
 }
 
-var (
-	isFargate     bool
-	isFargateOnce sync.Once
-)
-
-// IsFargateInstance reports whether we are in a Fargate instance.
-func IsFargateInstance() bool {
-	isFargateOnce.Do(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		go func() {
-			select {
-			case <-ctx.Done():
-				if err := ctx.Err(); err != nil && err != context.Canceled {
-					log.Errorf("Error detecting Fargate instance: %v. Assuming no. If you are in a Fargate instance, this will cause problems.", err)
-				}
-			}
-		}()
-		isFargate = fargate.IsFargateInstance(ctx)
-		cancel()
-	})
-	return isFargate
-}
-
 // New returns a configuration with the default values.
 func New() *AgentConfig {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	isFargate := fargate.IsFargateInstance(ctx)
+	cancel()
+	if err := ctx.Err(); err != nil && err != context.Canceled {
+		log.Errorf("Error detecting Fargate instance: %v. Assuming not. If you are in a Fargate instance, this will cause problems.", err)
+	}
 	return &AgentConfig{
 		Enabled:    true,
+		IsFargate:  isFargate,
 		DefaultEnv: "none",
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
