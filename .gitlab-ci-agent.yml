@@ -42,7 +42,7 @@ stages:
   conda activate $CONDA_ENV
   $current_dir=Get-Location
   New-Item -ItemType Directory -Force -Path c:\\gopath\\src\\github.com\\StackVista
-  Remove-Item -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Recurse -Force
+  Remove-Item -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Recurse -Force -ErrorAction Ignore
   New-Item -ItemType SymbolicLink -Path "c:\\gopath\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir -Force
 
 ######################### /pipeline bricks
