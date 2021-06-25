@@ -581,9 +581,9 @@ molecule_tests_local_install:
     - pre_release_rpm
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
-  only:
-    - tags
-    - master
+#  only:
+#    - tags
+#    - master
 
 molecule_tests_secrets:
   <<: *molecule_base
@@ -596,9 +596,9 @@ molecule_tests_secrets:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
-  only:
-    - tags
-    - master
+#  only:
+#    - tags
+#    - master
 
 
 ## release stage
