@@ -141,7 +141,7 @@ func genTags(count int) []string {
 func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
-	for i := 1; i < 256; i *= 2 {
+	for i := 1; i < 128; i += 2 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := genTags(i)

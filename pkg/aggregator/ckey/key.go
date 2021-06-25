@@ -86,23 +86,6 @@ type KeyGenerator struct {
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
-	//	if len(tags) < 20 {
-	//		goto INPLACE
-	//	} else if len(tags) < 40 {
-	//		util.SortUniqInPlace(tags)
-	//	} else {
-	//		goto INPLACE
-	//	}
-	//
-	//	g.intb = 0xc6a4a7935bd1e995
-	//	g.intb = g.intb ^ murmur3.StringSum64(name)
-	//	g.intb = g.intb ^ murmur3.StringSum64(hostname)
-	//	for i := range tags {
-	//		g.intb = g.intb ^ murmur3.StringSum64(tags[i])
-	//	}
-	//	return ContextKey(g.intb)
-	//
-	//INPLACE:
 	g.intb = 0xc6a4a7935bd1e995
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)

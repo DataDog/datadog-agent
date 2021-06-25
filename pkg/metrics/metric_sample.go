@@ -136,7 +136,9 @@ func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardi
 		}
 	}
 
-	tb.Uniq()
+	// NOTE(remy): it should not be needed anymore since the context generator
+	// takes care of deduping tags while generating the context
+	//	tb.Uniq()
 }
 
 // GetTags returns the metric sample tags
