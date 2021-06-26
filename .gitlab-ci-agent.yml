@@ -444,8 +444,6 @@ pre_release_win:
     - ridk enable
   script:
     - $env:VERSION = Get-Content version.txt -First 1
-    # //TODO: in Windows MSI is build with hash shorter on one character. Find where.
-    - $Env:VERSION=$Env:VERSION.Substring(0,$Env:VERSION.Length-1)
     - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
     - $filename
     - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
