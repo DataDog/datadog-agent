@@ -16,6 +16,7 @@ set -e
 
 export STACKSTATE_BRANCH=${STACKSTATE_BRANCH:-master}
 
+export MAJOR_VERSION=${MAJOR_VERSION:-3}
 export STS_AWS_TEST_BUCKET=${STS_AWS_TEST_BUCKET:-stackstate-agent-3-test}
 export STS_DOCKER_TEST_REPO=${STS_DOCKER_TEST_REPO:-stackstate-agent-test}
 export STS_DOCKER_TEST_REPO_CLUSTER=${STS_DOCKER_TEST_REPO_CLUSTER:-stackstate-cluster-agent-test}
