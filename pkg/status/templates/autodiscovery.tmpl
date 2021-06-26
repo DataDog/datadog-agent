@@ -3,7 +3,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 * cmd/agent/gui/views/templates/generalStatus.tmpl
 */}}
 
-{{- if or .adConfigErrors .FilterErrors}}
+{{- if or .adConfigErrors .filterErrors}}
 =============
 Autodiscovery
 =============
@@ -23,9 +23,9 @@ Autodiscovery
   {{- end }}
 {{- end }}
 
-{{- with .FilterErrors }}
-  Inclusion/Exclusion Errors
-  ==========================
+{{- with .filterErrors }}
+  Container Inclusion/Exclusion Errors
+  ====================================
   {{ range $filtererror, $empty := . }}
     {{ $filtererror }}
   {{- end }}

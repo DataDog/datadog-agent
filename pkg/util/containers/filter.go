@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,37 +76,31 @@ type Filter struct {
 	ImageExcludeList     []*regexp.Regexp
 	NameExcludeList      []*regexp.Regexp
 	NamespaceExcludeList []*regexp.Regexp
-}
-
-// filterErrors holds a list of regex errors and warnings for invalid filters
-type filterErrors struct {
-	errors map[string]struct{}
-	sync.Mutex
+	Errors               map[string]struct{}
 }
 
 var sharedFilter *Filter
-var filterErrs *filterErrors
 
 func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string, err error) {
 	var filterWarnings []string
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
-			r, err := validateFilter(filter, imageFilterPrefix)
+			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
 				continue
 			}
 			imageFilters = append(imageFilters, r)
 		case strings.HasPrefix(filter, nameFilterPrefix):
-			r, err := validateFilter(filter, nameFilterPrefix)
+			r, err := filterToRegex(filter, nameFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
 				continue
 			}
 			nameFilters = append(nameFilters, r)
 		case strings.HasPrefix(filter, kubeNamespaceFilterPrefix):
-			r, err := validateFilter(filter, kubeNamespaceFilterPrefix)
+			r, err := filterToRegex(filter, kubeNamespaceFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
 				continue
@@ -126,8 +119,8 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, filterWarnings, nil
 }
 
-// validateFilter checks a filter's regex
-func validateFilter(filter string, filterPrefix string) (*regexp.Regexp, error) {
+// filterToRegex checks a filter's regex
+func filterToRegex(filter string, filterPrefix string) (*regexp.Regexp, error) {
 	pat := strings.TrimPrefix(filter, filterPrefix)
 	r, err := regexp.Compile(pat)
 	if err != nil {
@@ -159,17 +152,12 @@ func ResetSharedFilter() {
 
 // GetFilterErrors retrieves a list of errors and warnings resulting from parseFilters
 func GetFilterErrors() map[string]struct{} {
-	if filterErrs == nil {
-		return nil
+	filter, _ := newMetricFilterFromConfig()
+	logFilter, _ := NewAutodiscoveryFilter(LogsFilter)
+	for err, _ := range logFilter.Errors {
+		filter.Errors[err] = struct{}{}
 	}
-	filterErrs.Lock()
-	defer filterErrs.Unlock()
-	return filterErrs.errors
-}
-
-// resetFilterErrors is for use in unit tests: it resets the global filterErrs instance
-func resetFilterErrors() {
-	filterErrs = nil
+	return filter.Errors
 }
 
 // NewFilter creates a new container filter from a two slices of
@@ -181,22 +169,18 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
 
 	errors := append(filterErrsIncl, filterErrsExcl...)
-	if filterErrs == nil {
-		filterErrs = newFilterErrors()
-	}
+	errorsMap := make(map[string]struct{})
 	if len(errors) > 0 {
 		for _, err := range errors {
-			filterErrs.Lock()
-			filterErrs.errors[err] = struct{}{}
-			filterErrs.Unlock()
+			errorsMap[err] = struct{}{}
 		}
 	}
 
 	if errIncl != nil {
-		return nil, errIncl
+		return &Filter{Errors: errorsMap}, errIncl
 	}
 	if errExcl != nil {
-		return nil, errExcl
+		return &Filter{Errors: errorsMap}, errExcl
 	}
 
 	return &Filter{
@@ -207,13 +191,8 @@ func NewFilter(includeList, excludeList []string) (*Filter, error) {
 		ImageExcludeList:     imgExcl,
 		NameExcludeList:      nameExcl,
 		NamespaceExcludeList: nsExcl,
+		Errors:               errorsMap,
 	}, nil
-}
-
-func newFilterErrors() *filterErrors {
-	return &filterErrors{
-		errors: make(map[string]struct{}),
-	}
 }
 
 // newMetricFilterFromConfig creates a new container filter, sourcing patterns

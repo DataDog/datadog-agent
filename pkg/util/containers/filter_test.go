@@ -421,7 +421,7 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}
 	assert.Equal(t, fe, GetFilterErrors())
-	resetFilterErrors()
+	ResetSharedFilter()
 	resetConfig()
 
 	// Filter errors - invalid regex
@@ -430,13 +430,13 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 
 	f, err = NewAutodiscoveryFilter(GlobalFilter)
 	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
-	assert.Nil(t, f)
+	assert.NotNil(t, f)
 	fe = map[string]struct{}{
 		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
 		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
 	}
 	assert.Equal(t, fe, GetFilterErrors())
-	resetFilterErrors()
+	ResetSharedFilter()
 	resetConfig()
 }
 
@@ -485,7 +485,7 @@ func TestValidateFilter(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
-			r, err := validateFilter(tc.filter, tc.prefix)
+			r, err := filterToRegex(tc.filter, tc.prefix)
 			assert.Equal(t, tc.expectedRegexp, r)
 			assert.Equal(t, tc.expectedErr, err)
 		})
