@@ -237,7 +237,6 @@ build_cluster_agent:
   script:
     - conda activate $CONDA_ENV
     - inv -e cluster-agent.build
-    - inv -e version
     - ls -la $CI_PROJECT_DIR/bin/
   artifacts:
     paths:
