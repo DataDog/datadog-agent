@@ -33,7 +33,11 @@ func TestConfigHostname(t *testing.T) {
 		defer func() {
 			fallbackHostnameFunc = os.Hostname
 		}()
-		_, err := Load("./testdata/site_override.yaml")
+		config, _ := Load("./testdata/site_override.yaml")
+		// As the default path for `config.DDAgentBin` may exist, set `DDAgentBin` to an invalid path and call again config.validate().
+		config.DDAgentBin = "Invalid path"
+		config.Hostname = ""
+		err := config.validate()
 		assert.Equal(ErrMissingHostname, err)
 	})
 

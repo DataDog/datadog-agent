@@ -11,15 +11,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDogstatsdMetricsStats(t *testing.T) {
+	port, err := testutil.GetAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.Set("dogstatsd_port", port)
+	defer config.Datadog.Set("dogstatsd_port", nil)
+
 	assert := assert.New(t)
-	var err error
 
 	serializer := serializer.NewSerializer(common.Forwarder, nil)
 	agg := aggregator.InitAggregator(serializer, nil, "")

@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,30 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
-}
-
 func TestNewServer(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -57,7 +37,7 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestStopServer(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -81,7 +61,7 @@ func TestStopServer(t *testing.T) {
 }
 
 func TestUDPReceive(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -329,7 +309,7 @@ func TestUDPReceive(t *testing.T) {
 }
 
 func TestUDPForward(t *testing.T) {
-	fport, err := getAvailableUDPPort()
+	fport, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 
 	// Setup UDP server to forward to
@@ -343,7 +323,7 @@ func TestUDPForward(t *testing.T) {
 	defer pc.Close()
 
 	// Setup dogstatsd server
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -372,7 +352,7 @@ func TestUDPForward(t *testing.T) {
 }
 
 func TestHistToDist(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	defaultPort := config.Datadog.GetInt("dogstatsd_port")
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -471,7 +451,7 @@ func TestEOLParsing(t *testing.T) {
 }
 
 func TestE2EParsing(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -517,7 +497,7 @@ func TestE2EParsing(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
@@ -668,7 +648,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
 	samples := []metrics.MetricSample{}
 
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
@@ -784,8 +764,8 @@ dogstatsd_mapper_profiles:
 			err := config.Datadog.ReadConfig(strings.NewReader(scenario.config))
 			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
 
-			port, err := getAvailableUDPPort()
-			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
+			port, err := testutil.GetAvailableUDPPort()
+			require.NoError(t, err, "Case `%s` failed. GetAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
 			s, err := NewServer(mockAggregator(), nil)
@@ -816,7 +796,7 @@ dogstatsd_mapper_profiles:
 
 func TestNewServerExtraTags(t *testing.T) {
 	require := require.New(t)
-	port, err := getAvailableUDPPort()
+	port, err := testutil.GetAvailableUDPPort()
 	require.NoError(err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 

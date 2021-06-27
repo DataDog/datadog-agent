@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
+	utilTestUtil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +60,11 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
+	port, err := utilTestUtil.GetAvailableUDPPort()
+	if err != nil {
+		panic("Cannot find available port")
+	}
+	conf.ReceiverPort = port
 
 	return conf
 }
