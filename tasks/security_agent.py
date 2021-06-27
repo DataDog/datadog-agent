@@ -3,6 +3,7 @@ import glob
 import os
 import shutil
 import sys
+import tempfile
 
 from invoke import task
 
@@ -343,18 +344,43 @@ def docker_functional_tests(
         bundle_ebpf=True,
     )
 
+    dockerfile = """
+FROM debian:bullseye
+
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends xfsprogs \
+    && rm -rf /var/lib/apt/lists/*
+    """
+
+    docker_image_tag_name = "docker-functional-tests"
+
+    # build docker image
+    with tempfile.TemporaryDirectory() as temp_dir:
+        print("Create tmp dir:", temp_dir)
+        with open(os.path.join(temp_dir, "Dockerfile"), "w") as f:
+            f.write(dockerfile)
+
+        cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
+        ctx.run(
+            cmd.format(**{
+                "docker_file_ctx": temp_dir,
+                "image_tag": docker_image_tag_name,
+            })
+        )
+
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
     cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
+    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
+        "image_tag": docker_image_tag_name + ":latest",
     }
 
     ctx.run(cmd.format(**args))
