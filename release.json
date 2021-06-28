@@ -8,7 +8,8 @@
         "MACOS_BUILD_VERSION": "7.29.x",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-        "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e"
+        "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+        "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "7.29.x",

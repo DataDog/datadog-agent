@@ -65,6 +65,10 @@ func TestChmod(t *testing.T) {
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "chmod.file.container_path")
 			}
+
+			if !validateChmodSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -89,6 +93,10 @@ func TestChmod(t *testing.T) {
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "chmod.file.container_path")
 			}
+
+			if !validateChmodSchema(t, event) {
+				t.Fatal(event.String())
+			}
 		}
 	})
 
@@ -111,6 +119,10 @@ func TestChmod(t *testing.T) {
 
 			if testEnvironment == DockerEnvironment {
 				testContainerPath(t, event, "chmod.file.container_path")
+			}
+
+			if !validateChmodSchema(t, event) {
+				t.Fatal(event.String())
 			}
 		}
 	}))

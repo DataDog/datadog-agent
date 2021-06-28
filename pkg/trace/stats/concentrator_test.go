@@ -96,7 +96,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 	traceutil.ComputeTopLevel(trace)
 	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := &Input{
+	testTrace := &EnvTrace{
 		Env:   "none",
 		Trace: wt,
 	}
@@ -105,7 +105,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		// Running cold, all spans in the past should end up in the current time bucket.
 		flushTime := now.UnixNano()
 		c := NewTestConcentrator(now)
-		c.addNow(testTrace)
+		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen; i++ {
 			stats := c.flushNow(flushTime)
@@ -142,7 +142,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		flushTime := now.UnixNano()
 		c := NewTestConcentrator(now)
 		c.oldestTs = alignTs(flushTime, c.bsize) - int64(c.bufferLen-1)*c.bsize
-		c.addNow(testTrace)
+		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen-1; i++ {
 			stats := c.flushNow(flushTime)
@@ -222,11 +222,11 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
 	t.Run("ok", func(t *testing.T) {
-		testTrace := &Input{
+		testTrace := &EnvTrace{
 			Env:   "none",
 			Trace: wt,
 		}
-		c.addNow(testTrace)
+		c.addNow(testTrace, "")
 
 		var duration uint64
 		var hits uint64
@@ -397,11 +397,11 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	traceutil.ComputeTopLevel(trace)
 	wt := NewWeightedTrace(trace, traceutil.GetRoot(trace))
 
-	testTrace := &Input{
+	testTrace := &EnvTrace{
 		Env:   "none",
 		Trace: wt,
 	}
-	c.addNow(testTrace)
+	c.addNow(testTrace, "")
 
 	// flush every testBucketInterval
 	flushTime := now.UnixNano()
@@ -450,7 +450,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 		trace = append(trace, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
 	}
 	traceutil.ComputeTopLevel(trace)
-	c.addNow(&Input{Env: "none", Trace: NewWeightedTrace(trace, traceutil.GetRoot(trace))})
+	c.addNow(&EnvTrace{Env: "none", Trace: NewWeightedTrace(trace, traceutil.GetRoot(trace))}, "")
 	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)

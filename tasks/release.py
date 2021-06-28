@@ -14,6 +14,10 @@ from datetime import date
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import color_message
+from tasks.utils import DEFAULT_BRANCH
+
+from .libs.common.user_interactions import yes_no_question
 from .modules import DEFAULT_MODULES
 
 
@@ -56,8 +60,8 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
             """prelude:
     |
     Released on: {1}
-    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#{2}{3}>`_.""".format(
-                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version,
+    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
+                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version, DEFAULT_BRANCH,
             )
         )
 
@@ -458,6 +462,25 @@ def _query_github_api(auth_token, url):
     return response
 
 
+def _confirm_external_repo_version(repo, latest_version, highest_release_json_version):
+    confirmed_version = highest_release_json_version
+    if latest_version != highest_release_json_version:
+        print(
+            color_message(
+                "The latest version of {} ({}) does not match the latest version found in the release.json file ({}).".format(
+                    repo, _stringify_version(latest_version), _stringify_version(highest_release_json_version)
+                ),
+                "orange",
+            )
+        )
+        if yes_no_question(
+            "Do you want to update {} to {}?".format(repo, _stringify_version(latest_version)), "orange", False
+        ):
+            confirmed_version = latest_version
+
+    return confirmed_version
+
+
 def _get_highest_repo_version(auth, repo, new_rc_version, version_re):
     if new_rc_version is not None:
         url = "https://api.github.com/repos/DataDog/{}/git/matching-refs/tags/{}{}".format(
@@ -718,6 +741,7 @@ def finish(
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
+        jmxfetch_version = _confirm_external_repo_version("jmxfetch", jmxfetch_version, highest_jmxfetch_version)
     print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
 
     if not omnibus_ruby_version:
@@ -739,6 +763,9 @@ def finish(
     if not security_agent_policies_version:
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
+        )
+        security_agent_policies_version = _confirm_external_repo_version(
+            "security-agent-policies", security_agent_policies_version, highest_security_agent_policies_version
         )
     print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
 
@@ -872,6 +899,7 @@ def create_rc(
 
     if not jmxfetch_version:
         jmxfetch_version = _get_highest_repo_version(github_token, "jmxfetch", highest_jmxfetch_version, version_re)
+        jmxfetch_version = _confirm_external_repo_version("jmxfetch", jmxfetch_version, highest_jmxfetch_version)
     print("jmxfetch's tag is {}".format(_stringify_version(jmxfetch_version)))
 
     if not omnibus_ruby_version:
@@ -881,6 +909,9 @@ def create_rc(
     if not security_agent_policies_version:
         security_agent_policies_version = _get_highest_repo_version(
             github_token, "security-agent-policies", highest_security_agent_policies_version, version_re
+        )
+        security_agent_policies_version = _confirm_external_repo_version(
+            "security-agent-policies", security_agent_policies_version, highest_security_agent_policies_version
         )
     print("security-agent-policies' tag is {}".format(_stringify_version(security_agent_policies_version)))
 

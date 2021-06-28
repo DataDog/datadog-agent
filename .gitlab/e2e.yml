@@ -2,20 +2,6 @@
 # e2e stage
 # Contains jobs which runs e2e tests on our Docker images.
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.if_tagged_commit: &if_tagged_commit
-  if: $CI_COMMIT_TAG != null
-
-.if_deploy_on_tag_6: &if_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
 .pupernetes_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -31,12 +17,7 @@
 pupernetes-dev:
   extends: .pupernetes_template
   rules:
-    - <<: *if_master_branch
-      when: never
-    - <<: *if_tagged_commit
-      when: never
-    - when: manual
-      allow_failure: true
+    !reference [.on_dev_branch_manual]
   # Note: pupernetes-dev requires the below jobs to work. However,
   # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
   # Adding the following lines would result in pipelines remaining in a "Running" state forever,
@@ -52,11 +33,11 @@ pupernetes-dev:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-pupernetes-master:
+pupernetes-main:
   extends: .pupernetes_template
   allow_failure: true # temporary while investigating
   rules:
-    - <<: *if_master_branch
+    !reference [.on_main]
   needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
@@ -65,9 +46,7 @@ pupernetes-master:
 pupernetes-tags-6:
   extends: .pupernetes_template
   rules:
-    - <<: *if_deploy_on_tag_6
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 6)
     - DCA_VERSION=$(inv -e cluster-agent.version)
@@ -76,9 +55,7 @@ pupernetes-tags-6:
 pupernetes-tags-7:
   extends: .pupernetes_template
   rules:
-    - <<: *if_deploy_on_tag_7
-      when: manual
-      allow_failure: true
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   script:
     - AGENT_VERSION=$(inv -e agent.version --major-version 7)
     - DCA_VERSION=$(inv -e cluster-agent.version)

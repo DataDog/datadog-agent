@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,7 +135,7 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 
 // ProcessLostEvent processes a lost event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfMap) {
-	log.Tracef("lost %d events\n", count)
+	seclog.Tracef("lost %d events\n", count)
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 

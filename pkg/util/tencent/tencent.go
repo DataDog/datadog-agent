@@ -6,6 +6,7 @@
 package tencent
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -25,27 +26,27 @@ var (
 )
 
 // IsRunningOn returns true if the agent is running on Tencent Cloud
-func IsRunningOn() bool {
-	if _, err := GetInstanceID(); err == nil {
+func IsRunningOn(ctx context.Context) bool {
+	if _, err := GetInstanceID(ctx); err == nil {
 		return true
 	}
 	return false
 }
 
 // GetHostAlias returns the VM ID from the Tencent Metadata api
-func GetHostAlias() (string, error) {
+func GetHostAlias(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	return GetInstanceID()
+	return GetInstanceID(ctx)
 }
 
 // GetInstanceID fetches the instance id for current host from the Tencent metadata API
-func GetInstanceID() (string, error) {
+func GetInstanceID(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	res, err := getMetadataItemWithMaxLength(metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	res, err := getMetadataItemWithMaxLength(ctx, metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		return "", fmt.Errorf("unable to get TencentCloud CVM instanceID: %s", err)
 	}
@@ -53,23 +54,23 @@ func GetInstanceID() (string, error) {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider() (string, error) {
+func HostnameProvider(ctx context.Context) (string, error) {
 	log.Debug("GetHostname trying Tencent metadata...")
-	return GetInstanceID()
+	return GetInstanceID(ctx)
 }
 
 // GetNTPHosts returns the NTP hosts for Tencent if it is detected as the cloud provider, otherwise an empty array.
 // Demo: https://intl.cloud.tencent.com/document/product/213/32379
-func GetNTPHosts() []string {
-	if IsRunningOn() {
+func GetNTPHosts(ctx context.Context) []string {
+	if IsRunningOn(ctx) {
 		return []string{"ntpupdate.tencentyun.com"}
 	}
 
 	return nil
 }
 
-func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
-	result, err := getMetadataItem(endpoint)
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
+	result, err := getMetadataItem(ctx, endpoint)
 	if err != nil {
 		return result, err
 	}
@@ -79,8 +80,8 @@ func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error
 	return result, err
 }
 
-func getMetadataItem(endpoint string) (string, error) {
-	res, err := getResponse(endpoint)
+func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
+	res, err := getResponse(ctx, endpoint)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch Tencent Metadata API, %s", err)
 	}
@@ -94,12 +95,12 @@ func getMetadataItem(endpoint string) (string, error) {
 	return string(all), nil
 }
 
-func getResponse(url string) (*http.Response, error) {
+func getResponse(ctx context.Context, url string) (*http.Response, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}

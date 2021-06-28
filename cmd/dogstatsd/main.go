@@ -183,7 +183,7 @@ func runAgent(ctx context.Context) (err error) {
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f, nil)
 
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""

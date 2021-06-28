@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -75,6 +76,8 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
+	ctx := context.Background()
+
 	config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent-custom")
 	defer config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent")
 
@@ -96,7 +99,7 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey("ecs-agent-custom", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
-	agentURLS, err := getAgentV1ContainerURLs()
+	agentURLS, err := getAgentV1ContainerURLs(ctx)
 	assert.NoError(t, err)
 	require.Len(t, agentURLS, 3)
 	assert.Contains(t, agentURLS, "http://172.17.0.2:51678/")

@@ -1,23 +1,14 @@
 ---
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
-
-.retrieve_linux_go_deps: &retrieve_linux_go_deps |
-  mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  rm -f modcache.tar.gz
-
 # Scan the dependencies for security vulnerabilities with snyk
 security_scan_test:
   rules:
-    - <<: *if_master_branch
+    !reference [.on_main_or_release_branch]
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:v3523070-7400854-next
   tags: ["runner:main", "size:large"]
   needs: ["linux_x64_go_deps"]
   before_script:
-    # this image isn't built in the datadog-agent-builders repo
-    # it doesn't have invoke so we install the dependencies without invoke
-    - *retrieve_linux_go_deps
+    - !reference [.retrieve_linux_go_deps]
     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
     - cd $GOPATH/src/github.com/DataDog/datadog-agent

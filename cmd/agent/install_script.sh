@@ -68,6 +68,24 @@ function on_read_error() {
   yn="n"
 }
 
+function get_email() {
+  emaillocalpart='^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}'
+  hostnamepart='[a-zA-Z0-9.-]+\.[a-zA-Z]+'
+  email_regex="$emaillocalpart@$hostnamepart"
+  cntr=0
+  until [[ "$cntr" -eq 3 ]]
+  do
+      read -p "Enter an email address so we can follow up: " -r email
+      if [[ "$email" =~ $email_regex ]]; then
+        isEmailValid=true
+        break
+      else
+        ((cntr=cntr+1))
+        echo -e "\033[33m($cntr/3) Email address invalid: $email\033[0m\n"
+      fi
+  done
+}
+
 function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
@@ -85,8 +103,12 @@ Troubleshooting and basic usage information for the Agent are available at:
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
         case $yn in
           [Yy]* )
-            read -p "Enter an email address so we can follow up: " -r email
-            report
+            get_email
+            if [[ -n "$isEmailValid" ]]; then
+              report
+            else
+              fallback_msg
+            fi
             break;;
           [Nn]*|"" )
             fallback_msg
@@ -104,7 +126,7 @@ function verify_agent_version(){
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
-  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst\033[0m"
         fallback_msg
         exit 1;
     else
@@ -412,6 +434,7 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
+  # Note that SUSE11 doesn't have /etc/os-release file, so we have to use /etc/SuSE-release
   if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE11="yes"
   fi
@@ -440,9 +463,13 @@ elif [ "$OS" = "SUSE" ]; then
     fi
   fi
 
-  # parse the major version number out of the distro release info file. xargs is used to trim whitespace.
-  SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
-  if [ "$SUSE_VER" -ge 15 ]; then
+  # Parse the major version number out of the distro release info file. xargs is used to trim whitespace.
+  # NOTE: We use this to find out whether or not release version is >= 15, so we have to use /etc/os-release,
+  # as /etc/SuSE-release has been deprecated and is no longer present everywhere, e.g. in AWS AMI.
+  # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
+  SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
+  gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ]; then
     gpgkeys=''
     separator='\n       '
     for key_path in "${RPM_GPG_KEYS[@]}"; do
@@ -453,8 +480,6 @@ elif [ "$OS" = "SUSE" ]; then
         gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
       done
     fi
-  else
-    gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"

@@ -5,15 +5,16 @@ skip_branch_with_pr: true
 
 clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
 
+image: "Visual Studio 2017"
+
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
   GOVERSION: '1.15.11'
   GOROOT: C:\go_1.15.11
-  GOLANGCI_LINT_VERSION: "1.27.0"
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
-  Python3_ROOT_DIR: C:\Python37-x64
+  Python3_ROOT_DIR: C:\Python38-x64
   PIP3: pip3 -q
   MSYS_ROOT: C:\msys64
   # GLIB-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/glib/2.26/glib_2.26.1-1_win64.zip
@@ -31,11 +32,7 @@ install:
   - ps: '& 7z -o"c:\tmp\go_$ENV:GOVERSION" x c:\tmp\godl.zip'
   - move "c:\tmp\go_%GOVERSION%\go" %GOROOT%
   - set PATH=%GOROOT%\bin;%PATH%
-
-  # installing golangci-lint
-  - ps: $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;(New-Object System.Net.WebClient).DownloadFile("https://github.com/golangci/golangci-lint/releases/download/v$ENV:GOLANGCI_LINT_VERSION/golangci-lint-$ENV:GOLANGCI_LINT_VERSION-windows-amd64.zip", "c:\tmp\golangci-lint.zip")
-  - ps: '& 7z -o"c:\tmp\golangci-lint\" x c:\tmp\golangci-lint.zip'
-  - move "c:\tmp\golangci-lint\golangci-lint.exe-%GOLANGCI_LINT_VERSION%-windows-amd64\golangci-lint.exe" %GOROOT%\bin
+  - inv -e install-tools
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'
@@ -49,7 +46,6 @@ test_script:
   - inv -e rtloader.install
   - inv -e rtloader.format --raise-if-changed
   - inv -e rtloader.test
-  - inv -e install-tools
   - inv -e test --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-2=%Python2_ROOT_DIR% --python-home-3=%Python3_ROOT_DIR%
   - codecov -f profile.cov -F windows
 

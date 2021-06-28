@@ -3,14 +3,13 @@
 
 #include "defs.h"
 
-struct _tracepoint_raw_syscalls_sys_enter
-{
-  unsigned short common_type;
-  unsigned char common_flags;
-  unsigned char common_preempt_count;
-  int common_pid;
-  long id;
-  unsigned long args[6];
+struct _tracepoint_raw_syscalls_sys_enter {
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+    long id;
+    unsigned long args[6];
 };
 
 struct bpf_map_def SEC("maps/concurrent_syscalls") concurrent_syscalls = {
@@ -20,6 +19,13 @@ struct bpf_map_def SEC("maps/concurrent_syscalls") concurrent_syscalls = {
     .max_entries = 1,
     .pinning = 0,
     .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/sys_exit_progs") sys_exit_progs = {
+    .type = BPF_MAP_TYPE_PROG_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 64,
 };
 
 #define CONCURRENT_SYSCALLS_COUNTER 0
@@ -77,8 +83,25 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     return 0;
 }
 
+// used as a fallback, because tracepoints are not enable when using a ia32 userspace application with a x64 kernel
+// cf. https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/ftrace.h#L106
+int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall)
+        return 0;
+
+    bpf_tail_call(args, &sys_exit_progs, syscall->type);
+    return 0;
+}
+
 SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    u64 fallback;
+    LOAD_CONSTANT("tracepoint_raw_syscall_fallback", fallback);
+    if (fallback) {
+        handle_sys_exit(args);
+    }
+
     u64 enabled;
     LOAD_CONSTANT("syscall_monitor", enabled);
     if (enabled) {
@@ -120,8 +143,7 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .namespace = "",
 };
 
-struct _tracepoint_sched_sched_process_exec
-{
+struct _tracepoint_sched_sched_process_exec {
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;

@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"context"
 	"net"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -117,7 +118,7 @@ func (g *gatewayLookup) purge() {
 }
 
 func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
-	snet, err := ec2.GetSubnetForHardwareAddr(hwAddr)
+	snet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), hwAddr)
 	if err != nil {
 		return network.Subnet{}, err
 	}
@@ -128,5 +129,5 @@ func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (network.Subnet, error) {
 type cloudProviderImpl struct{}
 
 func (cp *cloudProviderImpl) IsAWS() bool {
-	return ec2.IsRunningOn()
+	return ec2.IsRunningOn(context.TODO())
 }

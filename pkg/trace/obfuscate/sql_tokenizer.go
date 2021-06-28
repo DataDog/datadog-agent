@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 // tokenizer.go implemenents a lexer-like iterator that tokenizes SQL and CQL
@@ -227,7 +227,15 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return tkn.scanBindVar()
 			}
 			fallthrough
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
+		case '~':
+			switch tkn.lastChar {
+			case '*':
+				tkn.advance()
+				return TokenKind('~'), []byte("~*")
+			default:
+				return TokenKind(ch), tkn.bytes()
+			}
+		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']', '?':
 			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
@@ -278,12 +286,23 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			return TokenKind(ch), tkn.bytes()
 		case '!':
-			if tkn.lastChar == '=' {
+			switch tkn.lastChar {
+			case '=':
 				tkn.advance()
 				return NE, []byte("!=")
+			case '~':
+				tkn.advance()
+				switch tkn.lastChar {
+				case '*':
+					tkn.advance()
+					return NE, []byte("!~*")
+				default:
+					return NE, []byte("!~")
+				}
+			default:
+				tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+				return LexError, tkn.bytes()
 			}
-			tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-			return LexError, tkn.bytes()
 		case '\'':
 			return tkn.scanString(ch, String)
 		case '"':
@@ -487,7 +506,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		}
 		buf.WriteRune(ch)
 	}
-	if config.HasFeature("dollar_quoted_func") && string(delim) == "$func$" {
+	if features.Has("dollar_quoted_func") && string(delim) == "$func$" {
 		// dolar_quoted_func: treat "$func" delimited dollar-quoted strings
 		// differently and do not obfuscate them as a string
 		return DollarQuotedFunc, buf.Bytes()

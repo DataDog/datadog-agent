@@ -87,6 +87,20 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllMapSpecEditors returns the list of map editors
+func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+	return map[string]manager.MapSpecEditor{
+		"proc_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pid_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+	}
+}
+
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
@@ -102,6 +116,7 @@ func AllTailRoutes() []manager.TailCallRoute {
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getSysExitTailCallRoutes()...)
 
 	return routes
 }

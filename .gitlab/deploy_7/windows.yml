@@ -1,19 +1,7 @@
 ---
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
 deploy_staging_windows_master-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_deploy_on_nightly
+    !reference [.on_deploy_nightly_repo_branch_a7]
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -27,7 +15,7 @@ deploy_staging_windows_master-a7:
 
 deploy_staging_windows_tags-a7:
   rules:
-    - <<: *if_deploy_on_tag_7
+    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
   stage: deploy7
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

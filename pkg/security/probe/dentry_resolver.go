@@ -11,11 +11,8 @@ import (
 	"C"
 	"fmt"
 	"os"
-	"runtime"
 	"sync/atomic"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -23,8 +20,10 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -45,6 +44,8 @@ type DentryResolver struct {
 	erpcSegmentSize       int
 	erpcRequest           ERPCRequest
 	erpcEnabled           bool
+	erpcStatsZero         []eRPCStats
+	numCPU                int
 	mapEnabled            bool
 
 	hitsCounters map[string]map[string]*int64
@@ -171,12 +172,10 @@ func (dr *DentryResolver) SendStats() error {
 	return dr.sendERPCStats()
 }
 
-var eRPCStatsZero = make([]eRPCStats, runtime.NumCPU())
-
 func (dr *DentryResolver) sendERPCStats() error {
 	buffer := dr.erpcStats[1-dr.activeERPCStatsBuffer]
 	iterator := buffer.Iterate()
-	stats := make([]eRPCStats, runtime.NumCPU())
+	stats := make([]eRPCStats, dr.numCPU)
 	counters := map[eRPCRet]int64{}
 	var ret eRPCRet
 
@@ -197,7 +196,7 @@ func (dr *DentryResolver) sendERPCStats() error {
 		}
 	}
 	for _, r := range allERPCRet() {
-		_ = buffer.Put(r, eRPCStatsZero)
+		_ = buffer.Put(r, dr.erpcStatsZero)
 	}
 
 	dr.activeERPCStatsBuffer = 1 - dr.activeERPCStatsBuffer
@@ -663,9 +662,13 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
 	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
 	// Then, 27k + 256 / page_size < 7.
-	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
+	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON|unix.MAP_POPULATE)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to mmap memory segment")
+	}
+
+	if err := unix.Mlock(segment); err != nil {
+		return nil, errors.Wrap(err, "failed to lock memory segment")
 	}
 
 	hitsCounters := make(map[string]map[string]*int64)
@@ -685,6 +688,11 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		}
 	}
 
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+	}
+
 	return &DentryResolver{
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
@@ -693,8 +701,10 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		erpcStatsZero:   make([]eRPCStats, numCPU),
 		mapEnabled:      probe.config.MapDentryResolutionEnabled,
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
+		numCPU:          numCPU,
 	}, nil
 }

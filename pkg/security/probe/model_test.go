@@ -154,7 +154,7 @@ func TestExecArgsOptions(t *testing.T) {
 					ArgsEntry: &model.ArgsEntry{
 						Values: []string{
 							"--config", "/etc/myfile", "--host=myhost", "--verbose",
-							"-c", "/etc/myfile", "-h=myhost", "-v",
+							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
 							"--", "---", "-9",
 						},
 					},
@@ -169,7 +169,7 @@ func TestExecArgsOptions(t *testing.T) {
 	}
 
 	options := e.ResolveExecArgsOptions(&e.Exec)
-	sort.Sort(sort.StringSlice(options))
+	sort.Strings(options)
 
 	hasOption := func(options []string, option string) bool {
 		i := sort.SearchStrings(options, option)
@@ -184,6 +184,10 @@ func TestExecArgsOptions(t *testing.T) {
 		t.Error("option 'c=/etc/myfile' not found")
 	}
 
+	if !hasOption(options, "e=") {
+		t.Error("option 'e=' not found")
+	}
+
 	if !hasOption(options, "host=myhost") {
 		t.Error("option 'host=myhost' not found")
 	}
@@ -196,7 +200,7 @@ func TestExecArgsOptions(t *testing.T) {
 		t.Error("option 'verbose=' found")
 	}
 
-	if len(options) != 4 {
-		t.Errorf("expected 4 options, got %d", len(options))
+	if len(options) != 5 {
+		t.Errorf("expected 5 options, got %d", len(options))
 	}
 }

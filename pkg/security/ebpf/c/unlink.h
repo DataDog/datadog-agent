@@ -90,13 +90,13 @@ int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
 
     // ensure that we invalidate all the layers
     u64 inode = syscall->unlink.file.path_key.ino;
@@ -146,6 +146,11 @@ int tracepoint_syscalls_sys_exit_unlinkat(struct tracepoint_syscalls_sys_exit_t 
 
 SYSCALL_KRETPROBE(unlinkat) {
     return kprobe_sys_unlink_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_unlink_exit")
+int tracepoint_handle_sys_unlink_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_unlink_ret(args, args->ret);
 }
 
 #endif
