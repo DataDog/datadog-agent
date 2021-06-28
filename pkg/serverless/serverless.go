@@ -174,7 +174,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := metrics.AddColdStartTag(daemon.ExtraTags)
+			metricTags := metrics.AddColdStartTag(daemon.ExtraTags.Tags)
 			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}

@@ -19,13 +19,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -33,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	serverlessDaemon "github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -286,7 +284,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			setupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel)
 		}
 		waitingChan <- true
 	}(waitingChan)
@@ -316,12 +314,10 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		go traceAgent.Start(datadogConfigPath, traceAgentCtx, stopTraceAgent, waitingChan)
 	}
 
-	//here block for metric and trace to be set
 	<-waitingChan
 	<-waitingChan
 	<-waitingChan
 
-	// DogStatsD daemon ready.
 	daemon.SetStatsdServer(metricAgent)
 	daemon.SetTraceAgent(traceAgent.Get())
 
@@ -372,16 +368,5 @@ func handleSignals(daemon *serverlessDaemon.Daemon, stopCh chan struct{}) {
 			stopCh <- struct{}{}
 			return
 		}
-	}
-}
-
-func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	// we subscribed to the logs collection on the platform, let's instantiate
-	// a logs agent to collect/process/flush the logs.
-	if err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
-	); err != nil {
-		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }

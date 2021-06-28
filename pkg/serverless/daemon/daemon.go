@@ -61,7 +61,7 @@ type Daemon struct {
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
 
-	ExtraTags []string
+	ExtraTags *serverlessLog.Tags
 
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
@@ -255,7 +255,7 @@ func StartDaemon() *Daemon {
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
-		ExtraTags:        make([]string, 0),
+		ExtraTags:        &serverlessLog.Tags{},
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -308,7 +308,7 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
-	if len(d.ExtraTags) == 0 {
+	if len(d.ExtraTags.Tags) == 0 {
 		tagMap := tags.BuildTagMap(arn, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent.DogStatDServer != nil {
@@ -317,7 +317,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 		if d.traceAgent != nil {
 			d.traceAgent.SetGlobalTags(tags.BuildTracerTags(tagMap))
 		}
-		d.ExtraTags = tagArray
+		d.ExtraTags.Tags = tagArray
 		source := aws.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray

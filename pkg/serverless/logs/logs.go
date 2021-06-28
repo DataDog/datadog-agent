@@ -4,7 +4,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
@@ -12,13 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type Tags struct {
+	Tags []string
+}
+
 // LogsCollection is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
 type LogsCollection struct {
 	LogChannel    chan *logConfig.ChannelMessage
 	MetricChannel chan []metrics.MetricSample
-	ExtraTags     []string
+	ExtraTags     *Tags
 }
 
 // ServeHTTP - see type LogsCollection comment.
@@ -37,7 +44,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
-	metricTags := serverlessMetric.AddColdStartTag(l.ExtraTags)
+	metricTags := serverlessMetric.AddColdStartTag(l.ExtraTags.Tags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 	arn := aws.GetARN()
@@ -77,5 +84,16 @@ func processMessage(message aws.LogMessage, arn string, lastRequestID string, co
 		aws.SetColdStart(false)
 	case aws.LogTypePlatformLogsDropped:
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
+	}
+}
+
+func SetupLogAgent(logChannel chan *logConfig.ChannelMessage) {
+	// we subscribed to the logs collection on the platform, let's instantiate
+	// a logs agent to collect/process/flush the logs.
+	if err := logs.StartServerless(
+		func() *autodiscovery.AutoConfig { return common.AC },
+		logChannel, nil,
+	); err != nil {
+		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }
