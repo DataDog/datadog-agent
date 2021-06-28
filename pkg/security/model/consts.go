@@ -9,6 +9,8 @@ package model
 
 import (
 	"fmt"
+	"math"
+	"math/bits"
 	"sort"
 	"strings"
 	"syscall"
@@ -216,7 +218,7 @@ var (
 	}
 
 	// KernelCapabilityConstants list of kernel capabilities
-	KernelCapabilityConstants = map[string]int{
+	KernelCapabilityConstants = map[string]uint64{
 		"CAP_AUDIT_CONTROL":      1 << unix.CAP_AUDIT_CONTROL,
 		"CAP_AUDIT_READ":         1 << unix.CAP_AUDIT_READ,
 		"CAP_AUDIT_WRITE":        1 << unix.CAP_AUDIT_WRITE,
@@ -277,7 +279,7 @@ var (
 	openFlagsStrings          = map[int]string{}
 	chmodModeStrings          = map[int]string{}
 	unlinkFlagsStrings        = map[int]string{}
-	kernelCapabilitiesStrings = map[int]string{}
+	kernelCapabilitiesStrings = map[uint64]string{}
 )
 
 // File flags
@@ -318,7 +320,9 @@ func initErrorConstants() {
 
 func initKernelCapabilityConstants() {
 	for k, v := range KernelCapabilityConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		if bits.UintSize == 64 || v < math.MaxInt32 {
+			SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		}
 		kernelCapabilitiesStrings[v] = k
 	}
 }
@@ -356,6 +360,33 @@ func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 
 func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
 	return strings.Join(bitmaskToStringArray(bitmask, intToStrMap), " | ")
+}
+
+func bitmaskU64ToStringArray(bitmask uint64, intToStrMap map[uint64]string) []string {
+	var strs []string
+	var result uint64
+
+	for v, s := range intToStrMap {
+		if v == 0 {
+			continue
+		}
+
+		if bitmask&v == v {
+			strs = append(strs, s)
+			result |= v
+		}
+	}
+
+	if result != bitmask {
+		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
+	}
+
+	sort.Strings(strs)
+	return strs
+}
+
+func bitmaskU64ToString(bitmask uint64, intToStrMap map[uint64]string) string {
+	return strings.Join(bitmaskU64ToStringArray(bitmask, intToStrMap), " | ")
 }
 
 // OpenFlags represents an open flags bitmask value
@@ -414,10 +445,10 @@ func init() {
 type KernelCapability uint64
 
 func (kc KernelCapability) String() string {
-	return bitmaskToString(int(kc), kernelCapabilitiesStrings)
+	return bitmaskU64ToString(uint64(kc), kernelCapabilitiesStrings)
 }
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
-	return bitmaskToStringArray(int(kc), kernelCapabilitiesStrings)
+	return bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
 }
