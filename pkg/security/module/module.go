@@ -41,6 +41,7 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
+	wg             sync.WaitGroup
 	probe          *sprobe.Probe
 	config         *sconfig.Config
 	ruleSets       [2]*rules.RuleSet
@@ -81,7 +82,10 @@ func (m *Module) Init() error {
 
 	m.listener = ln
 
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		if err := m.grpcServer.Serve(ln); err != nil {
 			log.Error(err)
 		}
@@ -118,11 +122,15 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	m.wg.Add(1)
 	go m.metricsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		for range m.sigupChan {
 			log.Info("Reload configuration")
 
@@ -267,6 +275,8 @@ func (m *Module) Close() {
 	}
 
 	m.probe.Close()
+
+	m.wg.Wait()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -334,6 +344,8 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 }
 
 func (m *Module) metricsSender() {
+	defer m.wg.Done()
+
 	statsTicker := time.NewTicker(m.config.StatsPollingInterval)
 	defer statsTicker.Stop()
 
