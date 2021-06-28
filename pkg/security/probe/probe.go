@@ -224,7 +224,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
 		prettyEvent := event.String()
-		log.Tracef("Dispatching event %s\n", prettyEvent)
+		seclog.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
 	if p.handler != nil {
@@ -239,7 +239,7 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
 		prettyEvent := event.String()
-		log.Tracef("Dispatching custom event %s\n", prettyEvent)
+		seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
 	}
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
@@ -258,7 +258,7 @@ func (p *Probe) GetMonitor() *Monitor {
 }
 
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	log.Tracef("lost %d events", count)
+	seclog.Tracef("lost %d events", count)
 	p.monitor.perfBufferMonitor.CountLostEvent(count, perfMap, CPU)
 }
 
@@ -283,12 +283,12 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) 
 	}
 
 	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
-		log.Tracef("remove all dentry entries for mount id %d", mountID)
+		seclog.Tracef("remove all dentry entries for mount id %d", mountID)
 		p.resolvers.DentryResolver.DelCacheEntries(mountID)
 
 		p.inodeDiscarders.setRevision(mountID, revision)
 	} else {
-		log.Tracef("remove dentry cache entry for inode %d", inode)
+		seclog.Tracef("remove dentry cache entry for inode %d", inode)
 		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 	}
 }
@@ -543,7 +543,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	log.Tracef("New discarder of type %s for field %s", eventType, field)
+	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[eventType]; ok {
 		return handler(rs, event, p, Discarder{Field: field})
@@ -586,7 +586,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	}
 
 	for _, newApprover := range newApprovers {
-		log.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v", newApprover)
 		if err := newApprover.Apply(p); err != nil {
 			return err
 		}
@@ -595,7 +595,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			log.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v", previousApprover)
 			if err := previousApprover.Remove(p); err != nil {
 				return err
 			}
@@ -634,7 +634,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 			}
 			if !exists {
 				selectedIDs = append(selectedIDs, id)
-				log.Tracef("probe %s selected", id)
+				seclog.Tracef("probe %s selected", id)
 			}
 		}
 	}
@@ -730,7 +730,7 @@ func (p *Probe) FlushDiscarders() error {
 
 		for _, inode := range discardedInodes {
 			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
-				log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
+				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
 			discarderCount--
@@ -741,7 +741,7 @@ func (p *Probe) FlushDiscarders() error {
 
 		for _, pid := range discardedPids {
 			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
-				log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
+				seclog.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
 			}
 
 			discarderCount--
@@ -791,7 +791,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber)
 	}
-	opts.Logger = seclog.DatadogAgentLogger{}
+	opts.Logger = &seclog.PatternLogger{}
 
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
