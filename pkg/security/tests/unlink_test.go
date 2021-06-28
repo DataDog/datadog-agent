@@ -55,10 +55,6 @@ func TestUnlink(t *testing.T) {
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "unlink.file.container_path")
-			}
 		}
 	}))
 
@@ -85,10 +81,6 @@ func TestUnlink(t *testing.T) {
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "unlink.file.container_path")
-			}
 		}
 	})
 }

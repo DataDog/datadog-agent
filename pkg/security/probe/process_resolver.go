@@ -319,7 +319,6 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.Process.BasenameStr = path.Base(pathnameStr)
 		entry.Process.ContainerID = string(containerID)
 		// resolve container path with the MountResolver
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.Process.FileFields)
 		entry.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileFields.MountID)
 	}
 
@@ -504,14 +503,6 @@ func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) s
 	}
 
 	return entry.Filesystem
-}
-
-// SetProcessContainerPath resolves container path
-func (p *ProcessResolver) SetProcessContainerPath(entry *model.ProcessCacheEntry) string {
-	if entry.FileFields.Inode != 0 && entry.FileFields.MountID != 0 {
-		entry.ContainerPath = p.resolvers.resolveContainerPath(&entry.FileFields)
-	}
-	return entry.ContainerPath
 }
 
 // ApplyBootTime realign timestamp from the boot time

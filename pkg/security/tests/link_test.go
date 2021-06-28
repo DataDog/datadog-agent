@@ -54,11 +54,6 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, event.GetType(), "link", "wrong event type")
 			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "link.file.container_path")
-				testContainerPath(t, event, "link.file.destination.container_path")
-			}
-
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
 
@@ -85,11 +80,6 @@ func TestLink(t *testing.T) {
 		} else {
 			assert.Equal(t, event.GetType(), "link", "wrong event type")
 			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "link.file.container_path")
-				testContainerPath(t, event, "link.file.destination.container_path")
-			}
 
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
