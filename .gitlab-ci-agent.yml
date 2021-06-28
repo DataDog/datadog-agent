@@ -51,6 +51,12 @@ stages:
   - &only_agent_3_manual
     if: $MAJOR_VERSION == "3"
     when: manual
+  - &only_tags
+    if: $CI_COMMIT_TAG
+    when: manual
+  - &only_triggers
+    if: $CI_JOB_TRIGGERED
+    when: manual
 
 ######################### /pipeline bricks
 
@@ -682,9 +688,6 @@ release_win:
   services:
     - docker:18.09-dind
   before_script: []
-  only:
-    - tags
-    - triggers
   tags:
     - sts-k8s-m-runner
 
@@ -697,6 +700,9 @@ release_main_agent_image:
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb Dockerfiles/agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
   when: manual
+  only:
+    - tags
+    - triggers
 
 release_trace_agent_image:
   <<: *base_release_image
@@ -707,6 +713,9 @@ release_trace_agent_image:
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $PUSH_LATEST
   when: manual
+  only:
+    - tags
+    - triggers
 
 release_cluster_agent_image:
   <<: *base_release_image
@@ -720,3 +729,5 @@ release_cluster_agent_image:
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
   rules:
     - *only_agent_3_manual
+    - *only_tags
+    - *only_triggers
