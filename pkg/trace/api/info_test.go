@@ -112,7 +112,8 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.4/services",
 		"/v0.5/traces",
 		"/profiling/v1/input",
-		"/v0.6/stats"
+		"/v0.6/stats",
+		"/appsec"
 	],
 	"feature_flags": [
 		"feature_flag"
