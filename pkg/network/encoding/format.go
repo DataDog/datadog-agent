@@ -207,6 +207,7 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
+			c.Reset()
 			connPool.Put(c)
 		}
 	}
