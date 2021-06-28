@@ -363,12 +363,7 @@ RUN apt-get update -y \
             f.write(dockerfile)
 
         cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(
-            cmd.format(**{
-                "docker_file_ctx": temp_dir,
-                "image_tag": docker_image_tag_name,
-            })
-        )
+        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name,}))
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
