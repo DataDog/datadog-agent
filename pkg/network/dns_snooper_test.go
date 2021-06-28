@@ -127,10 +127,6 @@ func checkSnooping(t *testing.T, destIP string, reverseDNS *SocketFilterSnooper)
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
-	//
-	// skipping for now as test seems to be flaky.  Should be reinserted when cause
-	// is discovered
-	t.Skip()
 	m, reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer m.Stop(manager.CleanAll)
 	defer reverseDNS.Close()
