@@ -17,8 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -60,24 +58,6 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
 	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
-	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
-		events++
-	})
-	defer test.RegisterRuleEventHandler(nil)
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
-
 	fnc := func() error {
 		f, err := os.Create(testFile)
 		if err != nil {
@@ -106,7 +86,15 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,24 +204,6 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
 	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
-	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
-		events++
-	})
-	defer test.RegisterRuleEventHandler(nil)
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
-
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
 		if _, err := cmd.CombinedOutput(); err != nil {
@@ -251,7 +221,15 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
