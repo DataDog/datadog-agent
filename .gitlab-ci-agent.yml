@@ -564,6 +564,7 @@ molecule_tests_kubernetes:
     - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
+  resource_group: eks_test_cluster
   artifacts:
     when: always
     paths:
