@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -185,7 +186,7 @@ func (a *Agent) Process(p *api.Payload) {
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", time.Now())
 	ts := p.Source
 	ss := new(writer.SampledSpans)
-	var sinputs []stats.Input
+	var envtraces []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
 	for _, t := range p.Traces {
 		if len(t) == 0 {
@@ -266,10 +267,10 @@ func (a *Agent) Process(p *api.Payload) {
 
 		events, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
-			if sinputs == nil {
-				sinputs = make([]stats.Input, 0, len(p.Traces))
+			if envtraces == nil {
+				envtraces = make([]stats.EnvTrace, 0, len(p.Traces))
 			}
-			sinputs = append(sinputs, stats.Input{
+			envtraces = append(envtraces, stats.EnvTrace{
 				Trace: pt.WeightedTrace,
 				Env:   pt.Env,
 			})
@@ -292,14 +293,26 @@ func (a *Agent) Process(p *api.Payload) {
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}
-	if len(sinputs) > 0 {
-		a.Concentrator.In <- sinputs
+	if len(envtraces) > 0 {
+		in := stats.Input{Traces: envtraces}
+		if !features.Has("disable_cid_stats") && a.conf.IsFargate {
+			// only allow the ContainerID stats dimension if we're in a Fargate instance
+			// and it's not prohibited by the disable_cid_stats feature flag.
+			in.ContainerID = p.ContainerID
+		}
+		a.Concentrator.In <- in
 	}
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
+	if features.Has("disable_cid_stats") || !a.conf.IsFargate {
+		// this functionality is disabled by the disable_cid_stats feature flag
+		// or we're not in a Fargate instance.
+		in.ContainerID = ""
+		in.Tags = nil
+	}
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}

@@ -7,8 +7,10 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,17 +21,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
-	ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
-
-	// ErrMissingHostname is returned when the config could not be validated due to missing hostname.
-	ErrMissingHostname = errors.New("failed to automatically set the hostname, you must specify it via configuration for or the DD_HOSTNAME env var")
-)
+// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
+var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
@@ -47,7 +46,8 @@ type Endpoint struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	Enabled bool
+	Enabled   bool
+	IsFargate bool // specifies whether we are in a Fargate instance
 
 	// Global
 	Hostname   string
@@ -138,8 +138,15 @@ type Tag struct {
 
 // New returns a configuration with the default values.
 func New() *AgentConfig {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	isFargate := fargate.IsFargateInstance(ctx)
+	cancel()
+	if err := ctx.Err(); err != nil && err != context.Canceled {
+		log.Errorf("Error detecting Fargate instance: %v. Assuming not. If you are in a Fargate instance, this will cause problems.", err)
+	}
 	return &AgentConfig{
 		Enabled:    true,
+		IsFargate:  isFargate,
 		DefaultEnv: "none",
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
@@ -217,13 +224,22 @@ func (c *AgentConfig) acquireHostname() error {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if err != nil || c.Hostname == "" {
-		c.Hostname, err = fallbackHostnameFunc()
+	if hostnameDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || hostnameDisallowed {
+		if hostnameDisallowed {
+			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+		}
+		// There was either an error retrieving the hostname from the core agent, or
+		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		host, err2 := fallbackHostnameFunc()
+		if err2 != nil {
+			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
+		}
+		c.Hostname = host
+		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		return nil
 	}
-	if c.Hostname == "" {
-		err = ErrMissingHostname
-	}
-	return err
+	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	return nil
 }
 
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the

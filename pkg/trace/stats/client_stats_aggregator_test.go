@@ -67,6 +67,7 @@ func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
 	b.Start = uint64(start.UnixNano())
 	p := pb.ClientStatsPayload{}
 	fuzzer.Fuzz(&p)
+	p.Tags = nil
 	p.Stats = []pb.ClientStatsBucket{b}
 	return p
 }
@@ -108,6 +109,7 @@ func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStats
 	p.Sequence = 0
 	p.AgentAggregation = "counts"
 	p.Service = ""
+	p.ContainerID = ""
 	for i, s := range p.Stats {
 		p.Stats[i].Start = uint64(alignAggTs(insertionTime).UnixNano())
 		p.Stats[i].Duration = uint64(clientBucketDuration.Nanoseconds())
