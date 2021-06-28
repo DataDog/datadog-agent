@@ -17,7 +17,7 @@ docker build -t "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${DOCK
 docker login -u "${docker_user}" -p "${docker_password}" "${REGISTRY}"
 docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
 
-if [ -z "$EXTRA_TAG" ]; then
+if [ -n "$EXTRA_TAG" ]; then
     docker tag "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}" "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
     echo "Pushing release to ${EXTRA_TAG}"
     docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
