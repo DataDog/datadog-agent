@@ -2,6 +2,8 @@ package network
 
 import (
 	"bytes"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
@@ -110,7 +112,6 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 				pktInfo.key.clientPort = uint16(p.udpPayload.SrcPort)
 			} else {
 				pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
-
 			}
 			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
@@ -172,7 +173,7 @@ func (p *dnsParser) parseAnswerInto(
 	// Get IPs
 	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
 	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
-	t.dns = string(domainQueried)
+	t.dns = strings.ToLower(string(domainQueried))
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
@@ -200,7 +201,7 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 
 		if bytes.Equal(domainQueried, record.Name) ||
 			(alias != nil && bytes.Equal(alias, record.Name)) {
-			t.add(util.AddressFromNetIP(record.IP))
+			t.add(util.AddressFromNetIP(record.IP), time.Duration(record.TTL)*time.Second)
 		}
 	}
 }
