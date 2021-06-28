@@ -8,6 +8,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -30,15 +31,15 @@ func formatDatadogMetricValue(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-type tagGetter func() (string, error)
+type tagGetter func(context.Context) (string, error)
 
 var templatedTags = map[string]tagGetter{
-	"kube_cluster_name": func() (string, error) {
-		hostname, err := util.GetHostname()
+	"kube_cluster_name": func(ctx context.Context) (string, error) {
+		hostname, err := util.GetHostname(ctx)
 		if err != nil {
 			return "", err
 		}
-		return clustername.GetClusterName(hostname), nil
+		return clustername.GetClusterName(ctx, hostname), nil
 	},
 }
 
@@ -59,7 +60,7 @@ func resolveQuery(q string) (string, error) {
 			if !found {
 				return "", fmt.Errorf("cannot resolve tag template %q: tag is not supported", tplVar.Key)
 			}
-			tagVal, err := tagGetter()
+			tagVal, err := tagGetter(context.TODO())
 			if err != nil {
 				return "", fmt.Errorf("cannot resolve tag template %q: %w", tplVar.Key, err)
 			}

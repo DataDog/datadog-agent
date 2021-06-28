@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -52,7 +53,7 @@ func (d *DockerConfigProvider) String() string {
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
-func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
+func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	var err error
 	firstCollection := false
 
@@ -70,7 +71,7 @@ func (d *DockerConfigProvider) Collect() ([]integration.Config, error) {
 	// on the first run we collect all labels, then rely on individual events to
 	// avoid listing all containers too often
 	if d.labelCache == nil || d.syncCounter == d.syncInterval {
-		containers, err = d.dockerUtil.AllContainerLabels()
+		containers, err = d.dockerUtil.AllContainerLabels(ctx)
 		if err != nil {
 			d.Unlock()
 			return []integration.Config{}, err
@@ -102,6 +103,7 @@ func (d *DockerConfigProvider) listen() {
 	d.health = health.RegisterLiveness("ad-dockerprovider")
 	d.Unlock()
 
+	ctx, cancel := context.WithCancel(context.Background())
 CONNECT:
 	for {
 		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
@@ -112,14 +114,16 @@ CONNECT:
 
 		for {
 			select {
-			case <-d.health.C:
+			case healthDeadline := <-d.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case ev := <-eventChan:
 				// As our input is the docker `client.ContainerList`, which lists running containers,
 				// only these two event types will change what containers appear.
 				// Container labels cannot change once they are created, so we don't need to react on
 				// other lifecycle events.
 				if ev.Action == docker.ContainerEventActionStart {
-					container, err := d.dockerUtil.Inspect(ev.ContainerID, false)
+					container, err := d.dockerUtil.Inspect(ctx, ev.ContainerID, false)
 					if err != nil {
 						log.Warnf("Error inspecting container: %s", err)
 					} else {
@@ -135,7 +139,7 @@ CONNECT:
 							d.addLabels(ev.ContainerID, container.Config.Labels)
 						}
 					}
-				} else if ev.Action == docker.ContainerEventActionDie {
+				} else if ev.Action == docker.ContainerEventActionDie || ev.Action == docker.ContainerEventActionDied {
 					// delay for short lived detection
 					time.AfterFunc(delayDuration, func() {
 						d.Lock()
@@ -158,11 +162,12 @@ CONNECT:
 	d.streaming = false
 	d.health.Deregister() //nolint:errcheck
 	d.Unlock()
+	cancel()
 }
 
 // IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
 // If listening fails, we fallback to Collecting everytime.
-func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
+func (d *DockerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
 	return (d.streaming && d.upToDate), nil

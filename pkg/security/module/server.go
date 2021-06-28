@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -233,7 +234,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 	data := append(probeJSON[:len(probeJSON)-1], ',')
 	data = append(data, ruleEventJSON[1:]...)
-	log.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
+	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
 	msg := &pendingMsg{
 		ruleID:    rule.Definition.ID,
@@ -266,7 +267,7 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 	if ok {
 		atomic.AddInt64(count, 1)
 	}
-	log.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
+	seclog.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events

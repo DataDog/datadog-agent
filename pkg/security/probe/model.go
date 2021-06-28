@@ -301,7 +301,7 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 			}
 			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
 				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && args[i+1][0] != '-' {
+					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
 						options = append(options, name+"="+args[i+1])
 						i++
 					}
