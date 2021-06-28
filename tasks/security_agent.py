@@ -347,8 +347,10 @@ def docker_functional_tests(
     dockerfile = """
 FROM debian:bullseye
 
+RUN dpkg --add-architecture i386
+
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs \
+    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
     && rm -rf /var/lib/apt/lists/*
     """
 

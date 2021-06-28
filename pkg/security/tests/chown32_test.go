@@ -18,11 +18,6 @@ import (
 )
 
 func TestChown32(t *testing.T) {
-	// The docker container used in functional tests is not able to run a x86 executable by default so we skip those tests
-	if testEnvironment == DockerEnvironment {
-		t.Skip("running in docker env, skipping x86 syscall tests")
-	}
-
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
@@ -323,7 +318,7 @@ func checkSyscallTester(t *testing.T, path string) {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Skip()
+		t.Skip("cannot run syscall tester check")
 	}
 }
 
