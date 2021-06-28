@@ -18,19 +18,19 @@ func TestAutoSelectStrategy(t *testing.T) {
 	assert := assert.New(t)
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
-		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  false,
+		FlushStrategy:   &flush.AtTheEnd{},
+		ClientLibReady:  false,
 	}
 
 	now := time.Now()
 	// when the client library hasn't registered with the extension,
 	// fallback to periodically strategy
-	d.clientLibReady = false
+	d.ClientLibReady = false
 	assert.Equal((flush.NewPeriodically(10 * time.Second)).String(), d.AutoSelectStrategy().String(), "wrong strategy has been selected") // default strategy
 
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
-	d.clientLibReady = true
+	d.ClientLibReady = true
 
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected") // default strategy
 
@@ -68,8 +68,8 @@ func TestStoreInvocationTime(t *testing.T) {
 	assert := assert.New(t)
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
-		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  true,
+		FlushStrategy:   &flush.AtTheEnd{},
+		ClientLibReady:  true,
 	}
 
 	now := time.Now()
@@ -88,8 +88,8 @@ func TestInvocationInterval(t *testing.T) {
 
 	d := Daemon{
 		lastInvocations: make([]time.Time, 0),
-		flushStrategy:   &flush.AtTheEnd{},
-		clientLibReady:  true,
+		FlushStrategy:   &flush.AtTheEnd{},
+		ClientLibReady:  true,
 	}
 
 	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
@@ -141,16 +141,16 @@ func TestUpdateStrategy(t *testing.T) {
 
 	d := Daemon{
 		lastInvocations:  make([]time.Time, 0),
-		flushStrategy:    flush.NewPeriodically(10 * time.Second),
-		clientLibReady:   true,
+		FlushStrategy:    flush.NewPeriodically(10 * time.Second),
+		ClientLibReady:   true,
 		useAdaptiveFlush: false,
 	}
 
 	d.UpdateStrategy()
-	assert.Equal(d.flushStrategy, flush.NewPeriodically(10*time.Second), "strategy changed when useAdaptiveFlush was false")
+	assert.Equal(d.FlushStrategy, flush.NewPeriodically(10*time.Second), "strategy changed when useAdaptiveFlush was false")
 
 	d.useAdaptiveFlush = true
 	d.UpdateStrategy()
 
-	assert.Equal(d.flushStrategy, &flush.AtTheEnd{}, "strategy didn't change when useAdaptiveFlush was true")
+	assert.Equal(d.FlushStrategy, &flush.AtTheEnd{}, "strategy didn't change when useAdaptiveFlush was true")
 }

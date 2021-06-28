@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package daemon
 
 import (
-	"context"
 	"reflect"
 	"sync"
 	"testing"
@@ -14,23 +13,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := StartDaemon()
 	defer d.Stop(false)
 
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
-	d.clientLibReady = false
+	d.ClientLibReady = false
 	d.WaitForDaemon()
 
 	// WaitForDaemon blocks if the client library has registered with the extension's /hello route
-	d.clientLibReady = true
+	d.ClientLibReady = true
 
 	d.StartInvocation()
 
@@ -46,9 +44,7 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 
 func TestWaitUntilReady(t *testing.T) {
 	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := StartDaemon()
 	defer d.Stop(false)
 
 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
@@ -75,7 +71,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go logs.ProcessMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case received := <-metricsChan:
@@ -86,7 +82,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go logs.ProcessMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case <-metricsChan:
@@ -102,38 +98,32 @@ func GetValueSyncOnce(so *sync.Once) uint64 {
 
 func TestFinishInvocationOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := StartDaemon()
 	defer d.Stop(false)
 
 	d.StartInvocation()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.finishInvocationOnce))
+	assert.Equal(uint64(0), GetValueSyncOnce(&d.FinishInvocationOnce))
 }
 
 func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := StartDaemon()
 	defer d.Stop(false)
 
 	d.StartInvocation()
 	d.FinishInvocation()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.FinishInvocationOnce))
 }
 
 func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := StartDaemon()
 	defer d.Stop(false)
 
 	d.StartInvocation()
 	d.FinishInvocation()
 	d.FinishInvocation()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.FinishInvocationOnce))
 }

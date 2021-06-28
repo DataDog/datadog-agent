@@ -59,7 +59,7 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	flushInterval := 10 * time.Second
 	freq := d.InvocationInterval()
 
-	if !d.clientLibReady {
+	if !d.ClientLibReady {
 		return flush.NewPeriodically(flushInterval)
 	}
 

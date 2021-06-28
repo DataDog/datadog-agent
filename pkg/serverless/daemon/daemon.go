@@ -50,9 +50,9 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// clientLibReady indicates whether the datadog client library has initialised
+	// ClientLibReady indicates whether the datadog client library has initialised
 	// and called the /hello route on the agent
-	clientLibReady bool
+	ClientLibReady bool
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
@@ -78,7 +78,7 @@ type Hello struct {
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	// if the DogStatsD daemon isn't ready, wait for it.
-	h.daemon.clientLibReady = true
+	h.daemon.ClientLibReady = true
 }
 
 // Flush is the route to call to do an immediate flush on the serverless agent.
@@ -253,7 +253,7 @@ func StartDaemon() *Daemon {
 		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
-		clientLibReady:   false,
+		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
 	}
@@ -287,7 +287,7 @@ func (d *Daemon) FinishInvocation() {
 
 // WaitForDaemon waits until invocation finished any pending work
 func (d *Daemon) WaitForDaemon() {
-	if d.clientLibReady {
+	if d.ClientLibReady {
 		d.InvcWg.Wait()
 	}
 }
@@ -296,14 +296,14 @@ func (d *Daemon) WaitForDaemon() {
 func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	checkInterval := 10 * time.Millisecond
 	for timeout > checkInterval {
-		if d.clientLibReady {
+		if d.ClientLibReady {
 			return true
 		}
 		<-time.After(checkInterval)
 		timeout -= checkInterval
 	}
 	<-time.After(timeout)
-	return d.clientLibReady
+	return d.ClientLibReady
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics

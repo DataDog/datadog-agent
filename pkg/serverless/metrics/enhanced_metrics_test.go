@@ -180,7 +180,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
 
-	go sendTimeoutEnhancedMetric(tags, metricsChan)
+	go SendTimeoutEnhancedMetric(tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
@@ -199,7 +199,7 @@ func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
 	defer aws.SetARN("")
 
-	generatedTags := addColdStartTag([]string{
+	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})
@@ -216,7 +216,7 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	aws.SetColdStart(true)
 	defer aws.SetARN("")
 
-	generatedTags := addColdStartTag([]string{
+	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})

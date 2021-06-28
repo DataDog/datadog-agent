@@ -6,22 +6,20 @@
 package serverless
 
 import (
-	"context"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
+	d := daemon.StartDaemon()
 	defer d.Stop(false)
 
-	d.clientLibReady = false
+	d.ClientLibReady = false
 	d.WaitForDaemon()
 
 	d.StartInvocation()
@@ -49,8 +47,8 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"resource:my-function",
 	}
 
-	sort.Strings(d.extraTags)
-	assert.Equal(t, expectedTagArray, d.extraTags)
+	sort.Strings(d.ExtraTags.Tags)
+	assert.Equal(t, expectedTagArray, d.ExtraTags)
 }
 
 func TestComputeTimeout(t *testing.T) {

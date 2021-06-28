@@ -50,7 +50,7 @@ func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
 	arn := aws.GetARN()
 	lastRequestID := aws.GetRequestID()
 	for _, message := range messages {
-		processMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, l.MetricChannel)
+		ProcessMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, l.MetricChannel)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if logsEnabled {
@@ -60,8 +60,8 @@ func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
 	}
 }
 
-// processMessage performs logic about metrics and tags on the message
-func processMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+// ProcessMessage performs logic about metrics and tags on the message
+func ProcessMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	// First, if the log has a Request ID, set the global Request ID variable
 	if message.Type == aws.LogTypePlatformStart {
