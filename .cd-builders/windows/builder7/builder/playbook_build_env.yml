@@ -432,3 +432,49 @@
     #   win_command: powershell.exe -
     #   args:
     #     stdin: Set-MpPreference -DisableRealtimeMonitoring $false
+
+
+# gitlab runner user level setup
+
+    - name: Template powershell vssetup module installation
+      win_copy:
+        src: files/install_vssetup.ps1
+        dest: C:\
+
+    - name: Install powershell vssetup module
+      win_command: powershell.exe -File C:\install_vssetup.ps1
+
+    - name: ENV | GOPATH
+      win_environment:
+        state: present
+        name: GOPATH
+        value: "c:\\gopath"
+        level: user
+
+    - name: ENV | GOROOT
+      win_environment:
+        state: present
+        name: GOROOT
+        value: "c:\\go"
+        level: user
+
+    - name: ENV | GOBIN
+      win_environment:
+        state: present
+        name: GOBIN
+        value: "c:\\go\\bin"
+        level: user
+
+    - name: Tune git config
+      win_command: "git config --global user.email \"gitlab@windowsrunner.local\""
+
+    - name: Tune git config
+      win_command: "git config --global user.name \"Windows Gitlab Runner Instance\""
+
+    - name: Template powershell vssetup module installation
+      win_copy:
+        src: files/install_vssetup.ps1
+        dest: C:\
+
+    - name: Install powershell vssetup module
+      win_command: powershell.exe -File C:\install_vssetup.ps1

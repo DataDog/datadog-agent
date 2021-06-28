@@ -8,6 +8,7 @@ $certlocation = "Cert:\LocalMachine\Root"
 
 Write-Host "Downloading $url to $output " -ForegroundColor "Yellow"
 
+[Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
 (New-Object System.Net.WebClient).DownloadFile($url, $output)
 
