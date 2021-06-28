@@ -1,7 +1,6 @@
 package network
 
 import (
-	"bytes"
 	"strings"
 	"time"
 
@@ -160,37 +159,30 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
-	var alias []byte
-	domainQueried := question.Name
+	t.dns = string(question.Name)
 	pktInfo.queryType = QueryType(question.Type)
-
-	// Retrieve the CNAME record, if available.
-	alias = p.extractCNAME(domainQueried, dns.Answers)
-	if alias == nil {
-		alias = p.extractCNAME(domainQueried, dns.Additionals)
-	}
-
-	// Get IPs
-	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
-	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
-	t.dns = strings.ToLower(string(domainQueried))
+	alias := p.extractCNAME(t.dns, dns.Answers)
+	p.extractIPsInto(alias, dns.Answers, t)
+	t.dns = strings.ToLower(t.dns)
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 
-func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
+func (*dnsParser) extractCNAME(domainQueried string, records []layers.DNSResourceRecord) string {
+	alias := domainQueried
 	for _, record := range records {
-		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN &&
-			bytes.Equal(domainQueried, record.Name) {
-			return record.CNAME
+		if record.Class != layers.DNSClassIN {
+			continue
+		}
+		if record.Type == layers.DNSTypeCNAME && alias == string(record.Name) {
+			alias = string(record.CNAME)
 		}
 	}
-
-	return nil
+	return alias
 }
 
-func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
+func (*dnsParser) extractIPsInto(alias string, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
 		if record.Class != layers.DNSClassIN {
 			continue
@@ -198,9 +190,7 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 		if len(record.IP) == 0 {
 			continue
 		}
-
-		if bytes.Equal(domainQueried, record.Name) ||
-			(alias != nil && bytes.Equal(alias, record.Name)) {
+		if alias == string(record.Name) {
 			t.add(util.AddressFromNetIP(record.IP), time.Duration(record.TTL)*time.Second)
 		}
 	}
