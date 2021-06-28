@@ -49,7 +49,7 @@ stages:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
   - &only_agent_3_release
-    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED)
+    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
 
 ######################### /pipeline bricks
