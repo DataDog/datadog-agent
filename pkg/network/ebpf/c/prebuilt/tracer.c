@@ -834,6 +834,91 @@ int kretprobe__inet6_bind(struct pt_regs* ctx) {
     return sys_exit_bind(ret);
 }
 
+SEC("kprobe/sockfd_lookup_light")
+int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
+    int sockfd = (int)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
+    return 0;
+}
+
+// this kretprobe is essentially creating an index of (PID, socketfd) to a conn_tuple_t object
+SEC("kretprobe/sockfd_lookup_light")
+int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int *sockfd = bpf_map_lookup_elem(&sockfd_lookup_args, &pid_tgid);
+    if (sockfd == NULL) {
+        return 0;
+    }
+
+    struct socket *socket = (struct socket*)PT_REGS_RC(ctx);
+    struct sock *skp;
+    bpf_probe_read(&skp, sizeof(skp), &socket->sk);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        goto cleanup;
+    }
+
+    u64 pid = pid_tgid >> 32;
+    u64 key = (pid << 32) | (*sockfd);
+    // TODO(before merging): Figure out how we want to cleanup this map;
+    // close(2) is an obvious candidate, but we would still need
+    // to have a TTL on map entries and expire them from userspace;
+    bpf_map_update_elem(&tup_by_pid_sockfd, &key, &t, BPF_ANY);
+
+cleanup:
+    bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
+    return 0;
+}
+
+SEC("kprobe/do_sendfile")
+int kprobe__do_sendfile(struct pt_regs* ctx) {
+    u64 fd_out = (int)PT_REGS_PARM1(ctx);
+    u64 fd_in = (int)PT_REGS_PARM2(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 val = (fd_in << 32) | fd_out;
+    bpf_map_update_elem(&do_sendfile_args, &pid_tgid, &val, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/do_sendfile")
+int kretprobe__do_sendfile(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 *fd_in_out = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
+    if (fd_in_out == NULL) {
+        return 0;
+    }
+    u64 pid = pid_tgid >> 32;
+
+    // First we assume that we're dealing with the common sendfile scenario where:
+    // * fd_in represents a file;
+    // * fd_out represents a socket;
+    u64 sockfd = *fd_in_out & 0xFFFFFFFF;
+    u64 key = (pid << 32)|sockfd;
+    size_t sent = (size_t)PT_REGS_RC(ctx);
+    size_t rcvd = 0;
+    conn_tuple_t *t = bpf_map_lookup_elem(&tup_by_pid_sockfd, &key);
+    if (t == NULL) {
+        // If we haven't found an entry for this (PID|FD), it may be the case that
+        // we're zero-copying data from a socket *to* a file, so essentially we do
+        // the reverse lookup, using the sendfile fd_in as the socketfd;
+        sockfd = *fd_in_out >> 32;
+        key = (pid << 32)|sockfd;
+        rcvd = sent;
+        sent = 0;
+        t = bpf_map_lookup_elem(&tup_by_pid_sockfd, &key);
+    }
+    if (t == NULL) {
+        goto cleanup;
+    }
+
+    handle_message(t, sent, rcvd, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+cleanup:
+    bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
+    return 0;
+}
+
 //endregion
 
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.

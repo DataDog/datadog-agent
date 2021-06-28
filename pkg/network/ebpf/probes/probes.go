@@ -89,6 +89,18 @@ const (
 
 	// ConntrackHashInsert is the probe for new conntrack entries
 	ConntrackHashInsert ProbeName = "kprobe/__nf_conntrack_hash_insert"
+
+	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
+	SockFDLookup ProbeName = "kprobe/sockfd_lookup_light"
+
+	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
+	SockFDLookupRet ProbeName = "kretprobe/sockfd_lookup_light"
+
+	// DoSendfile is the kprobe used used to trace traffic via SENDFILE(2) syscall
+	DoSendfile ProbeName = "kprobe/do_sendfile"
+
+	// DoSendfileRet is the kretprobe used used to trace traffic via SENDFILE(2) syscall
+	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -110,6 +122,9 @@ const (
 	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
+	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"
+	DoSendfileArgsMap     BPFMapName = "do_sendfile_args"
+	TupByPidSockFDMap     BPFMapName = "tup_by_pid_sockfd"
 )
 
 // SectionName returns the SectionName for the given BPF map

@@ -2567,7 +2567,6 @@ func TestConnectionAssured(t *testing.T) {
 }
 
 func TestConnectionNotAssured(t *testing.T) {
-
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
@@ -2741,6 +2740,16 @@ func TestSendfileRegression(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
+	// Create temporary file
+	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	n, err := tmpfile.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	require.Equal(t, clientMessageSize, n)
+	_, err = tmpfile.Seek(0, 0)
+	require.NoError(t, err)
+
 	// Start TCP server
 	var rcvd int64
 	server := NewTCPServer(func(c net.Conn) {
@@ -2752,16 +2761,6 @@ func TestSendfileRegression(t *testing.T) {
 	require.NoError(t, err)
 	defer close(doneChan)
 
-	// Create temporary file
-	tmpfile, err := ioutil.TempFile("", "sendfile_source")
-	require.NoError(t, err)
-	defer os.Remove(tmpfile.Name())
-	n, err := tmpfile.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	require.Equal(t, clientMessageSize, n)
-	_, err = tmpfile.Seek(0, 0)
-	require.NoError(t, err)
-
 	// Connect to TCP server
 	c, err := net.DialTimeout("tcp", server.address, time.Second)
 	require.NoError(t, err)
@@ -2769,13 +2768,8 @@ func TestSendfileRegression(t *testing.T) {
 	// Warm up state
 	_ = getConnections(t, tr)
 
-	// Send payload using SENDFILE(2) syscall
-	rawConn, err := c.(*net.TCPConn).SyscallConn()
-	require.NoError(t, err)
-	rawConn.Control(func(fd uintptr) {
-		n, _ = syscall.Sendfile(int(fd), int(tmpfile.Fd()), nil, clientMessageSize)
-	})
-	require.Equal(t, clientMessageSize, n)
+	// Send file contents via SENDFILE(2)
+	sendFile(t, c, tmpfile)
 
 	// Verify that our TCP server received the contents of the file
 	c.Close()
@@ -2789,8 +2783,24 @@ func TestSendfileRegression(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok
+		return ok && conn.MonotonicSentBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
-	assert.Equalf(t, int64(clientMessageSize), conn.MonotonicSentBytes, "sendfile data wasn't traced")
+	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+}
+
+func sendFile(t *testing.T, c net.Conn, f *os.File) {
+	// Grab file size
+	stat, err := f.Stat()
+	require.NoError(t, err)
+	fsize := int(stat.Size())
+
+	// Send payload using SENDFILE(2) syscall
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	var n int
+	rawConn.Control(func(fd uintptr) {
+		n, _ = syscall.Sendfile(int(fd), int(f.Fd()), nil, fsize)
+	})
+	require.Equal(t, fsize, n)
 }
