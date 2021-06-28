@@ -124,9 +124,9 @@ func (t *Tagger) run() error {
 		case msg := <-t.infoIn:
 			t.store.processTagInfo(msg)
 		case <-t.retryTicker.C:
-			go t.startCollectors(ctx)
+			t.startCollectors(ctx)
 		case <-t.pullTicker.C:
-			go t.pull(ctx)
+			t.pull(ctx)
 		case <-t.pruneTicker.C:
 			t.store.prune()
 		case <-t.telemetryTicker.C:
