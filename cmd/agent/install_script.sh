@@ -470,7 +470,7 @@ elif [ "$OS" = "SUSE" ]; then
   SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
   if [ -z "$SUSE_VER" ]; then
     # if there's no /etc/os-release, set version to 0, because we don't really care about the exact version
-    $SUSE_VER="0"
+    SUSE_VER="0"
   fi
   if [ "$SUSE_VER" -ge 15 ]; then
     gpgkeys=''
