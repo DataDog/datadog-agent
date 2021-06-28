@@ -3,8 +3,6 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   vars:
     ssh_user: ubuntu
     ssh_port: 22
@@ -52,9 +50,6 @@
         from_port: 0
         to_port: 0
         cidr_ip: '0.0.0.0/0'
-
-    keypair_name: molecule_key
-    keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
   tasks:
     - name: Create security group
       ec2_group:

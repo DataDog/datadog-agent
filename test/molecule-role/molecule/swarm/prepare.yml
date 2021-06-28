@@ -2,8 +2,6 @@
 - name: Prepare Swarm Nodes before running cluster
   hosts: all
   gather_facts: false
-  vars_files:
-    - common_vars.yml
   tasks:
     - name: Install provisioning dependencies (1/2)
       apt:
@@ -21,9 +19,7 @@
 
 - name: Register Swarm Master Node
   hosts: swarm_master_vm
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
+  gather_facts: true
   tasks:
     - name: Check if Swarm has already been Initialized
       shell: docker node ls
@@ -39,21 +35,27 @@
 
 - name: Join Worker node to Master
   hosts: swarm_worker_vm
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
+  gather_facts: true
   tasks:
+    - name: Check to see if swarm is already active before trying to join
+      shell: "docker info --format '{{ '{{' }} .Swarm.LocalNodeState {{ '}}' }}'"  # weird format required to avoid replacement
+      register: swarm_status
     - name: Add Worker to the Swarm
       shell: "docker swarm join --token {{ hostvars['agent-swarm-master']['worker_token']['stdout'] }} {{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
+      when: swarm_status.stdout != 'active'
 
 - name: Create global service on Master
   hosts: swarm_master_vm
-  gather_facts: false
-  vars_files:
-    - common_vars.yml
+  gather_facts: true
   tasks:
+    - name: Check if nginx service already exists, otherwise create it
+      shell: "docker service ps nginx"
+      register: nginx_status
+      ignore_errors: true
     - name: Create a global nginx service
       shell: "docker service create --name nginx --mode global nginx"
+      when: nginx_status.rc != 0
+      run_once: true
     - name: Installing docker in Ansible
       pip:
         name: docker

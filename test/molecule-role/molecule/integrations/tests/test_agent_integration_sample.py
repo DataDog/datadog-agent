@@ -33,7 +33,7 @@ def test_agent_integration_sample_metrics(host, hostname):
         expected = {'system.cpu.usage', 'location.availability', '2xx.responses', '5xx.responses'}
         assert all([expectedMetric for expectedMetric in expected if expectedMetric in get_keys(hostname)])
 
-    util.wait_until(wait_for_metrics, 180, 3)
+    util.wait_until(wait_for_metrics, 60, 3)
 
 
 def test_agent_integration_sample_topology(host, hostname):
@@ -387,7 +387,7 @@ def test_agent_integration_sample_events(host, hostname):
         assert util.event_data(http_event, json_data, hostname) is not None
 
 
-    util.wait_until(wait_for_events, 180, 3)
+    util.wait_until(wait_for_events, 60, 3)
 
 
 def test_agent_integration_sample_topology_events(host):
@@ -430,7 +430,7 @@ def test_agent_integration_sample_topology_events(host):
             }
         ) is not None
 
-    util.wait_until(wait_for_topology_events, 180, 3)
+    util.wait_until(wait_for_topology_events, 60, 3)
 
 
 def test_agent_integration_sample_health_synchronization(host):
@@ -472,4 +472,4 @@ def test_agent_integration_sample_health_synchronization(host):
             }
         ) is not None
 
-    util.wait_until(wait_for_health_messages, 180, 3)
+    util.wait_until(wait_for_health_messages, 60, 3)
