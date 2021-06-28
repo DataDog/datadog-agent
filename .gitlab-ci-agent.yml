@@ -48,14 +48,8 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
-  - &only_agent_3_manual
-    if: $MAJOR_VERSION == "3"
-    when: manual
-  - &only_tags
-    if: $CI_COMMIT_TAG
-    when: manual
-  - &only_triggers
-    if: $CI_JOB_TRIGGERED
+  - &only_agent_3_release
+    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED)
     when: manual
 
 ######################### /pipeline bricks
@@ -728,6 +722,4 @@ release_cluster_agent_image:
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
   rules:
-    - *only_agent_3_manual
-    - *only_tags
-    - *only_triggers
+    - *only_agent_3_release
