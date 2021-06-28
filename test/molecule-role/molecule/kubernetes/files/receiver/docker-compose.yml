@@ -19,12 +19,12 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       # This is required to be able to run create-topics within the health check
       KAFKA_PORT: 9092
-      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1,sts_topo_kubernetes_${CLUSTER_NAME}:1:1"
+      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
     healthcheck:
       # Okay, here it goes. Due to a variant on this bug: https://github.com/wurstmeister/kafka-docker/issues/661
       # we intermittently get that not all topics are created. This causes flaky behavior on the tests
       # We patched it by having the health check also try to create when it fails
-      test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" != \"11\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
+      test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" < \"9\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
       interval: 3s
       timeout: 30s
       retries: 10
