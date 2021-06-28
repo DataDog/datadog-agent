@@ -10,10 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func mockConfig(k string, v interface{}) func() {
@@ -156,8 +155,17 @@ func TestProfileProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if v := req.Header.Get("X-Datadog-Additional-Tags"); v != "host:myhost,default_env:none" {
-				t.Fatalf("invalid X-Datadog-Additional-Tags header: %q", v)
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			tags := strings.Split(v, ",")
+			m := make(map[string]string)
+			for _, t := range tags {
+				kv := strings.Split(t, ":")
+				m[kv[0]] = kv[1]
+			}
+			for _, tag := range []string{"host", "default_env", "agent_version"} {
+				if _, ok := m[tag]; !ok {
+					t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain '%s': %q", tag, v)
+				}
 			}
 			called = true
 		}))
