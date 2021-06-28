@@ -154,7 +154,7 @@ func ResetSharedFilter() {
 func GetFilterErrors() map[string]struct{} {
 	filter, _ := newMetricFilterFromConfig()
 	logFilter, _ := NewAutodiscoveryFilter(LogsFilter)
-	for err, _ := range logFilter.Errors {
+	for err := range logFilter.Errors {
 		filter.Errors[err] = struct{}{}
 	}
 	return filter.Errors
