@@ -20,9 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless/trace"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -289,24 +287,10 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		waitingChan <- true
 	}(waitingChan)
 
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	metricAgent := &metrics.ServerlessMetricAgent{}
 
-	keysPerDomain, err := config.GetMultipleEndpoints()
-	if err != nil {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
-		log.Errorf("Misconfiguration of agent endpoints: %s", err)
-	}
-
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
-	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
-	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f, nil)
-	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
-
-	go metricAgent.Start(aggregatorInstance, waitingChan)
+	go metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, waitingChan)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	if config.Datadog.GetBool("apm_config.enabled") {

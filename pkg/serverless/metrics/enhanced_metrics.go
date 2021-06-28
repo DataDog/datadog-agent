@@ -55,42 +55,42 @@ func generateEnhancedMetricsFromFunctionLog(message aws.LogMessage, tags []strin
 func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
 	memorySizeMb := float64(message.ObjectRecord.Metrics.MemorySizeMB)
 	billedDurationMs := float64(message.ObjectRecord.Metrics.BilledDurationMs)
-
+	timestamp := float64(message.Time.UnixNano())
 	enhancedMetrics := []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.max_memory_used",
 		Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.memorysize",
 		Value:      memorySizeMb,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
 		Value:      billedDurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      message.ObjectRecord.Metrics.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.estimated_cost",
 		Value:      calculateEstimatedCost(billedDurationMs, memorySizeMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}}
 	if message.ObjectRecord.Metrics.InitDurationMs > 0 {
 		initDurationMetric := metrics.MetricSample{
@@ -99,7 +99,7 @@ func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(message.Time.UnixNano()),
+			Timestamp:  timestamp,
 		}
 		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
 	}

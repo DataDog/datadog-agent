@@ -166,7 +166,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
-		if d.MetricAgent.DogStatDServer != nil {
+		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 			d.MetricAgent.DogStatDServer.Flush()
 		}
 		wg.Done()
@@ -230,7 +230,7 @@ func (d *Daemon) Stop(isTimeout bool) {
 
 	log.Debug("Shutting down agents")
 
-	if d.MetricAgent.DogStatDServer != nil {
+	if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 		d.MetricAgent.DogStatDServer.Stop()
 	}
 	logs.Stop()
@@ -311,7 +311,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		tagMap := tags.BuildTagMap(arn, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
-		if d.MetricAgent.DogStatDServer != nil {
+		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
 		}
 		if d.traceAgent != nil {

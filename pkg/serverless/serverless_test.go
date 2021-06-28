@@ -48,7 +48,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	}
 
 	sort.Strings(d.ExtraTags.Tags)
-	assert.Equal(t, expectedTagArray, d.ExtraTags)
+	assert.Equal(t, expectedTagArray, d.ExtraTags.Tags)
 }
 
 func TestComputeTimeout(t *testing.T) {

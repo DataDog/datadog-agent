@@ -244,3 +244,36 @@ func TestCalculateEstimatedCost(t *testing.T) {
 	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0)
 	assert.InDelta(t, 11.63, estimatedCost-freeTierCostAdjustment, 0.01)
 }
+
+func TestGenerateEnhancedMetricsReport(t *testing.T) {
+	reportLog := aws.LogMessage{
+		Type: aws.LogTypePlatformReport,
+		Time: time.Now(),
+		ObjectRecord: aws.PlatformObjectRecord{
+			Metrics: aws.ReportLogMetrics{
+				DurationMs:       1000.0,
+				BilledDurationMs: 800.0,
+				MemorySizeMB:     1024.0,
+				MaxMemoryUsedMB:  256.0,
+				InitDurationMs:   0,
+			},
+		},
+	}
+	metricsChan := make(chan []metrics.MetricSample)
+	go GenerateEnhancedMetrics(reportLog, []string{"taga:valuea", "tagb:valuee"}, metricsChan)
+	generatedMetrics := <-metricsChan
+	assert.Equal(t, 5, len(generatedMetrics))
+}
+
+func TestGenerateEnhancedMetricsFunction(t *testing.T) {
+	reportLog := aws.LogMessage{
+		Type:         aws.LogTypeFunction,
+		Time:         time.Now(),
+		StringRecord: "xxx MemoryError xxx",
+	}
+	metricsChan := make(chan []metrics.MetricSample)
+	go GenerateEnhancedMetrics(reportLog, []string{"taga:valuea", "tagb:valuee"}, metricsChan)
+	generatedMetrics := <-metricsChan
+	assert.Equal(t, 1, len(generatedMetrics))
+	assert.Equal(t, "aws.lambda.enhanced.out_of_memory", generatedMetrics[0].Name)
+}
