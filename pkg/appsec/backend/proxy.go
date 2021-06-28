@@ -21,7 +21,6 @@ import (
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
 func NewReverseProxy(target *url.URL, apiKey string) *httputil.ReverseProxy {
-	const headerContainerID = "Datadog-Container-ID"
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	via := fmt.Sprintf("appsec-agent %s", info.Version)
 	director := proxy.Director
@@ -35,6 +34,8 @@ func NewReverseProxy(target *url.URL, apiKey string) *httputil.ReverseProxy {
 			panic(err)
 		}
 		stdlog.Println(string(b))
+		// TODO: add the container tag
+		//const headerContainerID = "Datadog-Container-ID"
 		//if containerID := req.Header.Get(headerContainerID); containerID != "" {
 		//	if ctags := getContainerTags(containerID); ctags != "" {
 		//		req.Header.Set("X-Datadog-Container-Tags", ctags)
