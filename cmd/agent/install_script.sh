@@ -434,6 +434,7 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
+  # Note that SUSE11 doesn't have /etc/os-release file, so we have to use /etc/SuSE-release
   if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE11="yes"
   fi
@@ -462,8 +463,15 @@ elif [ "$OS" = "SUSE" ]; then
     fi
   fi
 
-  # parse the major version number out of the distro release info file. xargs is used to trim whitespace.
-  SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
+  # Parse the major version number out of the distro release info file. xargs is used to trim whitespace.
+  # NOTE: We use this to find out whether or not release version is >= 15, so we have to use /etc/os-release,
+  # as /etc/SuSE-release has been deprecated and is no longer present everywhere, e.g. in AWS AMI.
+  # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
+  SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
+  if [ -z "$SUSE_VER" ]; then
+    # if there's no /etc/os-release, set version to 0, because we don't really care about the exact version
+    $SUSE_VER="0"
+  fi
   if [ "$SUSE_VER" -ge 15 ]; then
     gpgkeys=''
     separator='\n       '
