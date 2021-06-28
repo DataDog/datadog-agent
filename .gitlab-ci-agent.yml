@@ -47,7 +47,7 @@ stages:
 
 .only_agent_3: &only_agent_3
   rules:
-    - if: '$MAJOR_VERSION == 3'
+    - if: $MAJOR_VERSION == "3"
 
 ######################### /pipeline bricks
 
