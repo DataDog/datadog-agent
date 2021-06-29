@@ -2,7 +2,6 @@ package network
 
 import (
 	"bytes"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -163,7 +162,7 @@ func (p *dnsParser) parseAnswerInto(
 	pktInfo.queryType = QueryType(question.Type)
 	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = strings.ToLower(string(question.Name))
+	t.dns = string(bytes.ToLower(question.Name))
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
