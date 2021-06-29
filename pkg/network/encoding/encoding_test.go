@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -398,6 +399,68 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, out, result)
+}
+
+func TestPooledObjectGarbageRegression(t *testing.T) {
+	// This test ensures that no garbage data is accidentally
+	// left on pooled Connection objects used during serialization
+	httpKey := http.NewKey(
+		util.AddressFromString("10.0.15.1"),
+		util.AddressFromString("172.217.10.45"),
+		60000,
+		8080,
+		"",
+		http.MethodGet,
+	)
+
+	in := &network.Connections{
+		Conns: []network.ConnectionStats{
+			{
+				Source: util.AddressFromString("10.0.15.1"),
+				SPort:  uint16(60000),
+				Dest:   util.AddressFromString("172.217.10.45"),
+				DPort:  uint16(8080),
+			},
+		},
+	}
+
+	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
+		marshaler := GetMarshaler("application/protobuf")
+		blob, err := marshaler.Marshal(c)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		httpBlob := result.Conns[0].HttpAggregations
+		if httpBlob == nil {
+			return nil
+		}
+
+		httpOut := new(model.HTTPAggregations)
+		err = proto.Unmarshal(httpBlob, httpOut)
+		require.NoError(t, err)
+		return httpOut
+	}
+
+	// Let's alternate between payloads with and without HTTP data
+	for i := 0; i < 1000; i++ {
+		if (i % 2) == 0 {
+			httpKey.Path = fmt.Sprintf("/path-%d", i)
+			in.HTTP = map[http.Key]http.RequestStats{httpKey: {}}
+			out := encodeAndDecodeHTTP(in)
+
+			require.NotNil(t, out)
+			require.Len(t, out.EndpointAggregations, 1)
+			require.Equal(t, httpKey.Path, out.EndpointAggregations[0].Path)
+		} else {
+			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
+			in.HTTP = nil
+			out := encodeAndDecodeHTTP(in)
+			require.Nil(t, out, "expected a nil object, but got garbage")
+		}
+	}
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
