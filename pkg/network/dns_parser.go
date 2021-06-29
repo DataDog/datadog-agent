@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"strings"
 	"time"
 
@@ -159,30 +160,29 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
-	t.dns = string(question.Name)
 	pktInfo.queryType = QueryType(question.Type)
-	alias := p.extractCNAME(t.dns, dns.Answers)
+	alias := p.extractCNAME(question.Name, dns.Answers)
 	p.extractIPsInto(alias, dns.Answers, t)
-	t.dns = strings.ToLower(t.dns)
+	t.dns = strings.ToLower(string(question.Name))
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 
-func (*dnsParser) extractCNAME(domainQueried string, records []layers.DNSResourceRecord) string {
+func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
 	alias := domainQueried
 	for _, record := range records {
 		if record.Class != layers.DNSClassIN {
 			continue
 		}
-		if record.Type == layers.DNSTypeCNAME && alias == string(record.Name) {
-			alias = string(record.CNAME)
+		if record.Type == layers.DNSTypeCNAME && bytes.Equal(alias, record.Name) {
+			alias = record.CNAME
 		}
 	}
 	return alias
 }
 
-func (*dnsParser) extractIPsInto(alias string, records []layers.DNSResourceRecord, t *translation) {
+func (*dnsParser) extractIPsInto(alias []byte, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
 		if record.Class != layers.DNSClassIN {
 			continue
@@ -190,7 +190,7 @@ func (*dnsParser) extractIPsInto(alias string, records []layers.DNSResourceRecor
 		if len(record.IP) == 0 {
 			continue
 		}
-		if alias == string(record.Name) {
+		if bytes.Equal(alias, record.Name) {
 			t.add(util.AddressFromNetIP(record.IP), time.Duration(record.TTL)*time.Second)
 		}
 	}
