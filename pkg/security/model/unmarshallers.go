@@ -199,7 +199,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.DiscarderRevision = ByteOrder.Uint32(data[12:16])
+	// padding
 
 	return 16, nil
 }
@@ -329,38 +329,12 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.DiscarderRevision = ByteOrder.Uint32(data[0:4])
-	// padding
-
-	return n + 8, nil
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.DiscarderRevision = ByteOrder.Uint32(data[0:4])
-	// padding
-
-	return n + 8, nil
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -418,7 +392,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.Flags = ByteOrder.Uint32(data[0:4])
-	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
+	// padding
 
 	return n + 8, nil
 }

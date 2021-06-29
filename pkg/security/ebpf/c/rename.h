@@ -10,8 +10,6 @@ struct rename_event_t {
     struct syscall_t syscall;
     struct file_t old;
     struct file_t new;
-    u32 discarder_revision;
-    u32 padding;
 };
 
 int __attribute__((always_inline)) rename_approvers(struct syscall_cache_t *syscall) {
@@ -167,19 +165,23 @@ SYSCALL_KRETPROBE(renameat2) {
     return kprobe_sys_rename_ret(ctx);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
+SEC("tracepoint/handle_sys_rename_exit")
+int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
+}
 
+int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct rename_event_t event = {
         .syscall.retval = retval,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,
-        .discarder_revision = get_discarder_revision(syscall->rename.target_file.path_key.mount_id),
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

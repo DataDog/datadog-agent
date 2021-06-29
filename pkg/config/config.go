@@ -662,7 +662,7 @@ func InitConfig(config Config) {
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 
 	// Duration during which the host tags will be submitted with log events.
-	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // duration-formatted string (parsed by `time.ParseDuration`)
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
@@ -892,6 +892,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
+	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// Serverless Agent

@@ -2,6 +2,196 @@
 Release Notes
 =============
 
+.. _Release Notes_7.29.0:
+
+7.29.0 / 6.29.0
+======
+
+.. _Release Notes_7.29.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-06-24
+
+- Please refer to the `7.29.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7290>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.29.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade Docker base image to ubuntu:21.04 as new stable release.
+
+
+.. _Release Notes_7.29.0_New Features:
+
+New Features
+------------
+
+- New `extra_tags` setting and `DD_EXTRA_TAGS` environment variable can be
+  used to specify additional host tags.
+
+- Add network devices metadata collection
+
+- APM: The obfuscator adds two new features (`dollar_quoted_func` and `keep_sql_alias`). They are off by default. For more details see PR 8071.
+  We do not recommend using these features unless you have a good reason or have been recommended by support for your specific use-case.
+
+- APM: Add obfuscator support for Postgres dollar-quoted string constants.
+
+- Tagger state will now be stored for dogstatsd UDS traffic captures
+  with origin detection. The feature will track the incoming traffic,
+  building a map of traffic source processes and their source containers,
+  then storing the relevant tagger state into the capture file. This will
+  allow to not only replay the traffic, but also load a snapshot of the
+  tagger state to properly tag replayed payloads in the dogstatsd pipeline.
+
+- New `host_aliases` setting can be used to add custom host aliases in
+  addition to aliases obtained from cloud providers automatically.
+
+- Paths can now be relsolved using an eRPC request.
+
+- Add time comparison support in SECL allow to write rules
+  such as: `open.file.path == "/etc/secret" && process.created_at > 5s`
+
+
+.. _Release Notes_7.29.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the following new metrics to the ``kubernetes_state_core``.
+  * ``node.ephemeral_storage_allocatable```
+  * ``node.ephemeral_storage_capacity``
+
+- Agent can now set hostname based on Azure instance metadata. See the new
+  ``azure_hostname_style`` configuration option.
+
+- Compliance agents can now generated multiple reports per run.
+
+- Docker and Kubernetes log launchers will now be retried until
+  one succeeds instead of falling back to the docker launcher by default. 
+
+- Increase payload size limit for `dbm-metrics` from `1 MB` to `20 MB`.
+
+- Expose new `batch_max_size` and `batch_max_content_size` config settings for all logs endpoints.
+
+- Adds improved cadence/resolution captures/replay to dogstatsd traffic
+  captures. The new file format will store payloads with nanosecond
+  resolution. The replay feature remains backward-compatible.
+
+- Support fetching host tags using ECS task and EKS IAM roles.
+
+- Improve the resiliency of the ``datadog-agent check`` command when running Autodiscovered checks.
+
+- Adding the hostname to the host aliases when running on GCE
+
+- Display more information when the error ``Could not initialize instance`` happens.
+  JMXFetch upgraded to `0.44.0 <https://github.com/DataDog/jmxfetch/releases/0.44.0>`_
+
+- Kubernetes pod with short-lived containers won't have a few logs of lines
+  duplicated with both container tag (the stopped one and the running one) anymore
+  while logs are being collected.
+  Mount ``/var/log/containers`` and use ``logs_config.validate_pod_container_id``
+  to enable this feature.
+
+- The kube state metrics core check now tags pod metrics with a ``reason`` tag.
+  It can be ``NodeLost``, ``Evicted`` or ``UnexpectedAdmissionError``.
+
+- Implement the following synthetic metrics in the ``kubernetes_state_core``.
+  * ``cronjob.count``
+  * ``endpoint.count``
+  * ``hpa.count``
+  * ``vpa.count`
+
+- Add system.cpu.interrupt on linux.
+
+- Authenticate logs http input requests using the API key header rather than the URL path.
+
+- Upgrade embedded Python 3 from 3.8.8 to 3.8.10. See
+  `Python 3.8's changelog <https://docs.python.org/release/3.8.10/whatsnew/changelog.html>`_.
+
+- Show autodiscovery errors from pod annotations in agent status.
+
+- Paths are no longer limited to segments of 128 characters and a depth of 16. Each segment can now be up to 255 characters (kernel limit) and with a depth of up to 1740 parents.
+
+- Add loader as ``snmp_listener.loader`` config
+
+- Make SNMP Listener configs compatible with SNMP Integration configs
+
+- The `agent stream-logs` command will use less CPU while idle.
+
+
+.. _Release Notes_7.29.0_Security Notes:
+
+Security Notes
+--------------
+
+- Redact the whole annotation "kubectl.kubernetes.io/last-applied-configuration" to ensure we don't expose secrets.
+
+
+.. _Release Notes_7.29.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Imports the value of `non_local_traffic` to `dogstatsd_non_local_traffic`
+  (in addition to `apm_config.non_local_traffic`) when upgrading from
+  Datadog Agent v5.
+
+- Fixes the Agent using 100% CPU on MacOS Big Sur.
+
+- Declare `database_monitoring.{samples,metrics}` as known keys in order to remove "unknown key" warnings on startup.
+
+- Fixes the container_name tag not being updated after Docker containers were
+  renamed.
+
+- Fixes CPU utilization being underreported on Windows hosts with more than one physical CPU.
+
+- Fix CPU limit used for Live Containers page in ECS Fargate environments.
+
+- Fix bug introduced in 7.26 where default checks were schedueld on ECS Fargate due to changes in entrypoint scripts.
+
+- Fix a bug that can make the agent enable incompatible Autodiscovery listeners.
+
+- An error log was printed when the creation date or the started date 
+  of a fargate container was not found in the fargate API payload. 
+  This would happen even though it was expected to not have these dates
+  because of the container being in a given state. 
+  This is now fixed and the error is only printed when it should be.
+
+- Fix the default value of the configuration option ``forwarder_storage_path`` when ``run_path`` is set.
+  The default value is ``RUN_PATH/transactions_to_retry`` where RUN_PATH is defined by the configuration option ``run_path``.
+
+- In some cases, compliance checks using YAML file with JQ expressions were failing due to discrepencies between YAML parsing and gojq handling.
+
+- On Windows, fixes inefficient string conversion
+
+- Reduce CPU usage when logs agent is unable to reach an http endpoint.
+
+- Fixed no_proxy depreciation warning from being logged too frequently.
+  Added better warnings for when the proxy behavior could change. 
+
+- Ignore CollectorStatus response from orchestrator-intake in the process-agent to prevent changing realtime mode interval to default 2s.
+
+- Fixes an issue where the Agent would not retry resource tags collection for
+  containers on ECS if it could retrieve only a subset of tags. Now it will
+  keep on retrying until the complete set of tags is collected.
+
+- Fix noisy configuration error when specifying a proxy config and using secrets management.
+
+- Reduce amount of log messages on windows when tailing log files.
+
+
+.. _Release Notes_7.29.0_Other Notes:
+
+Other Notes
+-----------
+
+- JMXFetch upgraded to `0.44.1 <https://github.com/DataDog/jmxfetch/releases/0.44.1>`_
+
+
 .. _Release Notes_7.28.1:
 
 7.28.1
