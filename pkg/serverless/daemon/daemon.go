@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -21,6 +23,8 @@ import (
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
 const httpServerPort int = 8124
+
+const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
@@ -124,12 +128,6 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 //SetMuxHandle configures the log collection route handler
 func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
-	fmt.Println("IN MUX HANDLE")
-	fmt.Printf("ROUTE = %v \n", route)
-	fmt.Printf("d.ExtraTags = %v \n", d.ExtraTags)
-	fmt.Printf("logsChan = %v \n", logsChan)
-	fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
-
 	d.mux.Handle(route, &serverlessLog.LogsCollection{
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
@@ -337,4 +335,30 @@ func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart boo
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
 	d.ExecutionContext.Coldstart = coldstart
+}
+
+func (d *Daemon) SaveCurrentExecutionContext() error {
+	file, err := json.Marshal(d.ExecutionContext)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Daemon) RestoreCurrentStateFromFile() error {
+	file, err := ioutil.ReadFile(persistedStateFilePath)
+	if err != nil {
+		return err
+	}
+	var restoredExecutionContext serverlessLog.ExecutionContext
+	err = json.Unmarshal(file, &restoredExecutionContext)
+	if err != nil {
+		return err
+	}
+	d.ExecutionContext = &restoredExecutionContext
+	return nil
 }

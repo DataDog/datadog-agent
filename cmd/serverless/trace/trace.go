@@ -2,7 +2,6 @@ package trace
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -24,13 +23,8 @@ func (c *ServerlessTraceAgent) Start(datadogConfigPath string, context context.C
 		go func() {
 			c.ta.Run()
 		}()
-		c.Ready()
 		waitingChan <- true
 	}
-}
-
-func (c *ServerlessTraceAgent) Ready() {
-	fmt.Println("TRACE AGENT IS READY")
 }
 
 func (c *ServerlessTraceAgent) Get() *agent.Agent {

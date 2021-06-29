@@ -149,7 +149,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
-
+	log.Debug("Waiting for next invocation...2")
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
@@ -174,6 +174,9 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldstart)
 			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
+			if err != nil {
+				log.Error("Unable to persist current state to file while shutting down")
+			}
 		}
 		daemon.Stop(isTimeout)
 		stopCh <- struct{}{}
@@ -191,6 +194,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
+		daemon.SaveCurrentExecutionContext()
 		daemon.FinishInvocation()
 		return
 	case <-doneChannel:

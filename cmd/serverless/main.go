@@ -166,7 +166,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 
 	// immediately starts the communication server
 	daemon = serverlessDaemon.StartDaemon()
-
+	daemon.RestoreCurrentStateFromFile()
 	// serverless parts
 	// ----------------
 
@@ -282,7 +282,6 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
 			setupLogAgent(logChannel)
-			log.Debug("xxx - Logs subscription OK")
 		}
 		waitingChan <- true
 	}(waitingChan)
