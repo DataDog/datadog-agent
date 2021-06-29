@@ -11,20 +11,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
-	outOfMemoryLog := logs.LogMessage{
-		Type:         logs.LogTypeFunction,
-		StringRecord: "JavaScript heap out of memory",
-		Time:         time.Now(),
-	}
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
-
-	go generateEnhancedMetricsFromFunctionLog(outOfMemoryLog, tags, metricsChan)
+	currentTime := time.Now()
+	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", currentTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
@@ -34,42 +29,33 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(outOfMemoryLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}})
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
-	outOfMemoryLog := logs.LogMessage{
-		Type:         logs.LogTypeFunction,
-		StringRecord: "Task timed out after 30.03 seconds",
-		Time:         time.Now(),
-	}
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	tags := []string{"functionname:test-function"}
 
-	go generateEnhancedMetricsFromFunctionLog(outOfMemoryLog, tags, metricsChan)
+	go GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, metricsChan)
 
 	assert.Equal(t, len(metricsChan), 0)
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	reportLog := logs.LogMessage{
-		Type: logs.LogTypePlatformReport,
-		Time: time.Now(),
-		ObjectRecord: PlatformObjectRecord{
-			Metrics: ReportLogMetrics{
-				DurationMs:       1000.0,
-				BilledDurationMs: 800.0,
-				MemorySizeMB:     1024.0,
-				MaxMemoryUsedMB:  256.0,
-				InitDurationMs:   100.0,
-			},
+	objectRecord := PlatformObjectRecord{
+		Metrics: ReportLogMetrics{
+			DurationMs:       1000.0,
+			BilledDurationMs: 800.0,
+			MemorySizeMB:     1024.0,
+			MaxMemoryUsedMB:  256.0,
+			InitDurationMs:   100.0,
 		},
 	}
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
-
-	go generateEnhancedMetricsFromReportLog(reportLog, tags, metricsChan)
+	currentTime := time.Now()
+	go GenerateEnhancedMetricsFromReportLog(objectRecord, currentTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
@@ -79,63 +65,60 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.memorysize",
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.estimated_cost",
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.init_duration",
 		Value:      0.1,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}})
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	reportLog := logs.LogMessage{
-		Type: logs.LogTypePlatformReport,
-		Time: time.Now(),
-		ObjectRecord: PlatformObjectRecord{
-			Metrics: ReportLogMetrics{
-				DurationMs:       1000.0,
-				BilledDurationMs: 800.0,
-				MemorySizeMB:     1024.0,
-				MaxMemoryUsedMB:  256.0,
-				InitDurationMs:   0,
-			},
+	objectRecord := PlatformObjectRecord{
+		Metrics: ReportLogMetrics{
+			DurationMs:       1000.0,
+			BilledDurationMs: 800.0,
+			MemorySizeMB:     1024.0,
+			MaxMemoryUsedMB:  256.0,
+			InitDurationMs:   0,
 		},
 	}
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
+	currentTime := time.Now()
 
-	go generateEnhancedMetricsFromReportLog(reportLog, tags, metricsChan)
+	go GenerateEnhancedMetricsFromReportLog(objectRecord, currentTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
@@ -145,35 +128,35 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.memorysize",
 		Value:      1024.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
 		Value:      0.80,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}, {
 		Name:       "aws.lambda.enhanced.estimated_cost",
 		Value:      calculateEstimatedCost(800.0, 1024.0),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(reportLog.Time.UnixNano()),
+		Timestamp:  float64(currentTime.UnixNano()),
 	}})
 }
 
@@ -200,10 +183,10 @@ func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
 	defer aws.SetARN("")
 
-	generatedTags := AddColdStartTag([]string{
+	generatedTags := tags.AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	})
+	}, false)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
@@ -214,13 +197,12 @@ func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 
 func TestAddColdStartTagWithColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
-	aws.SetColdStart(true)
 	defer aws.SetARN("")
 
-	generatedTags := AddColdStartTag([]string{
+	generatedTags := tags.AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	})
+	}, true)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
@@ -244,37 +226,4 @@ func TestCalculateEstimatedCost(t *testing.T) {
 	// and it ran for 200ms each time, your charges would be $11.63
 	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0)
 	assert.InDelta(t, 11.63, estimatedCost-freeTierCostAdjustment, 0.01)
-}
-
-func TestGenerateEnhancedMetricsReport(t *testing.T) {
-	reportLog := logs.LogMessage{
-		Type: logs.LogTypePlatformReport,
-		Time: time.Now(),
-		ObjectRecord: PlatformObjectRecord{
-			Metrics: ReportLogMetrics{
-				DurationMs:       1000.0,
-				BilledDurationMs: 800.0,
-				MemorySizeMB:     1024.0,
-				MaxMemoryUsedMB:  256.0,
-				InitDurationMs:   0,
-			},
-		},
-	}
-	metricsChan := make(chan []metrics.MetricSample)
-	go GenerateEnhancedMetrics(reportLog, []string{"taga:valuea", "tagb:valuee"}, metricsChan)
-	generatedMetrics := <-metricsChan
-	assert.Equal(t, 5, len(generatedMetrics))
-}
-
-func TestGenerateEnhancedMetricsFunction(t *testing.T) {
-	reportLog := LogMessage{
-		Type:         LogTypeFunction,
-		Time:         time.Now(),
-		StringRecord: "xxx MemoryError xxx",
-	}
-	metricsChan := make(chan []metrics.MetricSample)
-	go GenerateEnhancedMetrics(reportLog, []string{"taga:valuea", "tagb:valuee"}, metricsChan)
-	generatedMetrics := <-metricsChan
-	assert.Equal(t, 1, len(generatedMetrics))
-	assert.Equal(t, "aws.lambda.enhanced.out_of_memory", generatedMetrics[0].Name)
 }

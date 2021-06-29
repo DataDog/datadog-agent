@@ -40,7 +40,7 @@ type Daemon struct {
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
-	lastInvocations []time.Time
+	LastInvocations []time.Time
 
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
@@ -67,7 +67,8 @@ type Daemon struct {
 	// this should be reset before each invocation
 	FinishInvocationOnce sync.Once
 
-	ARN *string
+	ARN           *string
+	LastRequestID *string
 }
 
 // Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
@@ -128,7 +129,12 @@ func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMess
 	fmt.Printf("logsChan = %v \n", logsChan)
 	fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
 
-	d.mux.Handle(route, &serverlessLog.LogsCollection{ARN: d.ARN, ExtraTags: d.ExtraTags, LogChannel: logsChan, MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
+	d.mux.Handle(route, &serverlessLog.LogsCollection{
+		ARN:           d.ARN,
+		LastRequestID: d.LastRequestID,
+		ExtraTags:     d.ExtraTags,
+		LogChannel:    logsChan,
+		MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -253,7 +259,7 @@ func StartDaemon() *Daemon {
 		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
-		lastInvocations:  make([]time.Time, 0),
+		LastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
 		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},

@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 const (
@@ -109,8 +107,7 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string) []string {
-	coldStart := aws.GetColdStart()
+func AddColdStartTag(tags []string, coldStart bool) []string {
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
 	return tags
 }

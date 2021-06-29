@@ -34,6 +34,7 @@ type LogsCollection struct {
 	MetricChannel chan []metrics.MetricSample
 	ExtraTags     *Tags
 	ARN           *string
+	LastRequestID *string
 }
 
 // logMessageTimeLayout is the layout string used to format timestamps from logs
@@ -234,7 +235,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func processLogMessages(l *LogsCollection, messages []LogMessage) {
-	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags)
+	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, l.LastRequestID == nil)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 	lastRequestID := aws.GetRequestID()

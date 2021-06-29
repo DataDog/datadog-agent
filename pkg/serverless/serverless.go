@@ -83,7 +83,7 @@ func (s ShutdownReason) String() string {
 }
 
 // InvocationHandler is the invocation handler signature
-type InvocationHandler func(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool)
+type InvocationHandler func(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool, requestID string)
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -92,7 +92,7 @@ type Payload struct {
 	DeadlineMs         int64          `json:"deadlineMs"`
 	InvokedFunctionArn string         `json:"invokedFunctionArn"`
 	ShutdownReason     ShutdownReason `json:"shutdownReason"`
-	//    RequestId string `json:"requestId"` // unused
+	RequestId          string         `json:"requestId"`
 }
 
 // ReportInitError reports an init error to the environment.
@@ -168,13 +168,13 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, coldstart, handleInvocation)
+		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, coldstart, payload.RequestId, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags)
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldstart)
 			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
@@ -185,12 +185,12 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	return nil
 }
 
-func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, invocationHandler InvocationHandler) {
+func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, coldstart bool, requestID string, invocationHandler InvocationHandler) {
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	doneChannel := make(chan bool)
-	go invocationHandler(doneChannel, daemon, arn, coldstart)
+	go invocationHandler(doneChannel, daemon, arn, coldstart, requestID)
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
@@ -201,11 +201,12 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	}
 }
 
-func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool) {
+func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, coldstart bool, requestID string) {
 	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
 	daemon.SetARN(arn)
+	daemon.LastRequestID = &requestID
 	if coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {
