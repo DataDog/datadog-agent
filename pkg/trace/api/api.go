@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/appsec"
 	"github.com/tinylib/msgp/msgp"
 
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -84,10 +85,15 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, appsecHandler http.Handler, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
+	}
+	// Instantiate the AppSec HTTP handler
+	appsecHandler, err := appsec.New()
+	if err != nil {
+		log.Error("appsec agent: ", err)
 	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),

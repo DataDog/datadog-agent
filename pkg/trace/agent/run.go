@@ -149,7 +149,6 @@ func Run(ctx context.Context) {
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	// Run the tracer agent
 	agnt.Run()
 
 	// collect memory profile

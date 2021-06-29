@@ -9,8 +9,6 @@ import (
 
 // AgentConfig represents the agent configuration API.
 type AgentConfig interface {
-	SetKnown(s string)
-	BindEnvAndSetDefault(key string, v interface{}, env ...string)
 	GetBool(key string) bool
 	GetString(key string) string
 	GetInt(key string) int
@@ -20,17 +18,10 @@ const (
 	// defaultIntakeURLTemplate specifies the string template allowing to obtain
 	// the intake URL from a given site.
 	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
-	defaultSite              = "datad0g.com"
+	// defaultSite is the intake site applied by default to
+	// defaultIntakeURLTemplate
+	defaultSite = "datad0g.com"
 )
-
-// InitConfig initializes the config defaults on a config
-func InitConfig(cfg AgentConfig) {
-	cfg.SetKnown("appsec_config.enabled")
-	cfg.SetKnown("appsec_config.appsec_dd_url")
-
-	cfg.BindEnvAndSetDefault("appsec_config.enabled", true, "DD_APPSEC_ENABLED")
-	cfg.BindEnvAndSetDefault("appsec_config.appsec_dd_url", "", "DD_APPSEC_DD_URL")
-}
 
 // Config handles the interpretation of the configuration. It is also a simple
 // structure to share across all the components, with 100% safe and reliable

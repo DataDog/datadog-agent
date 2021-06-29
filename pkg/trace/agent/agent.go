@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/appsec"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
@@ -71,11 +69,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	dynConf := sampler.NewDynamicConfig(conf.DefaultEnv)
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan pb.StatsPayload, 100)
-	// Instantiate AppSec
-	appsecHandler, err := appsec.New(coreconfig.Datadog)
-	if err != nil {
-		log.Error("appsec agent: ", err)
-	}
 
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now()),
@@ -94,7 +87,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		conf:                  conf,
 		ctx:                   ctx,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, appsecHandler, in, agnt)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf.OTLPReceiver)
 	return agnt
 }

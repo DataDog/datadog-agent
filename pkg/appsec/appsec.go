@@ -5,6 +5,7 @@ import (
 
 	httpapi "github.com/DataDog/datadog-agent/pkg/appsec/api/http"
 	"github.com/DataDog/datadog-agent/pkg/appsec/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/pkg/errors"
 )
 
@@ -15,8 +16,8 @@ var ErrAgentDisabled = errors.New("AppSec agent disabled. Set the " +
 	"`appsec_config.enabled: true` to your datadog.yaml file")
 
 // New returns the AppSec HTTP handler according to the agent configuration.
-func New(agentCfg config.AgentConfig) (http.Handler, error) {
-	cfg, err := config.FromAgentConfig(agentCfg)
+func New() (http.Handler, error) {
+	cfg, err := config.FromAgentConfig(coreconfig.Datadog)
 	if err != nil {
 		return nil, errors.Wrap(err, "configuration: ")
 	}
