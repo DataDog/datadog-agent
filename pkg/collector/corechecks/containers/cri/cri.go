@@ -114,7 +114,7 @@ func (c *CRICheck) generateMetrics(sender aggregator.Sender, containerStats map[
 			continue
 		}
 
-		if ctnStatus == nil || c.isExcluded(ctnStatus) {
+		if ctnStatus == nil || ctnStatus.State != pb.ContainerState_CONTAINER_RUNNING || c.isExcluded(ctnStatus) {
 			continue
 		}
 
