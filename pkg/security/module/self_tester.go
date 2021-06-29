@@ -140,6 +140,7 @@ func selfTestChown(t *SelfTester, targetFilePath string) error {
 	})
 }
 
+// SelfTestFunctions slice of self test functions representing each individual file test
 var SelfTestFunctions = []func(*SelfTester, string) error{
 	selfTestOpen,
 	selfTestChmod,
