@@ -151,7 +151,8 @@ func Run(ctx context.Context) {
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	if runningProfiling(cfg) {
+	if coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		runProfiling(cfg)
 		defer profiling.Stop()
 	}
 	agnt.Run()
@@ -174,11 +175,11 @@ func Run(ctx context.Context) {
 	}
 }
 
-// runningProfiling runs the profiler when it is enabled and reports whether
-// it did so.
-func runningProfiling(cfg *config.AgentConfig) bool {
+// runProfiling enables the profiler.
+func runProfiling(cfg *config.AgentConfig) {
 	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		return false
+		// fail safe
+		return
 	}
 	site := "datadoghq.com"
 	if v := coreconfig.Datadog.GetString("site"); v != "" {
@@ -198,5 +199,5 @@ func runningProfiling(cfg *config.AgentConfig) bool {
 	}
 	routines := coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
 	profiling.Start(cfg.APIKey(), addr, cfg.DefaultEnv, "trace-agent", period, cpudur, routines, fmt.Sprintf("version:%s", info.Version))
-	return true
+	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Routines:%v].", addr, cfg.DefaultEnv, period, cpudur, routines)
 }
