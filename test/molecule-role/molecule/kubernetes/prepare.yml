@@ -141,9 +141,9 @@
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-    - name: Give the Test Workloads 3 minutes to start performing their actions
+    - name: Give the Test Workloads 5 minutes to start performing their actions
       pause:
-        minutes: 3
+        minutes: 5
     - name: Apply the pod-to-service-cluster-ip scenario
       command: kubectl -n={{ namespace }} apply -f pod-to-service-cluster-ip.yaml
       args:
