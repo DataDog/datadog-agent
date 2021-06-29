@@ -500,6 +500,11 @@ api_key:
 #
 # secret_backend_timeout: 30
 
+## @param secret_backend_skip_checks - boolean - optional - default: false
+## Disable fetching secrets for check configurations
+#
+# secret_backend_skip_checks: false
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using

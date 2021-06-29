@@ -9,8 +9,6 @@ struct rmdir_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    u32 discarder_revision;
-    u32 padding;
 };
 
 int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *syscall) {
@@ -130,7 +128,6 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .file = syscall->rmdir.file,
-            .discarder_revision = get_discarder_revision(syscall->rmdir.file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);

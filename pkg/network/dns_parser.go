@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
@@ -110,7 +111,6 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 				pktInfo.key.clientPort = uint16(p.udpPayload.SrcPort)
 			} else {
 				pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
-
 			}
 			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
@@ -159,37 +159,29 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
-	var alias []byte
-	domainQueried := question.Name
 	pktInfo.queryType = QueryType(question.Type)
-
-	// Retrieve the CNAME record, if available.
-	alias = p.extractCNAME(domainQueried, dns.Answers)
-	if alias == nil {
-		alias = p.extractCNAME(domainQueried, dns.Additionals)
-	}
-
-	// Get IPs
-	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
-	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
-	t.dns = string(domainQueried)
+	alias := p.extractCNAME(question.Name, dns.Answers)
+	p.extractIPsInto(alias, dns.Answers, t)
+	t.dns = string(bytes.ToLower(question.Name))
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 
 func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
+	alias := domainQueried
 	for _, record := range records {
-		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN &&
-			bytes.Equal(domainQueried, record.Name) {
-			return record.CNAME
+		if record.Class != layers.DNSClassIN {
+			continue
+		}
+		if record.Type == layers.DNSTypeCNAME && bytes.Equal(alias, record.Name) {
+			alias = record.CNAME
 		}
 	}
-
-	return nil
+	return alias
 }
 
-func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
+func (*dnsParser) extractIPsInto(alias []byte, records []layers.DNSResourceRecord, t *translation) {
 	for _, record := range records {
 		if record.Class != layers.DNSClassIN {
 			continue
@@ -197,10 +189,8 @@ func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.D
 		if len(record.IP) == 0 {
 			continue
 		}
-
-		if bytes.Equal(domainQueried, record.Name) ||
-			(alias != nil && bytes.Equal(alias, record.Name)) {
-			t.add(util.AddressFromNetIP(record.IP))
+		if bytes.Equal(alias, record.Name) {
+			t.add(util.AddressFromNetIP(record.IP), time.Duration(record.TTL)*time.Second)
 		}
 	}
 }

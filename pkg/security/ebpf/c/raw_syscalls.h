@@ -102,6 +102,7 @@ int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
         handle_sys_exit(args);
     }
 
+    // won't be call in case of fallback use
     u64 enabled;
     LOAD_CONSTANT("syscall_monitor", enabled);
     if (enabled) {
