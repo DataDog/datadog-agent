@@ -30,6 +30,15 @@ conda activate molecule
 
 pip3 install -r molecule-role/requirements-molecule3.txt
 
+# reads env file to file variables for molecule jobs locally
+ENV_FILE=./.env
+if test -f "$ENV_FILE"; then
+    echo "===== Sourcing env file with contents ======="
+    echo "$(cat $ENV_FILE)"
+    echo "============================================="
+    source $ENV_FILE
+fi
+
 cd molecule-role
 
 echo "===== MOLECULE_RUN_ID=${CI_JOB_ID:-unknown}  ======="
