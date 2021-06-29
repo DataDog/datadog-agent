@@ -421,18 +421,73 @@ func TestServeHTTPSuccess(t *testing.T) {
 	assert.Equal(t, 200, res.Code)
 }
 
-//func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//}
-// 	data, _ := ioutil.ReadAll(r.Body)
-// 	defer r.Body.Close()
-// 	log.Debug("xxx - in serve http parsing")
-// 	messages, err := parseLogsAPIPayload(data)
-// 	if err != nil {
-// 			log.Debug("xxx - in serve http parsing 400")
-// 			w.WriteHeader(400)
-// 	} else {
-// 			processLogMessages(l, messages)
-// 			log.Debug("xxx - in serve http parsing 200")
-// 			w.WriteHeader(200)
-// 	}
-// }
+func TestUnmarshalJSONInvalid(t *testing.T) {
+	logMessage := &LogMessage{}
+	err := logMessage.UnmarshalJSON([]byte("invalid"))
+	assert.NotNil(t, err)
+}
+
+func TestUnmarshalJSONMalformed(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/invalid_log_no_type.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.NotNil(t, err)
+}
+
+func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "platform.logsSubscription", logMessage.Type)
+}
+
+func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_start.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "platform.start", logMessage.Type)
+	assert.Equal(t, "START RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9 Version: 10", logMessage.StringRecord)
+}
+
+func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_end.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "platform.end", logMessage.Type)
+	assert.Equal(t, "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9", logMessage.StringRecord)
+}
+
+func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_report.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+}
+
+func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_report_record.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+}

@@ -61,7 +61,7 @@
 				
 				<option value="file2">github.com/DataDog/datadog-agent/pkg/serverless/flush/strategy.go (95.0%)</option>
 				
-				<option value="file3">github.com/DataDog/datadog-agent/pkg/serverless/logs/logs.go (87.2%)</option>
+				<option value="file3">github.com/DataDog/datadog-agent/pkg/serverless/logs/logs.go (96.8%)</option>
 				
 				<option value="file4">github.com/DataDog/datadog-agent/pkg/serverless/metrics/enhanced_metrics.go (100.0%)</option>
 				
@@ -705,7 +705,7 @@ type LogMessage struct {
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
 func (l *LogMessage) UnmarshalJSON(data []byte) error <span class="cov8" title="1">{
         var j map[string]interface{}
-        if err := json.Unmarshal(data, &amp;j); err != nil </span><span class="cov0" title="0">{
+        if err := json.Unmarshal(data, &amp;j); err != nil </span><span class="cov8" title="1">{
                 return fmt.Errorf("LogMessage.UnmarshalJSON: can't unmarshal json: %s", err)
         }</span>
 
@@ -714,7 +714,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error <span class="cov8" title="
 
         // type
 
-        if typ, ok = j["type"].(string); !ok </span><span class="cov0" title="0">{
+        if typ, ok = j["type"].(string); !ok </span><span class="cov8" title="1">{
                 return fmt.Errorf("LogMessage.UnmarshalJSON: malformed log message")
         }</span>
 
@@ -729,7 +729,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error <span class="cov8" title="
         // the rest
 
         <span class="cov8" title="1">switch typ </span>{
-        case LogTypePlatformLogsSubscription, LogTypePlatformExtension:<span class="cov0" title="0">
+        case LogTypePlatformLogsSubscription, LogTypePlatformExtension:<span class="cov8" title="1">
                 l.Type = typ</span>
         case LogTypeFunction, LogTypeExtension:<span class="cov8" title="1">
                 l.Type = typ
@@ -743,15 +743,15 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error <span class="cov8" title="
                         }</span>
 
                         <span class="cov8" title="1">switch typ </span>{
-                        case LogTypePlatformStart:<span class="cov0" title="0">
-                                if version, ok := objectRecord["version"].(string); ok </span><span class="cov0" title="0">{
+                        case LogTypePlatformStart:<span class="cov8" title="1">
+                                if version, ok := objectRecord["version"].(string); ok </span><span class="cov8" title="1">{
                                         l.ObjectRecord.Version = version
                                 }</span>
-                                <span class="cov0" title="0">l.StringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
+                                <span class="cov8" title="1">l.StringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
                                         l.ObjectRecord.RequestID,
                                         l.ObjectRecord.Version,
                                 )</span>
-                        case LogTypePlatformEnd:<span class="cov0" title="0">
+                        case LogTypePlatformEnd:<span class="cov8" title="1">
                                 l.StringRecord = fmt.Sprintf("END RequestId: %s",
                                         l.ObjectRecord.RequestID,
                                 )</span>
@@ -773,12 +773,12 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error <span class="cov8" title="
                                                 l.ObjectRecord.Metrics.InitDurationMs = v
                                         }</span>
                                         <span class="cov8" title="1">log.Debugf("Enhanced metrics: %+v\n", l.ObjectRecord.Metrics)</span>
-                                } else<span class="cov0" title="0"> {
+                                } else<span class="cov8" title="1"> {
                                         log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
                                 }</span>
                                 <span class="cov8" title="1">l.StringRecord = createStringRecordForReportLog(l)</span>
                         }
-                } else<span class="cov0" title="0"> {
+                } else<span class="cov8" title="1"> {
                         log.Error("LogMessage.UnmarshalJSON: can't read the record object")
                 }</span>
         default:<span class="cov0" title="0"></span>

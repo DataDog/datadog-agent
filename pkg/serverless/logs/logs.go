@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -272,16 +269,5 @@ func processMessage(message LogMessage, executionContext *ExecutionContext, enha
 
 	if message.Type == LogTypePlatformLogsDropped {
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
-	}
-}
-
-func SetupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	// we subscribed to the logs collection on the platform, let's instantiate
-	// a logs agent to collect/process/flush the logs.
-	if err := logs.StartServerless(
-		func() *autodiscovery.AutoConfig { return common.AC },
-		logChannel, nil,
-	); err != nil {
-		log.Error("Could not start an instance of the Logs Agent:", err)
 	}
 }
