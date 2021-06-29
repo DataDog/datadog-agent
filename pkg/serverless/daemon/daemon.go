@@ -282,6 +282,7 @@ func StartDaemon() *Daemon {
 
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
+	d.FinishInvocationOnce = sync.Once{}
 	d.InvcWg.Add(1)
 }
 
