@@ -318,7 +318,7 @@ func checkSyscallTester(t *testing.T, path string) {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Skip("cannot run syscall tester check")
+		t.Error("cannot run syscall tester check")
 	}
 }
 
