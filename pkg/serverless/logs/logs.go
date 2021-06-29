@@ -162,7 +162,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 // ShouldProcessLog returns whether or not the log should be further processed.
 func shouldProcessLog(executionContext *ExecutionContext, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if len(executionContext.ARN) == 0 || (len(executionContext.LastRequestID) == 0) && len(message.ObjectRecord.RequestID) == 0 {
+	if len(executionContext.ARN) == 0 && (len(executionContext.LastRequestID) == 0 && len(message.ObjectRecord.RequestID) == 0) {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
@@ -226,15 +226,12 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-	log.Debug("xxx - in serve http parsing")
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
 		fmt.Println(err)
-		log.Debug("xxx - in serve http parsing 400")
 		w.WriteHeader(400)
 	} else {
 		processLogMessages(l, messages)
-		log.Debug("xxx - in serve http parsing 200")
 		w.WriteHeader(200)
 	}
 }
