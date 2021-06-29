@@ -238,7 +238,7 @@ func (c *AgentConfig) acquireHostname() error {
 		return errors.New("empty hostname disallowed")
 	}
 	c.Hostname = reply.Hostname
-	log.Infof("Acquired hostname from gRPC: %s", c.Hostname)
+	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
 	return nil
 }
 
@@ -266,10 +266,10 @@ func (c *AgentConfig) acquireHostnameFallback() error {
 			return errors.New("empty hostname disallowed")
 		}
 		c.Hostname = host
-		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 
