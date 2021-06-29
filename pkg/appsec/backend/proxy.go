@@ -5,43 +5,32 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 )
 
-// NewReverseProxy creates an http.ReverseProxy which can forward requests to
-// one or more endpoints.
-//
-// The endpoint URLs are passed in through the targets slice. Each endpoint
-// must have a corresponding API key in the same position in the keys slice.
-//
-// The tags will be added as a header to all proxied requests.
-// For more details please see multiTransport.
-func NewReverseProxy(target *url.URL, apiKey string) *httputil.ReverseProxy {
+// NewReverseProxy creates a reverse proxy to the intake backend.
+// The reverse proxy handler also adds extra headers such as Dd-Api-Key, and Via.
+func NewReverseProxy(cfg *config.Config) *httputil.ReverseProxy {
+	target := cfg.IntakeURL
+	apiKey := cfg.APIKey
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	via := fmt.Sprintf("appsec-agent %s", info.Version)
+	// Wrap and overwrite the returned director to add extra headers
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		// Call the original director changing the request target
 		director(req)
-		req.Header.Del("X-Api-Version")
+		// Set extra headers
 		req.Header.Set("Via", via)
 		req.Header.Set("Dd-Api-Key", apiKey)
-		b, err := httputil.DumpRequest(req, false)
-		if err != nil {
-			panic(err)
-		}
-		stdlog.Println(string(b))
-		// TODO: add the container tag
-		//const headerContainerID = "Datadog-Container-ID"
-		//if containerID := req.Header.Get(headerContainerID); containerID != "" {
-		//	if ctags := getContainerTags(containerID); ctags != "" {
-		//		req.Header.Set("X-Datadog-Container-Tags", ctags)
-		//	}
-		//}
+		// TODO: add the container tag?
+		// Remove extra headers
+		req.Header.Del("X-Api-Version")
 	}
-	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec.Proxy: ", 0)
+	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec backend proxy: ", 0)
 	return proxy
 }

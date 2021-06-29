@@ -17,8 +17,8 @@ type AgentConfig interface {
 }
 
 const (
-	// intakeURLTemplate specifies the string template allowing to obtain the
-	// intake URL from a given site.
+	// defaultIntakeURLTemplate specifies the string template allowing to obtain
+	// the intake URL from a given site.
 	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
 	defaultSite              = "datad0g.com"
 )
