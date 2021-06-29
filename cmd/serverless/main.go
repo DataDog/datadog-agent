@@ -24,7 +24,6 @@ import (
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	serverlessDaemon "github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
@@ -229,8 +228,6 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	// if one is provided
 	// --------------------------
 
-	aws.SetColdStart(true)
-
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
 		log.Info("A configuration file has been found and read.")
@@ -283,6 +280,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
 			serverlessLogs.SetupLogAgent(logChannel)
+			log.Debug("xxx - Logs subscription OK")
 		}
 		waitingChan <- true
 	}(waitingChan)
@@ -305,7 +303,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	daemon.SetStatsdServer(metricAgent)
 	daemon.SetTraceAgent(traceAgent.Get())
 
-	daemon.SetMuxHandle(logsAPICollectionRoute, logChannel)
+	daemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -319,17 +317,6 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 			coldstart = false
 		}
 	}()
-
-	// restore the current function ARN and request ID from the cache in case the extension was restarted
-	// ---------------------------
-
-	errRestore := aws.RestoreCurrentStateFromFile()
-	if errRestore != nil {
-		log.Debug("Did not restore current state from file")
-	} else {
-		log.Debug("Restored from previous state")
-		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
-	}
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
 	return

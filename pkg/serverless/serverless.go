@@ -205,8 +205,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
-	daemon.SetARN(arn)
-	daemon.LastRequestID = &requestID
+	daemon.SetExecutionContext(arn, requestID)
 	if coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {

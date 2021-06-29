@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -177,38 +175,6 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
 	}})
-}
-
-func TestAddColdStartTagWithoutColdStart(t *testing.T) {
-	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
-	defer aws.SetARN("")
-
-	generatedTags := tags.AddColdStartTag([]string{
-		"myTagName0:myTagValue0",
-		"myTagName1:myTagValue1",
-	}, false)
-
-	assert.Equal(t, generatedTags, []string{
-		"myTagName0:myTagValue0",
-		"myTagName1:myTagValue1",
-		"cold_start:false",
-	})
-}
-
-func TestAddColdStartTagWithColdStart(t *testing.T) {
-	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
-	defer aws.SetARN("")
-
-	generatedTags := tags.AddColdStartTag([]string{
-		"myTagName0:myTagValue0",
-		"myTagName1:myTagValue1",
-	}, true)
-
-	assert.Equal(t, generatedTags, []string{
-		"myTagName0:myTagValue0",
-		"myTagName1:myTagValue1",
-		"cold_start:true",
-	})
 }
 
 func TestCalculateEstimatedCost(t *testing.T) {

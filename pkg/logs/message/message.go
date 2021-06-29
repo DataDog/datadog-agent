@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Message represents a log line sent to datadog, with its metadata
@@ -73,4 +74,17 @@ func (m *Message) GetStatus() string {
 // GetLatency returns the latency delta from ingestion time until now
 func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
+}
+
+func (m *Message) GetHostname() string {
+	if m.Lambda == nil {
+		hostname, err := util.GetHostname()
+		if err != nil {
+			// this scenario is not likely to happen since
+			// the agent can not start without a hostname
+			hostname = "unknown"
+		}
+		return hostname
+	}
+	return m.Lambda.ARN
 }

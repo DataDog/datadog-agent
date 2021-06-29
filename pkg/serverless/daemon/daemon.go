@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -62,6 +61,8 @@ type Daemon struct {
 	InvcWg *sync.WaitGroup
 
 	ExtraTags *serverlessLog.Tags
+
+	ExecutionContext *serverlessLog.ExecutionContext
 
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
@@ -122,7 +123,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 //SetMuxHandle configures the log collection route handler
-func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage) {
+func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
 	fmt.Println("IN MUX HANDLE")
 	fmt.Printf("ROUTE = %v \n", route)
 	fmt.Printf("d.ExtraTags = %v \n", d.ExtraTags)
@@ -130,11 +131,13 @@ func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMess
 	fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
 
 	d.mux.Handle(route, &serverlessLog.LogsCollection{
-		ARN:           d.ARN,
-		LastRequestID: d.LastRequestID,
-		ExtraTags:     d.ExtraTags,
-		LogChannel:    logsChan,
-		MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
+		ExtraTags:              d.ExtraTags,
+		ExecutionContext:       d.ExecutionContext,
+		LogChannel:             logsChan,
+		MetricChannel:          d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel(),
+		LogsEnabled:            logsEnabled,
+		EnhancedMetricsEnabled: enhancedMetricsEnabled,
+	})
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -227,11 +230,6 @@ func (d *Daemon) Stop(isTimeout bool) {
 		log.Error("Error shutting down HTTP server")
 	}
 
-	err = aws.PersistCurrentStateToFile()
-	if err != nil {
-		log.Error("Unable to persist current state to file while shutting down")
-	}
-
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
 	d.TriggerFlush(context.Background(), true)
@@ -264,7 +262,7 @@ func StartDaemon() *Daemon {
 		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
-		ARN:              nil,
+		ExecutionContext: &serverlessLog.ExecutionContext{},
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -334,8 +332,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	}
 }
 
-func (d *Daemon) SetARN(arn string) {
-	if d.ARN != nil {
-		d.ARN = &arn
-	}
+func (d *Daemon) SetExecutionContext(arn string, requestID string) {
+	d.ExecutionContext.ARN = arn
+	d.ExecutionContext.LastRequestID = requestID
 }

@@ -11,9 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,47 +46,6 @@ func TestWaitUntilReady(t *testing.T) {
 
 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
 	assert.Equal(ready, false, "client was ready")
-}
-
-func TestProcessMessage(t *testing.T) {
-	message := logs.LogMessage{
-		Type: logs.LogTypePlatformReport,
-		Time: time.Now(),
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
-			Metrics: serverlessMetrics.ReportLogMetrics{
-				DurationMs:       1000.0,
-				BilledDurationMs: 800.0,
-				MemorySizeMB:     1024.0,
-				MaxMemoryUsedMB:  256.0,
-				InitDurationMs:   100.0,
-			},
-		},
-	}
-	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
-	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	metricTags := []string{"functionname:test-function"}
-
-	metricsChan := make(chan []metrics.MetricSample, 1)
-	computeEnhancedMetrics := true
-	go logs.ProcessMessage(message, &arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
-
-	select {
-	case received := <-metricsChan:
-		assert.Equal(t, len(received), 6)
-	case <-time.After(time.Second):
-		assert.Fail(t, "We should have received metrics")
-	}
-
-	metricsChan = make(chan []metrics.MetricSample, 1)
-	computeEnhancedMetrics = false
-	go logs.ProcessMessage(message, &arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
-
-	select {
-	case <-metricsChan:
-		assert.Fail(t, "We should not have received metrics")
-	case <-time.After(time.Second):
-		//nothing to do here
-	}
 }
 
 func GetValueSyncOnce(so *sync.Once) uint64 {

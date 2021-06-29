@@ -191,3 +191,29 @@ func TestAddTag(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 	assert.Equal(t, "tag", tagMap["valid"])
 }
+
+func TestAddColdStartTagWithoutColdStart(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, false)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:false",
+	})
+}
+
+func TestAddColdStartTagWithColdStart(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, true)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:true",
+	})
+}

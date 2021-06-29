@@ -6,15 +6,20 @@
 package logs
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,31 +55,32 @@ func TestShouldProcessLog(t *testing.T) {
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+	emptyARN := ""
 
 	nonEmptyRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	emptyRequestID := ""
 
-	assert.True(t, shouldProcessLog(&nonEmptyARN, nonEmptyRequestID, validLog))
-	assert.False(t, shouldProcessLog(nil, emptyRequestID, validLog))
-	assert.False(t, shouldProcessLog(&nonEmptyARN, emptyRequestID, validLog))
-	assert.False(t, shouldProcessLog(nil, nonEmptyRequestID, validLog))
+	assert.True(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, validLog))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, validLog))
 
-	assert.False(t, shouldProcessLog(&nonEmptyARN, nonEmptyRequestID, invalidLog0))
-	assert.False(t, shouldProcessLog(nil, emptyRequestID, invalidLog0))
-	assert.False(t, shouldProcessLog(&nonEmptyARN, emptyRequestID, invalidLog0))
-	assert.False(t, shouldProcessLog(nil, nonEmptyRequestID, invalidLog0))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog0))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog0))
 
-	assert.False(t, shouldProcessLog(&nonEmptyARN, nonEmptyRequestID, invalidLog1))
-	assert.False(t, shouldProcessLog(nil, emptyRequestID, invalidLog1))
-	assert.False(t, shouldProcessLog(&nonEmptyARN, emptyRequestID, invalidLog1))
-	assert.False(t, shouldProcessLog(nil, nonEmptyRequestID, invalidLog1))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: nonEmptyARN, LastRequestID: emptyRequestID}, invalidLog1))
+	assert.False(t, shouldProcessLog(&ExecutionContext{ARN: emptyARN, LastRequestID: nonEmptyRequestID}, invalidLog1))
 }
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 	var sampleLogMessage = LogMessage{
-		ObjectRecord: metrics.PlatformObjectRecord{
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
 			RequestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
-			Metrics: metrics.ReportLogMetrics{
+			Metrics: serverlessMetrics.ReportLogMetrics{
 				DurationMs:       100.00,
 				BilledDurationMs: 100,
 				MemorySizeMB:     128,
@@ -90,9 +96,9 @@ func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 
 func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 	var sampleLogMessage = LogMessage{
-		ObjectRecord: metrics.PlatformObjectRecord{
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
 			RequestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
-			Metrics: metrics.ReportLogMetrics{
+			Metrics: serverlessMetrics.ReportLogMetrics{
 				DurationMs:       100.00,
 				BilledDurationMs: 100,
 				MemorySizeMB:     128,
@@ -125,7 +131,7 @@ func TestRemoveInvalidTracingItemNotWellFormatted(t *testing.T) {
 func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
 	require.NoError(t, err)
-	messages, err := ParseLogsAPIPayload(raw)
+	messages, err := parseLogsAPIPayload(raw)
 	assert.Nil(t, err)
 	assert.NotNil(t, messages)
 	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
@@ -134,7 +140,7 @@ func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
 func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
 	require.NoError(t, err)
-	messages, err := ParseLogsAPIPayload(raw)
+	messages, err := parseLogsAPIPayload(raw)
 	assert.Nil(t, err)
 	assert.NotNil(t, messages[0].ObjectRecord.RequestID)
 }
@@ -142,7 +148,7 @@ func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
 func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload_unrecoverable.json")
 	require.NoError(t, err)
-	_, err = ParseLogsAPIPayload(raw)
+	_, err = parseLogsAPIPayload(raw)
 	assert.NotNil(t, err)
 }
 
@@ -170,3 +176,263 @@ func TestGetLambdaSourceValidSource(t *testing.T) {
 	scheduler.CreateScheduler(logSources, services)
 	assert.NotNil(t, GetLambdaSource())
 }
+
+func TestProcessMessageValid(t *testing.T) {
+	message := LogMessage{
+		Type: LogTypePlatformReport,
+		Time: time.Now(),
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+			Metrics: serverlessMetrics.ReportLogMetrics{
+				DurationMs:       1000.0,
+				BilledDurationMs: 800.0,
+				MemorySizeMB:     1024.0,
+				MaxMemoryUsedMB:  256.0,
+				InitDurationMs:   100.0,
+			},
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	computeEnhancedMetrics := true
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+
+	select {
+	case received := <-metricsChan:
+		assert.Equal(t, len(received), 6)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received metrics")
+	}
+
+	metricsChan = make(chan []metrics.MetricSample, 1)
+	computeEnhancedMetrics = false
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "We should NOT have received metrics")
+	case <-time.After(100 * time.Millisecond):
+		//nothing to do here
+	}
+}
+
+func TestProcessMessageShouldNotProcess(t *testing.T) {
+	message := LogMessage{
+		Type: LogTypePlatformReport,
+		Time: time.Now(),
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+			Metrics: serverlessMetrics.ReportLogMetrics{
+				DurationMs:       1000.0,
+				BilledDurationMs: 800.0,
+				MemorySizeMB:     1024.0,
+				MaxMemoryUsedMB:  256.0,
+				InitDurationMs:   100.0,
+			},
+		},
+	}
+
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	computeEnhancedMetrics := true
+	go processMessage(message, &ExecutionContext{ARN: "", LastRequestID: ""}, computeEnhancedMetrics, metricTags, metricsChan)
+
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "We should NOT have received metrics")
+	case <-time.After(100 * time.Millisecond):
+		//nothing to do here
+	}
+}
+
+func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
+	message := LogMessage{
+		Type:         LogTypePlatformLogsDropped,
+		Time:         time.Now(),
+		StringRecord: "bla bla bla",
+	}
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	computeEnhancedMetrics := true
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "We should NOT have received metrics")
+	case <-time.After(100 * time.Millisecond):
+		//nothing to do here
+	}
+}
+
+func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
+	message := LogMessage{
+		Type:         LogTypeFunction,
+		Time:         time.Now(),
+		StringRecord: "fatal error: runtime: out of memory",
+	}
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	computeEnhancedMetrics := true
+	go processMessage(message, &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}, computeEnhancedMetrics, metricTags, metricsChan)
+
+	select {
+	case received := <-metricsChan:
+		assert.Equal(t, len(received), 1)
+		assert.Equal(t, "aws.lambda.enhanced.out_of_memory", received[0].Name)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received metrics")
+	}
+}
+
+func TestProcessLogMessageLogsEnabled(t *testing.T) {
+
+	logChannel := make(chan *logConfig.ChannelMessage)
+
+	logCollection := &LogsCollection{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []LogMessage{
+		{
+			StringRecord: "hi, log 0",
+		},
+		{
+			StringRecord: "hi, log 1",
+		},
+		{
+			StringRecord: "hi, log 2",
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "myARN", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
+func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
+
+	logChannel := make(chan *logConfig.ChannelMessage)
+
+	logCollection := &LogsCollection{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: false,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	logMessages := []LogMessage{
+		{
+			StringRecord: "hi, log 0",
+		},
+		{
+			StringRecord: "hi, log 1",
+		},
+		{
+			StringRecord: "hi, log 2",
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+}
+
+func TestServeHTTPInvalidPayload(t *testing.T) {
+	logChannel := make(chan *logConfig.ChannelMessage)
+
+	logCollection := &LogsCollection{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: false,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	res := httptest.NewRecorder()
+
+	logCollection.ServeHTTP(res, req)
+	assert.Equal(t, 400, res.Code)
+}
+
+func TestServeHTTPSuccess(t *testing.T) {
+	logChannel := make(chan *logConfig.ChannelMessage)
+
+	logCollection := &LogsCollection{
+		ExecutionContext: &ExecutionContext{
+			ARN:           "myARN",
+			LastRequestID: "myRequestID",
+		},
+		LogsEnabled: false,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+	}
+
+	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
+	if err != nil {
+		assert.Fail(t, "should be able to read the log file")
+	}
+	if err != nil {
+		assert.Fail(t, "should be able to marshal")
+	}
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(raw))
+	res := httptest.NewRecorder()
+
+	logCollection.ServeHTTP(res, req)
+	assert.Equal(t, 200, res.Code)
+}
+
+//func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//}
+// 	data, _ := ioutil.ReadAll(r.Body)
+// 	defer r.Body.Close()
+// 	log.Debug("xxx - in serve http parsing")
+// 	messages, err := parseLogsAPIPayload(data)
+// 	if err != nil {
+// 			log.Debug("xxx - in serve http parsing 400")
+// 			w.WriteHeader(400)
+// 	} else {
+// 			processLogMessages(l, messages)
+// 			log.Debug("xxx - in serve http parsing 200")
+// 			w.WriteHeader(200)
+// 	}
+// }

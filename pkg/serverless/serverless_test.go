@@ -49,7 +49,8 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 
 	sort.Strings(d.ExtraTags.Tags)
 	assert.Equal(t, expectedTagArray, d.ExtraTags.Tags)
-	assert.Equal(t, "myRequestID", *d.LastRequestID)
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExecutionContext.ARN)
+	assert.Equal(t, "myRequestID", d.ExecutionContext.LastRequestID)
 }
 
 func TestComputeTimeout(t *testing.T) {

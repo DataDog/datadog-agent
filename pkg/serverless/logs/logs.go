@@ -11,12 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,15 +24,21 @@ type Tags struct {
 	Tags []string
 }
 
+type ExecutionContext struct {
+	ARN           string
+	LastRequestID string
+}
+
 // LogsCollection is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
 type LogsCollection struct {
-	LogChannel    chan *logConfig.ChannelMessage
-	MetricChannel chan []metrics.MetricSample
-	ExtraTags     *Tags
-	ARN           *string
-	LastRequestID *string
+	LogChannel             chan *logConfig.ChannelMessage
+	MetricChannel          chan []metrics.MetricSample
+	ExtraTags              *Tags
+	ExecutionContext       *ExecutionContext
+	LogsEnabled            bool
+	EnhancedMetricsEnabled bool
 }
 
 // logMessageTimeLayout is the layout string used to format timestamps from logs
@@ -113,7 +117,6 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 
 			switch typ {
 			case LogTypePlatformStart:
-				aws.SetRequestID(l.ObjectRecord.RequestID)
 				if version, ok := objectRecord["version"].(string); ok {
 					l.ObjectRecord.Version = version
 				}
@@ -159,9 +162,9 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 }
 
 // ShouldProcessLog returns whether or not the log should be further processed.
-func shouldProcessLog(arn *string, lastRequestID string, message LogMessage) bool {
+func shouldProcessLog(executionContext *ExecutionContext, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if arn == nil || lastRequestID == "" {
+	if len(executionContext.ARN) == 0 || len(executionContext.LastRequestID) == 0 {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
@@ -187,13 +190,14 @@ func createStringRecordForReportLog(l *LogMessage) string {
 }
 
 // ParseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
-func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
+func parseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 	var messages []LogMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
 		// Temporary fix to handle malformed JSON tracing object : retry with sanitization
 		log.Debug("Can't read log message, retry with sanitization")
 		sanitizedData := removeInvalidTracingItem(data)
 		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
+			fmt.Println(err)
 			return nil, errors.New("can't read log message")
 		}
 		return messages, nil
@@ -224,48 +228,40 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-
-	messages, err := ParseLogsAPIPayload(data)
+	log.Debug("xxx - in serve http parsing")
+	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
+		fmt.Println(err)
+		log.Debug("xxx - in serve http parsing 400")
 		w.WriteHeader(400)
 	} else {
 		processLogMessages(l, messages)
+		log.Debug("xxx - in serve http parsing 200")
 		w.WriteHeader(200)
 	}
 }
 
 func processLogMessages(l *LogsCollection, messages []LogMessage) {
-	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, l.LastRequestID == nil)
-	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
-	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
-	lastRequestID := aws.GetRequestID()
+	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, len(l.ExecutionContext.LastRequestID) == 0)
 	for _, message := range messages {
-		ProcessMessage(message, l.ARN, lastRequestID, enhancedMetricsEnabled, metricTags, l.MetricChannel)
+		processMessage(message, l.ExecutionContext, l.EnhancedMetricsEnabled, metricTags, l.MetricChannel)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
-		if logsEnabled && l.ARN != nil {
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, *l.ARN, lastRequestID)
+		if l.LogsEnabled {
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, l.ExecutionContext.ARN, l.ExecutionContext.LastRequestID)
 			l.LogChannel <- logMessage
 		}
 	}
 }
 
 // ProcessMessage performs logic about metrics and tags on the message
-func ProcessMessage(message LogMessage, arn *string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-	// First, if the log has a Request ID, set the global Request ID variable
-	if message.Type == LogTypePlatformStart {
-		if len(message.ObjectRecord.RequestID) > 0 {
-			aws.SetRequestID(message.ObjectRecord.RequestID)
-			lastRequestID = message.ObjectRecord.RequestID
-		}
-	}
-
-	if !shouldProcessLog(arn, lastRequestID, message) {
+	if !shouldProcessLog(executionContext, message) {
 		return
 	}
 
-	if computeEnhancedMetrics {
+	if enhancedMetricsEnabled {
 		if message.Type == LogTypeFunction {
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, metricTags, metricsChan)
 		}
@@ -274,10 +270,7 @@ func ProcessMessage(message LogMessage, arn *string, lastRequestID string, compu
 		}
 	}
 
-	switch message.Type {
-	case LogTypePlatformReport:
-		aws.SetColdStart(false)
-	case LogTypePlatformLogsDropped:
+	if message.Type == LogTypePlatformLogsDropped {
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
 	}
 }
