@@ -163,6 +163,12 @@ static __always_inline __u64 offset_dport_fl6() {
      return val;
 }
 
+static __always_inline __u64 offset_socket_sk() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_socket_sk", val);
+     return val;
+}
+
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     possible_net_t* skc_net = NULL;
     __u32 net_ns_inum = 0;
@@ -853,7 +859,7 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
 
     struct socket *socket = (struct socket*)PT_REGS_RC(ctx);
     struct sock *skp;
-    bpf_probe_read(&skp, sizeof(skp), &socket->sk);
+    bpf_probe_read(&skp, sizeof(skp), (char*)socket + offset_socket_sk());
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {

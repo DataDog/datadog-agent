@@ -32,6 +32,10 @@ const (
 	// This probe is used for offset guessing only
 	TCPGetSockOpt ProbeName = "kprobe/tcp_getsockopt"
 
+	// SockGetSockOpt traces the sock_common_getsockopt() kernel function
+	// This probe is used for offset guessing only
+	SockGetSockOpt ProbeName = "kprobe/sock_common_getsockopt"
+
 	// TCPSetState traces the tcp_set_state() kernel function
 	TCPSetState ProbeName = "kprobe/tcp_set_state"
 

@@ -25,6 +25,7 @@ func NewOffsetManager() *manager.Manager {
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
 			{Section: string(probes.TCPGetSockOpt)},
+			{Section: string(probes.SockGetSockOpt)},
 			{Section: string(probes.TCPv6Connect)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
