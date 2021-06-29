@@ -24,6 +24,7 @@ type Tags struct {
 type ExecutionContext struct {
 	ARN           string
 	LastRequestID string
+	Coldstart     bool
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -239,7 +240,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func processLogMessages(l *LogsCollection, messages []LogMessage) {
-	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, len(l.ExecutionContext.LastRequestID) == 0)
+	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, l.ExecutionContext.Coldstart)
 	for _, message := range messages {
 		processMessage(message, l.ExecutionContext, l.EnhancedMetricsEnabled, metricTags, l.MetricChannel)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.

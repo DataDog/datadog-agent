@@ -262,7 +262,7 @@ func StartDaemon() *Daemon {
 		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
-		ExecutionContext: &serverlessLog.ExecutionContext{},
+		ExecutionContext: &serverlessLog.ExecutionContext{Coldstart: true},
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -333,7 +333,8 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	}
 }
 
-func (d *Daemon) SetExecutionContext(arn string, requestID string) {
+func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart bool) {
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
+	d.ExecutionContext.Coldstart = coldstart
 }
