@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,11 +52,11 @@ func TestWaitUntilReady(t *testing.T) {
 }
 
 func TestProcessMessage(t *testing.T) {
-	message := aws.LogMessage{
-		Type: aws.LogTypePlatformReport,
+	message := logs.LogMessage{
+		Type: logs.LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: aws.PlatformObjectRecord{
-			Metrics: aws.ReportLogMetrics{
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+			Metrics: serverlessMetrics.ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,
@@ -71,7 +71,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go logs.ProcessMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go logs.ProcessMessage(message, &arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case received := <-metricsChan:
@@ -82,7 +82,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go logs.ProcessMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go logs.ProcessMessage(message, &arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case <-metricsChan:

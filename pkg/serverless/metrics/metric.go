@@ -11,6 +11,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// PlatformObjectRecord contains additional information found in Platform log messages
+type PlatformObjectRecord struct {
+	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
+	Version   string           // present in LogTypePlatformStart only
+	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+}
+
+// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
+type ReportLogMetrics struct {
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMB     int
+	MaxMemoryUsedMB  int
+	InitDurationMs   float64
+}
+
 type ServerlessMetricAgent struct {
 	DogStatDServer *dogstatsd.Server
 	Aggregator     *aggregator.BufferedAggregator

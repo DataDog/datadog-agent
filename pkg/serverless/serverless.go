@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -174,7 +174,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			metricTags := metrics.AddColdStartTag(daemon.ExtraTags.Tags)
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags)
 			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 		}
@@ -205,7 +205,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	daemon.StartInvocation()
 	log.Debug("Received invocation event...")
 	daemon.ComputeGlobalTags(arn, config.GetConfiguredTags(true))
-	aws.SetARN(arn)
+	daemon.SetARN(arn)
 	if coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {

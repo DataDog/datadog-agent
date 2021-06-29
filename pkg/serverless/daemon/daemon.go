@@ -66,6 +66,8 @@ type Daemon struct {
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
 	FinishInvocationOnce sync.Once
+
+	ARN *string
 }
 
 // Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
@@ -126,7 +128,7 @@ func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMess
 	fmt.Printf("logsChan = %v \n", logsChan)
 	fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
 
-	d.mux.Handle(route, &serverlessLog.LogsCollection{ExtraTags: d.ExtraTags, LogChannel: logsChan, MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
+	d.mux.Handle(route, &serverlessLog.LogsCollection{ARN: d.ARN, ExtraTags: d.ExtraTags, LogChannel: logsChan, MetricChannel: d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()})
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -256,6 +258,7 @@ func StartDaemon() *Daemon {
 		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
+		ARN:              nil,
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -318,9 +321,15 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.traceAgent.SetGlobalTags(tags.BuildTracerTags(tagMap))
 		}
 		d.ExtraTags.Tags = tagArray
-		source := aws.GetLambdaSource()
+		source := serverlessLog.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
+	}
+}
+
+func (d *Daemon) SetARN(arn string) {
+	if d.ARN != nil {
+		d.ARN = &arn
 	}
 }

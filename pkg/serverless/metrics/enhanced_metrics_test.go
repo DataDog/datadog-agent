@@ -11,12 +11,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
-	outOfMemoryLog := aws.LogMessage{
-		Type:         aws.LogTypeFunction,
+	outOfMemoryLog := logs.LogMessage{
+		Type:         logs.LogTypeFunction,
 		StringRecord: "JavaScript heap out of memory",
 		Time:         time.Now(),
 	}
@@ -38,8 +39,8 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
-	outOfMemoryLog := aws.LogMessage{
-		Type:         aws.LogTypeFunction,
+	outOfMemoryLog := logs.LogMessage{
+		Type:         logs.LogTypeFunction,
 		StringRecord: "Task timed out after 30.03 seconds",
 		Time:         time.Now(),
 	}
@@ -52,11 +53,11 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	reportLog := aws.LogMessage{
-		Type: aws.LogTypePlatformReport,
+	reportLog := logs.LogMessage{
+		Type: logs.LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: aws.PlatformObjectRecord{
-			Metrics: aws.ReportLogMetrics{
+		ObjectRecord: PlatformObjectRecord{
+			Metrics: ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,
@@ -118,11 +119,11 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	reportLog := aws.LogMessage{
-		Type: aws.LogTypePlatformReport,
+	reportLog := logs.LogMessage{
+		Type: logs.LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: aws.PlatformObjectRecord{
-			Metrics: aws.ReportLogMetrics{
+		ObjectRecord: PlatformObjectRecord{
+			Metrics: ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,
@@ -246,11 +247,11 @@ func TestCalculateEstimatedCost(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsReport(t *testing.T) {
-	reportLog := aws.LogMessage{
-		Type: aws.LogTypePlatformReport,
+	reportLog := logs.LogMessage{
+		Type: logs.LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: aws.PlatformObjectRecord{
-			Metrics: aws.ReportLogMetrics{
+		ObjectRecord: PlatformObjectRecord{
+			Metrics: ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,
@@ -266,8 +267,8 @@ func TestGenerateEnhancedMetricsReport(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFunction(t *testing.T) {
-	reportLog := aws.LogMessage{
-		Type:         aws.LogTypeFunction,
+	reportLog := LogMessage{
+		Type:         LogTypeFunction,
 		Time:         time.Now(),
 		StringRecord: "xxx MemoryError xxx",
 	}

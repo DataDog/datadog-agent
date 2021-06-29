@@ -65,21 +65,23 @@
 				
 				<option value="file4">github.com/DataDog/datadog-agent/pkg/serverless/flush/strategy.go (95.0%)</option>
 				
-				<option value="file5">github.com/DataDog/datadog-agent/pkg/serverless/metrics/enhanced_metrics.go (100.0%)</option>
+				<option value="file5">github.com/DataDog/datadog-agent/pkg/serverless/logs/logs.go (0.0%)</option>
 				
-				<option value="file6">github.com/DataDog/datadog-agent/pkg/serverless/metrics/metric.go (100.0%)</option>
+				<option value="file6">github.com/DataDog/datadog-agent/pkg/serverless/metrics/enhanced_metrics.go (100.0%)</option>
 				
-				<option value="file7">github.com/DataDog/datadog-agent/pkg/serverless/registration/extension_api.go (95.8%)</option>
+				<option value="file7">github.com/DataDog/datadog-agent/pkg/serverless/metrics/metric.go (100.0%)</option>
 				
-				<option value="file8">github.com/DataDog/datadog-agent/pkg/serverless/registration/logs_api.go (100.0%)</option>
+				<option value="file8">github.com/DataDog/datadog-agent/pkg/serverless/registration/extension_api.go (100.0%)</option>
 				
-				<option value="file9">github.com/DataDog/datadog-agent/pkg/serverless/registration/logs_api_payload.go (100.0%)</option>
+				<option value="file9">github.com/DataDog/datadog-agent/pkg/serverless/registration/logs_api.go (100.0%)</option>
 				
-				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/registration/utils.go (100.0%)</option>
+				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/registration/logs_api_payload.go (100.0%)</option>
 				
-				<option value="file11">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (21.4%)</option>
+				<option value="file11">github.com/DataDog/datadog-agent/pkg/serverless/registration/utils.go (100.0%)</option>
 				
-				<option value="file12">github.com/DataDog/datadog-agent/pkg/serverless/tags/tags.go (100.0%)</option>
+				<option value="file12">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (21.4%)</option>
+				
+				<option value="file13">github.com/DataDog/datadog-agent/pkg/serverless/tags/tags.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -978,7 +980,108 @@ func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool <span class=
 }
 </pre>
 		
-		<pre class="file" id="file5" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file5" style="display: none">package logs
+
+import (
+        "io/ioutil"
+        "net/http"
+
+        "github.com/DataDog/datadog-agent/cmd/agent/common"
+        "github.com/DataDog/datadog-agent/pkg/autodiscovery"
+        "github.com/DataDog/datadog-agent/pkg/config"
+        "github.com/DataDog/datadog-agent/pkg/logs"
+        logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+        "github.com/DataDog/datadog-agent/pkg/metrics"
+        "github.com/DataDog/datadog-agent/pkg/serverless/aws"
+        serverlessMetric "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+        "github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type Tags struct {
+        Tags []string
+}
+
+// LogsCollection is the route on which the AWS environment is sending the logs
+// for the extension to collect them. It is attached to the main HTTP server
+// already receiving hits from the libraries client.
+type LogsCollection struct {
+        LogChannel    chan *logConfig.ChannelMessage
+        MetricChannel chan []metrics.MetricSample
+        ExtraTags     *Tags
+}
+
+// ServeHTTP - see type LogsCollection comment.
+func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+
+        data, _ := ioutil.ReadAll(r.Body)
+        defer r.Body.Close()
+
+        messages, err := aws.ParseLogsAPIPayload(data)
+        if err != nil </span><span class="cov0" title="0">{
+                w.WriteHeader(400)
+        }</span> else<span class="cov0" title="0"> {
+                processLogMessages(l, messages)
+                w.WriteHeader(200)
+        }</span>
+}
+
+func processLogMessages(l *LogsCollection, messages []aws.LogMessage) <span class="cov0" title="0">{
+        metricTags := serverlessMetric.AddColdStartTag(l.ExtraTags.Tags)
+        logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
+        enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
+        arn := aws.GetARN()
+        lastRequestID := aws.GetRequestID()
+        for _, message := range messages </span><span class="cov0" title="0">{
+                ProcessMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, l.MetricChannel)
+                // We always collect and process logs for the purpose of extracting enhanced metrics.
+                // However, if logs are not enabled, we do not send them to the intake.
+                if logsEnabled </span><span class="cov0" title="0">{
+                        logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID)
+                        l.LogChannel &lt;- logMessage
+                }</span>
+        }
+}
+
+// ProcessMessage performs logic about metrics and tags on the message
+func ProcessMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) <span class="cov0" title="0">{
+        // Do not send logs or metrics if we can't associate them with an ARN or Request ID
+        // First, if the log has a Request ID, set the global Request ID variable
+        if message.Type == aws.LogTypePlatformStart </span><span class="cov0" title="0">{
+                if len(message.ObjectRecord.RequestID) &gt; 0 </span><span class="cov0" title="0">{
+                        aws.SetRequestID(message.ObjectRecord.RequestID)
+                        lastRequestID = message.ObjectRecord.RequestID
+                }</span>
+        }
+
+        <span class="cov0" title="0">if !aws.ShouldProcessLog(arn, lastRequestID, message) </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">if computeEnhancedMetrics </span><span class="cov0" title="0">{
+                serverlessMetric.GenerateEnhancedMetrics(message, metricTags, metricsChan)
+        }</span>
+
+        <span class="cov0" title="0">switch message.Type </span>{
+        case aws.LogTypePlatformReport:<span class="cov0" title="0">
+                aws.SetColdStart(false)</span>
+        case aws.LogTypePlatformLogsDropped:<span class="cov0" title="0">
+                log.Debug("Logs were dropped by the AWS Lambda Logs API")</span>
+        }
+}
+
+func SetupLogAgent(logChannel chan *logConfig.ChannelMessage) <span class="cov0" title="0">{
+        // we subscribed to the logs collection on the platform, let's instantiate
+        // a logs agent to collect/process/flush the logs.
+        if err := logs.StartServerless(
+                func() *autodiscovery.AutoConfig </span><span class="cov0" title="0">{ return common.AC }</span>,
+                logChannel, nil,
+        ); err != nil <span class="cov0" title="0">{
+                log.Error("Could not start an instance of the Logs Agent:", err)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1126,7 +1229,7 @@ func GenerateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan 
 }
 </pre>
 		
-		<pre class="file" id="file6" style="display: none">package metrics
+		<pre class="file" id="file7" style="display: none">package metrics
 
 import (
         "time"
@@ -1209,7 +1312,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 }
 </pre>
 		
-		<pre class="file" id="file7" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file8" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1252,7 +1355,7 @@ func RegisterExtension(url string, timeout time.Duration) (ID, error) <span clas
         }</span>
 
         <span class="cov8" title="1">id := extractID(response)
-        if len(id) == 0 </span><span class="cov0" title="0">{
+        if len(id) == 0 </span><span class="cov8" title="1">{
                 return "", fmt.Errorf("registerExtension: didn't receive an identifier")
         }</span>
 
@@ -1287,7 +1390,7 @@ func sendRequest(client HTTPClient, request *http.Request) (*http.Response, erro
 }</span>
 </pre>
 		
-		<pre class="file" id="file8" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file9" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1424,7 +1527,7 @@ func getLogTypesToSubscribe(envLogsType string) []string <span class="cov8" titl
 }
 </pre>
 		
-		<pre class="file" id="file9" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file10" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1460,7 +1563,7 @@ func (p *LogSubscriptionPayload) MarshalJSON() ([]byte, error) <span class="cov8
 }</span>
 </pre>
 		
-		<pre class="file" id="file10" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file11" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1494,7 +1597,7 @@ func BuildURL(prefix string, route string) string <span class="cov8" title="1">{
 }
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file12" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -1746,7 +1849,7 @@ func computeTimeout(now time.Time, deadlineMs int64, safetyBuffer time.Duration)
 }</span>
 </pre>
 		
-		<pre class="file" id="file12" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
+		<pre class="file" id="file13" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
