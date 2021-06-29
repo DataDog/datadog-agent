@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -33,7 +34,7 @@ func ContainsADIdentifier(c *Container) bool {
 		return false
 	}
 	entityID := c.service.GetEntityID()
-	pod, err := kubeutil.GetPodForEntityID(entityID)
+	pod, err := kubeutil.GetPodForEntityID(context.TODO(), entityID)
 	if err != nil {
 		return false
 	}

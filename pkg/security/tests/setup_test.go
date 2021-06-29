@@ -57,6 +57,8 @@ const (
 	getEventTimeout = 3 * time.Second
 )
 
+type stringSlice []string
+
 const testConfig = `---
 log_level: DEBUG
 system_probe_config:
@@ -87,6 +89,10 @@ runtime_security_config:
 
   policies:
     dir: {{.TestPoliciesDir}}
+  log_patterns:
+  {{range .LogPatterns}}
+    - {{.}}
+  {{end}}
 `
 
 const testPolicy = `---
@@ -110,6 +116,7 @@ var (
 	testEnvironment             string
 	useReload                   bool
 	logLevelStr                 string
+	logPatterns                 stringSlice
 )
 
 const (
@@ -132,6 +139,16 @@ type testOpts struct {
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
 	disableMapDentryResolution  bool
+	logPatterns                 []string
+}
+
+func (s *stringSlice) String() string {
+	return strings.Join(*s, " ")
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
@@ -196,7 +213,8 @@ func (h *testEventHandler) ClearEventsChannels() {
 
 func (h *testEventHandler) HandleEvent(event *sprobe.Event) {
 	testMod.module.HandleEvent(event)
-	e := event.Clone()
+
+	e := event.Retain()
 	select {
 	case h.GetActiveEventsChan() <- &e:
 		break
@@ -312,6 +330,7 @@ func setTestConfig(dir string, opts testOpts) (string, error) {
 		"EventsCountThreshold":        opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled": erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":  mapDentryResolutionEnabled,
+		"LogPatterns":                 logPatterns,
 	}); err != nil {
 		return "", err
 	}
@@ -491,7 +510,8 @@ func (tm *testModule) SwapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, e
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	te := testEvent{Event: &e, rule: rule.Rule}
 	select {
 	case tm.events <- te:
@@ -501,7 +521,8 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	e := event.(*sprobe.Event).Clone()
+	e := event.(*sprobe.Event).Retain()
+
 	discarder := &testDiscarder{event: &e, field: field, eventType: eventType}
 	select {
 	case tm.discarders <- discarder:
@@ -943,4 +964,5 @@ func init() {
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
+	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 }

@@ -8,6 +8,7 @@
 package ecs
 
 import (
+	"context"
 	"fmt"
 
 	payload "github.com/DataDog/agent-payload/gogen"
@@ -21,8 +22,8 @@ import (
 // GetPayload returns a payload.ECSMetadataPayload with metadata about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
-func GetPayload() (metadata.Payload, error) {
-	if ecsutil.IsFargateInstance() {
+func GetPayload(ctx context.Context) (metadata.Payload, error) {
+	if ecsutil.IsFargateInstance(ctx) {
 		return nil, fmt.Errorf("ECS metadata disabled on Fargate")
 	}
 
@@ -30,7 +31,7 @@ func GetPayload() (metadata.Payload, error) {
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := metaV1.GetTasks()
+	tasks, err := metaV1.GetTasks(ctx)
 	if err != nil {
 		return nil, err
 	}

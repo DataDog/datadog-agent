@@ -81,6 +81,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                   //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
+	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")                                   //nolint:errcheck
+	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")                                   //nolint:errcheck
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

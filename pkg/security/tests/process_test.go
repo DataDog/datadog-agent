@@ -1100,7 +1100,7 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 			continue
 		}
 
-		if int(capabilities)&v == v {
+		if capabilities&v == v {
 			c.Set(flag, capability.Cap(math.Log2(float64(v))))
 		}
 	}

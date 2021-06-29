@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
+
+// These headers can be found in rtloader/include and rtloader/common directories
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 
@@ -26,7 +28,7 @@ char **get_tags(char *id, int highCard)
     return data;
 }
 
-void submitMetric(char *id, metric_type_t mt, char *name, double val, char **tags,  char *hostname)
+void submitMetric(char *id, metric_type_t mt, char *name, double val, char **tags,  char *hostname, bool flush_first_val)
 {
     printf("I'm extending Python providing aggregator.submit_metric:\n");
     printf("Check id: %s\n", id);
@@ -78,7 +80,7 @@ int main(int argc, char *argv[])
     char *init_error = NULL;
     // Embed Python2
     if (strcmp(argv[1], "2") == 0) {
-        rtloader = make2(python_home, &init_error);
+        rtloader = make2(python_home, "", &init_error);
         if (!rtloader) {
             printf("Unable to init Python2: %s\n", init_error);
             return 1;
@@ -86,7 +88,7 @@ int main(int argc, char *argv[])
     }
     // Embed Python3
     else if (strcmp(argv[1], "3") == 0) {
-        rtloader = make3(python_home, &init_error);
+        rtloader = make3(python_home, "", &init_error);
         if (!rtloader) {
             printf("Unable to init Python3: %s\n", init_error);
             return 1;

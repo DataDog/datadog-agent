@@ -40,6 +40,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.Raddr = formatAddr(conn.Dest, conn.DPort)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
+	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
 	c.PidCreateTime = 0
 	c.LastBytesSent = conn.LastSentBytes
 	c.LastBytesReceived = conn.LastRecvBytes
@@ -61,7 +62,8 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
-	c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomain, domainSet)
+	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+	c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 
 	if httpStats != nil {
@@ -264,20 +266,37 @@ func formatDirection(d network.ConnectionDirection) model.ConnectionDirection {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
-	m := make(map[int32]*model.DNSStats)
-	for d, s := range stats {
-		var ms model.DNSStats
-		ms.DnsCountByRcode = s.DNSCountByRcode
-		ms.DnsFailureLatencySum = s.DNSFailureLatencySum
-		ms.DnsSuccessLatencySum = s.DNSSuccessLatencySum
-		ms.DnsTimeouts = s.DNSTimeouts
+func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
+	switch e {
+	case network.EphemeralTrue:
+		return model.EphemeralPortState_ephemeralTrue
+	case network.EphemeralFalse:
+		return model.EphemeralPortState_ephemeralFalse
+	default:
+		return model.EphemeralPortState_ephemeralUnspecified
+	}
+}
+
+func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+	m := make(map[int32]*model.DNSStatsByQueryType)
+	for d, bytype := range stats {
+
+		byqtype := &model.DNSStatsByQueryType{}
+		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
+		for t, stat := range bytype {
+			var ms model.DNSStats
+			ms.DnsCountByRcode = stat.DNSCountByRcode
+			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
+			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
+			ms.DnsTimeouts = stat.DNSTimeouts
+			byqtype.DnsStatsByQueryType[int32(t)] = &ms
+		}
 		pos, ok := domainSet[d]
 		if !ok {
 			pos = len(domainSet)
 			domainSet[d] = pos
 		}
-		m[int32(pos)] = &ms
+		m[int32(pos)] = byqtype
 	}
 	return m
 }

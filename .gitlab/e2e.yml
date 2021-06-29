@@ -33,11 +33,11 @@ pupernetes-dev:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-pupernetes-master:
+pupernetes-main:
   extends: .pupernetes_template
   allow_failure: true # temporary while investigating
   rules:
-    !reference [.on_master]
+    !reference [.on_main]
   needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master

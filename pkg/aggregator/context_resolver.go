@@ -20,32 +20,30 @@ type Context struct {
 	Host string
 }
 
-// ContextResolver allows tracking and expiring contexts
-type ContextResolver struct {
+// contextResolver allows tracking and expiring contexts
+type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
-	lastSeenByKey map[ckey.ContextKey]float64
 	keyGenerator  *ckey.KeyGenerator
-	// buffer slice allocated once per ContextResolver to combine and sort
+	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
 	tagsBuffer *util.TagsBuilder
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *ContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags *util.TagsBuilder) ckey.ContextKey {
+func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags *util.TagsBuilder) ckey.ContextKey {
 	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags.Get())
 }
 
-func newContextResolver() *ContextResolver {
-	return &ContextResolver{
+func newContextResolver() *contextResolver {
+	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
-		lastSeenByKey: make(map[ckey.ContextKey]float64),
 		keyGenerator:  ckey.NewKeyGenerator(),
 		tagsBuffer:    util.NewTagsBuilder(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
+func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.tagsBuffer)
 	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsBuffer)
 
@@ -59,23 +57,41 @@ func (cr *ContextResolver) trackContext(metricSampleContext metrics.MetricSample
 			Host: metricSampleContext.GetHost(),
 		}
 	}
-	cr.lastSeenByKey[contextKey] = currentTimestamp
 
 	cr.tagsBuffer.Reset()
 	return contextKey
 }
 
-func (cr *ContextResolver) get(key ckey.ContextKey) (*Context, bool) {
+func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.contextsByKey[key]
 	return ctx, found
 }
 
-func (cr *ContextResolver) length() int {
+func (cr *contextResolver) length() int {
 	return len(cr.contextsByKey)
 }
 
+func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
+	for _, expiredContextKey := range expiredContextKeys {
+		delete(cr.contextsByKey, expiredContextKey)
+	}
+}
+
+// timestampContextResolver allows tracking and expiring contexts based on time.
+type timestampContextResolver struct {
+	resolver      *contextResolver
+	lastSeenByKey map[ckey.ContextKey]float64
+}
+
+func newTimestampContextResolver() *timestampContextResolver {
+	return &timestampContextResolver{
+		resolver:      newContextResolver(),
+		lastSeenByKey: make(map[ckey.ContextKey]float64),
+	}
+}
+
 // updateTrackedContext updates the last seen timestamp on a given context key
-func (cr *ContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
+func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
 	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {
 		cr.lastSeenByKey[contextKey] = timestamp
 	} else if !ok {
@@ -85,9 +101,24 @@ func (cr *ContextResolver) updateTrackedContext(contextKey ckey.ContextKey, time
 	return nil
 }
 
+// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
+func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext)
+	cr.lastSeenByKey[contextKey] = currentTimestamp
+	return contextKey
+}
+
+func (cr *timestampContextResolver) length() int {
+	return cr.resolver.length()
+}
+
+func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
+	return cr.resolver.get(key)
+}
+
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
 // and returns the associated contextKeys
-func (cr *ContextResolver) expireContexts(expireTimestamp float64) []ckey.ContextKey {
+func (cr *timestampContextResolver) expireContexts(expireTimestamp float64) []ckey.ContextKey {
 	var expiredContextKeys []ckey.ContextKey
 
 	// Find expired context keys
@@ -97,11 +128,56 @@ func (cr *ContextResolver) expireContexts(expireTimestamp float64) []ckey.Contex
 		}
 	}
 
+	cr.resolver.removeKeys(expiredContextKeys)
+
 	// Delete expired context keys
 	for _, expiredContextKey := range expiredContextKeys {
-		delete(cr.contextsByKey, expiredContextKey)
 		delete(cr.lastSeenByKey, expiredContextKey)
 	}
 
 	return expiredContextKeys
+}
+
+// countBasedContextResolver allows tracking and expiring contexts based on the number
+// of calls of `expireContexts`.
+type countBasedContextResolver struct {
+	resolver            *contextResolver
+	expireCountByKey    map[ckey.ContextKey]int64
+	expireCount         int64
+	expireCountInterval int64
+}
+
+func newCountBasedContextResolver(expireCountInterval int) *countBasedContextResolver {
+	return &countBasedContextResolver{
+		resolver:            newContextResolver(),
+		expireCountByKey:    make(map[ckey.ContextKey]int64),
+		expireCount:         0,
+		expireCountInterval: int64(expireCountInterval),
+	}
+}
+
+// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
+func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	contextKey := cr.resolver.trackContext(metricSampleContext)
+	cr.expireCountByKey[contextKey] = cr.expireCount
+	return contextKey
+}
+
+func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
+	return cr.resolver.get(key)
+}
+
+// expireContexts cleans up the contexts that haven't been tracked since `expirationCount`
+// call to `expireContexts` and returns the associated contextKeys
+func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
+	var keys []ckey.ContextKey
+	for key, index := range cr.expireCountByKey {
+		if index <= cr.expireCount-cr.expireCountInterval {
+			keys = append(keys, key)
+			delete(cr.expireCountByKey, key)
+		}
+	}
+	cr.resolver.removeKeys(keys)
+	cr.expireCount++
+	return keys
 }

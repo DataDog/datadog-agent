@@ -8,44 +8,42 @@
 package probe
 
 import (
-	"runtime"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
 func testCacheSize(t *testing.T, resolver *ProcessResolver) {
 	err := retry.Do(
 		func() error {
-			runtime.GC()
 			if atomic.LoadInt64(&resolver.cacheSize) == 0 {
 				return nil
 			}
 
-			return errors.New("cache size error")
+			return fmt.Errorf("cache size error: %d", atomic.LoadInt64(&resolver.cacheSize))
 		},
 	)
 	assert.Nil(t, err)
 }
 
 func TestFork1st(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
@@ -74,19 +72,19 @@ func TestFork1st(t *testing.T) {
 }
 
 func TestFork2nd(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
@@ -117,24 +115,24 @@ func TestFork2nd(t *testing.T) {
 }
 
 func TestForkExec(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec := NewProcessCacheEntry()
-	exec.Pid = child.Pid
-	exec.PPid = child.PPid
-	exec.ExecTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
+
+	exec := resolver.NewProcessCacheEntry()
+	exec.Pid = child.Pid
+	exec.PPid = child.PPid
+	exec.ExecTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
@@ -175,24 +173,24 @@ func TestForkExec(t *testing.T) {
 }
 
 func TestOrphanExec(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec := NewProcessCacheEntry()
-	exec.Pid = child.Pid
-	exec.PPid = child.PPid
-	exec.ExecTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
+
+	exec := resolver.NewProcessCacheEntry()
+	exec.Pid = child.Pid
+	exec.PPid = child.PPid
+	exec.ExecTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
@@ -232,29 +230,29 @@ func TestOrphanExec(t *testing.T) {
 }
 
 func TestForkExecExec(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	exec1 := NewProcessCacheEntry()
-	exec1.Pid = child.Pid
-	exec1.PPid = child.PPid
-	exec1.ExecTime = time.Now()
-
-	exec2 := NewProcessCacheEntry()
-	exec2.Pid = child.Pid
-	exec2.PPid = child.PPid
-	exec2.ExecTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
+
+	exec1 := resolver.NewProcessCacheEntry()
+	exec1.Pid = child.Pid
+	exec1.PPid = child.PPid
+	exec1.ExecTime = time.Now()
+
+	exec2 := resolver.NewProcessCacheEntry()
+	exec2.Pid = child.Pid
+	exec2.PPid = child.PPid
+	exec2.ExecTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
@@ -304,33 +302,33 @@ func TestForkExecExec(t *testing.T) {
 }
 
 func TestForkReuse(t *testing.T) {
-	parent1 := NewProcessCacheEntry()
-	parent1.Pid = 1
-	parent1.ForkTime = time.Now()
-
-	child1 := NewProcessCacheEntry()
-	child1.Pid = 2
-	child1.PPid = parent1.Pid
-	child1.ForkTime = time.Now()
-
-	exec1 := NewProcessCacheEntry()
-	exec1.Pid = child1.Pid
-	exec1.PPid = child1.PPid
-	exec1.ExecTime = time.Now()
-
-	parent2 := NewProcessCacheEntry()
-	parent2.Pid = 1
-	parent2.ForkTime = time.Now()
-
-	child2 := NewProcessCacheEntry()
-	child2.Pid = 3
-	child2.PPid = parent2.Pid
-	child2.ForkTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent1 := resolver.NewProcessCacheEntry()
+	parent1.Pid = 1
+	parent1.ForkTime = time.Now()
+
+	child1 := resolver.NewProcessCacheEntry()
+	child1.Pid = 2
+	child1.PPid = parent1.Pid
+	child1.ForkTime = time.Now()
+
+	exec1 := resolver.NewProcessCacheEntry()
+	exec1.Pid = child1.Pid
+	exec1.PPid = child1.PPid
+	exec1.ExecTime = time.Now()
+
+	parent2 := resolver.NewProcessCacheEntry()
+	parent2.Pid = 1
+	parent2.ForkTime = time.Now()
+
+	child2 := resolver.NewProcessCacheEntry()
+	child2.Pid = 3
+	child2.PPid = parent2.Pid
+	child2.ForkTime = time.Now()
 
 	// parent1
 	resolver.AddForkEntry(parent1.Pid, parent1)
@@ -403,29 +401,29 @@ func TestForkReuse(t *testing.T) {
 }
 
 func TestForkForkExec(t *testing.T) {
-	parent := NewProcessCacheEntry()
-	parent.Pid = 1
-	parent.ForkTime = time.Now()
-
-	child := NewProcessCacheEntry()
-	child.Pid = 2
-	child.PPid = parent.Pid
-	child.ForkTime = time.Now()
-
-	grandChild := NewProcessCacheEntry()
-	grandChild.Pid = 3
-	grandChild.PPid = child.Pid
-	grandChild.ForkTime = time.Now()
-
-	childExec := NewProcessCacheEntry()
-	childExec.Pid = child.Pid
-	childExec.PPid = child.PPid
-	childExec.ExecTime = time.Now()
-
 	resolver, err := NewProcessResolver(nil, nil, nil, NewProcessResolverOpts(10000))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	parent := resolver.NewProcessCacheEntry()
+	parent.Pid = 1
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry()
+	child.Pid = 2
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
+
+	grandChild := resolver.NewProcessCacheEntry()
+	grandChild.Pid = 3
+	grandChild.PPid = child.Pid
+	grandChild.ForkTime = time.Now()
+
+	childExec := resolver.NewProcessCacheEntry()
+	childExec.Pid = child.Pid
+	childExec.PPid = child.PPid
+	childExec.ExecTime = time.Now()
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)

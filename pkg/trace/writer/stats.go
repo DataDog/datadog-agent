@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
@@ -198,6 +200,7 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		}
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
+		resolveContainerTags(&p.ClientStatsPayload)
 		current.Stats = append(current.Stats, p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
@@ -207,6 +210,25 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		atomic.AddInt64(&w.stats.Splits, 1)
 	}
 	return grouped
+}
+
+// resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
+func resolveContainerTags(p *pb.ClientStatsPayload) {
+	if p.ContainerID == "" {
+		p.Tags = nil
+		return
+	}
+	ctags, err := tagger.Tag("container_id://"+p.ContainerID, collectors.HighCardinality)
+	switch {
+	case err != nil:
+		log.Tracef("Error resolving container tags for %q: %v", p.ContainerID, err)
+		p.ContainerID = ""
+		p.Tags = nil
+	case len(ctags) == 0:
+		p.Tags = nil
+	default:
+		p.Tags = ctags
+	}
 }
 
 func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {

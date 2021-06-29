@@ -6,6 +6,7 @@
 package agentchecks
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
@@ -23,7 +24,7 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host1, sourceType, tags1)
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
-	pl := GetPayload()
+	pl := GetPayload(context.Background())
 	hpl := pl.ExternalHostPayload.Payload
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {

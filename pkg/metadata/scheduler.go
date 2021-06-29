@@ -81,23 +81,24 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sc := &scheduledCollector{
 		sendTimer:    newTimer(interval),
-		healthHandle: health.RegisterReadiness("metadata-" + name),
+		healthHandle: health.RegisterLiveness("metadata-" + name),
 	}
 
 	go func() {
-		ctx, cancelCtxFunc := context.WithCancel(c.context)
-		defer cancelCtxFunc()
+		ctx, cancel := context.WithCancel(context.Background())
 		for {
 			select {
-			case <-ctx.Done():
+			case <-c.context.Done():
+				cancel()
 				return
-			case <-sc.healthHandle.C:
-				// Purposely empty
+			case healthDeadline := <-sc.healthHandle.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case <-sc.sendTimer.C:
 				sc.sendTimer.Reset(interval) // Reset the timer, so it fires again after `interval`.
 				// Note we call `p.Send` on the collector *after* resetting the Timer, so
 				// the time spent by `p.Send` is not added to the total time between runs.
-				if err := p.Send(c.srl); err != nil {
+				if err := p.Send(ctx, c.srl); err != nil {
 					log.Errorf("Unable to send '%s' metadata: %v", name, err)
 				}
 			}
@@ -150,7 +151,7 @@ func (c *Scheduler) firstRun() error {
 		log.Error("Unable to find 'host' metadata collector in the catalog!")
 		signals.ErrorStopper <- true
 	}
-	return p.Send(c.srl)
+	return p.Send(context.TODO(), c.srl)
 }
 
 // RegisterCollector adds a Metadata Collector to the catalog

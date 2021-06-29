@@ -3,5 +3,5 @@
 package testinit
 
 const (
-	initAllocations = 1
+	initAllocations = 2
 )
