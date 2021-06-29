@@ -9,12 +9,24 @@ package module
 
 import (
 	"os/exec"
+	"os/user"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
+
+const selfTestPolicyTemplate = `---
+rules:
+- id: {{.RuleName}}_open
+  expression: open.file.path == "{{.TestFileName}}"
+- id: {{.RuleName}}_chmod
+  expression: chmod.file.path == "{{.TestFileName}}"
+- id: {{.RuleName}}_chown
+  expression: chown.file.path == "{{.TestFileName}}"
+...
+`
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
@@ -68,7 +80,7 @@ func (t *SelfTester) expectEvent(predicate func(eval.Event) (bool, error)) error
 	}
 }
 
-func (t *SelfTester) selfTestOpen(targetFilePath string) error {
+func selfTestOpen(t *SelfTester, targetFilePath string) error {
 	// we need to use touch (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
 	cmd := exec.Command("touch", targetFilePath)
@@ -86,8 +98,8 @@ func (t *SelfTester) selfTestOpen(targetFilePath string) error {
 	})
 }
 
-func (t *SelfTester) selfTestChmod(targetFilePath string) error {
-	// we need to use touch (or any other external program) as our PID is discarded by probes
+func selfTestChmod(t *SelfTester, targetFilePath string) error {
+	// we need to use chmod (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
 	cmd := exec.Command("chmod", "777", targetFilePath)
 	if err := cmd.Run(); err != nil {
@@ -102,4 +114,34 @@ func (t *SelfTester) selfTestChmod(targetFilePath string) error {
 		}
 		return eventOpenFilePath == targetFilePath, nil
 	})
+}
+
+func selfTestChown(t *SelfTester, targetFilePath string) error {
+	// we need to use chown (or any other external program) as our PID is discarded by probes
+	// so the events would not be generated
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Debugf("error retrieving uid: %v", err)
+		return err
+	}
+
+	cmd := exec.Command("chown", currentUser.Uid, targetFilePath)
+	if err := cmd.Run(); err != nil {
+		log.Debugf("error running chown: %v", err)
+		return err
+	}
+
+	return t.expectEvent(func(event eval.Event) (bool, error) {
+		eventOpenFilePath, err := event.GetFieldValue("chown.file.path")
+		if err != nil {
+			return false, errors.Wrap(err, "failed to extract chown file path from event")
+		}
+		return eventOpenFilePath == targetFilePath, nil
+	})
+}
+
+var SelfTestFunctions = []func(*SelfTester, string) error{
+	selfTestOpen,
+	selfTestChmod,
+	selfTestChown,
 }

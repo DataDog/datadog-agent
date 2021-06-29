@@ -297,15 +297,6 @@ func (m *Module) Reload() error {
 	return m.reloadWithPoliciesDir(m.config.PoliciesDir)
 }
 
-const selfTestPolicyTemplate = `---
-rules:
-- id: {{.RuleName}}_open
-  expression: open.file.path == "{{.TestFileName}}"
-- id: {{.RuleName}}_chmod
-  expression: chmod.file.path == "{{.TestFileName}}"
-...
-`
-
 func (m *Module) doSelfTest() error {
 	// Create temp directory to put rules in
 	tmpDir, err := ioutil.TempDir("", "self_test_rule")
@@ -366,11 +357,13 @@ func (m *Module) doSelfTest() error {
 	m.selfTester.BeginWaitingForEvent()
 	defer m.selfTester.EndWaitingForEvent()
 
-	if err := m.selfTester.selfTestOpen(targetFilePath); err != nil {
-		return err
+	for _, fn := range SelfTestFunctions {
+		if err := fn(m.selfTester, targetFilePath); err != nil {
+			return err
+		}
 	}
 
-	return m.selfTester.selfTestChmod(targetFilePath)
+	return nil
 }
 
 // Close the module
