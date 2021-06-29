@@ -69,7 +69,7 @@ if node['platform_family'] != 'windows'
 
     docker_exec 'install_xfs' do
       container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
     end
 
     for i in 0..7 do
