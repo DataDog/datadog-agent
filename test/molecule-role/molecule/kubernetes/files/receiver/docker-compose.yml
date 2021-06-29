@@ -24,8 +24,9 @@ services:
       # Okay, here it goes. Due to a variant on this bug: https://github.com/wurstmeister/kafka-docker/issues/661
       # we intermittently get that not all topics are created. This causes flaky behavior on the tests
       # We patched it by having the health check also try to create when it fails
-      test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" < \"9\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
-      interval: 3s
+      test: [ "CMD-SHELL", "nohup /usr/bin/create-topics.sh", "if [[ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" != \"9\" ]]; then exit 1; fi" ]
+      start_period: 30s
+      interval: 15s
       timeout: 30s
       retries: 10
     mem_limit: 1G
