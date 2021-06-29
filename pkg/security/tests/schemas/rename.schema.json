@@ -1,0 +1,67 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "rename.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "file:///container_event.json"
+        },
+        {
+            "$ref": "file:///host_event.json"
+        }
+    ],
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "container"
+                ]
+            }
+        },
+        {
+            "if": {
+                "required": [
+                    "container"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "required": [
+                            "container_path"
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ],
+                    "properties": {
+                        "destination": {
+                            "type": "object",
+                            "required": [
+                                "mode"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

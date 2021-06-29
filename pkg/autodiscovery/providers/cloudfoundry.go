@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -48,12 +49,12 @@ func (cf CloudFoundryConfigProvider) String() string {
 }
 
 // IsUpToDate returns true if the last collection time was later than last BBS Cache refresh time
-func (cf CloudFoundryConfigProvider) IsUpToDate() (bool, error) {
+func (cf CloudFoundryConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return cf.lastCollected.After(cf.bbsCache.LastUpdated()), nil
 }
 
 // Collect collects AD config templates from all relevant BBS API information
-func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
+func (cf CloudFoundryConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()

@@ -6,6 +6,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -40,7 +41,7 @@ func doGetHostname(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
 	}

@@ -8,6 +8,7 @@
 package fargate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -19,24 +20,24 @@ import (
 // by the process Agent based on the Fargate orchestrator
 // - ECS: fargate_task:<TaskARN>
 // - EKS: value of kubernetes_kubelet_nodename
-func GetFargateHost() (string, error) {
-	return getFargateHost(GetOrchestrator(), getECSHost, getEKSHost)
+func GetFargateHost(ctx context.Context) (string, error) {
+	return getFargateHost(ctx, GetOrchestrator(ctx), getECSHost, getEKSHost)
 }
 
 // getFargateHost is separated from GetFargateHost for testing purpose
-func getFargateHost(orchestrator OrchestratorName, ecsFunc, eksFunc func() (string, error)) (string, error) {
+func getFargateHost(ctx context.Context, orchestrator OrchestratorName, ecsFunc, eksFunc func(context.Context) (string, error)) (string, error) {
 	// Fargate should have no concept of host names
 	// we set the hostname depending on the orchestrator
 	switch orchestrator {
 	case ECS:
-		return ecsFunc()
+		return ecsFunc(ctx)
 	case EKS:
-		return eksFunc()
+		return eksFunc(ctx)
 	}
 	return "", errors.New("unknown Fargate orchestrator")
 }
 
-func getECSHost() (string, error) {
+func getECSHost(ctx context.Context) (string, error) {
 	client, err := ecsmeta.V2()
 	if err != nil {
 		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
@@ -44,14 +45,14 @@ func getECSHost() (string, error) {
 	}
 
 	// Use the task ARN as hostname
-	taskMeta, err := client.GetTask()
+	taskMeta, err := client.GetTask(ctx)
 	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
 }
 
-func getEKSHost() (string, error) {
+func getEKSHost(ctx context.Context) (string, error) {
 	// Use the node name as hostname
 	return GetEKSFargateNodename()
 }

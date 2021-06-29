@@ -174,21 +174,21 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	SPortIsEphemeral       EphemeralPortType
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	SPort                       uint16
+	DPort                       uint16
+	Type                        ConnectionType
+	Family                      ConnectionFamily
+	Direction                   ConnectionDirection
+	SPortIsEphemeral            EphemeralPortType
+	IPTranslation               *IPTranslation
+	IntraHost                   bool
+	DNSSuccessfulResponses      uint32
+	DNSFailedResponses          uint32
+	DNSTimeouts                 uint32
+	DNSSuccessLatencySum        uint64
+	DNSFailureLatencySum        uint64
+	DNSCountByRcode             map[uint32]uint32
+	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
 
 	Via *Via
 }
