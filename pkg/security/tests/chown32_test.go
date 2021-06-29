@@ -326,7 +326,10 @@ func runSyscallTesterFunc(t *testing.T, path string, args ...string) {
 	t.Helper()
 	sideTester := exec.Command(path, args...)
 	if output, err := sideTester.CombinedOutput(); err != nil {
-		t.Error(string(output))
 		t.Error(err)
+		output := string(output)
+		if output != "" {
+			t.Error(output)
+		}
 	}
 }
