@@ -12,12 +12,25 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"gotest.tools/assert"
 )
 
 func TestChown32(t *testing.T) {
+	isSuseKernel := func() bool {
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			return false
+		}
+		return kv.IsSuseKernel()
+	}()
+
+	if isSuseKernel {
+		t.Skip("SUSE kernel: skipping chown32 tests")
+	}
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,

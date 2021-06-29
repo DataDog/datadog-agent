@@ -80,7 +80,7 @@ if node['platform_family'] != 'windows'
     end
   end
 
-  if not platform_family?('suse', 'rhel')
+  if not platform_family?('suse')
     package 'Install i386 libc' do
       case node[:platform]
       when 'redhat', 'centos', 'fedora'
