@@ -103,7 +103,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 	return server.Shutdown(shutdownCtx)
 }
 
-// mutateHandler contains the main logic resposible for handling mutation requests.
+// mutateHandler contains the main logic responsible for handling mutation requests.
 // It supports both v1 and v1beta1 requests.
 func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface) {
 	metrics.WebhooksReceived.Inc()
