@@ -659,8 +659,8 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric3.Count, uint64(1))
 
 	// test context correctness
-	require.Equal(t, metric4.Tags, "b c")
-	require.Equal(t, metric5.Tags, "b c")
+	require.Equal(t, metric4.Tags, "c b")
+	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
 }
 
