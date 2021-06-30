@@ -184,6 +184,40 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 	return result
 }
 
+func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
+	dbentry := &model.DNSDatabaseEntry{}
+	for _, name := range entry.Names {
+		if idx, ok := namemap[name]; ok {
+			dbentry.NameIndexes = append(dbentry.NameIndexes, idx)
+		} else {
+			dblen := int32(len(*namedb))
+			*namedb = append(*namedb, name)
+			namemap[name] = dblen
+			dbentry.NameIndexes = append(dbentry.NameIndexes, dblen)
+		}
+
+	}
+	dnstable[ip] = dbentry
+
+}
+func remapDNSStatsByDomainByQueryType(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
+	old := c.DnsStatsByDomainByQueryType
+	c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
+	for key, val := range old {
+		// key is the index into the old array (dnslist)
+		domainstr := dnslist[key]
+		if idx, ok := namemap[domainstr]; ok {
+			c.DnsStatsByDomainByQueryType[idx] = val
+		} else {
+			dblen := int32(len(*namedb))
+			*namedb = append(*namedb, domainstr)
+			namemap[domainstr] = dblen
+			c.DnsStatsByDomainByQueryType[dblen] = val
+		}
+	}
+
+}
+
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	cfg *config.AgentConfig,
@@ -216,28 +250,29 @@ func batchConnections(
 		batchConns := cxs[:batchSize] // Connections for this particular batch
 
 		ctrIDForPID := make(map[int32]string)
-		batchDNS := make(map[string]*model.DNSEntry)
+		batchDNS := make(map[string]*model.DNSDatabaseEntry)
+		namemap := make(map[string]int32)
+		namedb := make([]string, 0)
+
 		domainIndices := make(map[int32]struct{})
+
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
-				batchDNS[c.Raddr.Ip] = entries
+				//batchDNS[c.Raddr.Ip] = entries
+				convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
 			}
 
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
 			}
+			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 			for d := range c.DnsStatsByDomainByQueryType {
 				domainIndices[d] = struct{}{}
 			}
 		}
-
-		// We want to keep the length of the domains array same so that the pointers in DnsStatsByDomain remain valid
-		// For absent entries, we simply use an empty string to cut down on storage.
-		batchDomains := make([]string, len(domains))
-		for i, domain := range domains {
-			if _, ok := domainIndices[int32(i)]; ok {
-				batchDomains[i] = domain
-			}
+		batchDomainIndexes := make([]int32, 0)
+		for k, _ := range domainIndices {
+			batchDomainIndexes = append(batchDomainIndexes, k)
 		}
 
 		// remap route indices
@@ -260,16 +295,21 @@ func batchConnections(
 		}
 
 		cc := &model.CollectorConnections{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Connections:       batchConns,
-			GroupId:           groupID,
-			GroupSize:         groupSize,
-			ContainerForPid:   ctrIDForPID,
-			EncodedDNS:        dnsEncoder.Encode(batchDNS),
+			HostName:        cfg.HostName,
+			NetworkId:       networkID,
+			Connections:     batchConns,
+			GroupId:         groupID,
+			GroupSize:       groupSize,
+			ContainerForPid: ctrIDForPID,
+			//EncodedDNS:        dnsEncoder.Encode(batchDNS),
+			DomainDb: &model.DomainDatabase{
+				EncodedDomains: dnsEncoder.EncodeDomainDatabase(namedb),
+			},
+			EncodedDnsLookups: dnsEncoder.EncodeMapped(batchDNS),
+			IndexedDomains:    batchDomainIndexes,
 			ContainerHostType: cfg.ContainerHostType,
-			Domains:           batchDomains,
-			Routes:            batchRoutes,
+			//Domains:           batchDomains,
+			Routes: batchRoutes,
 		}
 
 		// Add OS telemetry
