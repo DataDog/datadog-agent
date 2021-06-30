@@ -275,17 +275,17 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 		payloads[i] = clientStatsPayload{
 			bucketIndexes: make(map[timeWindow]int, 1),
 			ClientStatsPayload: pb.ClientStatsPayload{
-				Hostname:         p.Hostname,
-				Env:              p.Env,
-				Version:          p.Version,
-				Service:          p.Service,
-				Lang:             p.Lang,
-				TracerVersion:    p.TracerVersion,
-				RuntimeID:        p.RuntimeID,
-				Sequence:         p.Sequence,
-				AgentAggregation: p.AgentAggregation,
+				Hostname:           p.Hostname,
+				Env:                p.Env,
+				Version:            p.Version,
+				Service:            p.Service,
+				Lang:               p.Lang,
+				TracerVersion:      p.TracerVersion,
+				RuntimeID:          p.RuntimeID,
+				Sequence:           p.Sequence,
+				AgentAggregation:   p.AgentAggregation,
 				SummaryUsesSeconds: p.SummaryUsesSeconds,
-				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+				Stats:              make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}
 	}

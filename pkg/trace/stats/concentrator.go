@@ -194,11 +194,11 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	sb := make([]pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		p := pb.ClientStatsPayload{
-			Env:         k.Env,
-			Hostname:    k.Hostname,
-			ContainerID: k.ContainerID,
-			Version:     k.Version,
-			Stats:       s,
+			Env:                k.Env,
+			Hostname:           k.Hostname,
+			ContainerID:        k.ContainerID,
+			Version:            k.Version,
+			Stats:              s,
 			SummaryUsesSeconds: true,
 		}
 		sb = append(sb, p)

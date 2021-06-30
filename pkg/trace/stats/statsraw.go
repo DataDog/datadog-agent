@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"math"
 	"math/rand"
 	"strings"
 
@@ -24,31 +23,13 @@ const (
 	// It can affect relative accuracy, but in practice, 2048 bins is enough to have 1% relative accuracy from
 	// 80 micro second to 1 year: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
 	maxNumBins = 2048
+	// bias and gamma are DDSketch parameters. We should use the same as in the backend to avoid conversions that affect accuracy.
+	bias  = 1338.5
+	gamma = 1.015625
 )
-
-var gamma, bias = backendSketchParameters()
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
 // is that the final data, the one with send after a call to Export(), is correct.
-
-// backendSketchParameters returns DDSketch parameters used in the backend. We should use the same ones in the agent to avoid
-// conversions that affect accuracy.
-func backendSketchParameters() (gamma float64, bias float64){
-	const (
-		// eps is the relative accuracy we have on the percentiles. For example, we can
-		// say that the p99 is 100ms +- eps*100ms = 100ms += 0.78ms
-		eps = 1.0 / 128.0
-		// minValue is the minimal value stored in sketch.
-		minValue = 1e-9
-	)
-	gamma = 1+2*eps
-	logGamma := math.Log(gamma)
-	emin := int(math.Floor(math.Log(minValue)/logGamma))
-	bias = -float64(emin) + 1
-	// adding 0.5 to bias since the buckets are shifted in the backend by 0.5 compared to the sketches-go implementation.
-	bias += 0.5
-	return gamma, bias
-}
 
 type groupedStats struct {
 	// using float64 here to avoid the accumulation of rounding issues.
@@ -104,7 +85,7 @@ func newGroupedStats() *groupedStats {
 	}
 	return &groupedStats{
 		okDistribution:  ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins)),
-		errDistribution:  ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins)),
+		errDistribution: ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins)),
 	}
 }
 
@@ -189,7 +170,7 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 		gs.errors += s.Weight
 	}
 	gs.duration += float64(s.Duration) * s.Weight
-	secondsDuration := float64(s.Duration)/1e9
+	secondsDuration := float64(s.Duration) / 1e9
 	if s.Error != 0 {
 		gs.errDistribution.Add(secondsDuration)
 	} else {
