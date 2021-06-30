@@ -1,5 +1,5 @@
-import uuid
 import random
+import uuid
 
 f = open("random_contexts.csv", "w")
 for _ in range(10000000):
