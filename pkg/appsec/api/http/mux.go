@@ -22,11 +22,11 @@ func NewServeMux(cfg *config.Config) *http.ServeMux {
 func newAPIVersionHandler(v0_1_0 *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var api http.HandlerFunc
-		switch v := r.Header.Get("X-Api-Version"); v {
+		switch v := r.Header.Get("Api-Version"); v {
 		case "v0.1.0":
 			api = v0_1_0.ServeHTTP
 		default:
-			http.Error(w, "Unexpected X-Api-Version value", http.StatusBadRequest)
+			http.Error(w, "Unexpected Api-Version value", http.StatusBadRequest)
 			return
 		}
 		api.ServeHTTP(w, r)
