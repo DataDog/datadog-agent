@@ -65,7 +65,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	// many tags we have to process:
 	//   -  16 < n < 512: 		we use a hashset of 512 values. This size has been
 	// 							selected to have space for approximately 500 tags
-	// 							since it nos impacting much the performances,
+	// 							since it's not impacting the performance much,
 	// 							even if the backend is truncating after 100.
 	//   -  n < 16 or n > 512: 	we use a simple for loops, which is faster than
 	//                         	the hashset when there is less than 16 tags, and
