@@ -221,11 +221,9 @@ func (d *Daemon) Stop(isTimeout bool) {
 	}
 	d.stopped = true
 
-	if !isTimeout {
-		// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
-		log.Debug("Waiting to shut down HTTP server")
-		time.Sleep(shutdownDelay)
-	}
+	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
+	log.Debug("Waiting to shut down HTTP server")
+	time.Sleep(shutdownDelay)
 
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
@@ -257,11 +255,12 @@ func (d *Daemon) Stop(isTimeout bool) {
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
 func StartDaemon() *Daemon {
+	fmt.Printf("A - %v \n", time.Now())
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
-
+	fmt.Printf("B - %v \n", time.Now())
 	daemon := &Daemon{
-		httpServer:       &http.Server{Addr: fmt.Sprintf(":%d", httpServerPort), Handler: mux},
+		httpServer:       &http.Server{Addr: fmt.Sprintf("localhost:%d", httpServerPort), Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
 		LastInvocations:  make([]time.Time, 0),
@@ -271,18 +270,25 @@ func StartDaemon() *Daemon {
 		ExtraTags:        &serverlessLog.Tags{},
 		ExecutionContext: &serverlessLog.ExecutionContext{Coldstart: true},
 	}
-
+	fmt.Printf("C - %v \n", time.Now())
 	log.Debug("Adaptive flush is enabled")
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
+	fmt.Printf("D - %v \n", time.Now())
+
 	// start the HTTP server used to communicate with the clients
 	go func() {
 		if err := daemon.httpServer.ListenAndServe(); err != nil {
+			fmt.Printf("FF - %v \n", time.Now())
 			log.Error(err)
+		} else {
+			fmt.Println("yes yes in listen and serve")
 		}
 	}()
+
+	fmt.Printf("E - %v \n", time.Now())
 
 	return daemon
 }
