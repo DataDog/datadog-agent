@@ -6,7 +6,6 @@
 package main
 
 import (
-	"context"
 	_ "expvar"
 	"fmt"
 	_ "net/http/pprof"
@@ -20,7 +19,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -31,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -284,22 +283,17 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	metricAgent := &metrics.ServerlessMetricAgent{}
-
 	go metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, waitingChan)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
-	if config.Datadog.GetBool("apm_config.enabled") {
-		traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
-		go traceAgent.Start(traceAgentCtx, datadogConfigPath, stopTraceAgent, waitingChan)
-	}
+	go traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, waitingChan)
 
 	<-waitingChan
 	<-waitingChan
 	<-waitingChan
 
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetTraceAgent(traceAgent.Get())
-
+	serverlessDaemon.SetTraceAgent(traceAgent)
 	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
 	// run the invocation loop in a routine

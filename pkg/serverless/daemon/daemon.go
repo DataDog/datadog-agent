@@ -21,7 +21,7 @@ import (
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	traceAgent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,7 +44,7 @@ type Daemon struct {
 
 	MetricAgent *metrics.ServerlessMetricAgent
 
-	traceAgent *traceAgent.Agent
+	TraceAgent *trace.ServerlessTraceAgent
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
@@ -149,8 +149,8 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
-func (d *Daemon) SetTraceAgent(traceAgent *traceAgent.Agent) {
-	d.traceAgent = traceAgent
+func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
+	d.TraceAgent = traceAgent
 }
 
 // SetFlushStrategy sets the flush strategy to use.
@@ -188,8 +188,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// traces
 	go func() {
-		if d.traceAgent != nil {
-			d.traceAgent.FlushSync()
+		if d.TraceAgent != nil {
+			d.TraceAgent.Get().FlushSync()
 		}
 		wg.Done()
 	}()
@@ -238,6 +238,10 @@ func (d *Daemon) Stop(isTimeout bool) {
 	d.TriggerFlush(context.Background(), true)
 
 	log.Debug("Shutting down agents")
+
+	if d.TraceAgent != nil {
+		d.TraceAgent.Stop()
+	}
 
 	if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 		d.MetricAgent.DogStatDServer.Stop()
@@ -325,8 +329,8 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
 		}
-		if d.traceAgent != nil {
-			d.traceAgent.SetGlobalTags(tags.BuildTracerTags(tagMap))
+		if d.TraceAgent != nil {
+			d.TraceAgent.Get().SetGlobalTags(tags.BuildTracerTags(tagMap))
 		}
 		d.ExtraTags.Tags = tagArray
 		source := serverlessLog.GetLambdaSource()
