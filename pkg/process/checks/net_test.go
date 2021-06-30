@@ -124,9 +124,9 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 		// Only the last chunk should have a DNS mapping
 		if i == 3 {
-			assert.NotEmpty(t, connections.EncodedDNS)
+			assert.NotEmpty(t, connections.EncodedDnsLookups)
 		} else {
-			assert.Empty(t, connections.EncodedDNS)
+			assert.Empty(t, connections.EncodedDnsLookups)
 		}
 
 		total += len(connections.Connections)
@@ -182,6 +182,14 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	assert.Equal(t, 6, total)
 }
 
+func indexOf(s string, db []string) int32 {
+	for idx, val := range db {
+		if val == s {
+			return int32(idx)
+		}
+	}
+	return -1
+}
 func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns := makeConnections(4)
 
@@ -199,14 +207,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 2,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 3,
 				},
 			},
 		},
@@ -215,14 +223,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		1: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 4,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dns.TypeA): {
-					DnsTimeouts: 1,
+					DnsTimeouts: 5,
 				},
 			},
 		},
@@ -239,15 +247,52 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	for i, c := range chunks {
 		connections := c.(*model.CollectorConnections)
 		total += len(connections.Connections)
+		domaindb := connections.GetDNSDatabase()
 		switch i {
 		case 0:
-			assert.Equal(t, []string{"", "", ""}, connections.Domains)
+			assert.Equal(t, len(domaindb), 0)
 		case 1:
-			assert.Equal(t, []string{"foo.com", "", ""}, connections.Domains)
+			assert.Equal(t, len(domaindb), 1)
+			assert.Equal(t, domains[0], domaindb[0])
+
+			// check for correctness of the data
+			conn := connections.Connections[0]
+			val, ok := conn.DnsStatsByDomainByQueryType[0]
+			assert.True(t, ok)
+			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(1))
 		case 2:
-			assert.Equal(t, []string{"foo.com", "", "baz.com"}, connections.Domains)
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[0])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[1])
+
+			indexzero := indexOf(domains[0], domaindb)
+			indexdextwo := indexOf(domains[2], domaindb)
+			conn := connections.Connections[0]
+			val, ok := conn.DnsStatsByDomainByQueryType[indexzero]
+			assert.True(t, ok)
+			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(2))
+
+			val, ok = conn.DnsStatsByDomainByQueryType[indexdextwo]
+			assert.True(t, ok)
+			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(3))
+
 		case 3:
-			assert.Equal(t, []string{"", "bar.com", "baz.com"}, connections.Domains)
+			assert.Equal(t, len(domaindb), 2)
+			assert.Contains(t, domaindb, domains[1])
+			assert.Contains(t, domaindb, domains[2])
+			assert.NotContains(t, domaindb, domains[0])
+
+			indexone := indexOf(domains[1], domaindb)
+			indexdextwo := indexOf(domains[2], domaindb)
+			conn := connections.Connections[0]
+			val, ok := conn.DnsStatsByDomainByQueryType[indexone]
+			assert.True(t, ok)
+			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(4))
+
+			val, ok = conn.DnsStatsByDomainByQueryType[indexdextwo]
+			assert.True(t, ok)
+			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(5))
 		}
 	}
 	assert.Equal(t, 4, total)
