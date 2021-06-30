@@ -14,7 +14,7 @@ type ServerlessTraceAgent struct {
 }
 
 // Start starts the agent
-func (c *ServerlessTraceAgent) Start(datadogConfigPath string, context context.Context, cancel context.CancelFunc, waitingChan chan bool) {
+func (c *ServerlessTraceAgent) Start(context context.Context, datadogConfigPath string, cancel context.CancelFunc, waitingChan chan bool) {
 	tc, confErr := config.Load(datadogConfigPath)
 	tc.Hostname = ""
 	tc.SynchronousFlushing = true

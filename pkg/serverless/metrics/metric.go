@@ -27,7 +27,7 @@ type ReportLogMetrics struct {
 	InitDurationMs   float64
 }
 
-// ReportLogMetrics represents the DogStatsD server and the aggregator
+// ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	DogStatDServer *dogstatsd.Server
 	Aggregator     *aggregator.BufferedAggregator

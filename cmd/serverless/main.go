@@ -291,7 +291,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	traceAgent := &trace.ServerlessTraceAgent{}
 	if config.Datadog.GetBool("apm_config.enabled") {
 		traceAgentCtx, stopTraceAgent := context.WithCancel(context.Background())
-		go traceAgent.Start(datadogConfigPath, traceAgentCtx, stopTraceAgent, waitingChan)
+		go traceAgent.Start(traceAgentCtx, datadogConfigPath, stopTraceAgent, waitingChan)
 	}
 
 	<-waitingChan

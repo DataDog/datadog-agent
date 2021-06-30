@@ -17,10 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Tags contains the actual array of Tags (usefull for passing it via reference)
 type Tags struct {
 	Tags []string
 }
 
+// ExecutionContext represents the execution context
 type ExecutionContext struct {
 	ARN           string
 	LastRequestID string

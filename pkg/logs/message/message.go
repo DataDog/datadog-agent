@@ -76,7 +76,7 @@ func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
-// GetHostame returns the hostname to applied the given log message
+// GetHostname returns the hostname to applied the given log message
 func (m *Message) GetHostname() string {
 	if m.Lambda == nil {
 		hostname, err := util.GetHostname()
