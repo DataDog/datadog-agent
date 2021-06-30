@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    APM: Copy DDSketch parameters from the backend to avoid lossy conversion.
