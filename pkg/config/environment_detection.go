@@ -7,6 +7,7 @@ package config
 
 import (
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Feature represents a feature of current environment
-type Feature string
-
 const (
 	autoconfEnvironmentVariable         = "AUTOCONFIG_FROM_ENVIRONMENT"
 	autoconfEnvironmentVariableWithTypo = "AUTCONFIG_FROM_ENVIRONMENT"
 )
+
+// Feature represents a feature of current environment
+type Feature string
 
 // FeatureMap represents all detected features
 type FeatureMap map[Feature]struct{}
@@ -35,6 +36,7 @@ func (fm FeatureMap) String() string {
 }
 
 var (
+	knownFeatures    = make(FeatureMap)
 	detectedFeatures FeatureMap
 	featureLock      sync.RWMutex
 )
@@ -89,9 +91,10 @@ func IsAutoconfigEnabled() bool {
 	return Datadog.GetBool("autoconfig_from_environment")
 }
 
+// DetectFeatures runs the feature detection.
 // We guarantee that Datadog configuration is entirely loaded (env + YAML)
 // before this function is called
-func detectFeatures() {
+func DetectFeatures() {
 	featureLock.Lock()
 	defer featureLock.Unlock()
 
@@ -99,13 +102,16 @@ func detectFeatures() {
 	if IsAutoconfigEnabled() {
 		detectContainerFeatures(newFeatures)
 		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
-		for _, f := range excludedFeatures {
-			delete(newFeatures, Feature(f))
-		}
+		excludeFeatures(newFeatures, excludedFeatures)
 
 		includedFeatures := Datadog.GetStringSlice("autoconfig_include_features")
 		for _, f := range includedFeatures {
-			newFeatures[Feature(f)] = struct{}{}
+			f = strings.ToLower(f)
+			if _, found := knownFeatures[Feature(f)]; found {
+				newFeatures[Feature(f)] = struct{}{}
+			} else {
+				log.Warnf("Unknown feature in autoconfig_include_features: %s - discarding", f)
+			}
 		}
 
 		log.Infof("Features detected from environment: %v", newFeatures)
@@ -113,4 +119,32 @@ func detectFeatures() {
 		log.Warnf("Deactivating Autoconfig will disable most components. It's recommended to use autoconfig_exclude_features and autoconfig_include_features to activate/deactivate features selectively")
 	}
 	detectedFeatures = newFeatures
+}
+
+func excludeFeatures(detectedFeatures FeatureMap, excludedFeatures []string) {
+	rFilters := make([]*regexp.Regexp, 0, len(excludedFeatures))
+
+	for _, filter := range excludedFeatures {
+		filter = strings.ToLower(strings.TrimPrefix(filter, "name:"))
+		r, err := regexp.Compile(filter)
+		if err != nil {
+			log.Warnf("Unbale to parse exclude feature filter: '%s'", filter)
+			continue
+		}
+
+		rFilters = append(rFilters, r)
+	}
+
+	for feature := range detectedFeatures {
+		for _, r := range rFilters {
+			if r.MatchString(string(feature)) {
+				delete(detectedFeatures, feature)
+				break
+			}
+		}
+	}
+}
+
+func registerFeature(f Feature) {
+	knownFeatures[f] = struct{}{}
 }

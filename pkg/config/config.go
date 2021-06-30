@@ -1069,7 +1069,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	SanitizeAPIKeyConfig(config, "api_key")
 	// Environment feature detection needs to run before applying override funcs
 	// as it may provide such overrides
-	detectFeatures()
+	DetectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)

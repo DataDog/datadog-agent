@@ -162,7 +162,7 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 		collector := factory()
 		mode, err := collector.Detect(ctx, t.infoIn)
 		if mode == collectors.NoCollection && err == nil {
-			log.Debugf("collector %s skipped as feature not activated", name)
+			log.Infof("collector %s skipped as feature not activated", name)
 			continue
 		}
 		if retry.IsErrWillRetry(err) {

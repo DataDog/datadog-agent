@@ -70,7 +70,7 @@ func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
 
 	if !config.IsFeaturePresent(config.Docker) {
-		return nil, errors.New("docker feature not activated")
+		return nil, errors.New("Docker feature not activated")
 	}
 
 	du, err := docker.GetDockerUtil()
