@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Tags contains the actual array of Tags (usefull for passing it via reference)
+// Tags contains the actual array of Tags (useful for passing it via reference)
 type Tags struct {
 	Tags []string
 }
