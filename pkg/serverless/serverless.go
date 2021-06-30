@@ -144,12 +144,12 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	request.Header.Set(headerExtID, id.String())
 
 	// make a blocking HTTP call to wait for the next event from AWS
-	log.Debug("Waiting for next invocation...")
+	log.Debugf("Waiting for next invocation... %v \n", time.Now())
 	client := &http.Client{Timeout: 0} // this one should never timeout
 	if response, err = client.Do(request); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
-	log.Debug("Waiting for next invocation...2")
+	log.Debugf("Waiting for next invocation...2 %v \n", time.Now())
 	// we received an INVOKE or SHUTDOWN event
 	daemon.StoreInvocationTime(time.Now())
 
