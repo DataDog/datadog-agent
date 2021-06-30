@@ -90,7 +90,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	// Instantiate the AppSec HTTP handler
 	appsecHandler, err := appsec.New()
 	if err != nil {
 		log.Error("appsec agent: ", err)
