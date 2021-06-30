@@ -27,49 +27,41 @@ type ReportLogMetrics struct {
 	InitDurationMs   float64
 }
 
+// ReportLogMetrics represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	DogStatDServer *dogstatsd.Server
 	Aggregator     *aggregator.BufferedAggregator
 }
 
+// MetricConfig abstacts the config package
 type MetricConfig struct {
 }
 
+// MetricDogStatsD abstracts the DogStatsD package
 type MetricDogStatsD struct {
 }
 
+// MultipleEndpointConfig abstracts the config package
 type MultipleEndpointConfig interface {
 	GetMultipleEndpoints() (map[string][]string, error)
 }
 
+// DogStatsDFactory allows create a new DogStatsD server
 type DogStatsDFactory interface {
 	NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*dogstatsd.Server, error)
 }
 
+// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
 	return config.GetMultipleEndpoints()
 }
 
+// NewServer returns a running DogStatsD server
 func (m *MetricDogStatsD) NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*dogstatsd.Server, error) {
 	return dogstatsd.NewServer(aggregator, extraTags)
 }
 
-func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {
-	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
-	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
-	if err != nil {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
-		log.Errorf("Misconfiguration of agent endpoints: %s", err)
-		return nil
-	}
-	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
-	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f, nil)
-	return aggregator.InitAggregator(serializer, nil, "serverless")
-}
-
+// Start starts the DogStatsD agent
 func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, waitingChan chan bool) {
 
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
@@ -94,4 +86,20 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	}
 
 	waitingChan <- true
+}
+
+func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {
+	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
+	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
+	if err != nil {
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		log.Errorf("Misconfiguration of agent endpoints: %s", err)
+		return nil
+	}
+	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
+	f.Start() //nolint:errcheck
+	serializer := serializer.NewSerializer(f, nil)
+	return aggregator.InitAggregator(serializer, nil, "serverless")
 }

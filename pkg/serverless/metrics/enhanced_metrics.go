@@ -31,7 +31,7 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
-// GenerateEnhancedMetricsFromRegularLog generates enhanced metrics from a LogTypeFunction message
+// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
 func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
