@@ -27,6 +27,7 @@ const (
 	executedVersionKey       = "executedversion"
 )
 
+// BuildTagMap builds a map of tag based on the arn and user defined tags
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
@@ -63,6 +64,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
+// BuildTagsFromMap builds an array of tag based on map of tags
 func BuildTagsFromMap(tags map[string]string) []string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
@@ -79,6 +81,7 @@ func BuildTagsFromMap(tags map[string]string) []string {
 	return tagsArray
 }
 
+// BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
 func BuildTracerTags(tags map[string]string) map[string]string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{resourceKey}
@@ -89,6 +92,12 @@ func BuildTracerTags(tags map[string]string) map[string]string {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
+}
+
+// AddColdStartTag appends the cold_start tag to existing tags
+func AddColdStartTag(tags []string, coldStart bool) []string {
+	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	return tags
 }
 
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {
@@ -104,10 +113,4 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
-}
-
-// AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string, coldStart bool) []string {
-	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
-	return tags
 }

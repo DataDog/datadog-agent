@@ -91,7 +91,7 @@ type Payload struct {
 	DeadlineMs         int64          `json:"deadlineMs"`
 	InvokedFunctionArn string         `json:"invokedFunctionArn"`
 	ShutdownReason     ShutdownReason `json:"shutdownReason"`
-	RequestId          string         `json:"requestId"`
+	RequestID          string         `json:"requestId"`
 }
 
 // ReportInitError reports an init error to the environment.
@@ -165,7 +165,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, coldstart, payload.RequestId, handleInvocation)
+		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, coldstart, payload.RequestID, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
