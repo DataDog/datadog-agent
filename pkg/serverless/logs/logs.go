@@ -195,7 +195,6 @@ func parseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 		log.Debug("Can't read log message, retry with sanitization")
 		sanitizedData := removeInvalidTracingItem(data)
 		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
-			fmt.Println(err)
 			return nil, errors.New("can't read log message")
 		}
 		return messages, nil
@@ -227,10 +226,8 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
-		fmt.Println(err)
 		w.WriteHeader(400)
 	} else {
-		log.Debug("Receiving a LOG payload %s", string(data))
 		processLogMessages(c, messages)
 		w.WriteHeader(200)
 	}

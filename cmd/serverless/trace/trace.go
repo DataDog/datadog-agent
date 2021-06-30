@@ -28,3 +28,8 @@ func (c *ServerlessTraceAgent) Start(datadogConfigPath string, context context.C
 		waitingChan <- true
 	}
 }
+
+// Get returns the trace agent instance
+func (c *ServerlessTraceAgent) Get() *agent.Agent {
+	return c.ta
+}

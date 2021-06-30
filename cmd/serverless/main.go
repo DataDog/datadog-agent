@@ -37,12 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-type ServerlessAgent interface {
-	Start()
-	Ready()
-	Stop()
-}
-
 var (
 	// serverlessAgentCmd is the root command
 	serverlessAgentCmd = &cobra.Command{
