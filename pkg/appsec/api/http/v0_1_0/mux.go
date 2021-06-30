@@ -8,11 +8,11 @@ import (
 )
 
 // NewServeMux creates and returns the HTTP request multiplexer serving the
-// AppSec HTTP API v0.1.0 with the following endpoint:
-//   - `/` is a reverse proxy to the Intake API.
+// AppSec HTTP API v0.1 with the following endpoint:
+//   - `/proxy/` is a reverse proxy to the Intake API.
 func NewServeMux(cfg *config.Config) *http.ServeMux {
 	mux := http.NewServeMux()
 	proxy := backend.NewReverseProxy(cfg)
-	mux.Handle("/", proxy)
+	mux.Handle("/proxy/", http.StripPrefix("/proxy", proxy))
 	return mux
 }

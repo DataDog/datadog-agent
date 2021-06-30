@@ -27,9 +27,6 @@ func NewReverseProxy(cfg *config.Config) *httputil.ReverseProxy {
 		// Set extra headers
 		req.Header.Set("Via", via)
 		req.Header.Set("Dd-Api-Key", apiKey)
-		// TODO: add the container tag?
-		// Remove extra headers
-		req.Header.Del("Api-Version")
 
 	}
 	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec backend proxy: ", 0)
