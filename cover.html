@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (46.4%)</option>
+				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (44.2%)</option>
 				
 				<option value="file1">github.com/DataDog/datadog-agent/pkg/serverless/daemon/interval.go (96.2%)</option>
 				
@@ -103,7 +103,6 @@ package daemon
 import (
         "context"
         "encoding/json"
-        "fmt"
         "io/ioutil"
         "net/http"
         "sync"
@@ -119,10 +118,6 @@ import (
         "github.com/DataDog/datadog-agent/pkg/serverless/trace"
         "github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// httpServerPort will be the default port used to run the HTTP server listening
-// to calls from the client libraries and to logs from the AWS environment.
-const httpServerPort int = 8124
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
@@ -349,13 +344,11 @@ func (d *Daemon) Stop() <span class="cov8" title="1">{
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon() *Daemon <span class="cov8" title="1">{
-        fmt.Printf("A - %v \n", time.Now())
+func StartDaemon(addr string) *Daemon <span class="cov8" title="1">{
         log.Debug("Starting daemon to receive messages from runtime...")
         mux := http.NewServeMux()
-        fmt.Printf("B - %v \n", time.Now())
         daemon := &amp;Daemon{
-                httpServer:       &amp;http.Server{Addr: fmt.Sprintf("http://localhost:%d", httpServerPort), Handler: mux},
+                httpServer:       &amp;http.Server{Addr: addr, Handler: mux},
                 mux:              mux,
                 InvcWg:           &amp;sync.WaitGroup{},
                 LastInvocations:  make([]time.Time, 0),
@@ -365,22 +358,17 @@ func StartDaemon() *Daemon <span class="cov8" title="1">{
                 ExtraTags:        &amp;serverlessLog.Tags{},
                 ExecutionContext: &amp;serverlessLog.ExecutionContext{Coldstart: true},
         }
-        fmt.Printf("C - %v \n", time.Now())
         log.Debug("Adaptive flush is enabled")
 
         mux.Handle("/lambda/hello", &amp;Hello{daemon})
         mux.Handle("/lambda/flush", &amp;Flush{daemon})
-
-        fmt.Printf("D - %v \n", time.Now())
 
         // start the HTTP server used to communicate with the clients
         go func() </span><span class="cov8" title="1">{
                 daemon.httpServer.ListenAndServe()
         }</span>()
 
-        <span class="cov8" title="1">fmt.Printf("E - %v \n", time.Now())
-
-        return daemon</span>
+        <span class="cov8" title="1">return daemon</span>
 }
 
 // StartInvocation tells the daemon the invocation began

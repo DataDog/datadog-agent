@@ -8,7 +8,6 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
@@ -24,10 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// httpServerPort will be the default port used to run the HTTP server listening
-// to calls from the client libraries and to logs from the AWS environment.
-const httpServerPort int = 8124
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
@@ -254,13 +249,11 @@ func (d *Daemon) Stop() {
 // to have a way for the runtime function to know when the Serverless Agent is ready.
 // If the Flush route is called before the statsd server has been set, a 503
 // is returned by the HTTP route.
-func StartDaemon() *Daemon {
-	fmt.Printf("A - %v \n", time.Now())
+func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
-	fmt.Printf("B - %v \n", time.Now())
 	daemon := &Daemon{
-		httpServer:       &http.Server{Addr: fmt.Sprintf("http://localhost:%d", httpServerPort), Handler: mux},
+		httpServer:       &http.Server{Addr: addr, Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
 		LastInvocations:  make([]time.Time, 0),
@@ -270,20 +263,15 @@ func StartDaemon() *Daemon {
 		ExtraTags:        &serverlessLog.Tags{},
 		ExecutionContext: &serverlessLog.ExecutionContext{Coldstart: true},
 	}
-	fmt.Printf("C - %v \n", time.Now())
 	log.Debug("Adaptive flush is enabled")
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	fmt.Printf("D - %v \n", time.Now())
-
 	// start the HTTP server used to communicate with the clients
 	go func() {
 		daemon.httpServer.ListenAndServe()
 	}()
-
-	fmt.Printf("E - %v \n", time.Now())
 
 	return daemon
 }

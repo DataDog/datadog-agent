@@ -16,7 +16,7 @@ import (
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
+	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
 	// WaitForDaemon doesn't block if the client library hasn't
@@ -41,7 +41,7 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 
 func TestWaitUntilReady(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
+	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
@@ -54,7 +54,7 @@ func GetValueSyncOnce(so *sync.Once) uint64 {
 
 func TestFinishInvocationOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
+	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
 	d.StartInvocation()
@@ -63,7 +63,7 @@ func TestFinishInvocationOnceStartOnly(t *testing.T) {
 
 func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
+	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
 	d.StartInvocation()
@@ -74,7 +74,7 @@ func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
 
 func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
-	d := StartDaemon()
+	d := StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
 	d.StartInvocation()

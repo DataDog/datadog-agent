@@ -84,6 +84,10 @@ const (
 	extensionRegistrationRoute   = "/2020-01-01/extension/register"
 	extensionRegistrationTimeout = 5 * time.Second
 
+	// httpServerAddr will be the default addr used to run the HTTP server listening
+	// to calls from the client libraries and to logs from the AWS environment.
+	httpServerAddr = ":8124"
+
 	logsAPIRegistrationRoute   = "/2020-08-15/logs"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
@@ -157,7 +161,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}
 
 	// immediately starts the communication server
-	serverlessDaemon = daemon.StartDaemon()
+	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Impossible to restore the state")
