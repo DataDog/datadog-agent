@@ -34,13 +34,6 @@ static const __u8 TRACER_STATE_CHECKING = 1;
 static const __u8 TRACER_STATE_CHECKED = 2;
 static const __u8 TRACER_STATE_READY = 3;
 
-// used to disambiguate the source of guess_offsets call
-// useful when guess_offsets is called "simultaneously" from different places
-typedef enum{
-    any,
-    kprobe_sock_getsockopt,
-} caller;
-
 typedef struct {
     __u64 state;
     // tcp_info_kprobe_status records if the tcp_info kprobe has been triggered.

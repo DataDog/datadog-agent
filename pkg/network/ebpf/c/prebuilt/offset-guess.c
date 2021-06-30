@@ -48,7 +48,7 @@ static __always_inline bool check_family(struct sock* sk, tracer_status_t* statu
     return family == expected_family;
 }
 
-static __always_inline int guess_offsets(tracer_status_t* status, char* subject, caller caller) {
+static __always_inline int guess_offsets(tracer_status_t* status, char* subject) {
     u64 zero = 0;
 
     if (status->state != TRACER_STATE_CHECKING) {
@@ -140,10 +140,6 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject,
         bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, subject + status->offset_daddr_ipv6);
         break;
     case GUESS_SOCKET_SK:
-        if (caller != kprobe_sock_getsockopt) {
-            return 0;
-        }
-
         struct sock *skp;
         bpf_probe_read(&skp, sizeof(skp), subject + status->offset_socket_sk);
         bpf_probe_read(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), (char *)skp + status->offset_sport);
@@ -169,7 +165,7 @@ int kprobe__ip_make_skb(struct pt_regs* ctx) {
     }
 
     struct flowi4* fl4 = (struct flowi4*)PT_REGS_PARM2(ctx);
-    guess_offsets(status, (char*)fl4, any);
+    guess_offsets(status, (char*)fl4);
     return 0;
 }
 
@@ -181,7 +177,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM7(ctx);
-    guess_offsets(status, (char*)fl6, any);
+    guess_offsets(status, (char*)fl6);
     return 0;
 }
 
@@ -193,7 +189,7 @@ int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
         return 0;
     }
     struct flowi6* fl6 = (struct flowi6*)PT_REGS_PARM9(ctx);
-    guess_offsets(status, (char*)fl6, any);
+    guess_offsets(status, (char*)fl6);
     return 0;
 }
 
@@ -208,13 +204,13 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
 
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);
-    if (status == NULL) {
+    if (status == NULL || status->what == GUESS_SOCKET_SK) {
         return 0;
     }
 
     struct sock* sk = (struct sock*)PT_REGS_PARM1(ctx);
     status->tcp_info_kprobe_status = 1;
-    guess_offsets(status, (char*)sk, any);
+    guess_offsets(status, (char*)sk);
 
     return 0;
 }
@@ -229,7 +225,7 @@ int kprobe__sock_common_getsockopt(struct pt_regs* ctx) {
     }
 
     struct socket* socket = (struct socket*)PT_REGS_PARM1(ctx);
-    guess_offsets(status, (char*)socket, kprobe_sock_getsockopt);
+    guess_offsets(status, (char*)socket);
     return 0;
 }
 
@@ -268,7 +264,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
     }
 
     // We should figure out offsets if they're not already figured out
-    guess_offsets(status, (char*)skp, any);
+    guess_offsets(status, (char*)skp);
 
     return 0;
 }
