@@ -18,7 +18,7 @@ import (
 func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	waitingChan := make(chan bool, 1)
-	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsD{}, waitingChan)
+	go metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, waitingChan)
 	// should not block
 	<-waitingChan
 	assert.NotNil(t, metricAgent.Aggregator)

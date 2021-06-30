@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,7 +83,7 @@ func TestRegisterSuccess(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, registerExtensionTimeout)
+	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "/myRoute", registerExtensionTimeout)
 
 	assert.Equal(t, "myGeneratedId", id.String())
 	assert.Nil(t, err)
@@ -96,7 +97,7 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, registerExtensionTimeout)
+	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
@@ -110,14 +111,14 @@ func TestRegisterErrorHttp(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, registerExtensionTimeout)
+	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
 }
 
 func TestRegisterErrorTimeout(t *testing.T) {
-	id, err := RegisterExtension(":invalidURL:", registerExtensionTimeout)
+	id, err := RegisterExtension(":invalidURL:", "", registerExtensionTimeout)
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
 }
@@ -130,7 +131,7 @@ func TestRegisterErrorBuildRequest(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, registerExtensionTimeout)
+	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)

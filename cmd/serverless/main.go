@@ -166,8 +166,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// ----------------
 
 	// extension registration
-	extesionRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute)
-	serverlessID, err := registration.RegisterExtension(extesionRegistrationURL, extensionRegistrationTimeout)
+	serverlessID, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 	if err != nil {
 		// at this point, we were not even able to register, thus, we don't have
 		// any ID assigned, thus, we can't report an error to the init error route

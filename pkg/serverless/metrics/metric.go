@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -68,28 +69,32 @@ func (m *MetricDogStatsD) NewServer(aggregator *aggregator.BufferedAggregator, e
 
 // Start starts the DogStatsD agent
 func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, waitingChan chan bool) {
-
+	fmt.Printf("A - %v \n", time.Now())
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
-
+	fmt.Printf("B - %v \n", time.Now())
 	aggregatorInstance := buildBufferedAggregator(multipleEndpointConfig, forwarderTimeout)
-
+	fmt.Printf("C - %v \n", time.Now())
 	if aggregatorInstance != nil {
 		statsd, err := dogstatFactory.NewServer(aggregatorInstance, nil)
+		fmt.Printf("D - %v \n", time.Now())
 		if err != nil {
 			// we're not reporting the error to AWS because we don't want the function
 			// execution to be stopped. TODO(remy): discuss with AWS if there is way
 			// of reporting non-critical init errors.
 			// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
+			fmt.Printf("E - %v \n", time.Now())
 		} else {
+			fmt.Printf("F - %v \n", time.Now())
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 			c.DogStatDServer = statsd
 			c.Aggregator = aggregatorInstance
+			fmt.Printf("G - %v \n", time.Now())
 		}
 	}
-
+	fmt.Printf("H - %v \n", time.Now())
 	waitingChan <- true
 }
 

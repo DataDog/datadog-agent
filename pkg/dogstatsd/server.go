@@ -194,8 +194,9 @@ type metricsCountBuckets struct {
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
 func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
 	// This needs to be done after the configuration is loaded
+	fmt.Printf("1 - %v \n", time.Now())
 	once.Do(initLatencyTelemetry)
-
+	fmt.Printf("2 - %v \n", time.Now())
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -206,20 +207,20 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		stats = s
 		dogstatsdExpvars.Set("PacketsLastSecond", &dogstatsdPacketsLastSec)
 	}
-
+	fmt.Printf("3 - %v \n", time.Now())
 	var metricsStatsEnabled uint64 // we're using an uint64 for its atomic capacity
 	if config.Datadog.GetBool("dogstatsd_metrics_stats_enable") == true {
 		log.Info("Dogstatsd: metrics statistics will be stored.")
 		metricsStatsEnabled = 1
 	}
-
+	fmt.Printf("4 - %v \n", time.Now())
 	packetsChannel := make(chan packets.Packets, config.Datadog.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 	capture, err := replay.NewTrafficCapture()
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Printf("5 - %v \n", time.Now())
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
 	sharedPacketPool := packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
@@ -227,6 +228,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	udsListenerRunning := false
 
+	fmt.Printf("6 - %v \n", time.Now())
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
 		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
@@ -237,6 +239,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			udsListenerRunning = true
 		}
 	}
+	fmt.Printf("7 - %v \n", time.Now())
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, capture)
 		if err != nil {
@@ -245,7 +248,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			tmpListeners = append(tmpListeners, udpListener)
 		}
 	}
-
+	fmt.Printf("8 - %v \n", time.Now())
 	pipeName := config.Datadog.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, capture)
@@ -255,7 +258,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			tmpListeners = append(tmpListeners, namedPipeListener)
 		}
 	}
-
+	fmt.Printf("9 - %v \n", time.Now())
 	if len(tmpListeners) == 0 {
 		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
@@ -265,13 +268,16 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+	fmt.Printf("9b - %v \n", time.Now())
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
-
+	fmt.Printf("9c - %v \n", time.Now())
 	defaultHostname, err := util.GetHostname()
+	fmt.Printf("9d - %v \n", time.Now())
 	if err != nil {
 		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
 	}
-
+	fmt.Printf(defaultHostname)
+	fmt.Printf("10 - %v \n", time.Now())
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")
 
@@ -284,6 +290,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	eolTerminationUDP := false
 	eolTerminationUDS := false
 	eolTerminationNamedPipe := false
+
+	fmt.Printf("11 - %v \n", time.Now())
 
 	for _, v := range config.Datadog.GetStringSlice("dogstatsd_eol_required") {
 		switch v {
@@ -298,6 +306,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		}
 	}
 
+	fmt.Printf("12 - %v \n", time.Now())
 	s := &Server{
 		Started:                   true,
 		Statistics:                stats,
@@ -338,6 +347,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	// packets forwarding
 	// ----------------------
 
+	fmt.Printf("13 - %v \n", time.Now())
+
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
 	forwardPort := config.Datadog.GetInt("statsd_forward_port")
 	if forwardHost != "" && forwardPort != 0 {
@@ -353,6 +364,8 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 
 	// start the workers processing the packets read on the socket
 	// ----------------------
+
+	fmt.Printf("14 - %v \n", time.Now())
 
 	s.handleMessages()
 
@@ -379,6 +392,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 			s.mapper = mapperInstance
 		}
 	}
+
+	fmt.Printf("15 - %v \n", time.Now())
+
 	return s, nil
 }
 
