@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (50.9%)</option>
+				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (46.2%)</option>
 				
 				<option value="file1">github.com/DataDog/datadog-agent/pkg/serverless/daemon/interval.go (96.2%)</option>
 				
@@ -75,7 +75,7 @@
 				
 				<option value="file9">github.com/DataDog/datadog-agent/pkg/serverless/registration/utils.go (100.0%)</option>
 				
-				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (21.7%)</option>
+				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (21.8%)</option>
 				
 				<option value="file11">github.com/DataDog/datadog-agent/pkg/serverless/tags/tags.go (100.0%)</option>
 				
@@ -95,7 +95,9 @@
 
 import (
         "context"
+        "encoding/json"
         "fmt"
+        "io/ioutil"
         "net/http"
         "sync"
         "time"
@@ -114,6 +116,8 @@ import (
 // httpServerPort will be the default port used to run the HTTP server listening
 // to calls from the client libraries and to logs from the AWS environment.
 const httpServerPort int = 8124
+
+const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
@@ -217,12 +221,6 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="c
 
 //SetMuxHandle configures the log collection route handler
 func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) <span class="cov0" title="0">{
-        fmt.Println("IN MUX HANDLE")
-        fmt.Printf("ROUTE = %v \n", route)
-        fmt.Printf("d.ExtraTags = %v \n", d.ExtraTags)
-        fmt.Printf("logsChan = %v \n", logsChan)
-        fmt.Printf("d.MetricAgent = %v \n", d.MetricAgent)
-
         d.mux.Handle(route, &amp;serverlessLog.LogsCollection{
                 ExtraTags:              d.ExtraTags,
                 ExecutionContext:       d.ExecutionContext,
@@ -431,6 +429,32 @@ func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart boo
         d.ExecutionContext.LastRequestID = requestID
         d.ExecutionContext.Coldstart = coldstart
 }</span>
+
+func (d *Daemon) SaveCurrentExecutionContext() error <span class="cov0" title="0">{
+        file, err := json.Marshal(d.ExecutionContext)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (d *Daemon) RestoreCurrentStateFromFile() error <span class="cov0" title="0">{
+        file, err := ioutil.ReadFile(persistedStateFilePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">var restoredExecutionContext serverlessLog.ExecutionContext
+        err = json.Unmarshal(file, &amp;restoredExecutionContext)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">d.ExecutionContext = &amp;restoredExecutionContext
+        return nil</span>
+}
 </pre>
 		
 		<pre class="file" id="file1" style="display: none">// Unless explicitly stated otherwise all files in this repository are licensed
@@ -855,15 +879,12 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) <span
 
         data, _ := ioutil.ReadAll(r.Body)
         defer r.Body.Close()
-        log.Debug("xxx - in serve http parsing")
         messages, err := parseLogsAPIPayload(data)
         if err != nil </span><span class="cov8" title="1">{
                 fmt.Println(err)
-                log.Debug("xxx - in serve http parsing 400")
                 w.WriteHeader(400)
         }</span> else<span class="cov8" title="1"> {
                 processLogMessages(l, messages)
-                log.Debug("xxx - in serve http parsing 200")
                 w.WriteHeader(200)
         }</span>
 }
@@ -1566,9 +1587,9 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
         if response, err = client.Do(request); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
         }</span>
-
+        <span class="cov0" title="0">log.Debug("Waiting for next invocation...2")
         // we received an INVOKE or SHUTDOWN event
-        <span class="cov0" title="0">daemon.StoreInvocationTime(time.Now())
+        daemon.StoreInvocationTime(time.Now())
 
         var body []byte
         if body, err = ioutil.ReadAll(response.Body); err != nil </span><span class="cov0" title="0">{
@@ -1591,7 +1612,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
                         metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldstart)
                         metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
                         metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
-                }</span>
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Error("Unable to persist current state to file while shutting down")
+                        }</span>
+                }
                 <span class="cov0" title="0">daemon.Stop(isTimeout)
                 stopCh &lt;- struct{}{}</span>
         }
@@ -1608,6 +1632,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
         select </span>{
         case &lt;-ctx.Done():<span class="cov8" title="1">
                 log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
+                daemon.SaveCurrentExecutionContext()
                 daemon.FinishInvocation()
                 return</span>
         case &lt;-doneChannel:<span class="cov0" title="0">

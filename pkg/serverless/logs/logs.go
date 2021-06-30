@@ -162,7 +162,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 // ShouldProcessLog returns whether or not the log should be further processed.
 func shouldProcessLog(executionContext *ExecutionContext, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if len(executionContext.ARN) == 0 && (len(executionContext.LastRequestID) == 0 && len(message.ObjectRecord.RequestID) == 0) {
+	if len(executionContext.ARN) == 0 || len(executionContext.LastRequestID) == 0 {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
@@ -223,7 +223,6 @@ func GetLambdaSource() *logConfig.LogSource {
 
 // ServeHTTP - see type LogsCollection comment.
 func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
@@ -231,6 +230,7 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		w.WriteHeader(400)
 	} else {
+		log.Debug("Receiving a LOG payload %s", string(data))
 		processLogMessages(l, messages)
 		w.WriteHeader(200)
 	}
@@ -252,6 +252,11 @@ func processLogMessages(l *LogsCollection, messages []LogMessage) {
 // ProcessMessage performs logic about metrics and tags on the message
 func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
+
+	if message.Type == LogTypePlatformReport {
+		log.Debugf("report received = %s , context arn = %s , requestId = %s, enhancedMetricsEnabled %v", message.StringRecord, executionContext.ARN, executionContext.LastRequestID, enhancedMetricsEnabled)
+	}
+
 	if !shouldProcessLog(executionContext, message) {
 		return
 	}

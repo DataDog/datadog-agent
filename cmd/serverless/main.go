@@ -166,7 +166,10 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 
 	// immediately starts the communication server
 	daemon = serverlessDaemon.StartDaemon()
-	daemon.RestoreCurrentStateFromFile()
+	err = daemon.RestoreCurrentStateFromFile()
+	if err != nil {
+		log.Debug("Impossible to restore the state")
+	}
 	// serverless parts
 	// ----------------
 

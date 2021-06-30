@@ -359,6 +359,9 @@ func (d *Daemon) RestoreCurrentStateFromFile() error {
 	if err != nil {
 		return err
 	}
-	d.ExecutionContext = &restoredExecutionContext
+	d.ExecutionContext.ARN = restoredExecutionContext.ARN
+	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
+	log.Debug(d.ExecutionContext.ARN)
+	log.Debug(d.ExecutionContext.LastRequestID)
 	return nil
 }
