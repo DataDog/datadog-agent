@@ -27,6 +27,12 @@ import (
 // nor did benchmarks with xxhash (slightly slower).
 type ContextKey uint64
 
+// hashSetSize is the size selected for hashset used to deduplicate the tags
+// while generating the hash. This size has been selected to have space for
+// approximately 500 tags since it's not impacting much the performances,
+// even if the backend is truncating after 100 tags.
+const hashSetSize = 512
+
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
 	return &KeyGenerator{
@@ -57,50 +63,53 @@ type KeyGenerator struct {
 // Generate returns the ContextKey hash for the given parameters.
 // The tags array is sorted in place to avoid heap allocations.
 func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+	// between two generations, we have to set the hash to something neutral, let's
+	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
+
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
 
 	// there is two implementations used here to deduplicate the tags depending on how
 	// many tags we have to process:
-	//   -  16 < n < 512: 		we use a hashset of 512 values. This size has been
-	// 							selected to have space for approximately 500 tags
-	// 							since it's not impacting the performance much,
-	// 							even if the backend is truncating after 100.
-	//   -  n < 16 or n > 512: 	we use a simple for loops, which is faster than
+	//   -  16 < n < hashSetSize:	we use a hashset of `hashSetSize` values.
+	//   -  n < 16 or n > hashSetSize: we use a simple for loops, which is faster than
 	//                         	the hashset when there is less than 16 tags, and
-	//                         	we use it as fallback when there is more than 512
+	//                         	we use it as fallback when there is more than `hashSetSize`
 	//                         	because it is the maximum size the allocated
 	//                         	hashset can handle.
-	if len(tags) > 16 && len(tags) < 512 {
-		copy(g.seen, g.empty) // reset the `seen` hashset
-	OUTER:
+	if len(tags) > 16 && len(tags) < hashSetSize {
+		// reset the `seen` hashset.
+		// it copies `g.empty` instead of using make because it's faster
+		copy(g.seen, g.empty)
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
-			j := h & 511 // address this hash into the hashset
+			j := h & (hashSetSize - 1) // address this hash into the hashset
 			for {
-				if g.seen[j] == 0 { // not seen, we will add it to the hash
+				if g.seen[j] == 0 {
+					// not seen, we will add it to the hash
 					g.seen[j] = h
+					g.intb = g.intb ^ h // add this tag into the hash
 					break
 				} else if g.seen[j] == h {
-					continue OUTER // already seen, we do not want to xor multiple times the same tag
+					// already seen, we do not want to xor multiple times the same tag
+					break
 				} else {
 					// move 'right' in the hashset because there is already a value,
 					// in this bucket, which is not the one we're dealing with right now,
 					// we may have already seen this tag
-					j = (j + 1) & 511
+					j = (j + 1) & (hashSetSize - 1)
 				}
 			}
-			g.intb = g.intb ^ h // add this tag into the hash
 		}
 	} else {
 		g.idx = 0
-	OUTER2:
+	OUTER:
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
 			for j := 0; j < g.idx; j++ {
 				if g.seen[j] == h {
-					continue OUTER2 // we do not want to xor multiple times the same tag
+					continue OUTER // we do not want to xor multiple times the same tag
 				}
 			}
 			g.intb = g.intb ^ h
