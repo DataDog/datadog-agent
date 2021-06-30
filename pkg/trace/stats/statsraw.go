@@ -26,24 +26,24 @@ const (
 	maxNumBins = 2048
 )
 
-var gamma, bias = getBackendSketchParameters()
+var gamma, bias = backendSketchParameters()
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
 // is that the final data, the one with send after a call to Export(), is correct.
 
-// getBackendSketchParameters returns DDSketch parameters used in the backend. We should use the same ones in the agent to avoid
+// backendSketchParameters returns DDSketch parameters used in the backend. We should use the same ones in the agent to avoid
 // conversions that affect accuracy.
-func getBackendSketchParameters() (gamma float64, bias float64){
+func backendSketchParameters() (gamma float64, bias float64){
 	const (
-		// defaultEps is the relative accuracy we have on the percentiles. For example, we can
-		// say that p99 is 100ms +- eps*100ms = 100ms += 0.78ms
-		defaultEps      = 1.0 / 128.0
-		// defaultMin is the minimal value stored in sketch.
-		defaultMin      = 1e-9
+		// eps is the relative accuracy we have on the percentiles. For example, we can
+		// say that the p99 is 100ms +- eps*100ms = 100ms += 0.78ms
+		eps = 1.0 / 128.0
+		// minValue is the minimal value stored in sketch.
+		minValue = 1e-9
 	)
-	gamma = 1+2*defaultEps
+	gamma = 1+2*eps
 	logGamma := math.Log(gamma)
-	emin := int(math.Floor(math.Log(defaultMin)/logGamma))
+	emin := int(math.Floor(math.Log(minValue)/logGamma))
 	bias = -float64(emin) + 1
 	// adding 0.5 to bias since the buckets are shifted in the backend by 0.5 compared to the sketches-go implementation.
 	bias += 0.5
