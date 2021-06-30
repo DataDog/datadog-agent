@@ -23,4 +23,4 @@ COPY install_info C:/ProgramData/Datadog/
 COPY entrypoint.ps1 C:/entrypoint.ps1
 COPY entrypoint.d.windows C:/ProgramData/entrypoints
 
-CMD ["C:\entrypoint.ps1"]
+CMD C:\entrypoint.ps1
