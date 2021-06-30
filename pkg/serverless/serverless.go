@@ -194,7 +194,6 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
-		log.Debug("Saving current state")
 		err := daemon.SaveCurrentExecutionContext()
 		if err != nil {
 			log.Debug("Impossible to save the current state")

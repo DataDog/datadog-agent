@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
-	serverlessDaemon "github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -105,13 +104,13 @@ func run(cmd *cobra.Command, args []string) error {
 	stopCh := make(chan struct{})
 
 	// run the agent
-	daemon, err := runAgent(stopCh)
+	serverlessDaemon, err := runAgent(stopCh)
 	if err != nil {
 		return err
 	}
 
 	// handle SIGTERM
-	go handleSignals(daemon, stopCh)
+	go handleSignals(serverlessDaemon, stopCh)
 
 	// block here until we receive a stop signal
 	<-stopCh
@@ -132,7 +131,7 @@ func main() {
 	}
 }
 
-func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
+func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error) {
 
 	startTime := time.Now()
 
@@ -159,8 +158,8 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	}
 
 	// immediately starts the communication server
-	daemon = serverlessDaemon.StartDaemon()
-	err = daemon.RestoreCurrentStateFromFile()
+	serverlessDaemon = daemon.StartDaemon()
+	err = serverlessDaemon.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Impossible to restore the state")
 	}
@@ -237,11 +236,11 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
 			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
 		} else {
-			daemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
-			daemon.SetFlushStrategy(flushStrategy)
+			serverlessDaemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
+			serverlessDaemon.SetFlushStrategy(flushStrategy)
 		}
 	} else {
-		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
+		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
 
 	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
@@ -298,10 +297,10 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	<-waitingChan
 	<-waitingChan
 
-	daemon.SetStatsdServer(metricAgent)
-	daemon.SetTraceAgent(traceAgent.Get())
+	serverlessDaemon.SetStatsdServer(metricAgent)
+	serverlessDaemon.SetTraceAgent(traceAgent.Get())
 
-	daemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
+	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -309,7 +308,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 	go func() {
 		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, daemon, serverlessID, coldstart); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, serverlessDaemon, serverlessID, coldstart); err != nil {
 				log.Error(err)
 			}
 			coldstart = false
@@ -322,7 +321,7 @@ func runAgent(stopCh chan struct{}) (daemon *daemon.Daemon, err error) {
 
 // handleSignals handles OS signals, if a SIGTERM is received,
 // the serverless agent stops.
-func handleSignals(daemon *serverlessDaemon.Daemon, stopCh chan struct{}) {
+func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -333,7 +332,7 @@ func handleSignals(daemon *serverlessDaemon.Daemon, stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
-			daemon.Stop(false)
+			serverlessDaemon.Stop(false)
 			stopCh <- struct{}{}
 			return
 		}
