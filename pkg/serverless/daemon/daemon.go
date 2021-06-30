@@ -128,7 +128,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 //SetMuxHandle configures the log collection route handler
 func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
-	d.mux.Handle(route, &serverlessLog.LogsCollection{
+	d.mux.Handle(route, &serverlessLog.CollectionRouteInfo{
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
@@ -331,12 +331,14 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 	}
 }
 
+// SetExecutionContext sets the current context to the daemon
 func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart bool) {
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
 	d.ExecutionContext.Coldstart = coldstart
 }
 
+// SaveCurrentExecutionContext stores the current context to a file
 func (d *Daemon) SaveCurrentExecutionContext() error {
 	file, err := json.Marshal(d.ExecutionContext)
 	if err != nil {
@@ -349,6 +351,7 @@ func (d *Daemon) SaveCurrentExecutionContext() error {
 	return nil
 }
 
+// RestoreCurrentStateFromFile loads the current context from a file
 func (d *Daemon) RestoreCurrentStateFromFile() error {
 	file, err := ioutil.ReadFile(persistedStateFilePath)
 	if err != nil {

@@ -27,10 +27,10 @@ type ExecutionContext struct {
 	Coldstart     bool
 }
 
-// LogsCollection is the route on which the AWS environment is sending the logs
+// CollectionRouteInfo is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
-type LogsCollection struct {
+type CollectionRouteInfo struct {
 	LogChannel             chan *logConfig.ChannelMessage
 	MetricChannel          chan []metrics.MetricSample
 	ExtraTags              *Tags
@@ -159,7 +159,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ShouldProcessLog returns whether or not the log should be further processed.
+// shouldProcessLog returns whether or not the log should be further processed.
 func shouldProcessLog(executionContext *ExecutionContext, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
 	if len(executionContext.ARN) == 0 || len(executionContext.LastRequestID) == 0 {
@@ -187,7 +187,7 @@ func createStringRecordForReportLog(l *LogMessage) string {
 	return stringRecord
 }
 
-// ParseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
+// parseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
 func parseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 	var messages []LogMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
@@ -221,8 +221,8 @@ func GetLambdaSource() *logConfig.LogSource {
 	return nil
 }
 
-// ServeHTTP - see type LogsCollection comment.
-func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP - see type CollectionRouteInfo comment.
+func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
@@ -231,25 +231,25 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 	} else {
 		log.Debug("Receiving a LOG payload %s", string(data))
-		processLogMessages(l, messages)
+		processLogMessages(c, messages)
 		w.WriteHeader(200)
 	}
 }
 
-func processLogMessages(l *LogsCollection, messages []LogMessage) {
-	metricTags := tags.AddColdStartTag(l.ExtraTags.Tags, l.ExecutionContext.Coldstart)
+func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
+	metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
 	for _, message := range messages {
-		processMessage(message, l.ExecutionContext, l.EnhancedMetricsEnabled, metricTags, l.MetricChannel)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, metricTags, c.MetricChannel)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
-		if l.LogsEnabled {
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, l.ExecutionContext.ARN, l.ExecutionContext.LastRequestID)
-			l.LogChannel <- logMessage
+		if c.LogsEnabled {
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, c.ExecutionContext.ARN, c.ExecutionContext.LastRequestID)
+			c.LogChannel <- logMessage
 		}
 	}
 }
 
-// ProcessMessage performs logic about metrics and tags on the message
+// processMessage performs logic about metrics and tags on the message
 func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 

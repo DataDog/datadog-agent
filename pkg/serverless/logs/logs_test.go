@@ -298,7 +298,7 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	logCollection := &LogsCollection{
+	logCollection := &CollectionRouteInfo{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -337,7 +337,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	logCollection := &LogsCollection{
+	logCollection := &CollectionRouteInfo{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -373,7 +373,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	logCollection := &LogsCollection{
+	logCollection := &CollectionRouteInfo{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",
@@ -395,7 +395,7 @@ func TestServeHTTPInvalidPayload(t *testing.T) {
 func TestServeHTTPSuccess(t *testing.T) {
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	logCollection := &LogsCollection{
+	logCollection := &CollectionRouteInfo{
 		ExecutionContext: &ExecutionContext{
 			ARN:           "myARN",
 			LastRequestID: "myRequestID",

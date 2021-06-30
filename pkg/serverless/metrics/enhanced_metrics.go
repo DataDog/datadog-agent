@@ -103,7 +103,7 @@ func GenerateEnhancedMetricsFromReportLog(objectRecord PlatformObjectRecord, tim
 	metricsChan <- enhancedMetrics
 }
 
-// sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
+// SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
 func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
 	metricsChan <- []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.timeouts",
