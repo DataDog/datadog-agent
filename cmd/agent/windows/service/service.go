@@ -59,7 +59,7 @@ loop:
 				break loop
 			case svc.PreShutdown:
 				log.Info("Received pre shutdown message from service control manager")
-				elog.Info(0x4000000f, config.ServiceName)
+				elog.Info(0x40000010, config.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")
