@@ -284,6 +284,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 				RuntimeID:        p.RuntimeID,
 				Sequence:         p.Sequence,
 				AgentAggregation: p.AgentAggregation,
+				SummaryUsesSeconds: p.SummaryUsesSeconds,
 				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}

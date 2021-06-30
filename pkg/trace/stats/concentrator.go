@@ -199,6 +199,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 			ContainerID: k.ContainerID,
 			Version:     k.Version,
 			Stats:       s,
+			SummaryUsesSeconds: true,
 		}
 		sb = append(sb, p)
 	}

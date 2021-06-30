@@ -472,7 +472,7 @@ func TestDistributions(t *testing.T) {
 	assert := assert.New(t)
 	testQuantiles := []float64{0.1, 0.5, 0.95, 0.99, 1}
 	t.Run("constant", func(t *testing.T) {
-		constantDistribution := generateDistribution(t, func(i int) int64 { return 42 })
+		constantDistribution := generateDistribution(t, func(i int) int64 { return 42*int64(time.Second) })
 		expectedConstant := []float64{42, 42, 42, 42, 42}
 		for i, q := range testQuantiles {
 			actual, err := constantDistribution.GetValueAtQuantile(q)
@@ -481,7 +481,7 @@ func TestDistributions(t *testing.T) {
 		}
 	})
 	t.Run("uniform", func(t *testing.T) {
-		uniformDistribution := generateDistribution(t, func(i int) int64 { return int64(i) + 1 })
+		uniformDistribution := generateDistribution(t, func(i int) int64 { return (int64(i) + 1)*int64(time.Second) })
 		expectedUniform := []float64{10, 50, 95, 99, 100}
 		for i, q := range testQuantiles {
 			actual, err := uniformDistribution.GetValueAtQuantile(q)

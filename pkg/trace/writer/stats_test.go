@@ -118,6 +118,7 @@ func TestStatsWriter(t *testing.T) {
 				Sequence:         34,
 				AgentAggregation: "aggregation",
 				Service:          "service",
+				SummaryUsesSeconds: true,
 				Stats: []pb.ClientStatsBucket{
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),

@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"math"
 	"math/rand"
 	"strings"
 
@@ -13,21 +14,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
 )
 
 const (
-	// relativeAccuracy is the value accuracy we have on the percentiles. For example, we can
-	// say that p99 is 100ms +- 1ms
-	relativeAccuracy = 0.01
 	// maxNumBins is the maximum number of bins of the ddSketch we use to store percentiles.
 	// It can affect relative accuracy, but in practice, 2048 bins is enough to have 1% relative accuracy from
 	// 80 micro second to 1 year: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
 	maxNumBins = 2048
 )
 
+var gamma, bias = getBackendSketchParameters()
+
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
 // is that the final data, the one with send after a call to Export(), is correct.
+
+// getBackendSketchParameters returns DDSketch parameters used in the backend. We should use the same ones in the agent to avoid
+// conversions that affect accuracy.
+func getBackendSketchParameters() (gamma float64, bias float64){
+	const (
+		// defaultEps is the relative accuracy we have on the percentiles. For example, we can
+		// say that p99 is 100ms +- eps*100ms = 100ms += 0.78ms
+		defaultEps      = 1.0 / 128.0
+		// defaultMin is the minimal value stored in sketch.
+		defaultMin      = 1e-9
+	)
+	gamma = 1+2*defaultEps
+	logGamma := math.Log(gamma)
+	emin := int(math.Floor(math.Log(defaultMin)/logGamma))
+	bias = -float64(emin) + 1
+	// adding 0.5 to bias since the buckets are shifted in the backend by 0.5 compared to the sketches-go implementation.
+	bias += 0.5
+	return gamma, bias
+}
 
 type groupedStats struct {
 	// using float64 here to avoid the accumulation of rounding issues.
@@ -77,17 +98,13 @@ func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 }
 
 func newGroupedStats() *groupedStats {
-	okSketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
-	if err != nil {
-		log.Errorf("Error when creating ddsketch: %v", err)
-	}
-	errSketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+	m, err := mapping.NewLogarithmicMappingWithGamma(gamma, bias)
 	if err != nil {
 		log.Errorf("Error when creating ddsketch: %v", err)
 	}
 	return &groupedStats{
-		okDistribution:  okSketch,
-		errDistribution: errSketch,
+		okDistribution:  ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins)),
+		errDistribution:  ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins)),
 	}
 }
 
@@ -172,24 +189,10 @@ func (sb *RawBucket) add(s *WeightedSpan, aggr Aggregation) {
 		gs.errors += s.Weight
 	}
 	gs.duration += float64(s.Duration) * s.Weight
-	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
+	secondsDuration := float64(s.Duration)/1e9
 	if s.Error != 0 {
-		gs.errDistribution.Add(trundur)
+		gs.errDistribution.Add(secondsDuration)
 	} else {
-		gs.okDistribution.Add(trundur)
+		gs.okDistribution.Add(secondsDuration)
 	}
-}
-
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask int64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns int64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
 }

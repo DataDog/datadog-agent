@@ -28,6 +28,7 @@ var ClientStatsTests = []struct {
 			RuntimeID: "1",
 			Sequence:  2,
 			Service:   "test-service",
+			SummaryUsesSeconds: true,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -63,6 +64,7 @@ var ClientStatsTests = []struct {
 				RuntimeID:     "1",
 				Sequence:      2,
 				Service:       "test-service",
+				SummaryUsesSeconds: true,
 				Stats: []pb.ClientStatsBucket{
 					{
 						Start:    0,
@@ -97,6 +99,7 @@ var ClientStatsTests = []struct {
 			RuntimeID: "1",
 			Sequence:  2,
 			Service:   "test-service",
+			SummaryUsesSeconds: true,
 			Stats: []pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -162,6 +165,7 @@ var ClientStatsTests = []struct {
 						Sequence:         2,
 						AgentAggregation: "distributions",
 						Service:          "test-service",
+						SummaryUsesSeconds: true,
 						Stats: []pb.ClientStatsBucket{
 							{
 								Start:    0,
@@ -204,6 +208,7 @@ var ClientStatsTests = []struct {
 						Sequence:         2,
 						AgentAggregation: "distributions",
 						Service:          "test-service",
+						SummaryUsesSeconds: true,
 						Stats: []pb.ClientStatsBucket{
 							{
 								Start:    0,
