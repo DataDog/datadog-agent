@@ -88,7 +88,7 @@ const (
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
-	logsAPITimeout             = 10
+	logsAPITimeout             = 25
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 )

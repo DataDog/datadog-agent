@@ -34,7 +34,7 @@ const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 20 * time.Millisecond
+const shutdownDelay time.Duration = 30 * time.Millisecond
 
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
@@ -260,7 +260,7 @@ func StartDaemon() *Daemon {
 	mux := http.NewServeMux()
 	fmt.Printf("B - %v \n", time.Now())
 	daemon := &Daemon{
-		httpServer:       &http.Server{Addr: fmt.Sprintf("localhost:%d", httpServerPort), Handler: mux},
+		httpServer:       &http.Server{Addr: fmt.Sprintf("http://localhost:%d", httpServerPort), Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
 		LastInvocations:  make([]time.Time, 0),

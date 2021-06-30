@@ -34,7 +34,9 @@ func EnableLogsCollection(
 
 	callBackURI := buildCallbackURI(port, collectionRoute)
 	payload := buildLogRegistrationPayload(callBackURI, logsType, timeout, maxBytes, maxItems)
-
+	log.Debugf("payload to send = %v", payload)
+	log.Debugf("registration URL = %s", registrationURL)
+	log.Debugf("registration URL = %v", registrationTimeout)
 	return subscribeLogs(id, registrationURL, registrationTimeout, payload)
 }
 
