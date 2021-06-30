@@ -979,7 +979,7 @@ def update_modules(ctx, agent_version, verify=True):
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
@@ -987,19 +987,37 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True):
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
     * --push will push the tags to the origin remote (on by default).
+    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
     Examples:
     inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
     inv -e release.tag-version 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+    inv -e release.tag-version 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
     if verify:
         check_version(agent_version)
 
+    force_option = ""
+    if force:
+        print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
+        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
+        if result:
+            print("Continuing with the --force option.")
+            force_option = " --force"
+        else:
+            print("Continuing without the --force option.")
+
     for module in DEFAULT_MODULES.values():
         if module.should_tag:
             for tag in module.tag(agent_version):
-                ctx.run("git tag -m {tag} {tag} {commit}".format(tag=tag, commit=commit))
+                ctx.run(
+                    "git tag -m {tag} {tag} {commit}{force_option}".format(
+                        tag=tag, commit=commit, force_option=force_option
+                    )
+                )
+                print("Created tag {tag}".format(tag=tag))
                 if push:
-                    ctx.run("git push origin {}".format(tag))
+                    ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
+                    print("Pushed tag {tag}".format(tag=tag))
 
     print("Created all tags for version {}".format(agent_version))
