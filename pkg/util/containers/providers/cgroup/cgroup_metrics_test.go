@@ -39,6 +39,31 @@ func TestCPU(t *testing.T) {
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
 }
 
+func TestCPULimit(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	// CFS period and quota
+	tempFolder.add("cpu/cpu.cfs_period_us", "100000")
+	tempFolder.add("cpu/cpu.cfs_quota_us", "600000")
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+	cpuLimit, err := cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(600))
+
+	// CPU set
+	tempFolder.add("cpuset/cpuset.cpus", "0-4")
+
+	cgroup = newDummyContainerCgroup(tempFolder.RootPath, "cpu", "cpuset")
+	cpuLimit, err = cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(500))
+}
+
 func TestCPUNrThrottled(t *testing.T) {
 	tempFolder, err := newTempFolder("cpu-throttled")
 	assert.Nil(t, err)

@@ -500,6 +500,11 @@ api_key:
 #
 # secret_backend_timeout: 30
 
+## @param secret_backend_skip_checks - boolean - optional - default: false
+## Disable fetching secrets for check configurations
+#
+# secret_backend_skip_checks: false
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
@@ -869,6 +874,30 @@ api_key:
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  {{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the trace-agent process.
+    #
+    # enabled: false
+
+  {{ end }}
 
 {{ end -}}
 {{- if .ProcessAgent }}

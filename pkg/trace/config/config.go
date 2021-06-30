@@ -7,8 +7,10 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,17 +21,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
-	ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
-
-	// ErrMissingHostname is returned when the config could not be validated due to missing hostname.
-	ErrMissingHostname = errors.New("failed to automatically set the hostname, you must specify it via configuration for or the DD_HOSTNAME env var")
-)
+// ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
+var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
 
 // Endpoint specifies an endpoint that the trace agent will write data (traces, stats & services) to.
 type Endpoint struct {
@@ -47,7 +48,8 @@ type Endpoint struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	Enabled bool
+	Enabled   bool
+	IsFargate bool // specifies whether we are in a Fargate instance
 
 	// Global
 	Hostname   string
@@ -126,6 +128,9 @@ type AgentConfig struct {
 
 	// RejectTags specifies a list of tags which must be absent on the root span in order for a trace to be accepted.
 	RejectTags []*Tag
+
+	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
+	OTLPReceiver *OTLP
 }
 
 // Tag represents a key/value pair.
@@ -135,8 +140,15 @@ type Tag struct {
 
 // New returns a configuration with the default values.
 func New() *AgentConfig {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	isFargate := fargate.IsFargateInstance(ctx)
+	cancel()
+	if err := ctx.Err(); err != nil && err != context.Canceled {
+		log.Errorf("Error detecting Fargate instance: %v. Assuming not. If you are in a Fargate instance, this will cause problems.", err)
+	}
 	return &AgentConfig{
 		Enabled:    true,
+		IsFargate:  isFargate,
 		DefaultEnv: "none",
 		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
@@ -171,7 +183,8 @@ func New() *AgentConfig {
 
 		GlobalTags: make(map[string]string),
 
-		DDAgentBin: defaultDDAgentBin,
+		DDAgentBin:   defaultDDAgentBin,
+		OTLPReceiver: &OTLP{},
 	}
 }
 
@@ -192,8 +205,12 @@ func (c *AgentConfig) validate() error {
 		return errors.New("agent binary path not set")
 	}
 	if c.Hostname == "" {
+		// no user-set hostname, try to acquire
 		if err := c.acquireHostname(); err != nil {
-			return err
+			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
+			if err := c.acquireHostnameFallback(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -203,23 +220,57 @@ func (c *AgentConfig) validate() error {
 // when it can not be obtained by any other means. It is replaced in tests.
 var fallbackHostnameFunc = os.Hostname
 
-// acquireHostname attempts to acquire a hostname for this configuration. It
+// acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
+// gRPC endpoints. If it fails, it will return an error.
+func (c *AgentConfig) acquireHostname() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client, err := grpc.GetDDAgentClient(ctx)
+	if err != nil {
+		return err
+	}
+	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
+	if err != nil {
+		return err
+	}
+	if features.Has("disable_empty_hostname") && reply.Hostname == "" {
+		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
+		return errors.New("empty hostname disallowed")
+	}
+	c.Hostname = reply.Hostname
+	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	return nil
+}
+
+// acquireHostnameFallback attempts to acquire a hostname for this configuration. It
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
-func (c *AgentConfig) acquireHostname() error {
+func (c *AgentConfig) acquireHostnameFallback() error {
 	var out bytes.Buffer
 	cmd := exec.Command(c.DDAgentBin, "hostname")
 	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if err != nil || c.Hostname == "" {
-		c.Hostname, err = fallbackHostnameFunc()
+	if emptyDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
+		if emptyDisallowed {
+			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+		}
+		// There was either an error retrieving the hostname from the core agent, or
+		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		host, err2 := fallbackHostnameFunc()
+		if err2 != nil {
+			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
+		}
+		if emptyDisallowed && host == "" {
+			return errors.New("empty hostname disallowed")
+		}
+		c.Hostname = host
+		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		return nil
 	}
-	if c.Hostname == "" {
-		err = ErrMissingHostname
-	}
-	return err
+	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	return nil
 }
 
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
