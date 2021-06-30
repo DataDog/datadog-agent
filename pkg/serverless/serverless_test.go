@@ -17,7 +17,7 @@ import (
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon()
-	defer d.Stop(false)
+	defer d.Stop()
 
 	d.ClientLibReady = false
 	d.WaitForDaemon()

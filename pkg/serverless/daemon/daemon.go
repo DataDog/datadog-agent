@@ -34,7 +34,7 @@ const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1 * time.Second
+const shutdownDelay time.Duration = 20 * time.Millisecond
 
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
@@ -211,7 +211,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop(isTimeout bool) {
+func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
@@ -280,12 +280,7 @@ func StartDaemon() *Daemon {
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
-		if err := daemon.httpServer.ListenAndServe(); err != nil {
-			fmt.Printf("FF - %v \n", time.Now())
-			log.Error(err)
-		} else {
-			fmt.Println("yes yes in listen and serve")
-		}
+		daemon.httpServer.ListenAndServe()
 	}()
 
 	fmt.Printf("E - %v \n", time.Now())

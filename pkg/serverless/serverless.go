@@ -178,7 +178,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 				log.Error("Unable to persist current state to file while shutting down")
 			}
 		}
-		daemon.Stop(isTimeout)
+		daemon.Stop()
 		stopCh <- struct{}{}
 	}
 

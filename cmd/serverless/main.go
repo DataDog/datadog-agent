@@ -88,7 +88,7 @@ const (
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
-	logsAPITimeout             = 1000
+	logsAPITimeout             = 10
 	logsAPIMaxBytes            = 262144
 	logsAPIMaxItems            = 1000
 )
@@ -325,7 +325,7 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
-			serverlessDaemon.Stop(false)
+			serverlessDaemon.Stop()
 			stopCh <- struct{}{}
 			return
 		}
