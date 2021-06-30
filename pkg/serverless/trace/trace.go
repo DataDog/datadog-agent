@@ -19,14 +19,17 @@ type ServerlessTraceAgent struct {
 	cancel context.CancelFunc
 }
 
-type LoadConfig struct {
-	Path string
-}
-
+// Load abstracts the file configuration loading
 type Load interface {
 	Load() (*config.AgentConfig, error)
 }
 
+// LoadConfig is implementing Load to retrieve the config
+type LoadConfig struct {
+	Path string
+}
+
+// Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	return config.Load(l.Path)
 }
