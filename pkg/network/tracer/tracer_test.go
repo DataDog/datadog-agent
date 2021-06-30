@@ -2777,7 +2777,7 @@ func TestSendfileRegression(t *testing.T) {
 		return int64(clientMessageSize) == rcvd
 	}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
 
-	// Finaly retrieve connection and assert that the sendfile was accounted for
+	// Finally, retrieve connection and assert that the sendfile was accounted for
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)

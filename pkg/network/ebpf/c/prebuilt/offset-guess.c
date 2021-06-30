@@ -140,10 +140,12 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         bpf_probe_read(new_status.daddr_ipv6, sizeof(u32) * 4, subject + status->offset_daddr_ipv6);
         break;
     case GUESS_SOCKET_SK:
-        struct sock *skp;
-        bpf_probe_read(&skp, sizeof(skp), subject + status->offset_socket_sk);
-        bpf_probe_read(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), (char *)skp + status->offset_sport);
-        bpf_probe_read(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), (char *)skp + status->offset_dport);
+        // Note that in this line we're essentially dereferencing a pointer
+        // subject initially points to a (struct socket*), and we're trying to guess the offset of
+        // (struct socket*)->sk which points to a (struct sock*) object.
+        bpf_probe_read(&subject, sizeof(subject), subject + status->offset_socket_sk);
+        bpf_probe_read(&new_status.sport_via_sk, sizeof(new_status.sport_via_sk), subject + status->offset_sport);
+        bpf_probe_read(&new_status.dport_via_sk, sizeof(new_status.dport_via_sk), subject + status->offset_dport);
         break;
     default:
         // not for us
