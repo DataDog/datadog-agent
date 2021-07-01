@@ -96,7 +96,7 @@ if node['platform_family'] != 'windows'
   if not platform_family?('suse')
     package 'Install i386 libc' do
       case node[:platform]
-      when 'redhat', 'centos', 'fedora'
+      when 'redhat', 'centos', 'fedora', 'oracle'
         package_name 'glibc.i686'
       when 'ubuntu', 'debian'
         package_name 'libc6-i386'
