@@ -277,7 +277,7 @@ func batchConnections(
 			}
 		}
 		batchDomainIndexes := make([]int32, 0)
-		for k, _ := range domainIndices {
+		for k := range domainIndices {
 			batchDomainIndexes = append(batchDomainIndexes, k)
 		}
 
