@@ -15,9 +15,6 @@ variables: &commonvariables
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
   OMNIBUS_BASE_DIR: /.omnibus
-  # Directory in which we put the artifacts after the build
-  # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   OMNIBUS_BASE_DIR_WIN: c:/omnibus-ruby #\$CI_RUNNER_ID
   # Directory in which we execute the omnibus build for SUSE
   # as we want to separate the RPM built for this distro.
