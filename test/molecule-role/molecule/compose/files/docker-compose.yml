@@ -42,7 +42,7 @@ services:
       KAFKA_PORT: 9092
       KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
     healthcheck:
-      test: [ "CMD-SHELL", "if [[ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" -le \"$(tr , '\n' <<< $KAFKA_CREATE_TOPICS | wc -l)\" ]]; then exit 1; fi" ]
+      test: [ "CMD-SHELL", "if [[ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" -le \"$$(tr , '\n' <<< $KAFKA_CREATE_TOPICS | wc -l)\" ]]; then exit 1; fi" ]
       interval: 30s
       timeout: 30s
       retries: 10
@@ -50,6 +50,8 @@ services:
     volumes:
       - "./create-topics.sh:/usr/bin/create-topics.sh"
     mem_limit: 1G
+
+  # if [[ "$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )" -le "$(tr , '\n' <<< $KAFKA_CREATE_TOPICS | wc -l)" ]]; then echo "Bad"; else echo "Good"; fi
 
   receiver:
     image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
