@@ -862,12 +862,6 @@ func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string
 	}
 }
 
-func testContainerPath(t *testing.T, event *sprobe.Event, fieldPath string) {
-	t.Helper()
-
-	testStringFieldContains(t, event, fieldPath, "docker")
-}
-
 func (tm *testModule) flushChannels(duration time.Duration) {
 	timeout := time.After(duration)
 	for {

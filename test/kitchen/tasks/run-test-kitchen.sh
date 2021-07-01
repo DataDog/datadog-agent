@@ -107,7 +107,7 @@ if [ -z ${AGENT_VERSION+x} ]; then
   popd
 fi
 
-invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --testfiles="$1" ${KITCHEN_FIPS:+--fips}
+invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
 
 bundle exec kitchen diagnose --no-instances --loader
 

@@ -172,10 +172,6 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "process.file.container_path")
-			}
 		}
 	})
 
@@ -206,10 +202,6 @@ func TestProcessContext(t *testing.T) {
 		} else {
 			assertFieldEqual(t, event, "process.file.path", executable)
 			assert.Equal(t, event.ResolveProcessCacheEntry().FileFields.Inode, getInode(t, executable), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "process.file.container_path")
-			}
 		}
 	})
 
@@ -274,10 +266,6 @@ func TestProcessContext(t *testing.T) {
 
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
-			}
-
-			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
-				testContainerPath(t, event, "exec.file.container_path")
 			}
 		}
 	})
@@ -384,10 +372,6 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
-				testContainerPath(t, event, "exec.file.container_path")
-			}
 		}
 	})
 
@@ -449,10 +433,6 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileFields.Inode, inode, event)
 			}
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "process.file.container_path")
-			}
-
 			str := event.String()
 
 			if !strings.Contains(str, "pts") {
@@ -488,11 +468,6 @@ func TestProcessContext(t *testing.T) {
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
-				testContainerPath(t, event, "process.file.container_path")
-				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
-			}
 		}
 	})
 
@@ -521,11 +496,6 @@ func TestProcessContext(t *testing.T) {
 
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
-			}
-
-			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
-				testContainerPath(t, event, "process.file.container_path")
-				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 			}
 		}
 	})
@@ -556,11 +526,6 @@ func TestProcessContext(t *testing.T) {
 
 			if !validateExecSchema(t, event) {
 				t.Fatal(event.String())
-			}
-
-			if testEnvironment == DockerEnvironment || kind == dockerWrapperType {
-				testContainerPath(t, event, "process.file.container_path")
-				testStringFieldContains(t, event, "process.ancestors.file.container_path", "docker")
 			}
 
 			service := event.GetProcessServiceTag()
@@ -601,9 +566,6 @@ func TestProcessExec(t *testing.T) {
 	} else {
 		assertFieldEqual(t, event, "exec.file.path", executable)
 		assertFieldOneOf(t, event, "process.file.name", []interface{}{"sh", "bash", "dash"})
-		if testEnvironment == DockerEnvironment {
-			testContainerPath(t, event, "exec.file.container_path")
-		}
 	}
 }
 
@@ -792,10 +754,6 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		}
 	}
 
-	if testEnvironment == DockerEnvironment {
-		testContainerPath(t, event, "process.file.container_path")
-	}
-
 	return nil
 }
 
@@ -820,10 +778,6 @@ func testProcessLineageFork(t *testing.T, event *probe.Event) {
 			// We can't check that the new entry is in the list of the children of its parent because the exit event
 			// has probably already been processed (thus the parent list of children has already been updated and the
 			// child entry deleted).
-		}
-
-		if testEnvironment == DockerEnvironment {
-			testContainerPath(t, event, "process.file.container_path")
 		}
 	}
 }
