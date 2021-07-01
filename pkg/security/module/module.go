@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	agentLogger "github.com/DataDog/datadog-agent/pkg/security/log"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -183,7 +183,7 @@ func (m *Module) Reload() error {
 			m.getEventTypeEnabled(),
 			sprobe.AllCustomRuleIDs(),
 			model.SECLLegacyAttributes,
-			agentLogger.DatadogAgentLogger{})
+			&seclog.PatternLogger{})
 	}
 
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
@@ -257,7 +257,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 	}
 
 	if err := m.probe.OnNewDiscarder(rs, event.(*probe.Event), field, eventType); err != nil {
-		log.Trace(err)
+		seclog.Trace(err)
 	}
 }
 
@@ -310,7 +310,7 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	if m.rateLimiter.Allow(rule.ID) {
 		m.apiServer.SendEvent(rule, event, extTagsCb)
 	} else {
-		log.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
+		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
@@ -408,6 +408,8 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 	}
+
+	seclog.SetPatterns(cfg.LogPatterns)
 
 	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 

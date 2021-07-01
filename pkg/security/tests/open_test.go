@@ -64,10 +64,6 @@ func TestOpen(t *testing.T) {
 			if !validateOpenSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	}))
 
@@ -87,10 +83,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	})
 
@@ -118,10 +110,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	})
 
@@ -141,10 +129,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	}))
 
@@ -177,10 +161,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, event.GetType(), "open", "wrong event type")
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	})
 
@@ -229,10 +209,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, event.GetType(), "open", "wrong event type")
 			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	})
 
@@ -297,10 +273,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0747)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 
 		// same with openat2
@@ -335,10 +307,6 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "open.file.container_path")
-			}
 		}
 	})
 

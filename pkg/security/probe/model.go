@@ -94,14 +94,6 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 	return f.BasenameStr
 }
 
-// ResolveFileContainerPath resolves the inode to a full path
-func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
-	if len(f.ContainerPath) == 0 {
-		f.ContainerPath = ev.resolvers.resolveContainerPath(&f.FileFields)
-	}
-	return f.ContainerPath
-}
-
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)

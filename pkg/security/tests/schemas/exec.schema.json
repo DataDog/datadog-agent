@@ -9,41 +9,5 @@
         {
             "$ref": "file:///host_event.json"
         }
-    ],
-    "allOf": [
-        {
-            "if": {
-                "properties": {
-                    "file": {
-                        "type": "object",
-                        "required": [
-                            "container_path"
-                        ]
-                    }
-                }
-            },
-            "then": {
-                "required": [
-                    "container"
-                ]
-            }
-        },
-        {
-            "if": {
-                "required": [
-                    "container"
-                ]
-            },
-            "then": {
-                "properties": {
-                    "file": {
-                        "type": "object",
-                        "required": [
-                            "container_path"
-                        ]
-                    }
-                }
-            }
-        }
     ]
 }

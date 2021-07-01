@@ -22,6 +22,18 @@ import (
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
+type generateMetricsTest struct {
+	name        string
+	stats       *pb.ContainerStats
+	status      *pb.ContainerStatus
+	senderCalls []senderCall
+}
+
+type senderCall struct {
+	method string
+	args   []interface{}
+}
+
 func TestCriGenerateMetrics(t *testing.T) {
 	criCheck := &CRICheck{
 		CheckBase: core.NewCheckBase(criCheckName),
@@ -30,29 +42,60 @@ func TestCriGenerateMetrics(t *testing.T) {
 		},
 	}
 
-	var err error
-	defer containers.ResetSharedFilter()
-	criCheck.filter, err = containers.GetSharedMetricFilter()
-	require.NoError(t, err)
-
-	stats := make(map[string]*pb.ContainerStats)
-	stats["cri://foobar"] = &pb.ContainerStats{
-		Cpu: &pb.CpuUsage{
-			Timestamp: 123456789,
+	tags := []string{"runtime:fakeruntime"}
+	tests := []generateMetricsTest{
+		{
+			name:  "container running generates metrics",
+			stats: &pb.ContainerStats{},
+			status: &pb.ContainerStatus{
+				State:     pb.ContainerState_CONTAINER_RUNNING,
+				StartedAt: time.Now().UnixNano() - int64(42*time.Second),
+			},
+			senderCalls: []senderCall{
+				{"Gauge", []interface{}{"cri.mem.rss", float64(0), "", tags}},
+				{"Rate", []interface{}{"cri.cpu.usage", float64(0), "", tags}},
+				{"Gauge", []interface{}{"cri.disk.used", float64(0), "", tags}},
+				{"Gauge", []interface{}{"cri.disk.inodes", float64(0), "", tags}},
+				{"Gauge", []interface{}{"cri.uptime", mock.MatchedBy(func(uptime float64) bool { return uptime >= 42.0 }), "", tags}},
+			},
+		},
+		{
+			name:  "container not running does not generate metrics",
+			stats: &pb.ContainerStats{},
+			status: &pb.ContainerStatus{
+				State: pb.ContainerState_CONTAINER_EXITED,
+			},
 		},
 	}
 
-	mockedCriUtil := new(crimock.MockCRIClient)
-	mockedCriUtil.On("GetContainerStatus", "cri://foobar").Return(&pb.ContainerStatus{
-		StartedAt: time.Now().UnixNano() - int64(42*time.Second),
-	}, nil)
-	mockedSender := mocksender.NewMockSender(criCheck.ID())
-	mockedSender.On("Gauge", "cri.mem.rss", float64(0), "", []string{"runtime:fakeruntime"})
-	mockedSender.On("Rate", "cri.cpu.usage", float64(0), "", []string{"runtime:fakeruntime"})
-	mockedSender.On("Gauge", "cri.disk.used", float64(0), "", []string{"runtime:fakeruntime"})
-	mockedSender.On("Gauge", "cri.disk.inodes", float64(0), "", []string{"runtime:fakeruntime"})
-	mockedSender.On("Gauge", "cri.uptime", mock.MatchedBy(func(uptime float64) bool { return uptime >= 42.0 }), "", []string{"runtime:fakeruntime"})
-	criCheck.generateMetrics(mockedSender, stats, mockedCriUtil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const cid = "cri://foobar"
+
+			var err error
+			criCheck.filter, err = containers.GetSharedMetricFilter()
+			defer containers.ResetSharedFilter()
+
+			require.NoError(t, err)
+
+			stats := map[string]*pb.ContainerStats{
+				cid: tt.stats,
+			}
+
+			mockedCriUtil := new(crimock.MockCRIClient)
+			mockedCriUtil.On("GetContainerStatus", cid).Return(tt.status, nil)
+
+			mockedSender := mocksender.NewMockSender(criCheck.ID())
+			for _, call := range tt.senderCalls {
+				mockedSender.On(call.method, call.args...)
+			}
+
+			criCheck.generateMetrics(mockedSender, stats, mockedCriUtil)
+
+			mock.AssertExpectationsForObjects(t, mockedCriUtil, mockedSender)
+		})
+	}
+
 }
 
 func TestExcludedContainers(t *testing.T) {
