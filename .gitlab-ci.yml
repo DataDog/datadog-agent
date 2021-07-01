@@ -401,7 +401,7 @@ build_deb:
     key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - $CI_PROJECT_DIR/.gems
+      - .gems
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -456,7 +456,7 @@ build_deb_py2:
     key: "build-deb-py2-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - $CI_PROJECT_DIR/.gems
+      - .gems
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -509,7 +509,7 @@ build_rpm:
     key: "build-rpm-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
-      - $CI_PROJECT_DIR/.gems
+      - .gems
   before_script:
     - *configure_centos_env_script
     - *retrieve_linux_go_deps_script
@@ -569,7 +569,7 @@ build_win:
   cache:
     key: "build-win-$CI_COMMIT_REF_SLUG"
     paths:
-      - $CI_PROJECT_DIR/.gems
+      - .gems
   before_script:
     - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
