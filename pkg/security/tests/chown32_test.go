@@ -12,15 +12,23 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"gotest.tools/assert"
 )
 
 func TestChown32(t *testing.T) {
-	// The docker container used in functional tests is not able to run a x86 executable by default so we skip those tests
-	if testEnvironment == DockerEnvironment {
-		t.Skip("running in docker env, skipping x86 syscall tests")
+	isSuseKernel := func() bool {
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			return false
+		}
+		return kv.IsSuseKernel()
+	}()
+
+	if isSuseKernel {
+		t.Skip("SUSE kernel: skipping chown32 tests")
 	}
 
 	ruleDef := &rules.RuleDefinition{
@@ -295,7 +303,7 @@ func checkSyscallTester(t *testing.T, path string) {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Skip()
+		t.Error("cannot run syscall tester check")
 	}
 }
 
@@ -303,7 +311,10 @@ func runSyscallTesterFunc(t *testing.T, path string, args ...string) {
 	t.Helper()
 	sideTester := exec.Command(path, args...)
 	if output, err := sideTester.CombinedOutput(); err != nil {
-		t.Error(string(output))
 		t.Error(err)
+		output := string(output)
+		if output != "" {
+			t.Error(output)
+		}
 	}
 }
