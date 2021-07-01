@@ -428,7 +428,7 @@ build_deb:
   - rm -rf /omnibus/src/datadog-agent
     # Drop symlink because it will fail the build when coming from a cache
   - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-#  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+  - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
         - $CI_PROJECT_DIR/outcomes/pkg/*.deb
