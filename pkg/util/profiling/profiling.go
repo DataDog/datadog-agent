@@ -6,6 +6,7 @@
 package profiling
 
 import (
+	"runtime"
 	"sync"
 	"time"
 
@@ -32,14 +33,14 @@ const (
 
 // Start initiates profiling with the supplied parameters;
 // this function is thread-safe.
-func Start(site, env, service string, period time.Duration, cpuDuration time.Duration, mutexFraction, blockRate int, withGoroutine bool, tags ...string) error {
+func Start(apiKey, site, env, service string, period time.Duration, cpuDuration time.Duration, withGoroutine bool, tags ...string) error {
 	mu.Lock()
 	defer mu.Unlock()
 	if running {
 		return nil
 	}
 
-	types := []profiler.ProfileType{profiler.CPUProfile, profiler.HeapProfile}
+	types := []profiler.ProfileType{profiler.CPUProfile, profiler.HeapProfile, profiler.MutexProfile}
 	if withGoroutine {
 		types = append(types, profiler.GoroutineProfile)
 	}
@@ -57,11 +58,11 @@ func Start(site, env, service string, period time.Duration, cpuDuration time.Dur
 	// If block or mutex profiling was configured via runtime configuration, pass current
 	// values to profiler. This prevents profiler from resetting mutex profile rate to the
 	// default value; and enables collection of blocking profile data if it is enabled.
-	if mutexFraction > 0 {
-		options = append(options, profiler.MutexProfileFraction(mutexFraction))
+	if frac := runtime.SetMutexProfileFraction(-1); frac > 0 {
+		options = append(options, profiler.MutexProfileFraction(frac))
 	}
-	if blockRate > 0 {
-		options = append(options, profiler.BlockProfileRate(blockRate))
+	if blockProfileRate > 0 {
+		options = append(options, profiler.BlockProfileRate(blockProfileRate))
 	}
 
 	err := profiler.Start(options...)

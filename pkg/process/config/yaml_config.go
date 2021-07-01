@@ -209,11 +209,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
 		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
+		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
 		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
 		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
-		a.ProfilingMutexFraction = config.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
-		a.ProfilingBlockRate = config.Datadog.GetInt("internal_profiling.block_profile_rate")
 		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
 	}
 

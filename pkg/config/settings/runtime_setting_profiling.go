@@ -63,13 +63,12 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 
 		v, _ := version.Agent()
 		err := profiling.Start(
+			config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,
 			profiling.DefaultProfilingPeriod,
 			15*time.Second,
-			profiling.GetMutexProfileFraction(),
-			profiling.GetBlockProfileRate(),
 			config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 			fmt.Sprintf("version:%v", v),
 		)

@@ -14,13 +14,12 @@ import (
 
 func TestProfiling(t *testing.T) {
 	err := Start(
+		"fake-api",
 		"https://nowhere.testing.dev",
 		"testing",
 		ProfileCoreService,
 		time.Minute,
 		15*time.Second,
-		0,
-		0,
 		false,
 		"1.0.0",
 	)

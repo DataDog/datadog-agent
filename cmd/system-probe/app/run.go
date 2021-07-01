@@ -192,14 +192,13 @@ func enableProfiling(cfg *config.Config) error {
 	}
 
 	return profiling.Start(
+		cfg.ProfilingAPIKey,
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",
 		cfg.ProfilingPeriod,
 		cfg.ProfilingCPUDuration,
-		cfg.ProfilingMutexFraction,
-		cfg.ProfilingBlockRate,
-		cfg.ProfilingWithGoroutines,
+		false,
 		fmt.Sprintf("version:%v", v),
 	)
 }
