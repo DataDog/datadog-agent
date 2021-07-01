@@ -401,6 +401,7 @@ build_deb:
     key: "build-deb-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
+      - $CI_PROJECT_DIR/.gems
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -410,7 +411,7 @@ build_deb:
   - cat version.txt || true
   - source ./.gitlab-scripts/setup_artifactory.sh
 
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2
+  - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
@@ -455,6 +456,7 @@ build_deb_py2:
     key: "build-deb-py2-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
+      - $CI_PROJECT_DIR/.gems
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
@@ -465,7 +467,7 @@ build_deb_py2:
   - cat version.txt || true
   - source ./.gitlab-scripts/setup_artifactory.sh
 
-  - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python-runtimes 2
+  - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version 2 --python-runtimes 2
 
     # Prepare outputs
   - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
@@ -507,6 +509,7 @@ build_rpm:
     key: "build-rpm-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
+      - $CI_PROJECT_DIR/.gems
   before_script:
     - *configure_centos_env_script
     - *retrieve_linux_go_deps_script
@@ -520,7 +523,7 @@ build_rpm:
   - source ./.gitlab-scripts/setup_artifactory.sh
 
 # TODO:  --python-runtimes "$PYTHON_RUNTIMES" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
-  - inv -e agent.omnibus-build --major-version 2 --base-dir $OMNIBUS_BASE_DIR --skip-deps
+  - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --major-version 2 --base-dir $OMNIBUS_BASE_DIR --skip-deps
 #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
 #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
 
@@ -563,13 +566,17 @@ build_win:
     OMNIBUS_BASE_DIR: c:/omnibus-ruby
   needs:
     - deps_win
+  cache:
+    key: "build-win-$CI_COMMIT_REF_SLUG"
+    paths:
+      - $CI_PROJECT_DIR/.gems
   before_script:
     - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
     - ridk enable
   script:
     - cmd.exe /c "%GOPATH%\src\github.com\StackVista\stackstate-agent\.gitlab-scripts\setup_artifactory.cmd"
-    - inv -e agent.omnibus-build --skip-sign --log-level debug --major-version 2
+    - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --skip-sign --log-level debug --major-version 2
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
