@@ -39,7 +39,7 @@ IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}" read -ra DEFINED_TOPICS <<< "$KAFKA_CRE
 # Retrieve the existing kafka topics
 ACTIVE_TOPICS="$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l)"
 
-if [[ ${ACTIVE_TOPICS} -lt ${#DEFINED_TOPICS[@]} ]]
+if [[ ${ACTIVE_TOPICS} -ge ${#DEFINED_TOPICS[@]} ]]
 then
     # Healthy
     echo "Healthy"
