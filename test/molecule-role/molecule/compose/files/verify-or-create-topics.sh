@@ -4,6 +4,36 @@ if [[ -z "$KAFKA_CREATE_TOPICS" ]]; then
     exit 0
 fi
 
+if [[ -z "$START_TIMEOUT" ]]; then
+    START_TIMEOUT=600
+fi
+
+start_timeout_exceeded=false
+count=0
+step=10
+while true; do
+    kafka-topics.sh --bootstrap-server localhost:$KAFKA_PORT --version
+#    netstat -lnt | grep -q $KAFKA_PORT
+    if [ $? -eq 0 ]; then
+        break
+    fi
+    echo "Waiting for Kafka to be ready"
+    sleep $step;
+    count=$((count + step))
+    if [ $count -gt $START_TIMEOUT ]; then
+        start_timeout_exceeded=true
+        break
+    fi
+done
+
+
+if $start_timeout_exceeded; then
+    echo "Not able to auto-create topic (waited for $START_TIMEOUT sec)"
+    exit 1
+fi
+
+echo "Kafka is now ready"
+
 # Retrieve and split the defined $KAFKA_CREATE_TOPICS string
 IFS=',' read -ra DEFINED_TOPICS <<< "$KAFKA_CREATE_TOPICS"
 
@@ -23,36 +53,6 @@ then
 else
     # UnHealthy
     echo "UnHealthy"
-
-    if [[ -z "$START_TIMEOUT" ]]; then
-        START_TIMEOUT=600
-    fi
-
-    start_timeout_exceeded=false
-    count=0
-    step=10
-    while true; do
-        kafka-topics.sh --bootstrap-server localhost:$KAFKA_PORT --version
-    #    netstat -lnt | grep -q $KAFKA_PORT
-        if [ $? -eq 0 ]; then
-            break
-        fi
-        echo "Waiting for Kafka to be ready"
-        sleep $step;
-        count=$((count + step))
-        if [ $count -gt $START_TIMEOUT ]; then
-            start_timeout_exceeded=true
-            break
-        fi
-    done
-
-
-    if $start_timeout_exceeded; then
-        echo "Not able to auto-create topic (waited for $START_TIMEOUT sec)"
-        exit 1
-    fi
-
-    echo "Kafka is now ready"
 
     # Expected format:
     #   name:partitions:replicas:cleanup.policy
