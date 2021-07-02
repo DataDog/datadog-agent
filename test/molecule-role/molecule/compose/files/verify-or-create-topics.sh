@@ -17,9 +17,13 @@ echo "Defined Topic Count: ${#DEFINED_TOPICS[@]}"
 if [[ ${ACTIVE_TOPICS} -ge ${#DEFINED_TOPICS[@]} ]]
 then
     # Healthy
+    echo "Healthy"
+
     exit 0
 else
     # UnHealthy
+    echo "UnHealthy"
+
     if [[ -z "$START_TIMEOUT" ]]; then
         START_TIMEOUT=600
     fi
