@@ -38,7 +38,7 @@ services:
       retries: 10
     restart: always
     volumes:
-      - "./verify-or-create-topics.sh:/usr/bin/verify-or-create-topics.sh"
+      - "./../../verify-or-create-topics.sh:/usr/bin/verify-or-create-topics.sh"
     mem_limit: 1G
     deploy:
       placement:
