@@ -26,7 +26,6 @@ while true; do
     fi
 done
 
-
 if $start_timeout_exceeded; then
     echo "Not able to auto-create topic (waited for $START_TIMEOUT sec)"
     exit 1
@@ -35,19 +34,17 @@ fi
 echo "Kafka is now ready"
 
 # Retrieve and split the defined $KAFKA_CREATE_TOPICS string
-IFS=',' read -ra DEFINED_TOPICS <<< "$KAFKA_CREATE_TOPICS"
+IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}" read -ra DEFINED_TOPICS <<< "$KAFKA_CREATE_TOPICS"
 
 # Retrieve the existing kafka topics
 ACTIVE_TOPICS="$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l)"
 
-# Debug Logs
-echo "Active Topic Count: ${ACTIVE_TOPICS}"
-echo "Defined Topic Count: ${#DEFINED_TOPICS[@]}"
-
-if [[ ${ACTIVE_TOPICS} -ge ${#DEFINED_TOPICS[@]} ]]
+if [[ ${ACTIVE_TOPICS} -lt ${#DEFINED_TOPICS[@]} ]]
 then
     # Healthy
     echo "Healthy"
+    echo "Active Topic Count: ${ACTIVE_TOPICS}"
+    echo "Defined Topic Count: ${#DEFINED_TOPICS[@]}"
 
     exit 0
 else
@@ -56,7 +53,8 @@ else
 
     # Expected format:
     #   name:partitions:replicas:cleanup.policy
-    for topicToCreate in $DEFINED_TOPICS; do
+
+    IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}"; for topicToCreate in $KAFKA_CREATE_TOPICS; do
         echo "Creating topics: $topicToCreate ..."
         IFS=':' read -r -a topicConfig <<< "$topicToCreate"
         config=
