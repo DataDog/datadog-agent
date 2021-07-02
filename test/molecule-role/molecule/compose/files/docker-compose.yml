@@ -47,6 +47,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
     mem_limit: 1G
+
   correlate:
     image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
     depends_on:
