@@ -71,7 +71,7 @@ else
             --partitions ${topicConfig[1]} \\
             --replication-factor ${topicConfig[2]} \\
             ${config} \\
-            ${KAFKA_0_10_OPTS}"
+            --if-not-exists"
         eval "${COMMAND}"
     done
 
