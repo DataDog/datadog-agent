@@ -117,6 +117,7 @@ func buildLabelSelector() *metav1.LabelSelector {
 
 func getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
 	failurePolicy := admiv1beta1.Ignore
+	reinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	sideEffects := admiv1beta1.SideEffectClassNone
 	servicePort := int32(443)
 	timeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
@@ -143,6 +144,7 @@ func getWebhookSkeleton(nameSuffix, path string) admiv1beta1.MutatingWebhook {
 			},
 		},
 		FailurePolicy:  &failurePolicy,
+		ReinvocationPolicy: &reinvocationPolicy,
 		SideEffects:    &sideEffects,
 		TimeoutSeconds: &timeout,
 	}
