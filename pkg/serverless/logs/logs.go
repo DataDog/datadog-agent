@@ -31,7 +31,7 @@ type Tags struct {
 type ExecutionContext struct {
 	ARN                string
 	LastRequestID      string
-	ColdstartRequestId string
+	ColdstartRequestID string
 	LastLogRequestID   string
 }
 
@@ -268,7 +268,7 @@ func processMessage(message LogMessage, executionContext *ExecutionContext, enha
 	}
 
 	if enhancedMetricsEnabled {
-		tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestId)
+		tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestID)
 		if message.Type == LogTypeFunction {
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, tags, metricsChan)
 		}

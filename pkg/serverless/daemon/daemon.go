@@ -334,7 +334,7 @@ func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart boo
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
 	if coldstart {
-		d.ExecutionContext.ColdstartRequestId = requestID
+		d.ExecutionContext.ColdstartRequestID = requestID
 	}
 
 }
@@ -366,6 +366,6 @@ func (d *Daemon) RestoreCurrentStateFromFile() error {
 	d.ExecutionContext.ARN = restoredExecutionContext.ARN
 	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
 	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
-	d.ExecutionContext.ColdstartRequestId = restoredExecutionContext.ColdstartRequestId
+	d.ExecutionContext.ColdstartRequestID = restoredExecutionContext.ColdstartRequestID
 	return nil
 }
