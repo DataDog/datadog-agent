@@ -91,9 +91,9 @@ func TestExtractStatefulSet(t *testing.T) {
 					ResourceVersion:   "1234",
 				},
 				Spec: &model.StatefulSetSpec{
-					Replicas:       2,
-					UpdateStrategy: "RollingUpdate",
-					Partition:      2,
+					DesiredReplicas: 2,
+					UpdateStrategy:  "RollingUpdate",
+					Partition:       2,
 					Selectors: []*model.LabelSelectorRequirement{
 						{
 							Key:      "app",

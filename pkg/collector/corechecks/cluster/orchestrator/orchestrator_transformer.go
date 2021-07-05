@@ -161,7 +161,7 @@ func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 	}
 
 	if sts.Spec.Replicas != nil {
-		statefulSet.Spec.Replicas = *sts.Spec.Replicas
+		statefulSet.Spec.DesiredReplicas = *sts.Spec.Replicas
 	}
 
 	if sts.Spec.Selector != nil {
