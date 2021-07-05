@@ -83,6 +83,6 @@ tests_ebpf_arm64:
     - git pull
     - inv -e deps
     - inv -e system-probe.build --bundle-ebpf --incremental-build
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    # - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
     - git reset --hard
     - git checkout -
