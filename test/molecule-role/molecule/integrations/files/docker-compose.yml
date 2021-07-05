@@ -45,6 +45,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
 
   correlate:
@@ -55,6 +56,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
+    restart: always
     mem_limit: 1G
 
   topic-api:
@@ -67,6 +69,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    restart: always
     mem_limit: 1G
 
   mysql:
