@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func TestUtime(t *testing.T) {
+func TestUtimes(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `utimes.file.path == "{{.Root}}/test-utime" && utimes.file.uid == 98 && utimes.file.gid == 99`,

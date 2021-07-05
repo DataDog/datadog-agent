@@ -247,7 +247,7 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
-	return e.FileFields.UnmarshalBinary(data)
+	return UnmarshalBinary(data, &e.FileFields)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

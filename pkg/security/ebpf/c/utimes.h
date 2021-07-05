@@ -9,7 +9,7 @@
   utime syscalls call utimes_common
 */
 
-struct utime_event_t {
+struct utimes_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
@@ -71,7 +71,7 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    struct utime_event_t event = {
+    struct utimes_event_t event = {
         .syscall.retval = retval,
         .atime = {
             .tv_sec = syscall->setattr.atime.tv_sec,

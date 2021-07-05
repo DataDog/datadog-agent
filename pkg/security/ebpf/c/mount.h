@@ -14,8 +14,8 @@ struct mount_event_t {
     u32 group_id;
     dev_t device;
     u32 parent_mount_id;
-    unsigned long parent_ino;
-    unsigned long root_ino;
+    unsigned long parent_inode;
+    unsigned long root_inode;
     u32 root_mount_id;
     u32 padding;
     char fstype[FSTYPE_LEN];
@@ -145,8 +145,8 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
         .group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .device = get_mount_dev(syscall->mount.src_mnt),
         .parent_mount_id = syscall->mount.path_key.mount_id,
-        .parent_ino = syscall->mount.path_key.ino,
-        .root_ino = syscall->mount.root_key.ino,
+        .parent_inode = syscall->mount.path_key.ino,
+        .root_inode = syscall->mount.root_key.ino,
         .root_mount_id = syscall->mount.root_key.mount_id,
     };
     bpf_probe_read_str(&event.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
