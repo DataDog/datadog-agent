@@ -224,15 +224,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
-	// read configuration from both the environment vars and the config file
-	// if one is provided
-	// --------------------------
-
-	config.Datadog.SetConfigFile(datadogConfigPath)
-	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
-		log.Info("A configuration file has been found and read.")
-	}
-
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
