@@ -32,7 +32,7 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "nc -z 127.0.0.1 9092 && /usr/bin/verify-or-create-topics.sh" ]
       interval: 30s
-      timeout: 30s
+      timeout: 60s
       retries: 10
     volumes:
       - "./../../verify-or-create-topics.sh:/usr/bin/verify-or-create-topics.sh"
