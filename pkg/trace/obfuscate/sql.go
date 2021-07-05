@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -223,12 +224,12 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 func (o *Obfuscator) obfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
-	out, err := attemptObfuscation(tok)
+	out, err := attemptObfuscation(tok, o.opts)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
 		tok = NewSQLTokenizer(in, !lesc)
-		if out, err2 := attemptObfuscation(tok); err2 == nil {
+		if out, err2 := attemptObfuscation(tok, o.opts); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
 			o.SetSQLLiteralEscapes(!lesc)
@@ -312,18 +313,21 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the
 // given set of filters.
-func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
+func attemptObfuscation(tokenizer *SQLTokenizer, options *config.ObfuscationConfig) (*ObfuscatedQuery, error) {
+	var quantizeTableNames bool
+	if options != nil {
+		quantizeTableNames = options.SQL.QuantizeSQLTables
+	}
 
 	var (
-		storeTableNames    = features.Has("table_names")
-		quantizeTableNames = features.Has("quantize_sql_tables")
-		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
-		err                error
-		lastToken          TokenKind
-		discard            discardFilter
-		replace            = replaceFilter{quantizeTableNames: quantizeTableNames}
-		grouping           groupingFilter
-		tableFinder        = tableFinderFilter{storeTableNames: storeTableNames}
+		storeTableNames = features.Has("table_names")
+		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err             error
+		lastToken       TokenKind
+		discard         discardFilter
+		replace         = replaceFilter{quantizeTableNames: quantizeTableNames}
+		grouping        groupingFilter
+		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
