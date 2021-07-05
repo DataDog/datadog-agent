@@ -21,7 +21,6 @@ type MacroID = string
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID         MacroID `yaml:"id"`
-	Version    string  `yaml:"version"`
 	Expression string  `yaml:"expression"`
 }
 
@@ -37,7 +36,6 @@ type RuleID = string
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID          RuleID            `yaml:"id"`
-	Version     string            `yaml:"version"`
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
