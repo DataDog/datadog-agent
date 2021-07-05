@@ -627,7 +627,6 @@ func InitConfig(config Config) {
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
-	config.BindEnvAndSetDefault("expvar_host", "127.0.0.1")
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
