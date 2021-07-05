@@ -30,7 +30,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1,sts_topology_events:1:1"
     healthcheck:
-      test: [ "CMD-SHELL", "nc -z 127.0.0.1 9092", "/usr/bin/verify-or-create-topics.sh" ]
+      test: [ "CMD-SHELL", "nc -z 127.0.0.1 9092 && /usr/bin/verify-or-create-topics.sh" ]
       interval: 30s
       timeout: 30s
       retries: 10
