@@ -67,7 +67,7 @@ func (m *MetricDogStatsD) NewServer(aggregator *aggregator.BufferedAggregator, e
 }
 
 // Start starts the DogStatsD agent
-func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory, waitingChan chan bool) {
+func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory) {
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
@@ -87,8 +87,6 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 			c.Aggregator = aggregatorInstance
 		}
 	}
-
-	waitingChan <- true
 }
 
 func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {

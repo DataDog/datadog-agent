@@ -33,6 +33,7 @@ type ExecutionContext struct {
 	LastRequestID      string
 	ColdstartRequestID string
 	LastLogRequestID   string
+	Coldstart          bool
 }
 
 // CollectionRouteInfo is the route on which the AWS environment is sending the logs
@@ -232,6 +233,9 @@ func GetLambdaSource() *logConfig.LogSource {
 func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
+	// if !strings.Contains(string(data), "[MDVDEBUG]") {
+	// 	log.Debug("[MDVDEBUG] = %s", string(data))
+	// }
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
 		w.WriteHeader(400)
@@ -240,8 +244,6 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(200)
 	}
 }
-
-//		//metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
 
 func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
 	for _, message := range messages {
@@ -258,7 +260,6 @@ func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
 // processMessage performs logic about metrics and tags on the message
 func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-
 	if !shouldProcessLog(executionContext, message) {
 		return
 	}

@@ -165,6 +165,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	err = serverlessDaemon.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Impossible to restore the state")
+	} else {
+		serverlessDaemon.ComputeGlobalTags(config.GetConfiguredTags(true))
 	}
 	// serverless parts
 	// ----------------
@@ -224,6 +226,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
+		log.Info("A configuration file has been found and read.")
+	}
+
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
@@ -249,7 +256,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	waitingChan := make(chan bool, 3)
+	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
+	metricAgent := &metrics.ServerlessMetricAgent{}
+	metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	serverlessDaemon.SetStatsdServer(metricAgent)
+	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
+
+	waitingChan := make(chan bool, 2)
 
 	// starts logs collection
 	// ----------------------
@@ -275,31 +288,24 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		waitingChan <- true
 	}(waitingChan)
 
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-	metricAgent := &metrics.ServerlessMetricAgent{}
-	go metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, waitingChan)
-
+	// starts trace agent
+	// ----------------------
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, waitingChan)
 
 	<-waitingChan
 	<-waitingChan
-	<-waitingChan
 
-	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetTraceAgent(nil)
-	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
+	serverlessDaemon.SetTraceAgent(traceAgent)
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
 	// the invocation route, we can't report init errors anymore.
 	go func() {
-		coldstart := true
 		for {
-			if err := serverless.WaitForNextInvocation(stopCh, serverlessDaemon, serverlessID, coldstart); err != nil {
+			if err := serverless.WaitForNextInvocation(stopCh, serverlessDaemon, serverlessID); err != nil {
 				log.Error(err)
 			}
-			coldstart = false
 		}
 	}()
 

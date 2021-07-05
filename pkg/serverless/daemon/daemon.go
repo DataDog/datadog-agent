@@ -141,6 +141,7 @@ func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMess
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent = metricAgent
+	d.MetricAgent.DogStatDServer.SetExtraTags(d.ExtraTags.Tags)
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
@@ -311,9 +312,9 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
-func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
+func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
-		tagMap := tags.BuildTagMap(arn, configTags)
+		tagMap := tags.BuildTagMap(d.ExecutionContext.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
 			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
@@ -330,13 +331,15 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 }
 
 // SetExecutionContext sets the current context to the daemon
-func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart bool) {
+func (d *Daemon) SetExecutionContext(arn string, requestID string) {
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
-	if coldstart {
+	if len(d.ExecutionContext.ColdstartRequestID) == 0 {
+		d.ExecutionContext.Coldstart = true
 		d.ExecutionContext.ColdstartRequestID = requestID
+	} else {
+		d.ExecutionContext.Coldstart = false
 	}
-
 }
 
 // SaveCurrentExecutionContext stores the current context to a file

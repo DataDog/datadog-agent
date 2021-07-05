@@ -17,10 +17,7 @@ import (
 
 func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
-	waitingChan := make(chan bool, 1)
-	go metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, waitingChan)
-	// should not block
-	<-waitingChan
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Aggregator)
 	assert.NotNil(t, metricAgent.DogStatDServer)
 	assert.True(t, metricAgent.DogStatDServer.ServerlessMode)
@@ -35,10 +32,7 @@ func (m *MetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error)
 
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
-	waitingChan := make(chan bool, 1)
-	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{}, waitingChan)
-	// should not block
-	<-waitingChan
+	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
 	assert.Nil(t, metricAgent.Aggregator)
 	assert.Nil(t, metricAgent.DogStatDServer)
 }
@@ -52,10 +46,7 @@ func (m *MetricDogStatsDMocked) NewServer(aggregator *aggregator.BufferedAggrega
 
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
-	waitingChan := make(chan bool, 1)
-	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, waitingChan)
-	// should not block
-	<-waitingChan
+	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.Nil(t, metricAgent.Aggregator)
 	assert.Nil(t, metricAgent.DogStatDServer)
 }
