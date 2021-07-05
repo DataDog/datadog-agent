@@ -45,6 +45,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
 
   correlate:
@@ -55,7 +56,9 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
+    restart: always
     mem_limit: 1G
+
   topic-api:
     image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
     ports:
@@ -66,7 +69,9 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    restart: always
     mem_limit: 1G
+
   db:
     image: "quay.io/stackstate/trace-java-demo:db-master"
     environment:

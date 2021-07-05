@@ -45,7 +45,9 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
+
   correlate:
     image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
     depends_on:
@@ -53,7 +55,9 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
+
   topic-api:
     image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
     ports:
@@ -64,7 +68,9 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    restart: always
     mem_limit: 1G
+
   nginx:
     image: nginx:1.14.2
     ports:
