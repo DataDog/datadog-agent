@@ -128,6 +128,8 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule1(in *jl
 			out.PolicyName = string(in.String())
 		case "policy_version":
 			out.PolicyVersion = string(in.String())
+		case "version":
+			out.Version = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -156,6 +158,11 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityModule1(out *j
 		const prefix string = ",\"policy_version\":"
 		out.RawString(prefix)
 		out.String(string(in.PolicyVersion))
+	}
+	if in.Version != "" {
+		const prefix string = ",\"version\":"
+		out.RawString(prefix)
+		out.String(string(in.Version))
 	}
 	out.RawByte('}')
 }
