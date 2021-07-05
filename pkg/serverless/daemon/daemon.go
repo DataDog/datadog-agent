@@ -270,7 +270,7 @@ func StartDaemon(addr string) *Daemon {
 
 	// start the HTTP server used to communicate with the clients
 	go func() {
-		daemon.httpServer.ListenAndServe()
+		_ = daemon.httpServer.ListenAndServe()
 	}()
 
 	return daemon
