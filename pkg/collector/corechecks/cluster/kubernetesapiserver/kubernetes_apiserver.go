@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -42,6 +44,7 @@ const (
 
 	defaultCacheExpire = 2 * time.Minute
 	defaultCachePurge  = 10 * time.Minute
+	defaultTimeout     = time.Second
 )
 
 // KubeASConfig is the config of the API server.
@@ -181,13 +184,16 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running the Control Plane status check.
-	componentsStatus, err := k.ac.ComponentStatuses()
-	if err != nil {
-		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error()) //nolint:errcheck
-	} else {
-		err = k.parseComponentStatus(sender, componentsStatus)
+	useComponentStatus := false
+	if useComponentStatus {
+		err = k.componentStatusCheck(sender)
 		if err != nil {
-			k.Warnf("Could not collect API Server component status: %s", err.Error()) //nolint:errcheck
+			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
+		}
+	} else {
+		err = k.controlPlaneHealthCheck(context.TODO(), sender)
+		if err != nil {
+			k.Warnf("Could not collect control plane status from health thecks: %s", err.Error()) //nolint:errcheck
 		}
 	}
 
@@ -251,7 +257,6 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
-
 		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
 		}
@@ -259,7 +264,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			log.Debug("API Server component's structure is not expected")
 			continue
 		}
-		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
+
 		for _, condition := range component.Conditions {
 			statusCheck := metrics.ServiceCheckUnknown
 			message := ""
@@ -269,6 +274,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 				log.Debugf("Condition %q not supported", condition.Type)
 				continue
 			}
+
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
@@ -277,8 +283,12 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			case "False":
 				statusCheck = metrics.ServiceCheckCritical
 				message = condition.Error
+				if message == "" {
+					message = condition.Message
+				}
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tagComp, message)
+
+			sendControlPlaneServiceCheck(sender, statusCheck, component.Name, message)
 		}
 	}
 	return nil
@@ -314,6 +324,113 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 		sender.Event(datadogEv)
 	}
 	return nil
+}
+
+func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
+	componentsStatus, err := k.ac.ComponentStatuses()
+	if err != nil {
+		return err
+	}
+
+	err = k.parseComponentStatus(sender, componentsStatus)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
+	var (
+		msg    string
+		status metrics.ServiceCheckStatus
+		err    error
+	)
+
+	// Check controller-manager/scheduler liveness
+	host := os.Getenv("KUBERNETES_SERVICE_HOST")
+	healthEndpoints := map[string]string{
+		"kube-controller-manager": fmt.Sprintf("https://%s:10257/healthz", host),
+		"kube-scheduler":          fmt.Sprintf("https://%s:10259/healthz", host),
+	}
+
+	for component, url := range healthEndpoints {
+		status, err = queryHealthEndpoint(ctx, url)
+
+		if err == nil {
+			msg = "OK"
+		} else {
+			msg = err.Error()
+		}
+
+		sendControlPlaneServiceCheck(sender, status, component, msg)
+	}
+
+	// Check apiserver liveness
+	client, err := apiserver.GetAPIClient()
+	if err == nil {
+		ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+		defer cancel()
+
+		msg, err = client.GetReadiness(ctx)
+		if err == nil {
+			if msg == "ok" {
+				status = metrics.ServiceCheckOK
+			} else {
+				status = metrics.ServiceCheckCritical
+			}
+		} else {
+			msg = err.Error()
+			status = metrics.ServiceCheckCritical
+		}
+	} else {
+		msg = err.Error()
+		status = metrics.ServiceCheckUnknown
+	}
+
+	// The ComponentStatus version of this service check used to report
+	// etcd liveness. There is no recommended way of checking just etcd
+	// liveness through the API server, so this is really an API server
+	// liveness check. We also report just "etcd" for backwards
+	// compatibility.
+	sendControlPlaneServiceCheck(sender, status, "apiserver", msg)
+	sendControlPlaneServiceCheck(sender, status, "etcd", msg)
+
+	return nil
+}
+
+func sendControlPlaneServiceCheck(sender aggregator.Sender, status metrics.ServiceCheckStatus, component, message string) {
+	tags := []string{fmt.Sprintf("component:%s", component)}
+	sender.ServiceCheck(KubeControlPaneCheck, status, "", tags, message)
+}
+
+func queryHealthEndpoint(ctx context.Context, url string) (metrics.ServiceCheckStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return metrics.ServiceCheckUnknown, err
+	}
+
+	// TODO(juliogreff): need to figure out how to create a transport :'(
+	client := &http.Client{
+		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return metrics.ServiceCheckCritical, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return metrics.ServiceCheckOK, nil
+	default:
+		err := fmt.Errorf("Health endpoint returned non-OK status: %d", resp.StatusCode)
+		return metrics.ServiceCheckCritical, err
+	}
 }
 
 // bundleID generates a unique ID to separate k8s events
