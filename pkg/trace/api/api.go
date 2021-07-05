@@ -28,9 +28,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/appsec"
 	"github.com/tinylib/msgp/msgp"
 
+	"github.com/DataDog/datadog-agent/pkg/appsec"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -74,14 +74,13 @@ type HTTPReceiver struct {
 	dynConf        *sampler.DynamicConfig
 	server         *http.Server
 	statsProcessor StatsProcessor
+	appsecHandler  http.Handler
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
 
-	appsecHandler http.Handler
-
-	wg        sync.WaitGroup // waits for all requests to be processed
-	exit      chan struct{}
+	wg   sync.WaitGroup // waits for all requests to be processed
+	exit chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -90,7 +89,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.New()
+	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
 	if err != nil {
 		log.Error("appsec agent: ", err)
 	}
@@ -102,11 +101,10 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor: statsProcessor,
 		conf:           conf,
 		dynConf:        dynConf,
+		appsecHandler:  appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
-
-		appsecHandler: appsecHandler,
 
 		exit: make(chan struct{}),
 	}
