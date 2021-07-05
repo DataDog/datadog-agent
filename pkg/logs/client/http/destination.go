@@ -50,6 +50,7 @@ type Destination struct {
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
+	protocol            string
 }
 
 // NewDestination returns a new Destination.
@@ -83,6 +84,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
+		protocol:            endpoint.Protocol,
 	}
 }
 
@@ -140,6 +142,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
+	if d.protocol != "" {
+		req.Header.Set("DD-PROTOCOL", d.protocol)
+	}
 	req = req.WithContext(ctx)
 
 	resp, err := d.client.Do(req)
@@ -232,7 +237,13 @@ func buildURL(endpoint config.Endpoint) string {
 	} else {
 		address = endpoint.Host
 	}
-	return fmt.Sprintf("%v://%v/v1/input", scheme, address)
+	uri := ""
+	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
+		uri = fmt.Sprintf("api/v2/%s", endpoint.TrackType)
+	} else {
+		uri = "v1/input"
+	}
+	return fmt.Sprintf("%v://%v/%v", scheme, address, uri)
 }
 
 func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {

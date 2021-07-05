@@ -1153,6 +1153,7 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
+	config.BindEnvAndSetDefault(prefix+"use_v2_api", false)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

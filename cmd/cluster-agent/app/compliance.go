@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	intakeTrackType = "compliance"
+)
+
 func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := restart.NewSerialStopper()
 	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
@@ -39,12 +43,12 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints()
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol)
 		}
 	}
 

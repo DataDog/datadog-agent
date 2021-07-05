@@ -44,8 +44,12 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// loggerName is the name of the security agent logger
-const loggerName coreconfig.LoggerName = "SECURITY"
+const (
+	// loggerName is the name of the security agent logger
+	loggerName coreconfig.LoggerName = "SECURITY"
+	// No intake track type is defined for the security agent (yet), we use v1 intake only.
+	intakeTrackType = ""
+)
 
 var (
 	// SecurityAgentCmd is the entry point for security agent CLI commands
@@ -115,12 +119,12 @@ func init() {
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints()
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol)
 		}
 	}
 
