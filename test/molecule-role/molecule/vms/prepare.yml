@@ -44,6 +44,11 @@
       copy:
         src: "files/receiver/"
         dest: "/home/ubuntu/"
+    - name: Copy Verify and Create Configuration files
+      copy:
+        src: "../verify-or-create-topics.sh"
+        dest: /home/ubuntu
+        mode: preserve
     - name: Configure .env file used by docker-compose
       copy:
         content: |

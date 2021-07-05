@@ -27,6 +27,11 @@
         src: files/docker-compose.yml
         dest: /home/ubuntu/
         mode: preserve
+    - name: Copy Verify and Create Configuration files
+      copy:
+        src: "../verify-or-create-topics.sh"
+        dest: /home/ubuntu
+        mode: preserve
     - name: Copy nagios files
       copy:
         src: files/nagios/{{item}}

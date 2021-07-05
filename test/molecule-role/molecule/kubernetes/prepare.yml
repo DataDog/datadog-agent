@@ -47,6 +47,11 @@
       copy:
         src: "files/receiver"
         dest: "/home/ubuntu/"
+    - name: Copy Verify and Create Configuration files
+      copy:
+        src: "../verify-or-create-topics.sh"
+        dest: /home/ubuntu
+        mode: preserve
     - name: Generate env token
       shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
       args:
@@ -65,7 +70,6 @@
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/receiver
-
     - import_tasks: ../wait-for-receiver.yml
 
     - name: Removing existing config files if exists

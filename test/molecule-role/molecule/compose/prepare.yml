@@ -37,6 +37,11 @@
         src: "files/"
         dest: "/home/ubuntu"
         mode: preserve
+    - name: Copy Verify and Create Configuration files
+      copy:
+        src: "../verify-or-create-topics.sh"
+        dest: /home/ubuntu
+        mode: preserve
     - name: Gather facts (we need the docker network interface ip)
       setup:
     - name: Configure .env file used by docker-compose
