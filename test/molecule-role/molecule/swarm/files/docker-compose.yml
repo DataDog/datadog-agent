@@ -34,7 +34,6 @@ services:
       interval: 30s
       timeout: 30s
       retries: 10
-    restart: always
     volumes:
       - "./../../verify-or-create-topics.sh:/usr/bin/verify-or-create-topics.sh"
     deploy:
