@@ -97,7 +97,7 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
+	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
@@ -111,7 +111,7 @@ func TestRegisterErrorHttp(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
+	id, err := RegisterExtension(strings.Replace(ts.URL, "http://", "", 1), "", registerExtensionTimeout)
 
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
@@ -133,6 +133,12 @@ func TestRegisterErrorBuildRequest(t *testing.T) {
 
 	id, err := RegisterExtension(ts.URL, "", registerExtensionTimeout)
 
+	assert.Empty(t, id.String())
+	assert.NotNil(t, err)
+}
+
+func TestRegisterInvalidUrl(t *testing.T) {
+	id, err := RegisterExtension(":inv al id:", "", registerExtensionTimeout)
 	assert.Empty(t, id.String())
 	assert.NotNil(t, err)
 }

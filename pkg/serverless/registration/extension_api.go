@@ -27,7 +27,7 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
 
 	extesionRegistrationURL := BuildURL(runtimeURL, registrationRoute)
 	payload := createRegistrationPayload()
-
+	fmt.Printf("URL = %s \n", extesionRegistrationURL)
 	request, err := buildRegisterRequest(headerExtName, extensionName, extesionRegistrationURL, payload)
 	if err != nil {
 		return "", fmt.Errorf("registerExtension: can't create the POST register request: %v", err)

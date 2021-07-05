@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (44.2%)</option>
+				<option value="file0">github.com/DataDog/datadog-agent/pkg/serverless/daemon/daemon.go (43.8%)</option>
 				
 				<option value="file1">github.com/DataDog/datadog-agent/pkg/serverless/daemon/interval.go (96.2%)</option>
 				
@@ -67,7 +67,7 @@
 				
 				<option value="file5">github.com/DataDog/datadog-agent/pkg/serverless/metrics/metric.go (100.0%)</option>
 				
-				<option value="file6">github.com/DataDog/datadog-agent/pkg/serverless/registration/extension_api.go (88.0%)</option>
+				<option value="file6">github.com/DataDog/datadog-agent/pkg/serverless/registration/extension_api.go (100.0%)</option>
 				
 				<option value="file7">github.com/DataDog/datadog-agent/pkg/serverless/registration/logs_api.go (100.0%)</option>
 				
@@ -75,7 +75,7 @@
 				
 				<option value="file9">github.com/DataDog/datadog-agent/pkg/serverless/registration/utils.go (100.0%)</option>
 				
-				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (22.5%)</option>
+				<option value="file10">github.com/DataDog/datadog-agent/pkg/serverless/serverless.go (23.0%)</option>
 				
 				<option value="file11">github.com/DataDog/datadog-agent/pkg/serverless/tags/tags.go (100.0%)</option>
 				
@@ -124,7 +124,7 @@ const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 30 * time.Millisecond
+const shutdownDelay time.Duration = 1000 * time.Millisecond
 
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
@@ -356,7 +356,7 @@ func StartDaemon(addr string) *Daemon <span class="cov8" title="1">{
                 ClientLibReady:   false,
                 FlushStrategy:    &amp;flush.AtTheEnd{},
                 ExtraTags:        &amp;serverlessLog.Tags{},
-                ExecutionContext: &amp;serverlessLog.ExecutionContext{Coldstart: true},
+                ExecutionContext: &amp;serverlessLog.ExecutionContext{},
         }
         log.Debug("Adaptive flush is enabled")
 
@@ -428,8 +428,11 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) <span class=
 func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart bool) <span class="cov0" title="0">{
         d.ExecutionContext.ARN = arn
         d.ExecutionContext.LastRequestID = requestID
-        d.ExecutionContext.Coldstart = coldstart
-}</span>
+        if coldstart </span><span class="cov0" title="0">{
+                d.ExecutionContext.ColdstartRequestId = requestID
+        }</span>
+
+}
 
 // SaveCurrentExecutionContext stores the current context to a file
 func (d *Daemon) SaveCurrentExecutionContext() error <span class="cov0" title="0">{
@@ -457,8 +460,8 @@ func (d *Daemon) RestoreCurrentStateFromFile() error <span class="cov0" title="0
         }</span>
         <span class="cov0" title="0">d.ExecutionContext.ARN = restoredExecutionContext.ARN
         d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
-        log.Debug(d.ExecutionContext.ARN)
-        log.Debug(d.ExecutionContext.LastRequestID)
+        d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
+        d.ExecutionContext.ColdstartRequestId = restoredExecutionContext.ColdstartRequestId
         return nil</span>
 }
 </pre>
@@ -688,9 +691,10 @@ type Tags struct {
 
 // ExecutionContext represents the execution context
 type ExecutionContext struct {
-        ARN           string
-        LastRequestID string
-        Coldstart     bool
+        ARN                string
+        LastRequestID      string
+        ColdstartRequestId string
+        LastLogRequestID   string
 }
 
 // CollectionRouteInfo is the route on which the AWS environment is sending the logs
@@ -899,10 +903,11 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
         }</span>
 }
 
+//                //metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
+
 func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) <span class="cov8" title="1">{
-        metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
         for _, message := range messages </span><span class="cov8" title="1">{
-                processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, metricTags, c.MetricChannel)
+                processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel)
                 // We always collect and process logs for the purpose of extracting enhanced metrics.
                 // However, if logs are not enabled, we do not send them to the intake.
                 if c.LogsEnabled </span><span class="cov8" title="1">{
@@ -916,20 +921,21 @@ func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) <span cla
 func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) <span class="cov8" title="1">{
         // Do not send logs or metrics if we can't associate them with an ARN or Request ID
 
-        if message.Type == LogTypePlatformReport </span><span class="cov8" title="1">{
-                log.Debugf("report received = %s , context arn = %s , requestId = %s, enhancedMetricsEnabled %v", message.StringRecord, executionContext.ARN, executionContext.LastRequestID, enhancedMetricsEnabled)
-        }</span>
-
-        <span class="cov8" title="1">if !shouldProcessLog(executionContext, message) </span><span class="cov8" title="1">{
+        if !shouldProcessLog(executionContext, message) </span><span class="cov8" title="1">{
                 return
         }</span>
 
+        <span class="cov8" title="1">if message.Type == LogTypePlatformStart </span><span class="cov8" title="1">{
+                executionContext.LastLogRequestID = message.ObjectRecord.RequestID
+        }</span>
+
         <span class="cov8" title="1">if enhancedMetricsEnabled </span><span class="cov8" title="1">{
+                tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestId)
                 if message.Type == LogTypeFunction </span><span class="cov8" title="1">{
-                        serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, metricTags, metricsChan)
+                        serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, tags, metricsChan)
                 }</span>
                 <span class="cov8" title="1">if message.Type == LogTypePlatformReport </span><span class="cov8" title="1">{
-                        serverlessMetrics.GenerateEnhancedMetricsFromReportLog(message.ObjectRecord, message.Time, metricTags, metricsChan)
+                        serverlessMetrics.GenerateEnhancedMetricsFromReportLog(message.ObjectRecord, message.Time, tags, metricsChan)
                 }</span>
         }
 
@@ -1206,9 +1212,9 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
 
         extesionRegistrationURL := BuildURL(runtimeURL, registrationRoute)
         payload := createRegistrationPayload()
-
+        fmt.Printf("URL = %s \n", extesionRegistrationURL)
         request, err := buildRegisterRequest(headerExtName, extensionName, extesionRegistrationURL, payload)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return "", fmt.Errorf("registerExtension: can't create the POST register request: %v", err)
         }</span>
 
@@ -1217,12 +1223,12 @@ func RegisterExtension(runtimeURL string, registrationRoute string, timeout time
                 return "", fmt.Errorf("registerExtension: error while POST register route: %v", err)
         }</span>
 
-        <span class="cov8" title="1">if !isAValidResponse(response) </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">if !isAValidResponse(response) </span><span class="cov8" title="1">{
                 return "", fmt.Errorf("registerExtension: didn't receive an HTTP 200")
         }</span>
 
         <span class="cov8" title="1">id := extractID(response)
-        if len(id) == 0 </span><span class="cov0" title="0">{
+        if len(id) == 0 </span><span class="cov8" title="1">{
                 return "", fmt.Errorf("registerExtension: didn't receive an identifier")
         }</span>
 
@@ -1293,9 +1299,6 @@ func EnableLogsCollection(
 
         callBackURI := buildCallbackURI(port, collectionRoute)
         payload := buildLogRegistrationPayload(callBackURI, logsType, timeout, maxBytes, maxItems)
-        log.Debugf("payload to send = %v", payload)
-        log.Debugf("registration URL = %s", registrationURL)
-        log.Debugf("registration URL = %v", registrationTimeout)
         return subscribeLogs(id, registrationURL, registrationTimeout, payload)
 }</span>
 
@@ -1612,14 +1615,12 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
         <span class="cov0" title="0">request.Header.Set(headerExtID, id.String())
 
         // make a blocking HTTP call to wait for the next event from AWS
-        log.Debug("Waiting for next invocation...")
         client := &amp;http.Client{Timeout: 0} // this one should never timeout
         if response, err = client.Do(request); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
         }</span>
-        <span class="cov0" title="0">log.Debug("Waiting for next invocation...2")
         // we received an INVOKE or SHUTDOWN event
-        daemon.StoreInvocationTime(time.Now())
+        <span class="cov0" title="0">daemon.StoreInvocationTime(time.Now())
 
         var body []byte
         if body, err = ioutil.ReadAll(response.Body); err != nil </span><span class="cov0" title="0">{

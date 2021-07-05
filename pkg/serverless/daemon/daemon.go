@@ -29,7 +29,7 @@ const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 30 * time.Millisecond
+const shutdownDelay time.Duration = 1000 * time.Millisecond
 
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
@@ -261,7 +261,7 @@ func StartDaemon(addr string) *Daemon {
 		ClientLibReady:   false,
 		FlushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
-		ExecutionContext: &serverlessLog.ExecutionContext{Coldstart: true},
+		ExecutionContext: &serverlessLog.ExecutionContext{},
 	}
 	log.Debug("Adaptive flush is enabled")
 
@@ -333,7 +333,10 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 func (d *Daemon) SetExecutionContext(arn string, requestID string, coldstart bool) {
 	d.ExecutionContext.ARN = arn
 	d.ExecutionContext.LastRequestID = requestID
-	d.ExecutionContext.Coldstart = coldstart
+	if coldstart {
+		d.ExecutionContext.ColdstartRequestId = requestID
+	}
+
 }
 
 // SaveCurrentExecutionContext stores the current context to a file
@@ -362,7 +365,7 @@ func (d *Daemon) RestoreCurrentStateFromFile() error {
 	}
 	d.ExecutionContext.ARN = restoredExecutionContext.ARN
 	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
-	log.Debug(d.ExecutionContext.ARN)
-	log.Debug(d.ExecutionContext.LastRequestID)
+	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
+	d.ExecutionContext.ColdstartRequestId = restoredExecutionContext.ColdstartRequestId
 	return nil
 }

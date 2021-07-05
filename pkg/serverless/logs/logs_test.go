@@ -218,6 +218,25 @@ func TestProcessMessageValid(t *testing.T) {
 	}
 }
 
+func TestProcessMessageStartValid(t *testing.T) {
+	message := LogMessage{
+		Type: LogTypePlatformStart,
+		Time: time.Now(),
+		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+			RequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID}
+	computeEnhancedMetrics := true
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
+	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
+}
+
 func TestProcessMessageShouldNotProcess(t *testing.T) {
 	message := LogMessage{
 		Type: LogTypePlatformReport,

@@ -29,9 +29,10 @@ type Tags struct {
 
 // ExecutionContext represents the execution context
 type ExecutionContext struct {
-	ARN           string
-	LastRequestID string
-	Coldstart     bool
+	ARN                string
+	LastRequestID      string
+	ColdstartRequestId string
+	LastLogRequestID   string
 }
 
 // CollectionRouteInfo is the route on which the AWS environment is sending the logs
@@ -240,10 +241,11 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+//		//metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
+
 func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
-	metricTags := tags.AddColdStartTag(c.ExtraTags.Tags, c.ExecutionContext.Coldstart)
 	for _, message := range messages {
-		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, metricTags, c.MetricChannel)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -257,20 +259,21 @@ func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
 func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 
-	if message.Type == LogTypePlatformReport {
-		log.Debugf("report received = %s , context arn = %s , requestId = %s, enhancedMetricsEnabled %v", message.StringRecord, executionContext.ARN, executionContext.LastRequestID, enhancedMetricsEnabled)
-	}
-
 	if !shouldProcessLog(executionContext, message) {
 		return
 	}
 
+	if message.Type == LogTypePlatformStart {
+		executionContext.LastLogRequestID = message.ObjectRecord.RequestID
+	}
+
 	if enhancedMetricsEnabled {
+		tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestId)
 		if message.Type == LogTypeFunction {
-			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, metricTags, metricsChan)
+			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, tags, metricsChan)
 		}
 		if message.Type == LogTypePlatformReport {
-			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(message.ObjectRecord, message.Time, metricTags, metricsChan)
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(message.ObjectRecord, message.Time, tags, metricsChan)
 		}
 	}
 
