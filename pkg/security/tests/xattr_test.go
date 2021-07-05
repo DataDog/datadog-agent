@@ -14,9 +14,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -32,7 +33,7 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,15 +56,13 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+			if errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
 			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
 			assert.Equal(t, event.SetXAttr.Namespace, "user")
@@ -72,7 +71,7 @@ func TestSetXAttr(t *testing.T) {
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-		}
+		})
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
@@ -92,18 +91,16 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
-		// Linux and Android don't support xattrs on symlinks according
-		// to xattr(7), so just test that we get the proper error.
-		if errno != syscall.EACCES && errno != syscall.EPERM {
-			t.Fatal(error(errno))
-		}
-
-		// We should get the event though
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+			// Linux and Android don't support xattrs on symlinks according
+			// to xattr(7), so just test that we get the proper error.
+			// We should get the event though
+			if errno != syscall.EACCES && errno != syscall.EPERM {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
 			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
 			assert.Equal(t, event.SetXAttr.Namespace, "user")
@@ -112,7 +109,7 @@ func TestSetXAttr(t *testing.T) {
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-		}
+		})
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
@@ -128,15 +125,13 @@ func TestSetXAttr(t *testing.T) {
 		defer f.Close()
 		defer os.Remove(testFile)
 
-		_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
+			if errno != 0 {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
 			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
 			assert.Equal(t, event.SetXAttr.Namespace, "user")
@@ -145,12 +140,12 @@ func TestSetXAttr(t *testing.T) {
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
-		}
+		})
 	})
 }
 
 func TestRemoveXAttr(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
 			Expression: `((removexattr.file.path == "{{.Root}}/test-removexattr" && removexattr.file.uid == 98 && removexattr.file.gid == 99) || removexattr.file.path == "{{.Root}}/test-removexattr-link") && removexattr.file.destination.namespace == "user" && removexattr.file.destination.name == "user.test_xattr" `,
@@ -163,7 +158,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,15 +192,13 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		_, _, errno = syscall.Syscall(syscall.SYS_REMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno = syscall.Syscall(syscall.SYS_REMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
+			if errno != 0 {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
 			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
 
@@ -214,7 +207,7 @@ func TestRemoveXAttr(t *testing.T) {
 
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
-		}
+		})
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
@@ -242,17 +235,15 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
-		// Linux and Android don't support xattrs on symlinks according
-		// to xattr(7), so just test that we get the proper error.
-		if errno != syscall.EACCES && errno != syscall.EPERM {
-			t.Fatal(error(errno))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
+			// Linux and Android don't support xattrs on symlinks according
+			// to xattr(7), so just test that we get the proper error.
+			if errno != syscall.EACCES && errno != syscall.EPERM {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
 			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
 
@@ -261,7 +252,7 @@ func TestRemoveXAttr(t *testing.T) {
 
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
-		}
+		})
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
@@ -283,15 +274,13 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		_, _, errno = syscall.Syscall(syscall.SYS_FREMOVEXATTR, f.Fd(), uintptr(xattrNamePtr), 0)
-		if errno != 0 {
-			t.Fatal(error(errno))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			_, _, errno = syscall.Syscall(syscall.SYS_FREMOVEXATTR, f.Fd(), uintptr(xattrNamePtr), 0)
+			if errno != 0 {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			if event.GetType() != "removexattr" {
 				t.Errorf("expected removexattr event, got %s", event.GetType())
 			}
@@ -316,6 +305,6 @@ func TestRemoveXAttr(t *testing.T) {
 			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
 				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
 			}
-		}
+		})
 	})
 }

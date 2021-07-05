@@ -14,8 +14,9 @@ import (
 	"time"
 	"unsafe"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -25,7 +26,7 @@ func TestUtime(t *testing.T) {
 		Expression: `utimes.file.path == "{{.Root}}/test-utime" && utimes.file.uid == 98 && utimes.file.gid == 99`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,14 +46,12 @@ func TestUtime(t *testing.T) {
 			Modtime: 456,
 		}
 
-		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
-			t.Fatal(errno)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+				t.Fatal(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
 			assert.Equal(t, event.Utimes.Atime.Unix(), int64(123))
 			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(456))
@@ -62,7 +61,7 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
@@ -85,14 +84,12 @@ func TestUtime(t *testing.T) {
 			},
 		}
 
-		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
-			t.Fatal(errno)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
+				t.Fatal(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
 			assert.Equal(t, event.Utimes.Atime.Unix(), int64(111))
 
@@ -102,7 +99,7 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("utimensat", func(t *testing.T) {
@@ -125,17 +122,15 @@ func TestUtime(t *testing.T) {
 			},
 		}
 
-		if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
-			if errno == syscall.EINVAL {
-				t.Skip("utimensat not supported")
+		err = test.GetSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
+				if errno == syscall.EINVAL {
+					t.Skip("utimensat not supported")
+				}
+				t.Fatal(errno)
 			}
-			t.Fatal(errno)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
 			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(555))
 
@@ -145,6 +140,6 @@ func TestUtime(t *testing.T) {
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
-		}
+		})
 	})
 }

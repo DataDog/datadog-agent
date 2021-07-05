@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -24,7 +25,7 @@ func TestRmdir(t *testing.T) {
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,21 +47,19 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-			t.Fatal(error(err))
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
+				t.Fatal(error(err))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
 			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
@@ -76,21 +75,19 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testDir)
 
-		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
+				t.Fatal(err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
 			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
-		}
+		})
 	})
 }
 
@@ -100,7 +97,7 @@ func TestRmdirInvalidate(t *testing.T) {
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,16 +113,17 @@ func TestRmdirInvalidate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := syscall.Rmdir(testFile); err != nil {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := syscall.Rmdir(testFile); err != nil {
+				t.Fatal(err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -55,6 +56,7 @@ type Probe struct {
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
+	wg             sync.WaitGroup
 	// Events section
 	handler   EventHandler
 	monitor   *Monitor
@@ -206,13 +208,14 @@ func (p *Probe) Init(client *statsd.Client) error {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
-	go p.reOrderer.Start(p.ctx)
+	p.wg.Add(1)
+	go p.reOrderer.Start(p.ctx, &p.wg)
 
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
-	return p.monitor.Start(p.ctx)
+	return p.monitor.Start(p.ctx, &p.wg)
 }
 
 // SetEventHandler set the probe event handler
@@ -761,12 +764,12 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
-	// We need to stop the manager first, otherwise there can be a dead lock between the eBPF perf map reader and the
-	// reorderer (at the channel level)
+	p.cancelFnc()
+	p.wg.Wait()
+
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
 	}
-	p.cancelFnc()
 	return p.resolvers.Close()
 }
 

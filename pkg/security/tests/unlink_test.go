@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -24,7 +25,7 @@ func TestUnlink(t *testing.T) {
 		Expression: `unlink.file.path in ["{{.Root}}/test-unlink", "{{.Root}}/test-unlinkat"] && unlink.file.uid == 98 && unlink.file.gid == 99`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,21 +42,19 @@ func TestUnlink(t *testing.T) {
 	inode := getInode(t, testFile)
 
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
-		if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
+				t.Fatal(err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
 			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-		}
+		})
 	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -67,21 +66,19 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("unlinkat", func(t *testing.T) {
-		if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
+				t.Fatal(err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
 			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
-		}
+		})
 	})
 }
 
@@ -91,7 +88,7 @@ func TestUnlinkInvalidate(t *testing.T) {
 		Expression: `unlink.file.path =~ "{{.Root}}/test-unlink-*"`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,14 +107,16 @@ func TestUnlinkInvalidate(t *testing.T) {
 			t.Fatal(err)
 		}
 		f.Close()
-		os.Remove(testFile)
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			os.Remove(testFile)
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	}
 }

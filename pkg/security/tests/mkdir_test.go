@@ -10,16 +10,18 @@ package tests
 import (
 	"os"
 	"runtime"
+	"sync"
 	"syscall"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMkdir(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdir",
 			Expression: `mkdir.file.path == "{{.Root}}/test-mkdir" && mkdir.file.uid == 0 && mkdir.file.gid == 0`,
@@ -30,7 +32,7 @@ func TestMkdir(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,15 +46,14 @@ func TestMkdir(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
-			t.Fatal(err)
-		}
 		defer syscall.Rmdir(testFile)
 
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
+				t.Fatal(errno)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
 			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testFile), "wrong inode")
@@ -60,7 +61,7 @@ func TestMkdir(t *testing.T) {
 
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-		}
+		})
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
@@ -68,16 +69,14 @@ func TestMkdir(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
-			t.Fatal(error(errno))
-		}
 		defer syscall.Rmdir(testatFile)
 
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
+				t.Fatal(error(errno))
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 
 			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testatFile), "wrong inode")
@@ -87,19 +86,19 @@ func TestMkdir(t *testing.T) {
 
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
-		}
+		})
 	})
 }
 
 func TestMkdirError(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
 			Expression: `process.file.name == "{{.ProcessName}}" && mkdir.retval == EACCES`,
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,29 +114,37 @@ func TestMkdirError(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		go func() {
-			runtime.LockOSThread()
-			// do not unlock, we want the thread to be killed when exiting the goroutine
+		err = test.GetSignal(t, func() error {
+			var wg sync.WaitGroup
+			wg.Add(1)
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
-				t.Error(err)
-			}
+			go func() {
+				defer wg.Done()
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
-				t.Error(err)
-			}
+				runtime.LockOSThread()
+				// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
-				t.Error(error(errno))
-			}
-		}()
+				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1, 1, 0); errno != 0 {
+					t.Error(err)
+				}
 
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1, 1, 0); errno != 0 {
+					t.Error(err)
+				}
+
+				if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno == 0 {
+					t.Error(error(errno))
+				}
+			}()
+
+			wg.Wait()
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }

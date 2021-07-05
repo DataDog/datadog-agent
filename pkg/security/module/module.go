@@ -41,6 +41,7 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
+	wg             sync.WaitGroup
 	probe          *sprobe.Probe
 	config         *sconfig.Config
 	ruleSets       [2]*rules.RuleSet
@@ -54,10 +55,20 @@ type Module struct {
 	sigupChan      chan os.Signal
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
+	rulesLoaded    func(rs *rules.RuleSet)
 }
 
 // Register the runtime security agent module
 func (m *Module) Register(_ *module.Router) error {
+	if err := m.Init(); err != nil {
+		return err
+	}
+
+	return m.Start()
+}
+
+// Init initializes the module
+func (m *Module) Init() error {
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -71,7 +82,10 @@ func (m *Module) Register(_ *module.Router) error {
 
 	m.listener = ln
 
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		if err := m.grpcServer.Serve(ln); err != nil {
 			log.Error(err)
 		}
@@ -80,12 +94,19 @@ func (m *Module) Register(_ *module.Router) error {
 	// start api server
 	m.apiServer.Start(m.ctx)
 
+	m.probe.SetEventHandler(m)
+
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.probe.Init(m.statsdClient); err != nil {
 		return errors.Wrap(err, "failed to init probe")
 	}
 
+	return nil
+}
+
+// Start the module
+func (m *Module) Start() error {
 	// start the manager and its probes / perf maps
 	if err := m.probe.Start(); err != nil {
 		return errors.Wrap(err, "failed to start probe")
@@ -97,17 +118,19 @@ func (m *Module) Register(_ *module.Router) error {
 		return err
 	}
 
-	m.probe.SetEventHandler(m)
-
 	if err := m.Reload(); err != nil {
 		return err
 	}
 
+	m.wg.Add(1)
 	go m.metricsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		for range m.sigupChan {
 			log.Info("Reload configuration")
 
@@ -205,16 +228,20 @@ func (m *Module) Reload() error {
 		return err
 	}
 
-	atomic.StoreUint64(&m.currentRuleSet, 1-m.currentRuleSet)
-	m.ruleSets[m.currentRuleSet] = ruleSet
+	ruleSet.AddListener(m)
+	if m.rulesLoaded != nil {
+		m.rulesLoaded(ruleSet)
+	}
+
+	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
+	m.ruleSets[currentRuleSet] = ruleSet
+	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
 	report, err := rsa.Apply(ruleSet, approvers)
 	if err != nil {
 		return err
 	}
-
-	ruleSet.AddListener(m)
 
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
@@ -248,6 +275,8 @@ func (m *Module) Close() {
 	}
 
 	m.probe.Close()
+
+	m.wg.Wait()
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -263,7 +292,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
-	if ruleSet := m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]; ruleSet != nil {
+	if ruleSet := m.GetRuleSet(); ruleSet != nil {
 		ruleSet.Evaluate(event)
 	}
 }
@@ -315,6 +344,8 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 }
 
 func (m *Module) metricsSender() {
+	defer m.wg.Done()
+
 	statsTicker := time.NewTicker(m.config.StatsPollingInterval)
 	defer statsTicker.Stop()
 
@@ -365,8 +396,13 @@ func (m *Module) GetProbe() *sprobe.Probe {
 }
 
 // GetRuleSet returns the set of loaded rules
-func (m *Module) GetRuleSet() *rules.RuleSet {
+func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
 	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+}
+
+// SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+	m.rulesLoaded = cb
 }
 
 // NewModule instantiates a runtime security system-probe module
