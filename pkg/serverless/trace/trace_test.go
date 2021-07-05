@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// +build !windows
+
 package trace
 
 import (
@@ -81,5 +83,5 @@ func TestCancel(t *testing.T) {
 	<-waitingChan
 	// should not block
 	agent.Stop()
-	// should not have any "bind: address already in use" issues
+	// should not have any "bind: address already in use issues"
 }

@@ -226,11 +226,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
-	config.Datadog.SetConfigFile(datadogConfigPath)
-	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
-		log.Info("A configuration file has been found and read.")
-	}
-
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
