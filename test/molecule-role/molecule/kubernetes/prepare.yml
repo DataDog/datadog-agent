@@ -47,7 +47,7 @@
       copy:
         src: "files/receiver"
         dest: "/home/ubuntu/"
-    - name: Copy Verify and Create Configuration files
+    - name: Copy Verify and Create Script file
       copy:
         src: "../verify-or-create-topics.sh"
         dest: /home/ubuntu

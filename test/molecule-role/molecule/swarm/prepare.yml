@@ -70,7 +70,7 @@
         src: files/docker-compose.yml
         dest: /home/ubuntu/
         mode: preserve
-    - name: Copy Verify and Create Configuration files
+    - name: Copy Verify and Create Script file
       copy:
         src: "../verify-or-create-topics.sh"
         dest: /home/ubuntu
