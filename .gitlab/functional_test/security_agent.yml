@@ -9,7 +9,6 @@
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
   rules:
     !reference [.manual]
   stage: functional_test
@@ -22,9 +21,20 @@
 .kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent
+    - .kitchen_azure_location_north_central_us
   needs: ["tests_ebpf_x64"]
   variables:
     KITCHEN_ARCH: x86_64
+
+.kitchen_test_security_agent_arm64:
+  extends:
+    - .kitchen_test_security_agent
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2_spot_instances
+  needs: [ "tests_ebpf_arm64" ]
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
 
 .kitchen_stress_security_agent:
   extends:
@@ -56,6 +66,15 @@ kitchen_ubuntu_security_agent_x64:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM=ubuntu
     - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_security_agent_arm64:
+  extends: .kitchen_test_security_agent_arm64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM=ubuntu
+    - export KITCHEN_OSVERS="ubuntu-20-04"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
