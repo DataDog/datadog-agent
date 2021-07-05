@@ -152,7 +152,7 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 func (m *Monitor) reportActiveRuleset(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {

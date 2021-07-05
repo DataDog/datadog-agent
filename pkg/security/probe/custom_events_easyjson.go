@@ -216,8 +216,6 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 		switch key {
 		case "id":
 			out.ID = string(in.String())
-		case "version":
-			out.Version = string(in.String())
 		case "expression":
 			out.Expression = string(in.String())
 		default:
@@ -238,11 +236,6 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		const prefix string = ",\"id\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
-	}
-	if in.Version != "" {
-		const prefix string = ",\"version\":"
-		out.RawString(prefix)
-		out.String(string(in.Version))
 	}
 	{
 		const prefix string = ",\"expression\":"
@@ -296,8 +289,6 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		switch key {
 		case "id":
 			out.ID = string(in.String())
-		case "version":
-			out.Version = string(in.String())
 		case "expression":
 			out.Expression = string(in.String())
 		case "reason":
@@ -320,11 +311,6 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		const prefix string = ",\"id\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
-	}
-	if in.Version != "" {
-		const prefix string = ",\"version\":"
-		out.RawString(prefix)
-		out.String(string(in.Version))
 	}
 	{
 		const prefix string = ",\"expression\":"

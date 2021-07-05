@@ -206,8 +206,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	agentContext := &AgentContext{
-		RuleID:      rule.Definition.ID,
-		RuleVersion: rule.Definition.Version,
+		RuleID: rule.Definition.ID,
 	}
 
 	ruleEvent := &Signal{

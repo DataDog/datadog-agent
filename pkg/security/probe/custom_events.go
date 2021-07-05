@@ -144,7 +144,6 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 // easyjson:json
 type RuleIgnored struct {
 	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
 	Expression string `json:"expression"`
 	Reason     string `json:"reason"`
 }
@@ -186,8 +185,8 @@ func (r *PoliciesIgnored) UnmarshalJSON(data []byte) error {
 // RuleLoaded defines a loaded rule
 // easyjson:json
 type RuleLoaded struct {
-	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
+	ID string `json:"id"`
+
 	Expression string `json:"expression"`
 }
 
@@ -225,7 +224,6 @@ func NewRuleSetEvent(rs *rules.RuleSet, err *multierror.Error) *RuleSetEvent {
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
 			ID:         rule.ID,
-			Version:    rule.Definition.Version,
 			Expression: rule.Definition.Expression,
 		})
 	}
@@ -242,7 +240,6 @@ func NewRuleSetEvent(rs *rules.RuleSet, err *multierror.Error) *RuleSetEvent {
 				}
 				policy.RulesIgnored = append(policy.RulesIgnored, &RuleIgnored{
 					ID:         rerr.Definition.ID,
-					Version:    rerr.Definition.Version,
 					Expression: rerr.Definition.Expression,
 					Reason:     rerr.Err.Error(),
 				})
