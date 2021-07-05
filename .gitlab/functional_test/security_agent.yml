@@ -13,12 +13,18 @@
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_security_agent_x64:
+  extends:
+    - .kitchen_test_security_agent
+  needs: ["tests_ebpf_x64"]
+  variables:
+    KITCHEN_ARCH: x86_64
 
 .kitchen_stress_security_agent:
   extends:
@@ -35,8 +41,8 @@
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
 
-kitchen_centos_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_centos_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="centos"
@@ -44,8 +50,8 @@ kitchen_centos_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_ubuntu_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_ubuntu_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM=ubuntu
@@ -62,8 +68,8 @@ kitchen_ubuntu_security_agent_stress:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_suse_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_suse_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="suse"
@@ -71,8 +77,8 @@ kitchen_suse_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_debian_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_debian_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="debian"
@@ -80,8 +86,8 @@ kitchen_debian_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_oracle_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_oracle_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="oracle"
