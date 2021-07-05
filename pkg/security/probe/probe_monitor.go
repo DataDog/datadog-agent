@@ -10,6 +10,7 @@ package probe
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -24,6 +25,8 @@ import (
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
+	sync.RWMutex
+
 	probe  *Probe
 	client *statsd.Client
 
@@ -31,6 +34,8 @@ type Monitor struct {
 	perfBufferMonitor *PerfBufferMonitor
 	syscallMonitor    *SyscallMonitor
 	reordererMonitor  *ReordererMonitor
+
+	activeRuleset *RuleSetEvent
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -75,10 +80,12 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	wg.Add(2)
+	wg.Add(3)
 
 	go m.loadController.Start(ctx, wg)
 	go m.reordererMonitor.Start(ctx, wg)
+	go m.reportActiveRuleset(ctx, wg)
+
 	return nil
 }
 
@@ -142,13 +149,34 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 
+func (m *Monitor) reportActiveRuleset(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.RLock()
+			m.activeRuleset.Timestamp = time.Now()
+			m.probe.DispatchCustomEvent(NewActiveRuleSetEvent(m.activeRuleset))
+			m.RUnlock()
+		}
+	}
+}
+
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
 func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
 	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
-	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet, err),
-	)
+	m.Lock()
+	defer m.Unlock()
+
+	m.activeRuleset = NewRuleSetEvent(ruleSet, err)
+	m.probe.DispatchCustomEvent(NewRuleSetLoadedEvent(m.activeRuleset))
 }

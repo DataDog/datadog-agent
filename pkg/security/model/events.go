@@ -78,6 +78,8 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
+	// CustomActiveRulesetEventType is the custom event used to report the current active ruleset
+	CustomActiveRulesetEventType
 )
 
 func (t EventType) String() string {

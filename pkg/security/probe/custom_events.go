@@ -28,6 +28,8 @@ const (
 	NoisyProcessRuleID = "noisy_process"
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// ActiveRulesetID is the current active ruleset
+	ActiveRulesetID = "active_ruleset"
 )
 
 // AllCustomRuleIDs returns the list of custom rule IDs
@@ -37,6 +39,7 @@ func AllCustomRuleIDs() []string {
 		RulesetLoadedRuleID,
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
+		ActiveRulesetID,
 	}
 }
 
@@ -196,17 +199,17 @@ type PolicyLoaded struct {
 	RulesIgnored []*RuleIgnored `json:"rules_ignored,omitempty"`
 }
 
-// RulesetLoadedEvent is used to report that a new ruleset was loaded
+// RuleSetEvent is used to report that a new ruleset was loaded
 // easyjson:json
-type RulesetLoadedEvent struct {
+type RuleSetEvent struct {
 	Timestamp       time.Time        `json:"date"`
 	PoliciesLoaded  []*PolicyLoaded  `json:"policies"`
 	PoliciesIgnored *PoliciesIgnored `json:"policies_ignored,omitempty"`
 	MacrosLoaded    []rules.MacroID  `json:"macros_loaded"`
 }
 
-// NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
+// NewRuleSetEvent returns a new ruleset event
+func NewRuleSetEvent(rs *rules.RuleSet, err *multierror.Error) *RuleSetEvent {
 	mp := make(map[string]*PolicyLoaded)
 
 	var policy *PolicyLoaded
@@ -252,14 +255,26 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
+	return &RuleSetEvent{
+		Timestamp:       time.Now(),
+		PoliciesLoaded:  policies,
+		PoliciesIgnored: &PoliciesIgnored{Errors: err},
+		MacrosLoaded:    rs.ListMacroIDs(),
+	}
+}
+
+// NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(rsEvent *RuleSetEvent) (*rules.Rule, *CustomEvent) {
 	return newRule(&rules.RuleDefinition{
-			ID: RulesetLoadedRuleID,
-		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-			Timestamp:       time.Now(),
-			PoliciesLoaded:  policies,
-			PoliciesIgnored: &PoliciesIgnored{Errors: err},
-			MacrosLoaded:    rs.ListMacroIDs(),
-		}.MarshalJSON)
+		ID: RulesetLoadedRuleID,
+	}), newCustomEvent(model.CustomRulesetLoadedEventType, rsEvent.MarshalJSON)
+}
+
+// NewActiveRuleSetEvent returns the rule and the custom event for the active ruleset
+func NewActiveRuleSetEvent(rsEvent *RuleSetEvent) (*rules.Rule, *CustomEvent) {
+	return newRule(&rules.RuleDefinition{
+		ID: ActiveRulesetID,
+	}), newCustomEvent(model.CustomActiveRulesetEventType, rsEvent.MarshalJSON)
 }
 
 // NoisyProcessEvent is used to report that a noisy process was temporarily discarded

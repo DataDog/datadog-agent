@@ -20,7 +20,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RulesetLoadedEvent) {
+func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *RuleSetEvent) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -119,7 +119,7 @@ func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 		in.Consumed()
 	}
 }
-func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RulesetLoadedEvent) {
+func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in RuleSetEvent) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -173,26 +173,26 @@ func easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 }
 
 // MarshalJSON supports json.Marshaler interface
-func (v RulesetLoadedEvent) MarshalJSON() ([]byte, error) {
+func (v RuleSetEvent) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v RulesetLoadedEvent) MarshalEasyJSON(w *jwriter.Writer) {
+func (v RuleSetEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonF8f9ddd1EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
-func (v *RulesetLoadedEvent) UnmarshalJSON(data []byte) error {
+func (v *RuleSetEvent) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
 	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *RulesetLoadedEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *RuleSetEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
 }
 func easyjsonF8f9ddd1DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *RuleLoaded) {
