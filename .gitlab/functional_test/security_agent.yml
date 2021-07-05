@@ -15,6 +15,8 @@
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    # we need chef >= 15 for arm64
+    CHEF_VERSION: 15.16.4
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
