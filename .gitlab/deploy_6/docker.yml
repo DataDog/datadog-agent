@@ -18,11 +18,11 @@ deploy-a6:
   rules:
     !reference [.on_deploy_a6_manual]
   script:
-    python3 -m pip install -r requirements.txt
-    VERSION="$(inv -e agent.version --major-version 6 --url-safe)"
-    IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
-    IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
-    inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+    - python3 -m pip install -r requirements.txt
+    - VERSION="$(inv -e agent.version --major-version 6 --url-safe)"
+    - IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-$- {CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
+    - IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
       - JMX:

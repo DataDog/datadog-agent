@@ -18,17 +18,13 @@ deploy-a7:
   rules:
     !reference [.on_deploy_a7_manual]
   script:
-    python3 -m pip install -r requirements.txt
-    VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
-    IMG_LINUX_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-arm64"
-    IMG_WINDOWS_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1809${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1909${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win2004${SERVERCORE}-amd64"
-    if [[ "$SERVERCORE" == "-servercore" ]]; then
-      IMG_SOURCES="${IMG_WINDOWS_SOURCES}"
-    else
-      IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"
-    fi
-    IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${SERVERCORE}${JMX}"
-    inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+    - python3 -m pip install -r requirements.txt
+    - VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
+    - IMG_LINUX_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-arm64"
+    - IMG_WINDOWS_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1809${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1909${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win2004${SERVERCORE}-amd64"
+    - if [[ "$SERVERCORE" == "-servercore" ]]; then IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
+    - IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${SERVERCORE}${JMX}"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
       - JMX:
@@ -48,11 +44,11 @@ deploy-dogstatsd:
   rules:
     !reference [.on_deploy_a7_manual]
   script:
-    python3 -m pip install -r requirements.txt
-    VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
-    IMG_SOURCES="${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64"
-    IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
-    inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+    - python3 -m pip install -r requirements.txt
+    - VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
+    - IMG_SOURCES="${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64"
+    - IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
 
 
 #
