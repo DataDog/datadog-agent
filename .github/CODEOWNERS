@@ -86,6 +86,7 @@
 /cmd/agent/*.rc                         @DataDog/agent-platform
 /cmd/agent/install*.sh                  @DataDog/agent-platform
 /cmd/agent/version.h                    @DataDog/agent-platform
+/cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
