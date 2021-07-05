@@ -29,7 +29,9 @@
 /setup.cfg                              @DataDog/agent-platform
 
 /.circleci/                             @DataDog/agent-platform
-/.github/*                              @DataDog/do-not-notify
+
+/.github/CODEOWNERS                     @DataDog/do-not-notify
+/.github/*_TEMPLATE.md                  @DataDog/agent-all
 /.github/dependabot.yaml                @DataDog/agent-platform
 
 # Gitlab files
