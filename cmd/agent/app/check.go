@@ -121,8 +121,8 @@ var checkCmd = &cobra.Command{
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
-		// [sts] init the batcher for topology production
-		batcher.InitBatcher(s, hostname, "agent", config.GetMaxCapacity())
+		// [sts] init the batcher without the real serializer
+		batcher.InitBatcher(&printingAgentV1Serializer{}, hostname, "agent", config.GetMaxCapacity())
 
 		if config.Datadog.GetBool("inventories_enabled") {
 			metadata.SetupInventoriesExpvar(common.AC, common.Coll)
@@ -421,6 +421,15 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	}
 
 	return s
+}
+
+type printingAgentV1Serializer struct{}
+
+func (printingAgentV1Serializer) SendJSONToV1Intake(data interface{}) error {
+	fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Topology")))
+	j, _ := json.MarshalIndent(data, "", "  ")
+	fmt.Println(string(j))
+	return nil
 }
 
 func printMetrics(agg *aggregator.BufferedAggregator) {
