@@ -46,7 +46,8 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.UdpPortBindingsMap)},
 			{Name: "pending_bind"},
 			{Name: string(probes.TelemetryMap)},
-			{Name: string(probes.TupByPidSockFDMap)},
+			{Name: string(probes.TupByPidFDMap)},
+			{Name: string(probes.PidFDByTupMap)},
 			{Name: string(probes.SockFDLookupArgsMap)},
 			{Name: string(probes.DoSendfileArgsMap)},
 		},
@@ -87,6 +88,7 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.SockFDLookupRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.DoSendfile), KProbeMaxActive: maxActive},
 			{Section: string(probes.DoSendfileRet), KProbeMaxActive: maxActive},
+			{Section: string(probes.TCPRelease), KProbeMaxActive: maxActive},
 		},
 	}
 

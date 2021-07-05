@@ -4,6 +4,7 @@
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
+#include "sockfd.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
@@ -848,7 +849,9 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     return 0;
 }
 
-// this kretprobe is essentially creating an index of (PID, socketfd) to a conn_tuple_t object
+// this kretprobe is essentially creating:
+// * an index of pid_fd_t to conn_tuple_t;
+// * an index of conn_tuple_t to pid_fd_t;
 SEC("kretprobe/sockfd_lookup_light")
 int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -858,20 +861,27 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     }
 
     struct socket *socket = (struct socket*)PT_REGS_RC(ctx);
-    struct sock *skp;
-    bpf_probe_read(&skp, sizeof(skp), (char*)socket + offset_socket_sk());
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+    conn_tuple_t tup = {};
+    if (!socket_to_tuple(socket, &tup, pid_tgid, offset_socket_sk(), offsetof(struct socket, type))) {
         goto cleanup;
     }
 
-    u64 pid = pid_tgid >> 32;
-    u64 key = (pid << 32) | (*sockfd);
-    // TODO(before merging): Figure out how we want to cleanup this map;
-    // close(2) is an obvious candidate, but we would still need
-    // to have a TTL on map entries and expire them from userspace;
-    bpf_map_update_elem(&tup_by_pid_sockfd, &key, &t, BPF_ANY);
+    // Let's only store TCP sockets for now
+    if (!(tup.metadata&CONN_TYPE_TCP)) {
+        goto cleanup;
+    }
+
+    pid_fd_t pid_fd = {
+        .pid = pid_tgid >> 32,
+        .fd = (*sockfd),
+    };
+
+    // These entries are cleaned up by {tcp,udp}_release_cb
+    bpf_map_update_elem(&pid_fd_by_tup, &tup, &pid_fd, BPF_ANY);
+
+    // For kernel 4.4
+    pid_fd_t pid_fd_copy = pid_fd;
+    bpf_map_update_elem(&tup_by_pid_fd, &pid_fd_copy, &tup, BPF_ANY);
 
 cleanup:
     bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
@@ -890,38 +900,58 @@ int kprobe__do_sendfile(struct pt_regs* ctx) {
 
 SEC("kretprobe/do_sendfile")
 int kretprobe__do_sendfile(struct pt_regs* ctx) {
+    log_debug("sendfile start\n");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 *fd_in_out = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
     if (fd_in_out == NULL) {
         return 0;
     }
-    u64 pid = pid_tgid >> 32;
 
-    // First we assume that we're dealing with the common sendfile scenario where:
-    // * fd_in represents a file;
-    // * fd_out represents a socket;
-    u64 sockfd = *fd_in_out & 0xFFFFFFFF;
-    u64 key = (pid << 32)|sockfd;
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = *fd_in_out & 0xFFFFFFFF,
+    };
+
     size_t sent = (size_t)PT_REGS_RC(ctx);
-    size_t rcvd = 0;
-    conn_tuple_t *t = bpf_map_lookup_elem(&tup_by_pid_sockfd, &key);
-    if (t == NULL) {
-        // If we haven't found an entry for this (PID|FD), it may be the case that
-        // we're zero-copying data from a socket *to* a file, so essentially we do
-        // the reverse lookup, using the sendfile fd_in as the socketfd;
-        sockfd = *fd_in_out >> 32;
-        key = (pid << 32)|sockfd;
-        rcvd = sent;
-        sent = 0;
-        t = bpf_map_lookup_elem(&tup_by_pid_sockfd, &key);
-    }
+    conn_tuple_t* t = bpf_map_lookup_elem(&tup_by_pid_fd, &key);
     if (t == NULL) {
         goto cleanup;
     }
 
-    handle_message(t, sent, rcvd, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+    // Copy map value to stack before re-using it (needed for Kernel 4.4)
+    conn_tuple_t t_copy = {};
+    __builtin_memcpy(&t_copy, t, sizeof(conn_tuple_t));
+    t = &t_copy;
+
+    // TODO: Will CONN_DIRECTION_UNKOWN override the existing direction?
+    handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
+    return 0;
+}
+
+SEC("kprobe/tcp_v4_destroy_sock")
+int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
+    struct sock* sock = (struct sock*)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t tup = {};
+    if (!read_conn_tuple(&tup, sock, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    pid_fd_t* pid_fd = bpf_map_lookup_elem(&pid_fd_by_tup, &tup);
+    if (pid_fd == NULL) {
+        return 0;
+    }
+
+    // Copy map value to stack before re-using it (needed for Kernel 4.4)
+    pid_fd_t pid_fd_copy = {};
+    __builtin_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
+    pid_fd = &pid_fd_copy;
+
+    bpf_map_delete_elem(&tup_by_pid_fd, pid_fd);
+    bpf_map_delete_elem(&pid_fd_by_tup, &tup);
     return 0;
 }
 

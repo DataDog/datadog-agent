@@ -155,19 +155,6 @@ struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
     .namespace = "",
 };
 
-// This map is used to to temporarily store function arguments (sockfd) for
-// sockfd_lookup_light function calls, so they can be acessed by the corresponding kretprobe.
-// * Key is the pid_tgid;
-// * Value the socket FD;
-struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(int),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
 // This map is used to to temporarily store function arguments (fd_in and fd_out) for
 // do_sendfile function calls, so they can be acessed by the corresponding kretprobe.
 // * Key is pid_tgid (u64)
@@ -176,18 +163,6 @@ struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(__u64),
     .value_size = sizeof(__u64),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-// This map indexes conn_tuple_t structs by (PID|SOCKET_FD);
-// It's currently being used by SENDFILE(2) tracing but we also plan to
-// use it for other applications such as HTTPS/OpenSSL monitoring
-struct bpf_map_def SEC("maps/tup_by_pid_sockfd") tup_by_pid_sockfd = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(conn_tuple_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
