@@ -52,7 +52,6 @@ services:
       - kafka
     environment:
       KAFKA_BROKERS: kafka:9092
-    restart: always
     deploy:
       placement:
         constraints: [ node.role == manager ]
