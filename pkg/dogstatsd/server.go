@@ -267,12 +267,10 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	}
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 
-	// TODO MAXDAY change this it takes about 1 sec in serverless
-	// defaultHostname, err := util.GetHostname(context.TODO())
-	// if err != nil {
-	// 	log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
-	// }
-	defaultHostname := ""
+	defaultHostname, err := util.GetHostname()
+	if err != nil {
+		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
+	}
 
 	histToDist := config.Datadog.GetBool("histogram_copy_to_distribution")
 	histToDistPrefix := config.Datadog.GetString("histogram_copy_to_distribution_prefix")

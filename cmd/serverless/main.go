@@ -291,19 +291,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, waitingChan)
 
-	log.Debugf("Waiting signal 1 %v \n", time.Now())
 	<-waitingChan
-	log.Debugf("Waiting signal 2 %v \n", time.Now())
 	<-waitingChan
-	log.Debugf("Waiting signal 3 %v \n", time.Now())
 	<-waitingChan
-	log.Debugf("Waiting signal OK %v \n", time.Now())
 
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetTraceAgent(nil)
 	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
-
-	log.Debugf("After set %v \n", time.Now())
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
