@@ -2,6 +2,8 @@ package testdatadogagent
 
 import (
 	"fmt"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/mailru/easyjson/jlexer"
 	"io/ioutil"
 	"os"
 	"runtime"
@@ -28,7 +30,7 @@ extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
 extern char* readPersistentCache(char*);
-extern char* obfuscateSQL(char*, char**);
+extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 
 
@@ -99,6 +101,7 @@ func run(call string) (string, error) {
 import sys
 try:
 	import datadog_agent
+	import json
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
@@ -235,7 +238,16 @@ func readPersistentCache(key *C.char) *C.char {
 }
 
 //export obfuscateSQL
-func obfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+func obfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
+	var sqlCfg traceconfig.SQLObfuscationConfig
+	if options != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(options))}
+		sqlCfg.UnmarshalEasyJSON(jl)
+		if jl.Error() != nil {
+			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))
+			return nil
+		}
+	}
 	s := C.GoString(rawQuery)
 	switch s {
 	case "select * from table where id = 1":

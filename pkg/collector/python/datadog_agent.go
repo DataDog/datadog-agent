@@ -9,6 +9,7 @@ package python
 
 import (
 	"context"
+	"github.com/mailru/easyjson/jlexer"
 	"sync"
 	"unsafe"
 
@@ -202,12 +203,15 @@ var (
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
 // because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
-func lazyInitObfuscator() *obfuscate.Obfuscator {
+func lazyInitObfuscator(sqlCfg *traceconfig.SQLObfuscationConfig) *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg traceconfig.ObfuscationConfig
 		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = traceconfig.ObfuscationConfig{}
+		}
+		if sqlCfg != nil {
+			cfg.SQL = *sqlCfg
 		}
 		if !cfg.SQLExecPlan.Enabled {
 			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
@@ -221,11 +225,21 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
-// fails
+// fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
-func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+func ObfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
+	var sqlCfg traceconfig.SQLObfuscationConfig
+	if options != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(options))}
+		sqlCfg.UnmarshalEasyJSON(jl)
+		if jl.Error() != nil {
+			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
+			*errResult = TrackedCString(jl.Error().Error())
+			return nil
+		}
+	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator(&sqlCfg).ObfuscateSQLString(s)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -239,7 +253,7 @@ func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 // operation fails
 //export ObfuscateSQLExecPlan
 func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
-	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
+	obfuscatedJSONPlan, err := lazyInitObfuscator(nil).ObfuscateSQLExecPlan(
 		C.GoString(jsonPlan),
 		bool(normalize),
 	)
