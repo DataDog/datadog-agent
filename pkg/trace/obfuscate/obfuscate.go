@@ -102,7 +102,7 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLString(b.Resource)
+		oq, err := o.ObfuscateSQLString(b.Resource, nil)
 		if err != nil {
 			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
 			b.Resource = nonParsableResource

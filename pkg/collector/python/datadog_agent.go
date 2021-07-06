@@ -203,15 +203,12 @@ var (
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
 // because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
-func lazyInitObfuscator(sqlCfg *traceconfig.SQLObfuscationConfig) *obfuscate.Obfuscator {
+func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg traceconfig.ObfuscationConfig
 		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = traceconfig.ObfuscationConfig{}
-		}
-		if sqlCfg != nil {
-			cfg.SQL = *sqlCfg
 		}
 		if !cfg.SQLExecPlan.Enabled {
 			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
@@ -239,7 +236,7 @@ func ObfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
 		}
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator(&sqlCfg).ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s, &sqlCfg)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -253,7 +250,7 @@ func ObfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
 // operation fails
 //export ObfuscateSQLExecPlan
 func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
-	obfuscatedJSONPlan, err := lazyInitObfuscator(nil).ObfuscateSQLExecPlan(
+	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
 		C.GoString(jsonPlan),
 		bool(normalize),
 	)
