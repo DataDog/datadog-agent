@@ -5,29 +5,58 @@
 
 package sampler
 
-import "sync"
+import (
+	"container/list"
+	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/security/log"
+)
+
+// defaultServiceRateKey specifies the key for the default rate to be used by any service that
+// doesn't have a rate specified.
 const defaultServiceRateKey = "service:,env:"
+
+// maxCatalogEntries specifies the maximum number of entries allowed in the catalog.
+const maxCatalogEntries = 5000 // 5000 is the maximum (service,env) combination in the backend.
 
 // serviceKeyCatalog reverse-maps service signatures to their generated hashes for
 // easy look up.
 type serviceKeyCatalog struct {
-	mu     sync.Mutex
-	lookup map[ServiceSignature]Signature
+	mu         sync.Mutex
+	items      map[ServiceSignature]*list.Element
+	ll         *list.List
+	maxEntries int
+}
+
+type catalogEntry struct {
+	key ServiceSignature
+	sig Signature
 }
 
 // newServiceLookup returns a new serviceKeyCatalog.
 func newServiceLookup() *serviceKeyCatalog {
 	return &serviceKeyCatalog{
-		lookup: make(map[ServiceSignature]Signature),
+		items:      make(map[ServiceSignature]*list.Element),
+		ll:         list.New(),
+		maxEntries: maxCatalogEntries,
 	}
 }
 
 func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
-	hash := svcSig.Hash()
 	cat.mu.Lock()
-	cat.lookup[svcSig] = hash
-	cat.mu.Unlock()
+	defer cat.mu.Unlock()
+	if el, ok := cat.items[svcSig]; ok {
+		cat.ll.MoveToFront(el)
+		return el.Value.(catalogEntry).sig
+	}
+	hash := svcSig.Hash()
+	el := cat.ll.PushFront(catalogEntry{key: svcSig, sig: hash})
+	cat.items[svcSig] = el
+	if cat.ll.Len() > cat.maxEntries {
+		del := cat.ll.Remove(cat.ll.Back()).(catalogEntry)
+		delete(cat.items, del.key)
+		log.Warnf("More than %d services in service-rates catalog. Dropping %v.", cat.maxEntries, del.key)
+	}
 	return hash
 }
 
@@ -37,11 +66,13 @@ func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, totalS
 	rbs := make(map[ServiceSignature]float64, len(rates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
-	for key, sig := range cat.lookup {
+	for key, el := range cat.items {
+		sig := el.Value.(catalogEntry).sig
 		if rate, ok := rates[sig]; ok {
 			rbs[key] = rate
 		} else {
-			delete(cat.lookup, key)
+			cat.ll.Remove(el)
+			delete(cat.items, key)
 		}
 	}
 	rbs[ServiceSignature{}] = totalScore
