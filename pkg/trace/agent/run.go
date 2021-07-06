@@ -197,7 +197,9 @@ func runProfiling(cfg *config.AgentConfig) {
 	if v := coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"); v != 0 {
 		cpudur = v
 	}
+	mutexFraction := coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
+	blockRate := coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate")
 	routines := coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
-	profiling.Start(cfg.APIKey(), addr, cfg.DefaultEnv, "trace-agent", period, cpudur, routines, fmt.Sprintf("version:%s", info.Version))
-	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Routines:%v].", addr, cfg.DefaultEnv, period, cpudur, routines)
+	profiling.Start(addr, cfg.DefaultEnv, "trace-agent", period, cpudur, mutexFraction, blockRate, routines, fmt.Sprintf("version:%s", info.Version))
+	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v].", addr, cfg.DefaultEnv, period, cpudur, mutexFraction, blockRate, routines)
 }
