@@ -65,7 +65,7 @@ func (tx *httpTX) StatusClass() int {
 
 // RequestLatency returns the latency of the request in seconds
 func (tx *httpTX) RequestLatency() float64 {
-	return float64(uint64(tx.response_last_seen-tx.request_started) / uint64(time.Second))
+	return float64(tx.response_last_seen-tx.request_started) / float64(time.Second)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information

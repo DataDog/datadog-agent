@@ -20,6 +20,14 @@ func TestPath(t *testing.T) {
 	assert.Equal(t, "/foo/bar", string(tx.Path(b)))
 }
 
+func TestLatency(t *testing.T) {
+	tx := httpTX{
+		response_last_seen: 2e6,
+		request_started:    1e6,
+	}
+	assert.Equal(t, 0.001, tx.RequestLatency())
+}
+
 func BenchmarkPath(b *testing.B) {
 	tx := httpTX{
 		request_fragment: requestFragment(
