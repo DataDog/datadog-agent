@@ -238,9 +238,10 @@ core,""github.com/containerd/typeurl"",Apache-2.0
 core,""github.com/coreos/go-semver/semver"",Apache-2.0
 core,""github.com/coreos/go-systemd/daemon"",Apache-2.0
 core,""github.com/coreos/go-systemd/dbus"",Apache-2.0
+core,""github.com/coreos/go-systemd/journal"",Apache-2.0
 core,""github.com/coreos/go-systemd/sdjournal"",Apache-2.0
 core,""github.com/coreos/go-systemd/v22/dbus"",Apache-2.0
-core,""github.com/coreos/go-systemd/v22/journal"",Apache-2.0
+core,""github.com/coreos/pkg/capnslog"",Apache-2.0
 core,""github.com/coreos/pkg/dlopen"",Apache-2.0
 core,""github.com/cyphar/filepath-securejoin"",NewBSD
 core,""github.com/davecgh/go-spew/spew"",ISC
@@ -615,7 +616,6 @@ core,""go.etcd.io/etcd/clientv3/balancer/connectivity"",Apache-2.0
 core,""go.etcd.io/etcd/clientv3/balancer/picker"",Apache-2.0
 core,""go.etcd.io/etcd/clientv3/balancer/resolver/endpoint"",Apache-2.0
 core,""go.etcd.io/etcd/clientv3/credentials"",Apache-2.0
-core,""go.etcd.io/etcd/etcdserver/api/membership/membershippb"",Apache-2.0
 core,""go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"",Apache-2.0
 core,""go.etcd.io/etcd/etcdserver/etcdserverpb"",Apache-2.0
 core,""go.etcd.io/etcd/mvcc/mvccpb"",Apache-2.0
@@ -702,7 +702,6 @@ core,""golang.org/x/net/proxy"",NewBSD
 core,""golang.org/x/net/trace"",NewBSD
 core,""golang.org/x/net/websocket"",NewBSD
 core,""golang.org/x/oauth2"",NewBSD
-core,""golang.org/x/oauth2/authhandler"",NewBSD
 core,""golang.org/x/oauth2/clientcredentials"",NewBSD
 core,""golang.org/x/oauth2/google"",NewBSD
 core,""golang.org/x/oauth2/google/internal/externalaccount"",NewBSD

@@ -23,7 +23,6 @@ replace (
 // pinned to grpc v1.27.0
 replace (
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
-	go.etcd.io/etcd => go.etcd.io/etcd v0.5.0-alpha.5.0.20200425165423-262c93980547
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.27.0
 )
 
@@ -47,7 +46,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.77.0+incompatible
+	github.com/DataDog/agent-payload v4.78.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.6
 	github.com/DataDog/datadog-go v4.8.0+incompatible
@@ -237,4 +236,5 @@ replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30
 
 // Remove once the PR kubernetes/kube-state-metrics#1516 is merged and released.
 replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/v2 v2.1.0-rc.0.0.20210629115837-e46f17606d22
+
 replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20201005164315-09522984a976
