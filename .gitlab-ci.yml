@@ -129,9 +129,9 @@ clear_deps_win_cache:
       - venv
   when: manual
   script:
-    - "Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\vendor"
-    - "Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\venv"
-    - "Remove-Item -Force -Recurse C:\\opt\\stackstate-agent"
+    - "if (Test-Path IN_CI_PROJECT_DIR%\\vendor) { Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\vendor }"
+    - "if (Test-Path %WIN_CI_PROJECT_DIR%\\venv) { Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\venv }"
+    - "if (Test-Path C:\\opt\\stackstate-agent) { Remove-Item -Force -Recurse C:\\opt\\stackstate-agent }"
   tags:
     - windows_agent7_ps1
 
