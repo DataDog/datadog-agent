@@ -40,7 +40,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:              eventTypeDBMMetrics,
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
-		intakeTrackType:        "dbmetrics",
+		intakeTrackType:        "dbmmetrics",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
