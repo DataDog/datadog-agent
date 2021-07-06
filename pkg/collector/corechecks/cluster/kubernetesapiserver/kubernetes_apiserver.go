@@ -202,8 +202,7 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running the Control Plane status check.
-	useComponentStatus := config.Datadog.GetBool("kube_controlplane_")
-	if useComponentStatus {
+	if k.instance.UseComponentStatus {
 		err = k.componentStatusCheck(sender)
 		if err != nil {
 			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
@@ -401,12 +400,13 @@ func sendControlPlaneServiceCheck(sender aggregator.Sender, component string, re
 	if ready {
 		msg = "ok"
 		status = metrics.ServiceCheckOK
-	} else if err != nil {
-		msg = err.Error()
-		status = metrics.ServiceCheckCritical
 	} else {
-		msg = "unknown error"
 		status = metrics.ServiceCheckCritical
+		if err != nil {
+			msg = err.Error()
+		} else {
+			msg = "unknown error"
+		}
 	}
 
 	tags := []string{fmt.Sprintf("component:%s", component)}
