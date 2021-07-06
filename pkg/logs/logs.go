@@ -75,7 +75,7 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	}
 	endpoints, err := config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol)
 	if serverless {
-		endpoints, err = config.BuildServerlessEndpoints(intakeTrackType, intakeProtocol)
+		endpoints, err = config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 	}
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
