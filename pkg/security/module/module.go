@@ -120,16 +120,26 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	if err := m.selfTester.CreateTargetFile(); err != nil {
+		log.Errorf("failed to create target file for self test: %v", err)
+	}
+
 	if err := m.Reload(); err != nil {
 		return err
 	}
-
-	m.LoadSelfTestPoliciesIfEnabled()
 
 	m.wg.Add(1)
 	go m.metricsSender()
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
+
+	if m.config.SelfTestAtStartEnabled {
+		if err := m.doSelfTest(); err != nil {
+			log.Errorf("failed to run self-test: %v", err)
+		} else {
+			log.Debugf("Successfully completed self-test")
+		}
+	}
 
 	m.wg.Add(1)
 	go func() {
@@ -141,8 +151,6 @@ func (m *Module) Start() error {
 			if err := m.Reload(); err != nil {
 				log.Errorf("failed to reload configuration: %s", err)
 			}
-
-			m.LoadSelfTestPoliciesIfEnabled()
 		}
 	}()
 
@@ -212,7 +220,7 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-func (m *Module) reloadWithPoliciesDir(policiesDir string) error {
+func (m *Module) reloadWithPoliciesDir(policiesDir string, additionalPolicy *rules.Policy) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -243,6 +251,18 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string) error {
 		logMultiErrors("error while loading policies: %+v", loadErr)
 	} else if loadApproversErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
+	}
+
+	if additionalPolicy != nil {
+		merr := ruleSet.AddRules(additionalPolicy.Rules)
+		if merr.ErrorOrNil() != nil {
+			logMultiErrors("error while loading additional policies", merr)
+		}
+
+		merr = approverRuleSet.AddRules(additionalPolicy.Rules)
+		if merr.ErrorOrNil() != nil {
+			logMultiErrors("error while loading additional policies", merr)
+		}
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -286,30 +306,7 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string) error {
 
 // Reload the rule set
 func (m *Module) Reload() error {
-	return m.reloadWithPoliciesDir(m.config.PoliciesDir)
-}
-
-func (m *Module) LoadSelfTestPolicies() error {
-	m.Lock()
-	defer m.Unlock()
-
-	atomic.StoreUint64(&m.reloading, 1)
-	defer atomic.StoreUint64(&m.reloading, 0)
-
-	rs := m.GetRuleSet()
-	m.selfTester.LoadSelfTestPolicies(rs)
-
-	return nil
-}
-
-func (m *Module) LoadSelfTestPoliciesIfEnabled() {
-	if m.selfTester.Enabled {
-		if err := m.LoadSelfTestPolicies(); err != nil {
-			log.Errorf("failed to run self-test: %v", err)
-		} else {
-			log.Debugf("Successfully completed self-test")
-		}
-	}
+	return m.reloadWithPoliciesDir(m.config.PoliciesDir, m.selfTester.GetSelfTestPolicy())
 }
 
 func (m *Module) doSelfTest() error {
@@ -317,7 +314,7 @@ func (m *Module) doSelfTest() error {
 	defer m.selfTester.EndWaitingForEvent()
 
 	for _, fn := range SelfTestFunctions {
-		if err := fn(m.selfTester, m.selfTester.TargetFilePath); err != nil {
+		if err := fn(m.selfTester); err != nil {
 			return err
 		}
 	}
@@ -514,7 +511,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 
-		selfTester: NewSelfTester(cfg.SelfTestAtStartEnabled),
+		selfTester: NewSelfTester(),
 	}
 	m.apiServer.module = m
 

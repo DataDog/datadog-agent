@@ -20,7 +20,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func getSelfTestPolicies(baseRuleName, targetFilePath string) []*rules.RuleDefinition {
+func getSelfTestRuleDefinitions(baseRuleName, targetFilePath string) []*rules.RuleDefinition {
 	openRule := &rules.RuleDefinition{
 		ID:         fmt.Sprintf("%s_open", baseRuleName),
 		Expression: fmt.Sprintf(`open.file.path == "%s"`, targetFilePath),
@@ -39,22 +39,20 @@ func getSelfTestPolicies(baseRuleName, targetFilePath string) []*rules.RuleDefin
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
-	Enabled         bool
 	waitingForEvent bool
-	EventChan       chan eval.Event
-	TargetFilePath  string
+	eventChan       chan eval.Event
+	targetFilePath  string
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(enabled bool) *SelfTester {
+func NewSelfTester() *SelfTester {
 	return &SelfTester{
-		Enabled:         enabled,
 		waitingForEvent: false,
-		EventChan:       make(chan eval.Event),
+		eventChan:       make(chan eval.Event),
 	}
 }
 
-func (t *SelfTester) LoadSelfTestPolicies(ruleSet *rules.RuleSet) error {
+func (t *SelfTester) CreateTargetFile() error {
 	// Create temp directory to put target file in
 	tmpDir, err := ioutil.TempDir("", "datadog_agent_cws_self_test")
 	if err != nil {
@@ -66,17 +64,24 @@ func (t *SelfTester) LoadSelfTestPolicies(ruleSet *rules.RuleSet) error {
 	if err != nil {
 		return err
 	}
-	targetFilePath := targetFile.Name()
-	t.TargetFilePath = targetFilePath
+	t.targetFilePath = targetFile.Name()
 
-	if err := targetFile.Close(); err != nil {
-		return err
+	return targetFile.Close()
+}
+
+func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
+	rds := getSelfTestRuleDefinitions("datadog_agent_cws_self_test_rule", t.targetFilePath)
+	p := &rules.Policy{
+		Name:    "self-test-policy",
+		Version: "1.3.3",
 	}
 
-	selfTestPolicies := getSelfTestPolicies("datadog_agent_cws_self_test_rule", targetFilePath)
+	for _, rd := range rds {
+		rd.Policy = p
+	}
 
-	merr := ruleSet.AddRules(selfTestPolicies)
-	return merr.ErrorOrNil()
+	p.Rules = rds
+	return p
 }
 
 // BeginWaitingForEvent passes the tester in the waiting for event state
@@ -91,8 +96,8 @@ func (t *SelfTester) EndWaitingForEvent() {
 
 // SendEventIfExpecting sends an event to the tester
 func (t *SelfTester) SendEventIfExpecting(event eval.Event) {
-	if t.Enabled && t.waitingForEvent {
-		t.EventChan <- event
+	if t.waitingForEvent {
+		t.eventChan <- event
 	}
 }
 
@@ -100,7 +105,7 @@ func (t *SelfTester) expectEvent(predicate func(eval.Event) (bool, error)) error
 	timer := time.After(10 * time.Second)
 	for {
 		select {
-		case event := <-t.EventChan:
+		case event := <-t.eventChan:
 			ok, err := predicate(event)
 			if err != nil {
 				return err
@@ -115,10 +120,10 @@ func (t *SelfTester) expectEvent(predicate func(eval.Event) (bool, error)) error
 	}
 }
 
-func selfTestOpen(t *SelfTester, targetFilePath string) error {
+func selfTestOpen(t *SelfTester) error {
 	// we need to use touch (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("touch", targetFilePath)
+	cmd := exec.Command("touch", t.targetFilePath)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running touch: %v", err)
 		return err
@@ -129,14 +134,14 @@ func selfTestOpen(t *SelfTester, targetFilePath string) error {
 		if err != nil {
 			return false, errors.Wrap(err, "failed to extract open file path from event")
 		}
-		return eventOpenFilePath == targetFilePath, nil
+		return eventOpenFilePath == t.targetFilePath, nil
 	})
 }
 
-func selfTestChmod(t *SelfTester, targetFilePath string) error {
+func selfTestChmod(t *SelfTester) error {
 	// we need to use chmod (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("chmod", "777", targetFilePath)
+	cmd := exec.Command("chmod", "777", t.targetFilePath)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running chmod: %v", err)
 		return err
@@ -147,11 +152,11 @@ func selfTestChmod(t *SelfTester, targetFilePath string) error {
 		if err != nil {
 			return false, errors.Wrap(err, "failed to extract chmod file path from event")
 		}
-		return eventOpenFilePath == targetFilePath, nil
+		return eventOpenFilePath == t.targetFilePath, nil
 	})
 }
 
-func selfTestChown(t *SelfTester, targetFilePath string) error {
+func selfTestChown(t *SelfTester) error {
 	// we need to use chown (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
 	currentUser, err := user.Current()
@@ -160,7 +165,7 @@ func selfTestChown(t *SelfTester, targetFilePath string) error {
 		return err
 	}
 
-	cmd := exec.Command("chown", currentUser.Uid, targetFilePath)
+	cmd := exec.Command("chown", currentUser.Uid, t.targetFilePath)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running chown: %v", err)
 		return err
@@ -171,12 +176,12 @@ func selfTestChown(t *SelfTester, targetFilePath string) error {
 		if err != nil {
 			return false, errors.Wrap(err, "failed to extract chown file path from event")
 		}
-		return eventOpenFilePath == targetFilePath, nil
+		return eventOpenFilePath == t.targetFilePath, nil
 	})
 }
 
 // SelfTestFunctions slice of self test functions representing each individual file test
-var SelfTestFunctions = []func(*SelfTester, string) error{
+var SelfTestFunctions = []func(*SelfTester) error{
 	selfTestOpen,
 	selfTestChmod,
 	selfTestChown,
