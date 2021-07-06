@@ -211,19 +211,8 @@ def build_functional_tests(
     env.update(goenv)
 
     env["CGO_ENABLED"] = "1"
-    arch_mapping = {
-        "x86": "386",
-        "x64": "amd64",
-        "arm64": "arm64",
-    }
-    if arch in arch_mapping:
-        env["GOARCH"] = arch_mapping[arch]
-        if arch == "arm64":
-            env["CC"] = "aarch64-linux-gnu-gcc"
-    else:
-        print("Error: unknown arch")
-        return Exit(code=1)
-
+    if arch == "x86":
+        env["GOARCH"] = "386"
 
     build_tags = "linux_bpf," + build_tags
     if bundle_ebpf:
