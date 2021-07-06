@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +36,8 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 		return disabled, errors.Wrap(err, "configuration: ")
 	}
 	if !cfg.Enabled {
-		return disabled, ErrAgentDisabled
+		log.Error("Appsec agent: ", err)
+		return disabled, nil
 	}
 
 	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
@@ -65,7 +67,7 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 		json.NewEncoder(w).Encode(err)
 	}
 	proxy.Transport = transport
-	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec backend proxy: ", 0)
+	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "Appsec backend proxy: ", 0)
 	return withMetrics(proxy)
 }
 
