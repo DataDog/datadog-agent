@@ -8,19 +8,15 @@
 package module
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
-	"path"
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -124,17 +120,11 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	if m.selfTester.Enabled {
-		if err := m.doSelfTest(); err != nil {
-			log.Errorf("failed to run self-test: %v", err)
-		} else {
-			log.Debugf("Successfully completed self-test")
-		}
-	}
-
 	if err := m.Reload(); err != nil {
 		return err
 	}
+
+	m.LoadSelfTestPoliciesIfEnabled()
 
 	m.wg.Add(1)
 	go m.metricsSender()
@@ -151,6 +141,8 @@ func (m *Module) Start() error {
 			if err := m.Reload(); err != nil {
 				log.Errorf("failed to reload configuration: %s", err)
 			}
+
+			m.LoadSelfTestPoliciesIfEnabled()
 		}
 	}()
 
@@ -297,68 +289,35 @@ func (m *Module) Reload() error {
 	return m.reloadWithPoliciesDir(m.config.PoliciesDir)
 }
 
+func (m *Module) LoadSelfTestPolicies() error {
+	m.Lock()
+	defer m.Unlock()
+
+	atomic.StoreUint64(&m.reloading, 1)
+	defer atomic.StoreUint64(&m.reloading, 0)
+
+	rs := m.GetRuleSet()
+	m.selfTester.LoadSelfTestPolicies(rs)
+
+	return nil
+}
+
+func (m *Module) LoadSelfTestPoliciesIfEnabled() {
+	if m.selfTester.Enabled {
+		if err := m.LoadSelfTestPolicies(); err != nil {
+			log.Errorf("failed to run self-test: %v", err)
+		} else {
+			log.Debugf("Successfully completed self-test")
+		}
+	}
+}
+
 func (m *Module) doSelfTest() error {
-	// Create temp directory to put rules in
-	tmpDir, err := ioutil.TempDir("", "self_test_rule")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpDir)
-
-	targetFile, err := ioutil.TempFile(tmpDir, "target_file")
-	if err != nil {
-		return err
-	}
-	targetFilePath := targetFile.Name()
-
-	if err := targetFile.Close(); err != nil {
-		return err
-	}
-
-	policyDir, err := ioutil.TempDir(tmpDir, "policies")
-	if err != nil {
-		return err
-	}
-
-	policyFilePath := path.Join(policyDir, "test.policy")
-	policyFile, err := os.Create(policyFilePath)
-	if err != nil {
-		return err
-	}
-
-	templateArgs := map[string]string{
-		"RuleName":     "self_test",
-		"TestFileName": targetFile.Name(),
-	}
-
-	tmpl, err := template.New("self-test-rules").Parse(selfTestPolicyTemplate)
-	if err != nil {
-		return err
-	}
-
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, templateArgs); err != nil {
-		return err
-	}
-
-	if _, err := policyFile.Write(buffer.Bytes()); err != nil {
-		return err
-	}
-
-	if err := policyFile.Close(); err != nil {
-		return err
-	}
-
-	err = m.reloadWithPoliciesDir(policyDir)
-	if err != nil {
-		return err
-	}
-
 	m.selfTester.BeginWaitingForEvent()
 	defer m.selfTester.EndWaitingForEvent()
 
 	for _, fn := range SelfTestFunctions {
-		if err := fn(m.selfTester, targetFilePath); err != nil {
+		if err := fn(m.selfTester, m.selfTester.TargetFilePath); err != nil {
 			return err
 		}
 	}

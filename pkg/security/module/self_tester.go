@@ -8,31 +8,41 @@
 package module
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"os/user"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
 
-const selfTestPolicyTemplate = `---
-rules:
-- id: {{.RuleName}}_open
-  expression: open.file.path == "{{.TestFileName}}"
-- id: {{.RuleName}}_chmod
-  expression: chmod.file.path == "{{.TestFileName}}"
-- id: {{.RuleName}}_chown
-  expression: chown.file.path == "{{.TestFileName}}"
-...
-`
+func getSelfTestPolicies(baseRuleName, targetFilePath string) []*rules.RuleDefinition {
+	openRule := &rules.RuleDefinition{
+		ID:         fmt.Sprintf("%s_open", baseRuleName),
+		Expression: fmt.Sprintf(`open.file.path == "%s"`, targetFilePath),
+	}
+	chmodRule := &rules.RuleDefinition{
+		ID:         fmt.Sprintf("%s_chmod", baseRuleName),
+		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, targetFilePath),
+	}
+	chownRule := &rules.RuleDefinition{
+		ID:         fmt.Sprintf("%s_chown", baseRuleName),
+		Expression: fmt.Sprintf(`chown.file.path == "%s"`, targetFilePath),
+	}
+
+	return []*rules.RuleDefinition{openRule, chmodRule, chownRule}
+}
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
 	Enabled         bool
 	waitingForEvent bool
 	EventChan       chan eval.Event
+	TargetFilePath  string
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -42,6 +52,31 @@ func NewSelfTester(enabled bool) *SelfTester {
 		waitingForEvent: false,
 		EventChan:       make(chan eval.Event),
 	}
+}
+
+func (t *SelfTester) LoadSelfTestPolicies(ruleSet *rules.RuleSet) error {
+	// Create temp directory to put target file in
+	tmpDir, err := ioutil.TempDir("", "datadog_agent_cws_self_test")
+	if err != nil {
+		return err
+	}
+
+	// Create target file
+	targetFile, err := ioutil.TempFile(tmpDir, "datadog_agent_cws_target_file")
+	if err != nil {
+		return err
+	}
+	targetFilePath := targetFile.Name()
+	t.TargetFilePath = targetFilePath
+
+	if err := targetFile.Close(); err != nil {
+		return err
+	}
+
+	selfTestPolicies := getSelfTestPolicies("datadog_agent_cws_self_test_rule", targetFilePath)
+
+	merr := ruleSet.AddRules(selfTestPolicies)
+	return merr.ErrorOrNil()
 }
 
 // BeginWaitingForEvent passes the tester in the waiting for event state

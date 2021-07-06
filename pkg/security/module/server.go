@@ -213,27 +213,17 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	var res *api.SecuritySelfTestResultMessage
 	if err := a.module.doSelfTest(); err != nil {
-		res = &api.SecuritySelfTestResultMessage{
-			Ok:    false,
-			Error: err.Error(),
-		}
-	} else {
-		res = &api.SecuritySelfTestResultMessage{
-			Ok:    true,
-			Error: "",
-		}
-	}
-
-	if err := a.module.Reload(); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
 		}, nil
+	} else {
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    true,
+			Error: "",
+		}, nil
 	}
-
-	return res, nil
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
