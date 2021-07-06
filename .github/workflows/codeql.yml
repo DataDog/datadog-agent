@@ -30,7 +30,6 @@ jobs:
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v1
-        working-directory: go/src/github.com/DataDog/datadog-agent
         env:
           GOPATH: /home/runner/work/datadog-agent/go
         # Override language selection by uncommenting this and choosing your languages
@@ -59,7 +58,6 @@ jobs:
          invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        working-directory: go/src/github.com/DataDog/datadog-agent
         uses: github/codeql-action/analyze@v1
         env:
           GOPATH: /home/runner/work/datadog-agent/go
