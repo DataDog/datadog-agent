@@ -88,6 +88,10 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 			for {
 				if g.seen[j] == 0 {
 					// not seen, we will add it to the hash
+					// TODO(remy): we may want to store the original bytes instead
+					// of the hash, even if the comparison would be slower, we would
+					// be able to avoid collisions here.
+					// See https://github.com/DataDog/datadog-agent/pull/8529#discussion_r661493647
 					g.seen[j] = h
 					g.intb = g.intb ^ h // add this tag into the hash
 					break
