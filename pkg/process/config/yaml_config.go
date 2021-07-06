@@ -213,6 +213,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
 		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
 		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
+		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
 	}
 
 	// Used to override container source auto-detection

@@ -1,6 +1,6 @@
 # Datadog Agent
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
+[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=master)](https://codecov.io/github/DataDog/datadog-agent?branch=master)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
@@ -68,7 +68,7 @@ To start working on the Agent, you can build the `master` branch:
 
      * Discards any changes done in `bin/agent/dist`.
      * Builds the Agent and writes the binary to `bin/agent/agent`.
-     * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/master/dev/dist/README.md` for more information.
+     * Copies files from `dev/dist` to `bin/agent/dist`. See `https://github.com/DataDog/datadog-agent/blob/main/dev/dist/README.md` for more information.
 
      If you built an older version of the agent, you may have the error `make: *** No targets specified and no makefile found.  Stop.`. To solve the issue, you should remove `CMakeCache.txt` from `rtloader` folder with `rm rtloader/CMakeCache.txt`.
 

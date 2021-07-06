@@ -47,6 +47,21 @@ type Event struct {
 	scrubber            *pconfig.DataScrubber
 }
 
+// Retain the event
+func (ev *Event) Retain() Event {
+	if ev.processCacheEntry != nil {
+		ev.processCacheEntry.Retain()
+	}
+	return *ev
+}
+
+// Release the event
+func (ev *Event) Release() {
+	if ev.processCacheEntry != nil {
+		ev.processCacheEntry.Release()
+	}
+}
+
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (ev *Event) GetPathResolutionError() error {
 	return ev.pathResolutionError
@@ -77,14 +92,6 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 		}
 	}
 	return f.BasenameStr
-}
-
-// ResolveFileContainerPath resolves the inode to a full path
-func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
-	if len(f.ContainerPath) == 0 {
-		f.ContainerPath = ev.resolvers.resolveContainerPath(&f.FileFields)
-	}
-	return f.ContainerPath
 }
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
@@ -163,7 +170,7 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 // UnmarshalProcess unmarshal a Process
 func (ev *Event) UnmarshalProcess(data []byte) (int, error) {
 	// reset the process cache entry of the current event
-	entry := NewProcessCacheEntry()
+	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry()
 	entry.Pid = ev.ProcessContext.Pid
 	entry.Tid = ev.ProcessContext.Tid
 
@@ -286,7 +293,7 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 			}
 			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
 				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && args[i+1][0] != '-' {
+					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
 						options = append(options, name+"="+args[i+1])
 						i++
 					}
@@ -366,11 +373,6 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
 	}
 	return e.FSGroup
-}
-
-// NewProcessCacheEntry returns an empty instance of ProcessCacheEntry
-func NewProcessCacheEntry() *model.ProcessCacheEntry {
-	return &model.ProcessCacheEntry{}
 }
 
 func (ev *Event) String() string {
@@ -454,11 +456,6 @@ func (ev *Event) GetProcessServiceTag() string {
 	}
 
 	return ""
-}
-
-// Clone returns a copy on the event
-func (ev *Event) Clone() Event {
-	return *ev
 }
 
 // NewEvent returns a new event

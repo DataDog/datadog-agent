@@ -43,7 +43,7 @@ struct invalidate_dentry_event_t {
     struct kevent_t event;
     u64 inode;
     u32 mount_id;
-    u32 revision;
+    u32 padding;
 };
 
 void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
@@ -60,7 +60,6 @@ void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mo
         struct invalidate_dentry_event_t event = {
             .inode = inode,
             .mount_id = mount_id,
-            .revision = bump_discarder_revision(mount_id),
         };
 
         send_event(ctx, EVENT_INVALIDATE_DENTRY, event);

@@ -17,9 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
@@ -32,12 +31,12 @@ var (
 
 // Stress test of open syscalls
 func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size int) {
-	var rules []*rules.RuleDefinition
+	var ruleDefs []*rules.RuleDefinition
 	if rule != nil {
-		rules = append(rules, rule)
+		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,25 +57,6 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
 	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
-
-	events := 0
-	go func() {
-		for range test.events {
-			events++
-		}
-	}()
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -106,7 +86,15 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,12 +177,12 @@ func TestStress_E2EOpenWrite1KNoEvent(t *testing.T) {
 
 // Stress test of fork/exec syscalls
 func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, executable string) {
-	var rules []*rules.RuleDefinition
+	var ruleDefs []*rules.RuleDefinition
 	if rule != nil {
-		rules = append(rules, rule)
+		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,25 +204,6 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
 	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
 
-	events := 0
-	go func() {
-		for range test.events {
-			events++
-		}
-	}()
-
-	var prevLogLevel seelog.LogLevel
-
-	pre := func() (err error) {
-		prevLogLevel, err = test.SwapLogLevel(seelog.ErrorLvl)
-		return err
-	}
-
-	post := func() error {
-		_, err := test.SwapLogLevel(prevLogLevel)
-		return err
-	}
-
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
 		if _, err := cmd.CombinedOutput(); err != nil {
@@ -252,7 +221,15 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		ReportFile:  reportFile,
 	}
 
-	report, err := StressIt(t, pre, post, fnc, opts)
+	events := 0
+	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+		events++
+	})
+	defer test.RegisterRuleEventHandler(nil)
+
+	report, err := StressIt(t, nil, nil, fnc, opts)
+	test.RegisterRuleEventHandler(nil)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +296,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -331,14 +308,24 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 	_ = os.MkdirAll(path.Dir(testFile), 0755)
 
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-	if errno != 0 {
-		b.Fatal(error(errno))
-	}
 	defer os.Remove(testFile)
-	defer syscall.Close(int(fd))
 
-	event, _, err := test.GetEvent()
+	var (
+		mountID uint32
+		inode   uint64
+		pathID  uint32
+	)
+	err = test.GetSignal(b, func() error {
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			b.Fatal(error(errno))
+		}
+		return syscall.Close(int(fd))
+	}, func(event *sprobe.Event, _ *rules.Rule) {
+		mountID = event.Open.File.MountID
+		inode = event.Open.File.Inode
+		pathID = event.Open.File.PathID
+	})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -352,7 +339,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.GetNameFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	name, err := resolver.GetNameFromERPC(mountID, inode, pathID)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -360,7 +347,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.GetNameFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+		name, err = resolver.GetNameFromERPC(mountID, inode, pathID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -378,7 +365,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -390,17 +377,24 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 	_ = os.MkdirAll(path.Dir(testFile), 0755)
 
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-	if errno != 0 {
-		b.Fatal(error(errno))
-	}
 	defer os.Remove(testFile)
-	defer syscall.Close(int(fd))
 
-	event, _, err := test.GetEvent()
-	if err != nil {
-		b.Fatal(err)
-	}
+	var (
+		mountID uint32
+		inode   uint64
+		pathID  uint32
+	)
+	err = test.GetSignal(b, func() error {
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			b.Fatal(error(errno))
+		}
+		return syscall.Close(int(fd))
+	}, func(event *sprobe.Event, _ *rules.Rule) {
+		mountID = event.Open.File.MountID
+		inode = event.Open.File.Inode
+		pathID = event.Open.File.PathID
+	})
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
@@ -411,7 +405,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -419,7 +413,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+		f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -437,7 +431,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -449,17 +443,24 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 	_ = os.MkdirAll(path.Dir(testFile), 0755)
 
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-	if errno != 0 {
-		b.Fatal(error(errno))
-	}
 	defer os.Remove(testFile)
-	defer syscall.Close(int(fd))
 
-	event, _, err := test.GetEvent()
-	if err != nil {
-		b.Fatal(err)
-	}
+	var (
+		mountID uint32
+		inode   uint64
+		pathID  uint32
+	)
+	err = test.GetSignal(b, func() error {
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			b.Fatal(error(errno))
+		}
+		return syscall.Close(int(fd))
+	}, func(event *sprobe.Event, _ *rules.Rule) {
+		mountID = event.Open.File.MountID
+		inode = event.Open.File.Inode
+		pathID = event.Open.File.PathID
+	})
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
@@ -470,7 +471,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.GetNameFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	name, err := resolver.GetNameFromMap(mountID, inode, pathID)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -478,7 +479,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.GetNameFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+		name, err = resolver.GetNameFromMap(mountID, inode, pathID)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -496,7 +497,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -508,17 +509,24 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 	_ = os.MkdirAll(path.Dir(testFile), 0755)
 
-	fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-	if errno != 0 {
-		b.Fatal(error(errno))
-	}
 	defer os.Remove(testFile)
-	defer syscall.Close(int(fd))
 
-	event, _, err := test.GetEvent()
-	if err != nil {
-		b.Fatal(err)
-	}
+	var (
+		mountID uint32
+		inode   uint64
+		pathID  uint32
+	)
+	err = test.GetSignal(b, func() error {
+		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
+		if errno != 0 {
+			b.Fatal(error(errno))
+		}
+		return syscall.Close(int(fd))
+	}, func(event *sprobe.Event, _ *rules.Rule) {
+		mountID = event.Open.File.MountID
+		inode = event.Open.File.Inode
+		pathID = event.Open.File.PathID
+	})
 
 	// create a new dentry resolver to avoid concurrent map access errors
 	resolver, err := probe.NewDentryResolver(test.probe)
@@ -529,7 +537,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	f, err := resolver.ResolveFromMap(mountID, inode, pathID)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -537,7 +545,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+		f, err := resolver.ResolveFromMap(mountID, inode, pathID)
 		if err != nil {
 			b.Fatal(err)
 		}

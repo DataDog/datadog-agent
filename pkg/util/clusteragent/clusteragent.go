@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -53,9 +54,9 @@ type DCAClientInterface interface {
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
-	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
-	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
-	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
+	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 }
 

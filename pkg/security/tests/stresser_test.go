@@ -248,8 +248,10 @@ func StressIt(t *testing.T, pre, post, fnc func() error, opts StressOpts) (Stres
 		fmt.Printf("Generating CPU profile in %s\n", proCPUFile.Name())
 	}
 
-	if err := pre(); err != nil {
-		t.Fatal(err)
+	if pre != nil {
+		if err := pre(); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if err := pprof.StartCPUProfile(proCPUFile); err != nil {
@@ -302,8 +304,10 @@ LOOP:
 		t.Fatal(err)
 	}
 
-	if err := post(); err != nil {
-		t.Fatal(err)
+	if post != nil {
+		if err := post(); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	topData, err := getTopData(proCPUFile.Name(), opts.TopFrom, 50)

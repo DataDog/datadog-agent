@@ -3,9 +3,6 @@
 # Contains jobs which automatically invalidate Cloudfront distributions when packages are deployed
 # to the staging repsositories.
 
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 #
 # Cloudfront cache invalidation:
 # Duplicated in 2 jobs: one that runs "on success" of the previous stage, and one that runs "on failure" of previous stages.
@@ -25,11 +22,9 @@
 deploy_cloudfront_invalidate_on_success:
   extends: .deploy_cloudfront_invalidate
   rules:
-    - <<: *if_deploy
-      when: on_success
+    !reference [.on_deploy]
 
 deploy_cloudfront_invalidate_on_failure:
   extends: .deploy_cloudfront_invalidate
   rules:
-    - <<: *if_deploy
-      when: on_failure
+    !reference [.on_deploy_failure]

@@ -28,7 +28,7 @@ var (
 
 	eventLogChannelsToExport = map[string]string{
 		"System":      "Event/System/Provider[@Name=\"Service Control Manager\"]",
-		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\"]",
+		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\" or @Name=\"DatadogAgent\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
 	execTimeout = 30 * time.Second

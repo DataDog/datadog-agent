@@ -99,7 +99,7 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, securityLogger.DatadogAgentLogger{})
+	opts := rules.NewOptsWithParams(model.SECLConstants, sprobe.SupportedDiscarders, enabled, sprobe.AllCustomRuleIDs(), model.SECLLegacyAttributes, &securityLogger.PatternLogger{})
 	model := &model.Model{}
 	ruleSet := rules.NewRuleSet(model, model.NewEvent, opts)
 
@@ -141,9 +141,8 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 	logSource := config.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
-			Type:    sourceType,
-			Service: sourceName,
-			Source:  sourceName,
+			Type:   sourceType,
+			Source: sourceName,
 		},
 	)
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil

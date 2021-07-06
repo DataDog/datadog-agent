@@ -119,7 +119,7 @@ func (c *complianceCheck) Run() error {
 			Data:             data,
 		}
 
-		log.Debugf("%s: reporting [%s]", c.ruleID, e.Result)
+		log.Debugf("%s: reporting [%s] [%s] [%s]", c.ruleID, e.Result, e.ResourceID, e.ResourceType)
 
 		c.Reporter().Report(e)
 		if c.eventNotify != nil {
