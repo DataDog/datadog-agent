@@ -13,10 +13,10 @@ deploy-a6:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main", "size:2xlarge"]
-  dependencies: []
   stage: deploy6
   rules:
     !reference [.on_deploy_a6_manual]
+  dependencies: []
   script:
     - python3 -m pip install -r requirements.txt
     - export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"
@@ -39,6 +39,7 @@ deploy_latest-a6:
   stage: deploy6
   rules:
     !reference [.on_deploy_a6_manual]
+  dependencies: []
   trigger:
     project: DataDog/public-images
     branch: main
