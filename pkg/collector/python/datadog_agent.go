@@ -9,10 +9,10 @@ package python
 
 import (
 	"context"
-	"github.com/mailru/easyjson/jlexer"
 	"sync"
 	"unsafe"
 
+	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"

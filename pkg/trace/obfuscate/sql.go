@@ -9,11 +9,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"

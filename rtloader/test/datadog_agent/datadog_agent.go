@@ -2,17 +2,18 @@ package testdatadogagent
 
 import (
 	"fmt"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/mailru/easyjson/jlexer"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
 	"unsafe"
 
+	"github.com/mailru/easyjson/jlexer"
+	yaml "gopkg.in/yaml.v2"
+
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*

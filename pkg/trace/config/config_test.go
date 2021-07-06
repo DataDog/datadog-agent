@@ -41,9 +41,10 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 		_, err := Load("./testdata/site_override.yaml")
-		if err != nil {
-			assert.Contains(err.Error(), "nor from OS")
+		if assert.Nil(err) {
+			return
 		}
+		assert.Contains(err.Error(), "nor from OS")
 	})
 
 	t.Run("fallback", func(t *testing.T) {

@@ -8,11 +8,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mailru/easyjson/jlexer"
-	"github.com/stretchr/testify/require"
 	"testing"
 
+	"github.com/mailru/easyjson/jlexer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestParseReplaceRules tests the compileReplaceRules helper function.

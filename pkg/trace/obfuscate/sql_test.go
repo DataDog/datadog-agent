@@ -9,11 +9,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
