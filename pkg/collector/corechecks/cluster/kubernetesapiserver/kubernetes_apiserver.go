@@ -51,13 +51,24 @@ const (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	CollectEvent             bool     `yaml:"collect_events"`
-	CollectOShiftQuotas      bool     `yaml:"collect_openshift_clusterquotas"`
-	FilteredEventTypes       []string `yaml:"filtered_event_types"`
-	EventCollectionTimeoutMs int      `yaml:"kubernetes_event_read_timeout_ms"`
-	MaxEventCollection       int      `yaml:"max_events_per_run"`
-	LeaderSkip               bool     `yaml:"skip_leader_election"`
-	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
+	CollectEvent             bool                     `yaml:"collect_events"`
+	CollectOShiftQuotas      bool                     `yaml:"collect_openshift_clusterquotas"`
+	FilteredEventTypes       []string                 `yaml:"filtered_event_types"`
+	EventCollectionTimeoutMs int                      `yaml:"kubernetes_event_read_timeout_ms"`
+	MaxEventCollection       int                      `yaml:"max_events_per_run"`
+	LeaderSkip               bool                     `yaml:"skip_leader_election"`
+	ResyncPeriodEvents       int                      `yaml:"kubernetes_event_resync_period_s"`
+	UseComponentStatus       bool                     `yaml:"use_component_status"`
+	KubeControllerManager    controlPlaneClientConfig `yaml:"kube_controller_manager"`
+	KubeScheduler            controlPlaneClientConfig `yaml:"kube_scheduler"`
+}
+
+type controlPlaneClientConfig struct {
+	URL            string `yaml:"url"`
+	TLSVerify      bool   `yaml:"tls_verify"`
+	ClientCAPath   string `yaml:"client_ca"`
+	ClientCertPath string `yaml:"client_crt"`
+	ClientKeyPath  string `yaml:"client_key"`
 }
 
 // EventC holds the information pertaining to which event we collected last and when we last re-synced.
@@ -69,20 +80,14 @@ type EventC struct {
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	instance        *KubeASConfig
-	eventCollection EventC
-	ignoredEvents   string
-	ac              *apiserver.APIClient
-	oshiftAPILevel  apiserver.OpenShiftAPILevel
-	providerIDCache *cache.Cache
-}
-
-type controlPlaneClientConfig struct {
-	url            string
-	tlsVerify      bool
-	caPath         string
-	clientCertPath string
-	clientKeyPath  string
+	instance                *KubeASConfig
+	eventCollection         EventC
+	ignoredEvents           string
+	ac                      *apiserver.APIClient
+	oshiftAPILevel          apiserver.OpenShiftAPILevel
+	providerIDCache         *cache.Cache
+	schedulerClient         *http.Client
+	controllerManagerClient *http.Client
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -90,6 +95,9 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
+	c.UseComponentStatus = true
+	c.KubeControllerManager.TLSVerify = true
+	c.KubeScheduler.TLSVerify = true
 
 	return yaml.Unmarshal(data, c)
 }
@@ -194,16 +202,30 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running the Control Plane status check.
-	useComponentStatus := false
+	useComponentStatus := config.Datadog.GetBool("kube_controlplane_")
 	if useComponentStatus {
 		err = k.componentStatusCheck(sender)
 		if err != nil {
 			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
 		}
 	} else {
+		if k.schedulerClient == nil {
+			k.schedulerClient, err = newControlPlaneClient(k.instance.KubeScheduler)
+			if err != nil {
+				k.Warnf("Could not create kube-scheduler client: %s", err.Error()) //nolint:errcheck
+			}
+		}
+
+		if k.controllerManagerClient == nil {
+			k.controllerManagerClient, err = newControlPlaneClient(k.instance.KubeControllerManager)
+			if err != nil {
+				k.Warnf("Could not create kube-controller-manager client: %s", err.Error()) //nolint:errcheck
+			}
+		}
+
 		err = k.controlPlaneHealthCheck(context.TODO(), sender)
 		if err != nil {
-			k.Warnf("Could not collect control plane status from health thecks: %s", err.Error()) //nolint:errcheck
+			k.Warnf("Could not collect control plane status from health checks: %s", err.Error()) //nolint:errcheck
 		}
 	}
 
@@ -298,7 +320,8 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 				}
 			}
 
-			sendControlPlaneServiceCheck(sender, statusCheck, component.Name, message)
+			tags := []string{fmt.Sprintf("component:%s", component.Name)}
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
 		}
 	}
 	return nil
@@ -351,51 +374,30 @@ func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 }
 
 func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
-	var (
-		msg    string
-		status metrics.ServiceCheckStatus
-		err    error
-	)
+	// Check controller-manager health
+	controllerManagerHealthy, err := isControlPlaneComponentHealthy(ctx, k.controllerManagerClient, fmt.Sprintf("%s/healthz", k.instance.KubeControllerManager.URL))
+	sendControlPlaneServiceCheck(sender, "kube-controller-manager", controllerManagerHealthy, err)
 
-	// Check controller-manager/scheduler liveness
-	healthEndpoints := map[string]controlPlaneClientConfig{
-		"kube-controller-manager": controlPlaneClientConfig{
-			url:            fmt.Sprintf("%s/healthz", config.Datadog.GetString("kube_controller_manager_addr")),
-			tlsVerify:      config.Datadog.GetBool("kube_controller_manager_tls_verify"),
-			caPath:         config.Datadog.GetString("kube_controller_manager_client_ca"),
-			clientCertPath: config.Datadog.GetString("kube_controller_manager_client_crt"),
-			clientKeyPath:  config.Datadog.GetString("kube_controller_manager_client_key"),
-		},
-		"kube-scheduler": controlPlaneClientConfig{
-			url:            fmt.Sprintf("%s/healthz", config.Datadog.GetString("kube_scheduler_addr")),
-			tlsVerify:      config.Datadog.GetBool("kube_scheduler_tls_verify"),
-			caPath:         config.Datadog.GetString("kube_scheduler_client_ca"),
-			clientCertPath: config.Datadog.GetString("kube_scheduler_client_crt"),
-			clientKeyPath:  config.Datadog.GetString("kube_scheduler_client_key"),
-		},
-	}
-
-	for component, config := range healthEndpoints {
-		healthy, err := controlPlaneHealthCheck(ctx, config)
-		if healthy {
-			msg = "ok"
-			status = metrics.ServiceCheckOK
-		} else if err != nil {
-			msg = err.Error()
-			status = metrics.ServiceCheckCritical
-		} else {
-			msg = "unknown error"
-			status = metrics.ServiceCheckCritical
-		}
-
-		sendControlPlaneServiceCheck(sender, status, component, msg)
-	}
+	// Check scheduler health
+	schedulerHealthy, err := isControlPlaneComponentHealthy(ctx, k.schedulerClient, fmt.Sprintf("%s/healthz", k.instance.KubeScheduler.URL))
+	sendControlPlaneServiceCheck(sender, "kube-scheduler", schedulerHealthy, err)
 
 	// Check apiserver liveness
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	ready, err := k.ac.IsAPIServerReady(ctx)
+	apiServerReady, err := k.ac.IsAPIServerReady(ctx)
+	sendControlPlaneServiceCheck(sender, "apiserver", apiServerReady, err)
+
+	return nil
+}
+
+func sendControlPlaneServiceCheck(sender aggregator.Sender, component string, ready bool, err error) {
+	var (
+		msg    string
+		status metrics.ServiceCheckStatus
+	)
+
 	if ready {
 		msg = "ok"
 		status = metrics.ServiceCheckOK
@@ -407,32 +409,16 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggreg
 		status = metrics.ServiceCheckCritical
 	}
 
-	// The ComponentStatus version of this service check used to report
-	// etcd liveness. There is no recommended way of checking just etcd
-	// liveness through the API server, so this is really an API server
-	// liveness check. We also report just "etcd" for backwards
-	// compatibility.
-	sendControlPlaneServiceCheck(sender, status, "apiserver", msg)
-	sendControlPlaneServiceCheck(sender, status, "etcd", msg)
-
-	return nil
-}
-
-func sendControlPlaneServiceCheck(sender aggregator.Sender, status metrics.ServiceCheckStatus, component, message string) {
 	tags := []string{fmt.Sprintf("component:%s", component)}
-	sender.ServiceCheck(KubeControlPaneCheck, status, "", tags, message)
+
+	sender.ServiceCheck(KubeControlPaneCheck, status, "", tags, msg)
 }
 
-func controlPlaneHealthCheck(ctx context.Context, cfg controlPlaneClientConfig) (bool, error) {
+func isControlPlaneComponentHealthy(ctx context.Context, client *http.Client, url string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", cfg.url, nil)
-	if err != nil {
-		return false, err
-	}
-
-	client, err := newControlPlaneClient(cfg)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return false, err
 	}
@@ -456,21 +442,21 @@ func newControlPlaneClient(cfg controlPlaneClientConfig) (*http.Client, error) {
 	var err error
 
 	tlsConfig := &tls.Config{}
-	tlsConfig.InsecureSkipVerify = !cfg.tlsVerify
+	tlsConfig.InsecureSkipVerify = !cfg.TLSVerify
 
-	if cfg.caPath == "" && filesystem.FileExists(kubernetes.DefaultServiceAccountCAPath) {
-		cfg.caPath = kubernetes.DefaultServiceAccountCAPath
+	if cfg.ClientCAPath == "" && filesystem.FileExists(kubernetes.DefaultServiceAccountCAPath) {
+		cfg.ClientCAPath = kubernetes.DefaultServiceAccountCAPath
 	}
 
-	if cfg.caPath != "" {
-		tlsConfig.RootCAs, err = kubernetes.GetCertificateAuthority(cfg.caPath)
+	if cfg.ClientCAPath != "" {
+		tlsConfig.RootCAs, err = kubernetes.GetCertificateAuthority(cfg.ClientCAPath)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if cfg.clientCertPath != "" && cfg.clientKeyPath != "" {
-		tlsConfig.Certificates, err = kubernetes.GetCertificates(cfg.clientCertPath, cfg.clientKeyPath)
+	if cfg.ClientCertPath != "" && cfg.ClientKeyPath != "" {
+		tlsConfig.Certificates, err = kubernetes.GetCertificates(cfg.ClientCertPath, cfg.ClientKeyPath)
 		if err != nil {
 			return nil, err
 		}
