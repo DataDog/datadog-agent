@@ -1,6 +1,7 @@
 package appsec
 
 import (
+	"encoding/json"
 	"fmt"
 	stdlog "log"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -24,7 +26,7 @@ var ErrAgentDisabled = errors.New("AppSec agent disabled. Set the " +
 
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
 // the agent configuration.
-func NewIntakeReverseProxy(transport *http.Transport) (http.Handler, error) {
+func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 	disabled := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "appsec api disabled", http.StatusNotImplemented)
 	})
@@ -36,15 +38,16 @@ func NewIntakeReverseProxy(transport *http.Transport) (http.Handler, error) {
 		return disabled, ErrAgentDisabled
 	}
 
-	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, transport), nil
+	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
 }
 
-// newIntakeReverseProxy creates a reverse proxy to the intake backend using the given
-// transport round-tripper.
-// The reverse proxy handler also adds extra headers such as Dd-Api-Key and Via.
-func newIntakeReverseProxy(target *url.URL, apiKey string, transport http.RoundTripper) http.Handler {
+// newIntakeReverseProxy creates a reverse proxy to the intake backend using the
+// given transport round-tripper.
+// The reverse proxy handler also limits the request body size and adds extra
+// headers such as Dd-Api-Key and Via.
+func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64, transport http.RoundTripper) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	via := fmt.Sprintf("appsec-agent %s", info.Version)
+	via := fmt.Sprintf("trace-agent %s", info.Version)
 	// Wrap and overwrite the returned director to add extra headers
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -53,37 +56,58 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, transport http.RoundT
 		// Set extra headers
 		req.Header.Set("Via", via)
 		req.Header.Set("Dd-Api-Key", apiKey)
+		if maxPayloadSize > 0 {
+			req.Body = apiutil.NewLimitedReader(req.Body, maxPayloadSize)
+		}
+	}
+	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(err)
 	}
 	proxy.Transport = transport
 	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "appsec backend proxy: ", 0)
 	return withMetrics(proxy)
 }
 
-func withMetrics(handler http.Handler) http.Handler {
+func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 	const (
-		AppSecRequestMetricsPrefix = "datadog.trace_agent.appsec.api.request."
-		CountID                    = AppSecRequestMetricsPrefix + "count"
-		TimeID                     = AppSecRequestMetricsPrefix + "time"
-		ContentLengthID            = AppSecRequestMetricsPrefix + "content_length"
+		AppSecRequestMetricsPrefix = "datadog.trace_agent.appsec."
+		CountID                    = AppSecRequestMetricsPrefix + "request"
+		DurationID                 = AppSecRequestMetricsPrefix + "request_duration_ms"
+		PayloadSizeID              = AppSecRequestMetricsPrefix + "request_payload_size"
+		PayloadTooLargeID          = AppSecRequestMetricsPrefix + "request_payload_too_large"
 	)
+	// Error metrics through the reverse proxy error handler
+	errorHandler := proxy.ErrorHandler
+	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+		if err == apiutil.ErrLimitedReaderLimitReached {
+			metrics.Count(PayloadTooLargeID, 1, metricsTags(req), 1)
+		}
+		errorHandler(w, req, err)
+	}
+	// Request metrics through the reverse proxy handler
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		tags := []string{"path:" + req.URL.Path}
-		if ct := req.Header.Get("Content-Type"); ct != "" {
-			tags = append(tags, "content_type:"+ct)
-		}
-
-		metrics.Gauge(CountID, 1, tags, 1)
-
-		if cl := req.Header.Get("Content-Length"); cl != "" {
-			if cl, err := strconv.Atoi(cl); err == nil {
-				metrics.Histogram(ContentLengthID, float64(cl), tags, 1)
-			}
-		}
-
 		now := time.Now()
 		defer func() {
-			metrics.Timing(TimeID, time.Since(now), tags, 1)
+			tags := metricsTags(req)
+			if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
+				metrics.Histogram(PayloadSizeID, float64(lr.Count), tags, 1)
+			}
+			metrics.Gauge(CountID, 1, tags, 1)
+			metrics.Timing(DurationID, time.Since(now), tags, 1)
 		}()
-		handler.ServeHTTP(w, req)
+		proxy.ServeHTTP(w, req)
 	})
+}
+
+// metricsTags returns the metrics tags of a request.
+func metricsTags(req *http.Request) []string {
+	tags := []string{"path:" + req.URL.Path}
+	if ct := req.Header.Get("Content-Type"); ct != "" {
+		tags = append(tags, "content_type:"+ct)
+	}
+	if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
+		tags = append(tags, "payload_size:"+strconv.FormatInt(lr.Count, 10))
+	}
+	return tags
 }

@@ -23,9 +23,10 @@ const (
 type Config struct {
 	Enabled bool
 
-	// Intake API URL
-	IntakeURL *url.URL
-	APIKey    string
+	// API configuration group
+	IntakeURL      *url.URL
+	APIKey         string
+	MaxPayloadSize int64
 }
 
 // newConfig creates and returns the AppSec config from the overall agent
@@ -36,9 +37,10 @@ func newConfig(cfg config.Config) (*Config, error) {
 		return nil, errors.Wrap(err, "config")
 	}
 	return &Config{
-		Enabled:   cfg.GetBool("appsec_config.enabled"),
-		IntakeURL: intakeURL,
-		APIKey:    cfg.GetString("api_key"),
+		Enabled:        cfg.GetBool("appsec_config.enabled"),
+		IntakeURL:      intakeURL,
+		APIKey:         cfg.GetString("api_key"),
+		MaxPayloadSize: cfg.GetInt64("appsec_config.max_payload_size"),
 	}, nil
 }
 

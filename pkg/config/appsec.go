@@ -4,4 +4,5 @@ package config
 func setupAppSec(cfg Config) {
 	cfg.BindEnvAndSetDefault("appsec_config.enabled", true, "DD_APPSEC_ENABLED")
 	cfg.BindEnvAndSetDefault("appsec_config.appsec_dd_url", "", "DD_APPSEC_DD_URL")
+	cfg.BindEnvAndSetDefault("appsec_config.max_payload_size", 5*1024*1024, "DD_APPSEC_MAX_PAYLOAD_SIZE")
 }
