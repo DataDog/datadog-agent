@@ -6,6 +6,10 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/mailru/easyjson/jlexer"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,5 +61,64 @@ func TestSplitTag(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			assert.Equal(t, splitTag(tt.tag), tt.kv)
 		})
+	}
+}
+
+// TestSQLObfuscationConfigDeserializationMethod checks if the use of easyjson results in the same deserialization
+// output as encoding/json.
+func TestSQLObfuscationConfigDeserializationMethod(t *testing.T) {
+	mockSQLConfig := SQLObfuscationConfig{QuantizeSQLTables: true}
+	mockSQLConfigBytes, err := json.Marshal(mockSQLConfig)
+	require.NoError(t, err)
+
+	var regularJSONDeserialized, easyJSONDeserialized SQLObfuscationConfig
+
+	err = json.Unmarshal(mockSQLConfigBytes, &regularJSONDeserialized)
+	require.NoError(t, err)
+
+	jl := &jlexer.Lexer{Data: mockSQLConfigBytes}
+	easyJSONDeserialized.UnmarshalEasyJSON(jl)
+	require.NoError(t, jl.Error())
+
+	assert.Equal(t, regularJSONDeserialized, easyJSONDeserialized)
+}
+
+func BenchmarkSQLObfuscationConfigEasyJSONDeserialization(b *testing.B) {
+	for i := 1; i <= 100000; i *= 10 {
+		b.Run(fmt.Sprintf("Range:%d", i), func(b *testing.B) {
+			benchmarkSQLObfuscationConfigEasyJSONDeserialization(b)
+		})
+	}
+}
+
+func benchmarkSQLObfuscationConfigEasyJSONDeserialization(b *testing.B) {
+	b.ReportAllocs()
+	mockSQLConfig := SQLObfuscationConfig{QuantizeSQLTables: true}
+	mockSQLConfigBytes, err := json.Marshal(mockSQLConfig)
+	require.NoError(b, err)
+	for i := 0; i < b.N; i++ {
+		var sqlCfg SQLObfuscationConfig
+		jl := &jlexer.Lexer{Data: mockSQLConfigBytes}
+		sqlCfg.UnmarshalEasyJSON(jl)
+		require.NoError(b, jl.Error())
+	}
+}
+func BenchmarkSQLObfuscationConfigRegularJSONDeserialization(b *testing.B) {
+	for i := 1; i <= 100000; i *= 10 {
+		b.Run(fmt.Sprintf("Range:%d", i), func(b *testing.B) {
+			benchmarkSQLObfuscationConfigRegularJSONDeserialization(b)
+		})
+	}
+}
+
+func benchmarkSQLObfuscationConfigRegularJSONDeserialization(b *testing.B) {
+	b.ReportAllocs()
+	mockSQLConfig := SQLObfuscationConfig{QuantizeSQLTables: true}
+	mockSQLConfigBytes, err := json.Marshal(mockSQLConfig)
+	require.NoError(b, err)
+	for i := 0; i < b.N; i++ {
+		var sqlCfg SQLObfuscationConfig
+		err := json.Unmarshal(mockSQLConfigBytes, &sqlCfg)
+		require.NoError(b, err)
 	}
 }
