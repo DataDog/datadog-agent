@@ -180,7 +180,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
 			} else {
-				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
+				data.FirstLatencySample = stats[i].FirstLatencySample
 			}
 		}
 

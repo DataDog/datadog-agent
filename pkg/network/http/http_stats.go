@@ -4,10 +4,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
 )
 
 // Method is the type used to represent HTTP request methods
 type Method int
+
+const (
+	// maxNumBins is the maximum number of bins of the ddSketch we use to store percentiles.
+	// It can affect relative accuracy, but in practice, 2048 bins is enough to have 1% relative accuracy from
+	// 80 micro second to 1 year: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
+	maxNumBins = 2048
+	// bias and gamma are DDSketch parameters. We should use the same as in the backend to avoid conversions that affect accuracy.
+	bias  = 1338.5
+	gamma = 1.015625
+)
 
 const (
 	// MethodUnknown represents an unknown request method
@@ -80,11 +92,6 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method 
 	}
 }
 
-// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-// will be between 99 and 101
-const RelativeAccuracy = 0.01
-
 // NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
 const NumStatusClasses = 5
 
@@ -97,7 +104,7 @@ type RequestStats [NumStatusClasses]struct {
 	Count     int
 	Latencies *ddsketch.DDSketch
 
-	// This field holds the value (in microseconds) of the first HTTP request
+	// This field holds the value (in seconds) of the first HTTP request
 	// in this bucket. We do this as optimization to avoid creating sketches with
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
@@ -180,7 +187,11 @@ func (r *RequestStats) AddRequest(statusClass int, latency float64) {
 }
 
 func (r *RequestStats) initSketch(i int) (err error) {
-	r[i].Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	m, err := mapping.NewLogarithmicMappingWithGamma(gamma, bias)
+	if err != nil {
+		log.Errorf("Error when creating ddsketch: %v", err)
+	}
+	r[i].Latencies = ddsketch.NewDDSketch(m, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins))
 	if err != nil {
 		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
 	}
