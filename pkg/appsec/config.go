@@ -12,8 +12,7 @@ const (
 	// defaultIntakeURLTemplate specifies the string template allowing to obtain
 	// the intake URL from a given site.
 	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
-	// defaultSite is the intake site applied by default to the default intake
-	// URL template defaultIntakeURLTemplate
+	// defaultSite is the default intake site.
 	defaultSite = "datad0g.com"
 )
 
