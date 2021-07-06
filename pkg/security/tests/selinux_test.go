@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"gotest.tools/assert"
 )
@@ -25,7 +25,7 @@ const TEST_BOOL_NAME = "selinuxuser_ping"
 const TEST_BOOL_NAME2 = "httpd_enable_cgi"
 
 func TestSELinux(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_enforce",
 			Expression: `selinux.enforce.status in ["enabled", "permissive"]`,
@@ -52,7 +52,7 @@ func TestSELinux(t *testing.T) {
 	setEnforceStatus("permissive")
 	defer setEnforceStatus(currentEnforceStatus)
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleset, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,37 +65,31 @@ func TestSELinux(t *testing.T) {
 	defer setBoolValue(TEST_BOOL_NAME, savedBoolValue)
 
 	t.Run("sel_disable", func(t *testing.T) {
-		if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
-			t.Errorf("failed to write to selinuxfs: %v", err)
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
+				t.Errorf("failed to write to selinuxfs: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("setenforce", func(t *testing.T) {
-		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
-			t.Errorf("Failed to run setenforce")
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+				t.Errorf("Failed to run setenforce")
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -104,23 +98,19 @@ func TestSELinux(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("setsebool_true_value", func(t *testing.T) {
-		if err := setBoolValue(TEST_BOOL_NAME, true); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME, true); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_true")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -130,23 +120,19 @@ func TestSELinux(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("setsebool_false_value", func(t *testing.T) {
-		if err := setBoolValue(TEST_BOOL_NAME, false); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME, false); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_false")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -156,20 +142,22 @@ func TestSELinux(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("setsebool_error_value", func(t *testing.T) {
-		if err := rawSudoWrite("/sys/fs/selinux/booleans/httpd_enable_cgi", "test_error", true); err != nil {
-			t.Errorf("failed to write to selinuxfs: %v", err)
-		}
+		err = test.GetSignal(t, func() error {
+			if err := rawSudoWrite("/sys/fs/selinux/booleans/httpd_enable_cgi", "test_error", true); err != nil {
+				t.Errorf("failed to write to selinuxfs: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
+			t.Error("expected error and got an event")
+		})
 
-		_, _, err = test.GetEventWithTimeout(1 * time.Second)
 		if err == nil {
 			t.Error("expected error")
 		} else {
@@ -179,14 +167,14 @@ func TestSELinux(t *testing.T) {
 }
 
 func TestSELinuxCommitBools(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_commit_bools",
 			Expression: `selinux.bool_commit.state == true`,
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleset, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,14 +191,12 @@ func TestSELinuxCommitBools(t *testing.T) {
 	defer setBoolValue(TEST_BOOL_NAME, savedBoolValue)
 
 	t.Run("sel_commit_bools", func(t *testing.T) {
-		if err := setBoolValue(TEST_BOOL_NAME, true); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME, true); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_commit_bools")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -219,17 +205,15 @@ func TestSELinuxCommitBools(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
 
 func TestSELinuxBoolChangeBasic(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_bool_has_changed",
 			Expression: `selinux.bool.name == "httpd_enable_cgi" && selinux.bool.changed == true`,
@@ -240,7 +224,7 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleset, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,15 +241,14 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 	defer setBoolValue(TEST_BOOL_NAME2, startBoolValue)
 
 	t.Run("sel_bool_change_value", func(t *testing.T) {
-		// init phase
-		if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
 
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		// init phase
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_bool_has_changed")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -275,22 +258,18 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 
 		// no change phase
-		if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
-
-		event, rule, err = test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME2, startBoolValue); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_bool_has_not_changed")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -300,22 +279,18 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 
 		// actual change phase
-		if err := setBoolValue(TEST_BOOL_NAME2, !startBoolValue); err != nil {
-			t.Errorf("failed to run setsebool: %v", err)
-		}
-
-		event, rule, err = test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if err := setBoolValue(TEST_BOOL_NAME2, !startBoolValue); err != nil {
+				t.Errorf("failed to run setsebool: %v", err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_bool_has_changed")
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -324,17 +299,15 @@ func TestSELinuxBoolChangeBasic(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
 
 func TestSELinuxEnforceStatusChange(t *testing.T) {
-	rules := []*rules.RuleDefinition{
+	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_status_has_changed",
 			Expression: `selinux.enforce.status == "permissive" && selinux.enforce.changed == true`,
@@ -345,7 +318,7 @@ func TestSELinuxEnforceStatusChange(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(nil, rules, testOpts{})
+	test, err := newTestModule(t, nil, ruleset, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,14 +330,12 @@ func TestSELinuxEnforceStatusChange(t *testing.T) {
 
 	t.Run("setenforce_changed_value", func(t *testing.T) {
 		// go to permissive mode
-		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
-			t.Errorf("Failed to run setenforce")
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+				t.Errorf("Failed to run setenforce")
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_status_has_changed") // first time, so changed = true
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -374,22 +345,18 @@ func TestSELinuxEnforceStatusChange(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 
 		// go AGAIN to permissive mode
-		if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
-			t.Errorf("Failed to run setenforce")
-		}
-
-		event, rule, err = test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+				t.Errorf("Failed to run setenforce")
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_status_has_not_changed") // seconc time, so changed = false
 			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
 
@@ -399,11 +366,9 @@ func TestSELinuxEnforceStatusChange(t *testing.T) {
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
 			}
-
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "rename.file.container_path")
-				testContainerPath(t, event, "rename.file.destination.container_path")
-			}
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
