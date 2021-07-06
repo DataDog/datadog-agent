@@ -128,8 +128,10 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		extraHeaders.Set(headers.ProcessVersionHeader, Version)
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 
-		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-			extraHeaders.Set(headers.ClusterIDHeader, cid)
+		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+				extraHeaders.Set(headers.ClusterIDHeader, cid)
+			}
 		}
 
 		payloads = append(payloads, checkPayload{

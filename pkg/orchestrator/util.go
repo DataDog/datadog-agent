@@ -33,19 +33,22 @@ const (
 	K8sCronJob
 	// K8sDaemonSet represents a Kubernetes DaemonSet
 	K8sDaemonSet
+	// K8sStatefulSet represents a Kubernetes StatefulSet
+	K8sStatefulSet
 )
 
 var (
 	telemetryTags = map[NodeType][]string{
-		K8sCluster:    getTelemetryTags(K8sCluster),
-		K8sCronJob:    getTelemetryTags(K8sCronJob),
-		K8sDeployment: getTelemetryTags(K8sDeployment),
-		K8sJob:        getTelemetryTags(K8sJob),
-		K8sNode:       getTelemetryTags(K8sNode),
-		K8sPod:        getTelemetryTags(K8sPod),
-		K8sReplicaSet: getTelemetryTags(K8sReplicaSet),
-		K8sService:    getTelemetryTags(K8sService),
-		K8sDaemonSet:  getTelemetryTags(K8sDaemonSet),
+		K8sCluster:     getTelemetryTags(K8sCluster),
+		K8sCronJob:     getTelemetryTags(K8sCronJob),
+		K8sDeployment:  getTelemetryTags(K8sDeployment),
+		K8sJob:         getTelemetryTags(K8sJob),
+		K8sNode:        getTelemetryTags(K8sNode),
+		K8sPod:         getTelemetryTags(K8sPod),
+		K8sReplicaSet:  getTelemetryTags(K8sReplicaSet),
+		K8sService:     getTelemetryTags(K8sService),
+		K8sDaemonSet:   getTelemetryTags(K8sDaemonSet),
+		K8sStatefulSet: getTelemetryTags(K8sStatefulSet),
 	}
 )
 
@@ -61,6 +64,7 @@ func NodeTypes() []NodeType {
 		K8sPod,
 		K8sReplicaSet,
 		K8sService,
+		K8sStatefulSet,
 	}
 }
 
@@ -84,9 +88,11 @@ func (n NodeType) String() string {
 		return "ReplicaSet"
 	case K8sService:
 		return "Service"
+	case K8sStatefulSet:
+		return "StatefulSet"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %v", n)
-		return ""
+		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		return "Unknown"
 	}
 }
 
@@ -94,7 +100,7 @@ func (n NodeType) String() string {
 func (n NodeType) Orchestrator() string {
 	switch n {
 	case K8sCluster, K8sCronJob, K8sDeployment, K8sDaemonSet, K8sJob,
-		K8sNode, K8sPod, K8sReplicaSet, K8sService:
+		K8sNode, K8sPod, K8sReplicaSet, K8sService, K8sStatefulSet:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)

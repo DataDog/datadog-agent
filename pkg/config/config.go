@@ -541,7 +541,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -627,7 +627,6 @@ func InitConfig(config Config) {
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
-	config.BindEnvAndSetDefault("expvar_host", "127.0.0.1")
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
@@ -713,6 +712,8 @@ func InitConfig(config Config) {
 	// It may be useful to increase it when logs writing is slowed down, that
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
+	// Time in seconds
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.

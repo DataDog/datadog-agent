@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -73,9 +74,11 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 }
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
-func (m *Monitor) Start(ctx context.Context) error {
-	go m.loadController.Start(ctx)
-	go m.reordererMonitor.Start(ctx)
+func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+	wg.Add(2)
+
+	go m.loadController.Start(ctx, wg)
+	go m.reordererMonitor.Start(ctx, wg)
 	return nil
 }
 

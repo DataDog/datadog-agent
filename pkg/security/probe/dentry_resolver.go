@@ -662,14 +662,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
 	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
 	// Then, 27k + 256 / page_size < 7.
-	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON|unix.MAP_POPULATE)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to mmap memory segment")
-	}
-
-	if err := unix.Mlock(segment); err != nil {
-		return nil, errors.Wrap(err, "failed to lock memory segment")
-	}
+	segment := make([]byte, 7*os.Getpagesize())
 
 	hitsCounters := make(map[string]map[string]*int64)
 	missCounters := make(map[string]map[string]*int64)
