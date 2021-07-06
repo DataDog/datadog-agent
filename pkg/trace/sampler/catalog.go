@@ -17,7 +17,7 @@ import (
 const defaultServiceRateKey = "service:,env:"
 
 // maxCatalogEntries specifies the maximum number of entries allowed in the catalog.
-const maxCatalogEntries = 5000 // 5000 is the maximum (service,env) combination in the backend.
+const maxCatalogEntries = 5000
 
 // serviceKeyCatalog reverse-maps service signatures to their generated hashes for
 // easy look up.
@@ -46,13 +46,16 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	if el, ok := cat.items[svcSig]; ok {
+		// signature already exists, move to front and return already-computed hash
 		cat.ll.MoveToFront(el)
 		return el.Value.(catalogEntry).sig
 	}
+	// new signature, compute new hash
 	hash := svcSig.Hash()
 	el := cat.ll.PushFront(catalogEntry{key: svcSig, sig: hash})
 	cat.items[svcSig] = el
 	if cat.ll.Len() > cat.maxEntries {
+		// list went beyond maximum allowed entries, removed back of the list
 		del := cat.ll.Remove(cat.ll.Back()).(catalogEntry)
 		delete(cat.items, del.key)
 		log.Warnf("More than %d services in service-rates catalog. Dropping %v.", cat.maxEntries, del.key)
