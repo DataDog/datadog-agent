@@ -47,8 +47,6 @@ import (
 const (
 	// loggerName is the name of the security agent logger
 	loggerName coreconfig.LoggerName = "SECURITY"
-	// No intake track type is defined for the security agent (yet), we use v1 intake only.
-	intakeTrackType = ""
 )
 
 var (
@@ -118,7 +116,7 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+func newLogContext(logsConfig *config.LogsConfigKeys, intakeTrackType, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
