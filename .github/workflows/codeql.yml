@@ -25,10 +25,13 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+          path: go/src/github.com/DataDog/datadog-agent
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v1
+        env:
+          GOPATH: /home/runner/work/datadog-agent/go
         # Override language selection by uncommenting this and choosing your languages
         # with:
         #   languages: go, javascript, csharp, python, cpp, java
@@ -45,7 +48,9 @@ jobs:
       #    three lines and modify them (or add more) to build your code if your
       #    project uses a compiled language
 
-      - run: |
+      - env:
+          GOPATH: /home/runner/work/datadog-agent/go
+        run: |
          pip3 install -r requirements.txt
          invoke install-tools
          invoke deps
@@ -53,3 +58,5 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
+        env:
+          GOPATH: /home/runner/work/datadog-agent/go
