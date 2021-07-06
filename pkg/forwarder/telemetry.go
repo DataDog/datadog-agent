@@ -41,7 +41,7 @@ var (
 	containerEndpoint    = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
 	rtContainerEndpoint  = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
 	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
-	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orchestrator", Name: "orchestrator"}
+	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
 
 	transactionsDroppedOnInput       = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
