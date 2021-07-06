@@ -52,35 +52,42 @@
       shell: "docker service ps nginx"
       register: nginx_status
       ignore_errors: true
+
     - name: Create a global nginx service
       shell: "docker service create --name nginx --mode global nginx"
       when: nginx_status.rc != 0
       run_once: true
+
     - name: Installing docker in Ansible
       pip:
         name: docker
+
     - name: Docker login
       docker_login:
         registry: quay.io
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
+
     - name: Copy docker compose file
       copy:
         src: files/docker-compose.yml
         dest: /home/ubuntu/
         mode: preserve
+
     - name: Copy Verify and Create Script file
       copy:
-        src: "../verify-or-create-topics.sh"
+        src: ./../verify-or-create-topics.sh
         dest: /home/ubuntu
-        mode: preserve
+        mode: u+x
+
     - name: Configure .env file used by docker-swarm
       copy:
         content: |
           AGENT_VERSION={{ agent_current_branch }}
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
+
     - name: Create StacSktate Agent Service on Master
       command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
       args:
@@ -89,7 +96,9 @@
         AGENT_VERSION: "{{ agent_current_branch }}"
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
       register: output
+
     - debug: var=output
+
     - name: Wait a bit for the agent to start
       pause:
         seconds: 200

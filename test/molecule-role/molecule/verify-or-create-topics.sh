@@ -1,6 +1,13 @@
 #!/bin/bash
 
+log() {
+    echo "$(date +"%D %T") [INFO] $1" >> /usr/local/bin/verify-or-create-topics.log
+}
+
+log "Running verify or create topics script"
+
 if [[ -z "$KAFKA_CREATE_TOPICS" ]]; then
+    log "KAFKA_CREATE_TOPICS env variable not found"
     exit 0
 fi
 
@@ -17,7 +24,7 @@ while true; do
     if [ $? -eq 0 ]; then
         break
     fi
-    echo "Waiting for Kafka to be ready"
+    log "Waiting for Kafka to be ready"
     sleep $step;
     count=$((count + step))
     if [ $count -gt $START_TIMEOUT ]; then
@@ -27,11 +34,11 @@ while true; do
 done
 
 if $start_timeout_exceeded; then
-    echo "Not able to auto-create topic (waited for $START_TIMEOUT sec)"
+    log "Not able to auto-create topic (waited for $START_TIMEOUT sec)"
     exit 1
 fi
 
-echo "Kafka is now ready"
+log "Kafka is now ready"
 
 # Retrieve and split the defined $KAFKA_CREATE_TOPICS string
 IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}" read -ra DEFINED_TOPICS <<< "$KAFKA_CREATE_TOPICS"
@@ -39,23 +46,25 @@ IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}" read -ra DEFINED_TOPICS <<< "$KAFKA_CRE
 # Retrieve the existing kafka topics
 ACTIVE_TOPICS="$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l)"
 
+log "Active Topic Count: ${ACTIVE_TOPICS}"
+log "Defined Topic Count: ${#DEFINED_TOPICS[@]}"
+
 if [[ ${ACTIVE_TOPICS} -ge ${#DEFINED_TOPICS[@]} ]]
 then
     # Healthy
-    echo "Healthy"
-    echo "Active Topic Count: ${ACTIVE_TOPICS}"
-    echo "Defined Topic Count: ${#DEFINED_TOPICS[@]}"
+    log "Healthy"
+    log "Exit Code 0"
 
     exit 0
 else
     # UnHealthy
-    echo "UnHealthy"
+    log "UnHealthy"
 
     # Expected format:
     #   name:partitions:replicas:cleanup.policy
 
     IFS="${KAFKA_CREATE_TOPICS_SEPARATOR-,}"; for topicToCreate in $KAFKA_CREATE_TOPICS; do
-        echo "Creating topics: $topicToCreate ..."
+        log "Creating topics: $topicToCreate ..."
         IFS=':' read -r -a topicConfig <<< "$topicToCreate"
         config=
         if [ -n "${topicConfig[3]}" ]; then
@@ -73,6 +82,7 @@ else
         eval "${COMMAND}"
     done
 
+    log "Exit Code 1"
     # Force unhealthy exit to allow the health check to rerun
     exit 1
 fi
