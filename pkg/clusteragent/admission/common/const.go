@@ -5,6 +5,6 @@
 
 // +build kubeapiserver
 
-package admission
+package common
 
 const EnabledLabelKey = "admission.datadoghq.com/enabled"
