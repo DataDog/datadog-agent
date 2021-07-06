@@ -9,10 +9,10 @@ package kubernetesapiserver
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,6 +75,14 @@ type KubeASCheck struct {
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 	providerIDCache *cache.Cache
+}
+
+type controlPlaneClientConfig struct {
+	url            string
+	tlsVerify      bool
+	caPath         string
+	clientCertPath string
+	clientKeyPath  string
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -348,44 +358,53 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggreg
 	)
 
 	// Check controller-manager/scheduler liveness
-	host := os.Getenv("KUBERNETES_SERVICE_HOST")
-	healthEndpoints := map[string]string{
-		"kube-controller-manager": fmt.Sprintf("https://%s:10257/healthz", host),
-		"kube-scheduler":          fmt.Sprintf("https://%s:10259/healthz", host),
+	healthEndpoints := map[string]controlPlaneClientConfig{
+		"kube-controller-manager": controlPlaneClientConfig{
+			url:            fmt.Sprintf("%s/healthz", config.Datadog.GetString("kube_controller_manager_addr")),
+			tlsVerify:      config.Datadog.GetBool("kube_controller_manager_tls_verify"),
+			caPath:         config.Datadog.GetString("kube_controller_manager_client_ca"),
+			clientCertPath: config.Datadog.GetString("kube_controller_manager_client_crt"),
+			clientKeyPath:  config.Datadog.GetString("kube_controller_manager_client_key"),
+		},
+		"kube-scheduler": controlPlaneClientConfig{
+			url:            fmt.Sprintf("%s/healthz", config.Datadog.GetString("kube_scheduler_addr")),
+			tlsVerify:      config.Datadog.GetBool("kube_scheduler_tls_verify"),
+			caPath:         config.Datadog.GetString("kube_scheduler_client_ca"),
+			clientCertPath: config.Datadog.GetString("kube_scheduler_client_crt"),
+			clientKeyPath:  config.Datadog.GetString("kube_scheduler_client_key"),
+		},
 	}
 
-	for component, url := range healthEndpoints {
-		status, err = queryHealthEndpoint(ctx, url)
-
-		if err == nil {
-			msg = "OK"
-		} else {
+	for component, config := range healthEndpoints {
+		healthy, err := controlPlaneHealthCheck(ctx, config)
+		if healthy {
+			msg = "ok"
+			status = metrics.ServiceCheckOK
+		} else if err != nil {
 			msg = err.Error()
+			status = metrics.ServiceCheckCritical
+		} else {
+			msg = "unknown error"
+			status = metrics.ServiceCheckCritical
 		}
 
 		sendControlPlaneServiceCheck(sender, status, component, msg)
 	}
 
 	// Check apiserver liveness
-	client, err := apiserver.GetAPIClient()
-	if err == nil {
-		ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
 
-		msg, err = client.GetReadiness(ctx)
-		if err == nil {
-			if msg == "ok" {
-				status = metrics.ServiceCheckOK
-			} else {
-				status = metrics.ServiceCheckCritical
-			}
-		} else {
-			msg = err.Error()
-			status = metrics.ServiceCheckCritical
-		}
-	} else {
+	ready, err := k.ac.IsAPIServerReady(ctx)
+	if ready {
+		msg = "ok"
+		status = metrics.ServiceCheckOK
+	} else if err != nil {
 		msg = err.Error()
-		status = metrics.ServiceCheckUnknown
+		status = metrics.ServiceCheckCritical
+	} else {
+		msg = "unknown error"
+		status = metrics.ServiceCheckCritical
 	}
 
 	// The ComponentStatus version of this service check used to report
@@ -404,33 +423,65 @@ func sendControlPlaneServiceCheck(sender aggregator.Sender, status metrics.Servi
 	sender.ServiceCheck(KubeControlPaneCheck, status, "", tags, message)
 }
 
-func queryHealthEndpoint(ctx context.Context, url string) (metrics.ServiceCheckStatus, error) {
+func controlPlaneHealthCheck(ctx context.Context, cfg controlPlaneClientConfig) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", cfg.url, nil)
 	if err != nil {
-		return metrics.ServiceCheckUnknown, err
+		return false, err
 	}
 
-	// TODO(juliogreff): need to figure out how to create a transport :'(
-	client := &http.Client{
-		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	client, err := newControlPlaneClient(cfg)
+	if err != nil {
+		return false, err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return metrics.ServiceCheckCritical, err
+		return false, err
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return metrics.ServiceCheckOK, nil
+		return true, nil
 	default:
 		err := fmt.Errorf("Health endpoint returned non-OK status: %d", resp.StatusCode)
-		return metrics.ServiceCheckCritical, err
+		return false, err
 	}
+}
+
+func newControlPlaneClient(cfg controlPlaneClientConfig) (*http.Client, error) {
+	var err error
+
+	tlsConfig := &tls.Config{}
+	tlsConfig.InsecureSkipVerify = !cfg.tlsVerify
+
+	if cfg.caPath == "" && filesystem.FileExists(kubernetes.DefaultServiceAccountCAPath) {
+		cfg.caPath = kubernetes.DefaultServiceAccountCAPath
+	}
+
+	if cfg.caPath != "" {
+		tlsConfig.RootCAs, err = kubernetes.GetCertificateAuthority(cfg.caPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.clientCertPath != "" && cfg.clientKeyPath != "" {
+		tlsConfig.Certificates, err = kubernetes.GetCertificates(cfg.clientCertPath, cfg.clientKeyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsConfig
+
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // bundleID generates a unique ID to separate k8s events

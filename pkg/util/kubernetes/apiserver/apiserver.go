@@ -608,15 +608,12 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	return result.Into(output)
 }
 
-// GetReadiness retrieves the API Server readiness status
-func (c *APIClient) GetReadiness(ctx context.Context) (string, error) {
+// IsAPIServerReady retrieves the API Server readiness status
+func (c *APIClient) IsAPIServerReady(ctx context.Context) (bool, error) {
 	path := "/readyz"
-	content, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
-	if err != nil {
-		return "", err
-	}
+	_, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
 
-	return string(content), nil
+	return err == nil, err
 }
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {

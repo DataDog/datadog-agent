@@ -543,6 +543,20 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
+	// Kubernetes Control Plane -- controller manager
+	config.BindEnvAndSetDefault("kube_controller_manager_addr", "")
+	config.BindEnvAndSetDefault("kube_controller_manager_tls_verify", true)
+	config.BindEnvAndSetDefault("kube_controller_manager_client_ca", "")
+	config.BindEnvAndSetDefault("kube_controller_manager_client_crt", "")
+	config.BindEnvAndSetDefault("kube_controller_manager_client_key", "")
+
+	// Kubernetes Control Plane -- scheduler
+	config.BindEnvAndSetDefault("kube_scheduler_addr", "")
+	config.BindEnvAndSetDefault("kube_scheduler_tls_verify", true)
+	config.BindEnvAndSetDefault("kube_scheduler_client_ca", "")
+	config.BindEnvAndSetDefault("kube_scheduler_client_crt", "")
+	config.BindEnvAndSetDefault("kube_scheduler_client_key", "")
+
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
