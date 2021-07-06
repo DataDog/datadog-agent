@@ -890,11 +890,7 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
 
     // These entries are cleaned up by tcp_{v4,v6}_destroy_sock kprobes
     bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
-
-    // At this point older kernel verifiers will complain that pid_fd is a map value
-    // so we make a copy of it
-    pid_fd_t pid_fd_copy = pid_fd;
-    bpf_map_update_elem(&sock_by_pid_fd, &pid_fd_copy, &sock, BPF_ANY);
+    bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
 cleanup:
     bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
     return 0;
