@@ -9,7 +9,7 @@ import (
 	"container/list"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // defaultServiceRateKey specifies the key for the default rate to be used by any service that
