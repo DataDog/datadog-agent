@@ -22,44 +22,22 @@ struct bpf_map_def SEC("maps/sockfd_lookup_args") sockfd_lookup_args = {
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/tup_by_pid_fd") tup_by_pid_fd = {
+struct bpf_map_def SEC("maps/sock_by_pid_fd") sock_by_pid_fd = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(pid_fd_t),
-    .value_size = sizeof(conn_tuple_t),
+    .value_size = sizeof(struct sock*),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/pid_fd_by_tup") pid_fd_by_tup = {
+struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
     .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(conn_tuple_t),
+    .key_size = sizeof(struct sock*),
     .value_size = sizeof(pid_fd_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",
 };
-
-static __always_inline int socket_to_tuple(struct socket* socket, conn_tuple_t* tuple, u64 pid_tgid, u64 offset_sk, u64 offset_type) {
-    struct sock *sock = NULL;
-    bpf_probe_read(&sock, sizeof(sock), (char*)socket + offset_sk);
-
-    enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), (char*)socket + offset_type);
-
-    metadata_mask_t metadata = 0;
-    switch(sock_type) {
-    case SOCK_STREAM:
-        metadata |= CONN_TYPE_TCP;
-        break;
-    case SOCK_DGRAM:
-        metadata |= CONN_TYPE_UDP;
-        break;
-    default:
-        return 0;
-    }
-
-    return read_conn_tuple(tuple, sock, pid_tgid, metadata);
-}
 
 #endif
