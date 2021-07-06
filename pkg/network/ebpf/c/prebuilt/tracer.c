@@ -845,6 +845,17 @@ SEC("kprobe/sockfd_lookup_light")
 int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     int sockfd = (int)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // Check if have already a map entry for this pid_fd_t
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = sockfd,
+    };
+    struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    if (sock != NULL) {
+        return 0;
+    }
+
     bpf_map_update_elem(&sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
     return 0;
 }
