@@ -137,7 +137,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, err, res := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
 		a.headerFetchResult = res
 		if err != nil {
 			a.compilationResult = headerFetchErr
