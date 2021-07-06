@@ -53,8 +53,8 @@ jobs:
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
          pip3 install -r requirements.txt
-         invoke install-tools
-         invoke deps
+         invoke -d install-tools
+         invoke -d deps
          invoke agent.build -d --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
