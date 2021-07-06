@@ -861,8 +861,8 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
 }
 
 // this kretprobe is essentially creating:
-// * an index of pid_fd_t to conn_tuple_t;
-// * an index of conn_tuple_t to pid_fd_t;
+// * an index of pid_fd_t to a struct sock*;
+// * an index of struct sock* to pid_fd_t;
 SEC("kretprobe/sockfd_lookup_light")
 int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
