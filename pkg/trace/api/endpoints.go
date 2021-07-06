@@ -5,9 +5,7 @@
 
 package api
 
-import (
-	"net/http"
-)
+import "net/http"
 
 // endpoint specifies an API endpoint definition.
 type endpoint struct {
