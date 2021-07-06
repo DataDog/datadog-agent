@@ -57,14 +57,15 @@ deploy-dogstatsd:
 
 deploy_latest-a7:
   extends: .docker_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
   dependencies: []
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
+  script:
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win1909-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win2004-amd64
@@ -78,14 +79,15 @@ deploy_latest-a7:
 
 deploy_latest-dogstatsd:
   extends: .docker_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
   dependencies: []
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
+  script:
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   variables:
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest

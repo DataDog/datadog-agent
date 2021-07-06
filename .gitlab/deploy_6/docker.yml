@@ -36,14 +36,15 @@ deploy-a6:
 
 deploy_latest-a6:
   extends: .docker_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
   stage: deploy6
   rules:
     !reference [.on_deploy_a6_manual]
   dependencies: []
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
+  script:
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
