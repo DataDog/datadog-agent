@@ -32,6 +32,7 @@ type dnsPacketInfo struct {
 	pktType       DNSPacketType
 	rCode         uint8  // responseCode
 	question      string // only relevant for query packets
+	queryType     QueryType
 }
 
 type stateKey struct {
@@ -42,11 +43,13 @@ type stateKey struct {
 type stateValue struct {
 	ts       uint64
 	question string
+	qtype    QueryType
 }
 
 type dnsStatKeeper struct {
-	mux              sync.Mutex
-	stats            map[DNSKey]map[string]DNSStats
+	mux sync.Mutex
+	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
+	stats            map[DNSKey]map[string]map[QueryType]DNSStats
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -61,7 +64,7 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[DNSKey]map[string]DNSStats),
+		stats:            make(map[DNSKey]map[string]map[QueryType]DNSStats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
@@ -99,7 +102,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		}
 
 		if _, ok := d.state[sk]; !ok {
-			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts)}
+			d.state[sk] = stateValue{question: info.question, ts: microSecs(ts), qtype: info.queryType}
 		}
 		return
 	}
@@ -118,7 +121,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[string]DNSStats)
+		allStats = make(map[string]map[QueryType]DNSStats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -126,22 +129,30 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			d.droppedStats++
 			return
 		}
-		stats.DNSCountByRcode = make(map[uint32]uint32)
+		stats = make(map[QueryType]DNSStats)
+	}
+	byqtype, ok := stats[start.qtype]
+	if !ok {
+		if d.numStats >= d.maxStats {
+			d.droppedStats++
+			return
+		}
+		byqtype.DNSCountByRcode = make(map[uint32]uint32)
 		d.numStats++
 	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
-		stats.DNSTimeouts++
+		byqtype.DNSTimeouts++
 	} else {
-		stats.DNSCountByRcode[uint32(info.rCode)]++
+		byqtype.DNSCountByRcode[uint32(info.rCode)]++
 		if info.pktType == SuccessfulResponse {
-			stats.DNSSuccessLatencySum += latency
+			byqtype.DNSSuccessLatencySum += latency
 		} else if info.pktType == FailedResponse {
-			stats.DNSFailureLatencySum += latency
+			byqtype.DNSFailureLatencySum += latency
 		}
 	}
-
+	stats[start.qtype] = byqtype
 	allStats[start.question] = stats
 	d.stats[info.key] = allStats
 }
@@ -152,11 +163,11 @@ func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
 	return numStats, droppedStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]DNSStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[QueryType]DNSStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[DNSKey]map[string]DNSStats)
+	d.stats = make(map[DNSKey]map[string]map[QueryType]DNSStats)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
 	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
@@ -167,22 +178,24 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]DNSStats {
 
 // Snapshot returns a deep copy of all DNS stats.
 // Please only use this for testing.
-func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]DNSStats {
+func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]map[QueryType]DNSStats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	snapshot := make(map[DNSKey]map[string]DNSStats)
+	snapshot := make(map[DNSKey]map[string]map[QueryType]DNSStats)
 	for key, statsByDomain := range d.stats {
-		snapshot[key] = make(map[string]DNSStats)
-		for domain, statsCopy := range statsByDomain {
-			// Copy DNSCountByRcode map
-			rcodeCopy := make(map[uint32]uint32)
-			for rcode, count := range statsCopy.DNSCountByRcode {
-				rcodeCopy[rcode] = count
+		snapshot[key] = make(map[string]map[QueryType]DNSStats)
+		for domain, statsByQType := range statsByDomain {
+			snapshot[key][domain] = make(map[QueryType]DNSStats)
+			for qtype, statsCopy := range statsByQType {
+				// Copy DNSCountByRcode map
+				rcodeCopy := make(map[uint32]uint32)
+				for rcode, count := range statsCopy.DNSCountByRcode {
+					rcodeCopy[rcode] = count
+				}
+				statsCopy.DNSCountByRcode = rcodeCopy
+				snapshot[key][domain][qtype] = statsCopy
 			}
-
-			statsCopy.DNSCountByRcode = rcodeCopy
-			snapshot[key][domain] = statsCopy
 		}
 	}
 
@@ -202,19 +215,24 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[string]DNSStats)
+				allStats = make(map[string]map[QueryType]DNSStats)
 			}
-			stats, ok := allStats[v.question]
+			bytype, ok := allStats[v.question]
 			if !ok {
 				if d.numStats >= d.maxStats {
 					d.droppedStats++
 					continue
 				}
+				bytype = make(map[QueryType]DNSStats)
+			}
+			stats, ok := bytype[v.qtype]
+			if !ok {
 				d.numStats++
 				stats.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			stats.DNSTimeouts++
-			allStats[v.question] = stats
+			bytype[v.qtype] = stats
+			allStats[v.question] = bytype
 			d.stats[k.key] = allStats
 		}
 	}

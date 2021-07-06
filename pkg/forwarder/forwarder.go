@@ -39,8 +39,10 @@ const (
 	PayloadTypeJob = "job"
 	// PayloadTypeCronJob is the name of the cronjob payload type
 	PayloadTypeCronJob = "cronjob"
-	// PayloadTypeDaemonset is the name of the daemonset payload type
-	PayloadTypeDaemonset = "daemonset"
+	// PayloadTypeDaemonSet is the name of the daemonset payload type
+	PayloadTypeDaemonSet = "daemonset"
+	// PayloadTypeStatefulSet is the name of the statefulset payload type
+	PayloadTypeStatefulSet = "statefulset"
 )
 
 const (
@@ -573,8 +575,10 @@ func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http
 		transactionsIntakeCronJob.Add(1)
 	case PayloadTypeCluster:
 		transactionsIntakeCluster.Add(1)
-	case PayloadTypeDaemonset:
+	case PayloadTypeDaemonSet:
 		transactionsIntakeDaemonSet.Add(1)
+	case PayloadTypeStatefulSet:
+		transactionsIntakeStatefulSet.Add(1)
 	}
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)

@@ -2,6 +2,69 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.13.1_dca-1.13.X:
+
+dca-1.13.1
+==========
+
+.. _Release Notes_dca-1.13.1_dca-1.13.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-07-05
+Pinned to datadog-agent v7.29.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7290>`_.
+
+Bug Fixes
+---------
+
+- Fix the embedded security policy version to match the one from the agent.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X:
+
+dca-1.13.0
+==========
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-06-22
+Pinned to datadog-agent v7.29.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7290>`_.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_New Features:
+
+New Features
+------------
+
+- Collect the DaemonSet resources for the orchestrator explorer.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent exposes a new metric `external_metrics.datadog_metrics` to track the validity of DatadogMetric objects.
+
+- Add additional status information in orchestrator section output. Whether collection works and whether cluster name is set.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Autodetect EC2 cluster name
+
+- Decrease the Admission Controller timeout to avoid edge cases where high timeouts can cause ignoring the ``failurePolicy`` (see kubernetes/kubernetes#71508).
+
+- The Cluster Agent's admission controller now requires the pod label ``admission.datadoghq.com/enabled=true`` to inject standard labels. This optimizes the number of mutation webhook requests.
+
+
 .. _Release Notes_dca-1.12.0_dca-1.12.X:
 
 dca-1.12.0

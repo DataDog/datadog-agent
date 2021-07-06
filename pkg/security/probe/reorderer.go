@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/ebpf/manager"
@@ -180,7 +181,9 @@ type ReOrderer struct {
 }
 
 // Start event handler loop
-func (r *ReOrderer) Start(ctx context.Context) {
+func (r *ReOrderer) Start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	flushTicker := time.NewTicker(r.opts.Rate)
 	defer flushTicker.Stop()
 

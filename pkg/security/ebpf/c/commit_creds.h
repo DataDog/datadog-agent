@@ -39,11 +39,11 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 }
 
 int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval) {
-    if (retval < 0)
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall_with(credentials_predicate);
     if (!syscall)
+        return 0;
+
+    if (retval < 0)
         return 0;
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
@@ -360,6 +360,11 @@ SYSCALL_KRETPROBE(capset) {
 
 SEC("tracepoint/syscalls/sys_exit_capset")
 int tracepoint_syscalls_sys_exit_capset(struct tracepoint_syscalls_sys_exit_t *args) {
+    return credentials_update_ret(args, args->ret);
+}
+
+SEC("tracepoint/handle_sys_commit_creds_exit")
+int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return credentials_update_ret(args, args->ret);
 }
 

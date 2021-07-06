@@ -12,9 +12,6 @@
                 "name": {
                     "type": "string"
                 },
-                "container_path": {
-                    "$ref": "file:///container_path.json"
-                },
                 "inode": {
                     "type": "integer"
                 },

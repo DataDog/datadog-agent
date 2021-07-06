@@ -171,6 +171,21 @@ func (sw *DatadogLogger) trace(s string) {
 	}
 }
 
+// trace logs at the trace level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) traceStackDepth(s string, depth int) {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	sw.inner.Trace(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+
+	for _, l := range sw.extra {
+		l.Trace(scrubbed)
+	}
+}
+
 // debug logs at the debug level
 func (sw *DatadogLogger) debug(s string) {
 	sw.l.Lock()
@@ -181,6 +196,21 @@ func (sw *DatadogLogger) debug(s string) {
 
 	for _, l := range sw.extra {
 		l.Debug(scrubbed)
+	}
+}
+
+// debug logs at the debug level and the current stack depth plus the additional given one
+func (sw *DatadogLogger) debugStackDepth(s string, depth int) {
+	sw.l.Lock()
+	defer sw.l.Unlock()
+
+	scrubbed := sw.scrub(s)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	sw.inner.Debug(scrubbed)
+	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+
+	for _, l := range sw.extra {
+		l.Debug(scrubbed) //nolint:errcheck
 	}
 }
 
@@ -628,6 +658,20 @@ func WarnStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.WarnLvl, func() { WarnStackDepth(depth, v...) }, func(s string) error {
 		return logger.warnStackDepth(s, depth)
 	}, false, v...)
+}
+
+// DebugStackDepth logs at the debug level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func DebugStackDepth(depth int, v ...interface{}) {
+	log(seelog.DebugLvl, func() { DebugStackDepth(depth, v...) }, func(s string) {
+		logger.debugStackDepth(s, depth)
+	}, v...)
+}
+
+// TraceStackDepth logs at the trace level and the current stack depth plus the additional given one and returns an error containing the formated log message
+func TraceStackDepth(depth int, v ...interface{}) {
+	log(seelog.TraceLvl, func() { TraceStackDepth(depth, v...) }, func(s string) {
+		logger.traceStackDepth(s, depth)
+	}, v...)
 }
 
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message

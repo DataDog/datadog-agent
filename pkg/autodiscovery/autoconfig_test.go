@@ -432,21 +432,17 @@ func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
 	return true
 }
 
-func TestSecretDecrypt(t *testing.T) {
-	ctx := context.Background()
-
-	/// resolveTemplate
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	tpl := integration.Config{
-		Name:          "cpu",
-		ADIdentifiers: []string{"redis"},
-		InitConfig:    []byte("param1: ENC[foo]"),
-		Instances: []integration.Data{
-			[]byte("param2: ENC[bar]"),
-		},
+func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
+	for _, scenario := range m.scenarios {
+		if scenario.called != 0 {
+			return false
+		}
 	}
+	return true
+}
 
-	mockDecrypt := MockSecretDecrypt{
+func mockDecrypt(t *testing.T) MockSecretDecrypt {
+	return MockSecretDecrypt{
 		t: t,
 		scenarios: []struct {
 			expectedData   []byte
@@ -475,24 +471,68 @@ func TestSecretDecrypt(t *testing.T) {
 			},
 		},
 	}
+}
 
+var sharedTpl = integration.Config{
+	Name:          "cpu",
+	ADIdentifiers: []string{"redis"},
+	InitConfig:    []byte("param1: ENC[foo]"),
+	Instances: []integration.Data{
+		[]byte("param2: ENC[bar]"),
+	},
+}
+
+var sharedService = dummyService{
+	ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
+	ADIdentifiers: []string{"redis"},
+}
+
+func TestSecretDecrypt(t *testing.T) {
+	ctx := context.Background()
+
+	/// resolveTemplate
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+
+	mockDecrypt := mockDecrypt(t)
 	originalSecretsDecrypt := secretsDecrypt
 	secretsDecrypt = mockDecrypt.getDecryptFunc()
 	defer func() { secretsDecrypt = originalSecretsDecrypt }()
 
 	// no services
-	res := ac.resolveTemplate(tpl)
+	res := ac.resolveTemplate(sharedTpl)
 	assert.Len(t, res, 0)
 
-	service := dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-	}
+	service := sharedService
 	ac.processNewService(ctx, &service)
 
 	// there are no template vars but it's ok
-	res = ac.resolveTemplate(tpl)
+	res = ac.resolveTemplate(sharedTpl)
 	assert.Len(t, res, 1)
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+}
+
+func TestSkipSecretDecrypt(t *testing.T) {
+	ctx := context.Background()
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+
+	mockDecrypt := mockDecrypt(t)
+	originalSecretsDecrypt := secretsDecrypt
+	secretsDecrypt = mockDecrypt.getDecryptFunc()
+	defer func() { secretsDecrypt = originalSecretsDecrypt }()
+
+	cfg := config.Mock()
+	cfg.Set("secret_backend_skip_checks", true)
+	defer cfg.Set("secret_backend_skip_checks", false)
+
+	service := sharedService
+	ac.processNewService(ctx, &service)
+
+	res := ac.resolveTemplate(sharedTpl)
+	assert.Len(t, res, 1)
+
+	assert.Equal(t, sharedTpl.Instances, res[0].Instances)
+	assert.Equal(t, sharedTpl.InitConfig, res[0].InitConfig)
+
+	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
 }

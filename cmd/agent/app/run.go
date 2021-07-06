@@ -271,13 +271,13 @@ func StartAgent() error {
 	}
 
 	// Setup expvar server
+	telemetryHandler := telemetry.Handler()
 	expvarPort := config.Datadog.GetString("expvar_port")
-	expvarHost := config.Datadog.GetString("expvar_host")
 	if config.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
+		http.Handle("/telemetry", telemetryHandler)
 	}
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf("%s:%s", expvarHost, expvarPort), http.DefaultServeMux)
+		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%s", expvarPort), http.DefaultServeMux)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating expvar server on port %v: %v", expvarPort, err)
 		}
@@ -324,7 +324,9 @@ func StartAgent() error {
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if config.Datadog.GetBool("cluster_agent.enabled") && config.Datadog.GetBool("clc_runner_enabled") {
-		if err = clcrunnerapi.StartCLCRunnerServer(); err != nil {
+		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
+			"/telemetry": telemetryHandler,
+		}); err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}

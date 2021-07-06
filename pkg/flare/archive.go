@@ -595,15 +595,13 @@ func zipDiagnose(tempDir, hostname string) error {
 	return err
 }
 
-func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
+func zipFile(originalPath, zippedPath string) error {
 	original, err := os.Open(originalPath)
 	if err != nil {
 		return err
 	}
 	defer original.Close()
 
-	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
 	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
@@ -615,32 +613,35 @@ func zipRegistryJSON(tempDir, hostname string) error {
 	}
 	defer zipped.Close()
 
-	_, err = io.Copy(zipped, original)
+	// use read/write instead of io.Copy
+	// see: https://github.com/golang/go/issues/44272
+	buf := make([]byte, 256)
+	for {
+		n, err := original.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := zipped.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
 	return err
+}
+
+func zipRegistryJSON(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
+	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -744,26 +745,8 @@ func zipHealth(tempDir, hostname string) error {
 
 func zipInstallInfo(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipTelemetry(tempDir, hostname string) error {
