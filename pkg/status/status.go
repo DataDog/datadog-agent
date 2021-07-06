@@ -6,6 +6,7 @@
 package status
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"os"
@@ -183,7 +184,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
 		} else {
-			orchestratorStats := orchestrator.GetStatus(apiCl.Cl)
+			orchestratorStats := orchestrator.GetStatus(context.TODO(), apiCl.Cl)
 			stats["orchestrator"] = orchestratorStats
 		}
 	}
@@ -282,13 +283,13 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	hostnameData, err := util.GetHostnameData()
+	hostnameData, err := util.GetHostnameData(context.TODO())
 
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(util.HostnameData{Hostname: "unknown", Provider: "unknown"})
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), util.HostnameData{Hostname: "unknown", Provider: "unknown"})
 	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostnameData)
+		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostnameData)
 	}
 
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()

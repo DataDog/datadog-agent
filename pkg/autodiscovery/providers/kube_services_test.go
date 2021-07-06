@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -170,10 +171,11 @@ func TestInvalidateIfChanged(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			ctx := context.Background()
 			provider := &KubeServiceConfigProvider{upToDate: true}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
 		})

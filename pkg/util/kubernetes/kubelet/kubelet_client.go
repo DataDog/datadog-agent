@@ -8,13 +8,13 @@
 package kubelet
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -100,8 +100,8 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 	}, nil
 }
 
-func (kc *kubeletClient) checkConnection() error {
-	_, statusCode, err := kc.query("/spec")
+func (kc *kubeletClient) checkConnection(ctx context.Context) error {
+	_, statusCode, err := kc.query(ctx, "/spec")
 	if err != nil {
 		return err
 	}
@@ -113,16 +113,13 @@ func (kc *kubeletClient) checkConnection() error {
 	return nil
 }
 
-func (kc *kubeletClient) query(path string) ([]byte, int, error) {
-	var err error
-
-	req := &http.Request{}
-	req.Header = kc.headers
-	req.URL, err = url.Parse(fmt.Sprintf("%s%s", kc.kubeletURL, path))
+func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
 	if err != nil {
-		log.Debugf("Fail to create the kubelet request: %s", err)
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
 	}
+	req.Header = kc.headers
 
 	response, err := kc.client.Do(req)
 	kubeletExpVar.Add(1)
@@ -142,7 +139,7 @@ func (kc *kubeletClient) query(path string) ([]byte, int, error) {
 	return b, response.StatusCode, nil
 }
 
-func getKubeletClient() (*kubeletClient, error) {
+func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	var err error
 
 	kubeletTimeout := 30 * time.Second
@@ -209,7 +206,7 @@ func getKubeletClient() (*kubeletClient, error) {
 	// Checking HTTPS first if port available
 	var httpsErr error
 	if kubeletHTTPSPort > 0 {
-		httpsErr = checkKubeletConnection("https", kubeletHTTPSPort, kubeletPathPrefix, potentialHosts, &clientConfig)
+		httpsErr = checkKubeletConnection(ctx, "https", kubeletHTTPSPort, kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpsErr != nil {
 			log.Debug("Impossible to reach Kubelet through HTTPS")
 			if kubeletHTTPPort <= 0 {
@@ -223,7 +220,7 @@ func getKubeletClient() (*kubeletClient, error) {
 	// Check HTTP now if port available
 	var httpErr error
 	if kubeletHTTPPort > 0 {
-		httpErr = checkKubeletConnection("http", kubeletHTTPPort, kubeletPathPrefix, potentialHosts, &clientConfig)
+		httpErr = checkKubeletConnection(ctx, "http", kubeletHTTPPort, kubeletPathPrefix, potentialHosts, &clientConfig)
 		if httpErr != nil {
 			log.Debug("Impossible to reach Kubelet through HTTP")
 			return nil, fmt.Errorf("impossible to reach Kubelet with host: %s. Please check if your setup requires kubelet_tls_verify = false. Activate debug logs to see all attempts made", kubeletHost)
@@ -239,7 +236,7 @@ func getKubeletClient() (*kubeletClient, error) {
 	return nil, fmt.Errorf("Invalid Kubelet configuration: both HTTPS and HTTP ports are disabled")
 }
 
-func checkKubeletConnection(scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {
+func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {
 	var err error
 	var kubeClient *kubeletClient
 
@@ -256,7 +253,7 @@ func checkKubeletConnection(scheme string, port int, prefix string, hosts *conne
 			continue
 		}
 
-		err = kubeClient.checkConnection()
+		err = kubeClient.checkConnection(ctx)
 		if err != nil {
 			logConnectionError(clientConfig, err)
 			continue
@@ -276,7 +273,7 @@ func checkKubeletConnection(scheme string, port int, prefix string, hosts *conne
 			continue
 		}
 
-		err = kubeClient.checkConnection()
+		err = kubeClient.checkConnection(ctx)
 		if err != nil {
 			logConnectionError(clientConfig, err)
 			continue

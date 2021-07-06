@@ -36,23 +36,23 @@ func testLatency(
 	var d = "abc.com"
 	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
-	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
+	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d, queryType: DNSTypeA}
 	then := time.Now()
 	sk.ProcessPacketInfo(qPkt, then)
 	stats := sk.GetAndResetAllStats()
 	assert.NotContains(t, stats, key)
 
 	now := then.Add(delta)
-	rPkt := dnsPacketInfo{transactionID: 1, key: key, pktType: respType}
+	rPkt := dnsPacketInfo{transactionID: 1, key: key, pktType: respType, queryType: DNSTypeA}
 
 	sk.ProcessPacketInfo(rPkt, now)
 	stats = sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
 	require.Contains(t, stats[key], d)
 
-	assert.Equal(t, expectedSuccessLatency, stats[key][d].DNSSuccessLatencySum)
-	assert.Equal(t, expectedFailureLatency, stats[key][d].DNSFailureLatencySum)
-	assert.Equal(t, expectedTimeouts, stats[key][d].DNSTimeouts)
+	assert.Equal(t, expectedSuccessLatency, stats[key][d][DNSTypeA].DNSSuccessLatencySum)
+	assert.Equal(t, expectedFailureLatency, stats[key][d][DNSTypeA].DNSFailureLatencySum)
+	assert.Equal(t, expectedTimeouts, stats[key][d][DNSTypeA].DNSTimeouts)
 }
 
 func TestSuccessLatency(t *testing.T) {
@@ -74,11 +74,11 @@ func TestExpiredStateRemoval(t *testing.T) {
 	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
 	var d = "abc.com"
-	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d}
-	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
-	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: d}
-	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: d}
-	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse}
+	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse, queryType: DNSTypeA}
+	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse, queryType: DNSTypeA}
 
 	sk.ProcessPacketInfo(qPkt1, time.Now())
 	sk.ProcessPacketInfo(rPkt1, time.Now())
@@ -93,9 +93,9 @@ func TestExpiredStateRemoval(t *testing.T) {
 	require.Contains(t, stats, key)
 	require.Contains(t, stats[key], d)
 
-	require.Contains(t, stats[key][d].DNSCountByRcode, uint32(0))
-	assert.Equal(t, uint32(2), stats[key][d].DNSCountByRcode[0])
-	assert.Equal(t, uint32(1), stats[key][d].DNSTimeouts)
+	require.Contains(t, stats[key][d][DNSTypeA].DNSCountByRcode, uint32(0))
+	assert.Equal(t, uint32(2), stats[key][d][DNSTypeA].DNSCountByRcode[0])
+	assert.Equal(t, uint32(1), stats[key][d][DNSTypeA].DNSTimeouts)
 }
 
 func BenchmarkStats(b *testing.B) {

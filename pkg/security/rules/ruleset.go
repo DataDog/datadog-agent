@@ -197,12 +197,12 @@ func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
 func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == ruleDef.ID {
-			return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("internal rule ID conflict")}
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrInternalIDConflict}
 		}
 	}
 
 	if _, exists := rs.rules[ruleDef.ID]; exists {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("multiple definition with the same ID")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrDefinitionIDConflict}
 	}
 
 	var tags []string
@@ -230,19 +230,19 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	eventTypes := rule.GetEventTypes()
 
 	if len(eventTypes) == 0 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no event in the rule definition")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutEvent}
 	}
 
 	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
 	if len(eventTypes) > 1 {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("rule with multiple events is not supported")}
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithMultipleEvents}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		et := eventTypes[0]
 		if _, exists := rs.opts.EventTypeEnabled[et]; !exists {
-			return nil, nil
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: ErrEventTypeNotEnabled}
 		}
 	}
 

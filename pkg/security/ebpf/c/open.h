@@ -293,6 +293,11 @@ SYSCALL_KRETPROBE(openat2) {
     return kprobe_sys_open_ret(ctx);
 }
 
+SEC("tracepoint/handle_sys_open_exit")
+int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
+}
+
 SEC("kretprobe/io_openat2")
 int kretprobe__io_openat2(struct pt_regs *ctx) {
     struct file *f = (struct file *) PT_REGS_RC(ctx);
@@ -314,11 +319,11 @@ int kprobe__filp_close(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     if (syscall->resolver.ret == DENTRY_DISCARDED || syscall->resolver.ret == DENTRY_INVALID) {

@@ -2,15 +2,6 @@
 # kitchen_deploy stage
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
-.if_default_kitchen: &if_default_kitchen
-  if: $RUN_KITCHEN_TESTS != "false"
-
 .setup_rpm_signing_key: &setup_rpm_signing_key
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
@@ -25,24 +16,9 @@
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
-# anchor to trigger test kitchen setup, run, and cleanup (so all stages
-# are run if one stage is run).  Triggers as defined:
-# - master
-# - tags (a tagged build)
-# - deploys (as above)
-# - web (when the build is triggered by a specific build request through the
-#        web interface.  This way, if a kitchen run is desired on a specific branch,
-#        it can be triggered by requesting a specific build)
-# - api (when the build is triggered by an API call)
-#
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
 deploy_deb_testing-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -60,10 +36,7 @@ deploy_deb_testing-a6:
 
 deploy_deb_testing-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
+    !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -81,9 +54,7 @@ deploy_deb_testing-a7:
 
 deploy_rpm_testing-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -99,10 +70,7 @@ deploy_rpm_testing-a6:
 
 deploy_rpm_testing-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
+    !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -118,9 +86,7 @@ deploy_rpm_testing-a7:
 
 deploy_suse_rpm_testing-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -136,10 +102,7 @@ deploy_suse_rpm_testing-a6:
 
 deploy_suse_rpm_testing-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
+    !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -155,9 +118,7 @@ deploy_suse_rpm_testing-a7:
 
 deploy_windows_testing-a6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_kitchen
+    !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
@@ -169,10 +130,7 @@ deploy_windows_testing-a6:
 
 deploy_windows_testing-a7:
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_kitchen
-    - <<: *if_default_kitchen
+    !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]

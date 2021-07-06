@@ -25,26 +25,43 @@ func TestCPU(t *testing.T) {
 		"user":   64140,
 		"system": 18327,
 	}
-
-	// First run returns an error because cgroup file doesn't exist
-	cgroupEmpty := newDummyContainerCgroup(tempFolder.RootPath, "")
-	timeStat, err := cgroupEmpty.CPU()
-	assert.NotNil(t, err)
-	assert.Nil(t, timeStat)
-
-	// Second run, add files
 	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
 	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
 	tempFolder.add("cpu/cpu.shares", "1024")
 
 	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct", "cpu")
 
-	timeStat, err = cgroup.CPU()
+	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
 	assert.Equal(t, timeStat.User, uint64(64140))
 	assert.Equal(t, timeStat.System, uint64(18327))
 	assert.Equal(t, timeStat.Shares, uint64(1024))
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
+}
+
+func TestCPULimit(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	// CFS period and quota
+	tempFolder.add("cpu/cpu.cfs_period_us", "100000")
+	tempFolder.add("cpu/cpu.cfs_quota_us", "600000")
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+	cpuLimit, err := cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(600))
+
+	// CPU set
+	tempFolder.add("cpuset/cpuset.cpus", "0-4")
+
+	cgroup = newDummyContainerCgroup(tempFolder.RootPath, "cpu", "cpuset")
+	cpuLimit, err = cgroup.CPULimit()
+
+	assert.Nil(t, err)
+	assert.Equal(t, cpuLimit, float64(500))
 }
 
 func TestCPUNrThrottled(t *testing.T) {

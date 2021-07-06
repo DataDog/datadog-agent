@@ -230,7 +230,6 @@ type Process struct {
 	Tid uint32 `field:"tid"`
 
 	PathnameStr         string `field:"file.path"`
-	ContainerPath       string `field:"file.container_path"`
 	BasenameStr         string `field:"file.name"`
 	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
@@ -257,9 +256,9 @@ type Process struct {
 	EnvsID uint32 `field:"-"`
 
 	ArgsEntry     *ArgsEntry `field:"-"`
-	ArgsTruncated bool       `field:"-"`
 	EnvsEntry     *EnvsEntry `field:"-"`
 	EnvsTruncated bool       `field:"-"`
+	ArgsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -304,10 +303,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFilePath"`
-	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
-	BasenameStr   string `field:"name,ResolveFileBasename"`
-	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
+	PathnameStr string `field:"path,ResolveFilePath"`
+	BasenameStr string `field:"name,ResolveFileBasename"`
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`
 
 	PathResolutionError error `field:"-"`
 }
@@ -349,7 +347,7 @@ type MkdirEvent struct {
 
 // ArgsEnvsEvent defines a args/envs event
 type ArgsEnvsEvent struct {
-	ArgsEnvsCacheEntry
+	ArgsEnvs
 }
 
 // MountEvent represents a mount event
@@ -408,9 +406,44 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
+var zeroProcessContext ProcessContext
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+}
+
+// Reset the entry
+func (e *ProcessCacheEntry) Reset() {
+	e.ProcessContext = zeroProcessContext
+	e.refCount = 0
+}
+
+// Retain increment ref counter
+func (e *ProcessCacheEntry) Retain() {
+	e.refCount++
+}
+
+// Release decrement and eventually release the entry
+func (e *ProcessCacheEntry) Release() {
+	e.refCount--
+	if e.refCount > 0 {
+		return
+	}
+
+	if e.onRelease != nil {
+		e.onRelease(e)
+	}
+}
+
+// NewProcessCacheEntry returns a new process cache entry
+func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		onRelease: onRelease,
+	}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

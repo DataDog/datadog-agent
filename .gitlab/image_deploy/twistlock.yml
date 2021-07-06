@@ -1,22 +1,14 @@
 ---
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_version_7: &if_version_7
-  if: $RELEASE_VERSION_7 != ""
-
 twistlock_scan-6:
   allow_failure: true
   rules:
-    - <<: *if_version_6
+    !reference [.on_a6]
   stage: image_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
   tags: ["runner:docker", "size:large"]
   dependencies: []
   variables:
     SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
-    SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
-    SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
   before_script:
     - export SRC_TAG=v$CI_PIPELINE_ID-${CI_COMMIT_SHORT_SHA}
     - export DOCKER_CLIENT_ADDRESS=$DOCKER_HOST
@@ -25,13 +17,11 @@ twistlock_scan-6:
   script:
     - scan ${SRC_AGENT}:${SRC_TAG}-6-amd64
     - scan ${SRC_AGENT}:${SRC_TAG}-6-jmx-amd64
-    - scan ${SRC_DSD}:${SRC_TAG}-amd64
-    - scan ${SRC_DCA}:${SRC_TAG}-amd64
 
 twistlock_scan-7:
   allow_failure: true
   rules:
-    - <<: *if_version_7
+    !reference [.on_a7]
   stage: image_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
   tags: ["runner:docker", "size:large"]
@@ -48,3 +38,5 @@ twistlock_scan-7:
   script:
     - scan ${SRC_AGENT}:${SRC_TAG}-7-amd64
     - scan ${SRC_AGENT}:${SRC_TAG}-7-jmx-amd64
+    - scan ${SRC_DSD}:${SRC_TAG}-amd64
+    - scan ${SRC_DCA}:${SRC_TAG}-amd64

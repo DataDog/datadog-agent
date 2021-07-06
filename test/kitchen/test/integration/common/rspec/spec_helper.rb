@@ -782,6 +782,7 @@ shared_examples_for 'an Agent that is removed' do
             'C:/Windows/WinSxS/',
             'C:/Windows/Logs/',
             'C:/Windows/servicing/',
+            'c:/Windows/System32/catroot2/',
             'c:/windows/System32/config/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',

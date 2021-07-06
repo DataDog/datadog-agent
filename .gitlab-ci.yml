@@ -2,6 +2,7 @@
 include:
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/windows_python_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/binary_build.yml
@@ -145,107 +146,20 @@ variables:
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
 
 #
 # Condition mixins for simplification of rules
 #
-# FIXME: currently, the only good way we have to compose rules is by using YAML anchors.
-# However, as they are YAML features (and not Gitlab features), they have to be present
-# in each file that needs them, which results in a lot of copy-pasting.
-# In the future, we may be able to leverage YAML functions (https://gitlab.com/groups/gitlab-org/-/epics/4381)
-# and cross-file references (https://gitlab.com/gitlab-org/gitlab/-/issues/266173) to remove this
-# currently needed copy-paste.
-#
-# The list of all available rules is given below. To use a rule in a specific file, copy it.
-#
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
 
-.if_master_branch: &if_master_branch
-  if: $CI_COMMIT_BRANCH == "master"
+.if_not_main_branch: &if_not_main_branch
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main"
 
-.if_not_master_branch: &if_not_master_branch
-  if: $CI_COMMIT_BRANCH != "master"
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
-.if_tagged_commit: &if_tagged_commit
-  if: $CI_COMMIT_TAG != null
-
-.if_not_tagged_commit: &if_not_tagged_commit
-  if: $CI_COMMIT_TAG == null
-
-# Rules to run all builds conditionally.
-# By default:
-# - on master and deploy pipelines, all builds are run
-# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
-# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
-# RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs 
-# on master and deploy pipelines depend on jobs that are only run if we run all builds).
-.if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
-
-.if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
-
-# Run job only on deploy pipelines
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
-.if_deploy_6: &if_deploy_6
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != ""
-
-.if_deploy_7: &if_deploy_7
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != ""
-
-.if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
-
-# Rules to trigger test kitchen setup, run, and cleanup.
-# By default:
-# - on master and deploy pipelines, kitchen tests are run
-# - on branch pipelines, kitchen tests are not run
-# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on master/deploy pipelines.
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
-.if_not_kitchen: &if_not_kitchen
-  if: ($CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_KITCHEN_TESTS != "true") || $RUN_KITCHEN_TESTS == "false"
-
-# Rules to trigger default kitchen tests.
-# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
-# by setting RUN_KITCHEN_TESTS to false.
-.if_default_kitchen: &if_default_kitchen
-  if: $RUN_KITCHEN_TESTS != "false"
-
-.if_not_default_kitchen: &if_not_default_kitchen
-  if: $RUN_KITCHEN_TESTS == "false"
-
-# true only on deploys and when RELEASE_VERSION_X is NOT "nightly". In this setting
-# we are building either a new tagged version of the agent (an RC for example).
-# In both cases the artifacts should be uploaded to our staging repository.
-.if_deploy_on_tag_6: &if_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 != "nightly" && $RELEASE_VERSION_6 != ""
-
-.if_not_deploy_on_tag_6: &if_not_deploy_on_tag_6
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 == "nightly" || $RELEASE_VERSION_6 == ""
-
-.if_deploy_on_tag_7: &if_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_7 != "nightly-a7" && $RELEASE_VERSION_7 != ""
-
-.if_not_deploy_on_tag_7: &if_not_deploy_on_tag_7
-  # no  RELEASE_VERSION means a nightly build for omnibus
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_7 == "nightly-a7" || $RELEASE_VERSION_7 == ""
-
-# true only on deploys and when RELEASE_VERSION_X is "nightly". In this setting we
-# build from master and update the nightly build for windows, linux and docker.
-.if_deploy_on_nightly: &if_deploy_on_nightly
-  if: $DEPLOY_AGENT == "true" && $RELEASE_VERSION_6 == "nightly" && $RELEASE_VERSION_7 == "nightly-a7"
-
-.if_not_deploy_on_nightly: &if_not_deploy_on_nightly
-  if: $DEPLOY_AGENT != "true" || $RELEASE_VERSION_6 != "nightly" || $RELEASE_VERSION_7 != "nightly-a7"
-
-# true only when RELEASE_VERSION_X is not set
 .if_version_6: &if_version_6
   if: $RELEASE_VERSION_6 != ""
 
@@ -257,3 +171,333 @@ variables:
 
 .if_not_version_7: &if_not_version_7
   if: $RELEASE_VERSION_7 == ""
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+.if_tagged_commit: &if_tagged_commit
+  if: $CI_COMMIT_TAG != null
+
+.if_not_nightly_repo_branch: &if_not_nightly_repo_branch
+  if: $DEB_RPM_BUCKET_BRANCH != "nightly"
+
+.if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
+  if: $DEB_RPM_BUCKET_BRANCH != "beta" && $DEB_RPM_BUCKET_BRANCH != "stable"
+
+# Rule to trigger all builds conditionally.
+# By default:
+# - on main and deploy pipelines, all builds are run
+# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
+# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
+# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs 
+# on main and deploy pipelines depend on jobs that are only run if we run all builds).
+.if_run_all_builds: &if_run_all_builds
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+
+.if_not_run_all_builds: &if_not_run_all_builds
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+
+# Rule to trigger test kitchen setup, run, and cleanup.
+# By default:
+# - on main and deploy pipelines, kitchen tests are run
+# - on branch pipelines, kitchen tests are not run
+# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
+# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on main/deploy pipelines.
+.if_kitchen: &if_kitchen
+  if: ($CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
+
+# Rules to trigger default kitchen tests.
+# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
+# by setting RUN_KITCHEN_TESTS to false.
+.if_default_kitchen: &if_default_kitchen
+  if: $RUN_KITCHEN_TESTS != "false"
+
+.if_testing_cleanup: &if_testing_cleanup
+  if: $TESTING_CLEANUP == "true"
+
+#
+# List of rule blocks used in the pipeline
+# Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
+#
+
+.manual:
+  - when: manual
+    allow_failure: true
+
+.on_a6:
+  - <<: *if_version_6
+
+.on_a6_manual:
+  - <<: *if_version_6
+    when: manual
+    allow_failure: true
+
+.on_a7:
+  - <<: *if_version_7
+
+.on_a7_manual:
+  - <<: *if_version_7
+    when: manual
+    allow_failure: true
+
+.on_dev_branch_manual:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_tagged_commit
+    when: never
+  - when: manual
+    allow_failure: true
+
+.on_main:
+  - <<: *if_main_branch
+
+.on_main_manual:
+  - <<: *if_main_branch
+    when: manual
+    allow_failure: true
+
+.on_main_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_main_branch
+
+.on_main_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_main_branch
+
+.on_tag_or_a7:
+  - <<: *if_tagged_commit
+  - <<: *if_version_7
+
+.on_tag_or_a7_all_builds:
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_tagged_commit
+  - <<: *if_version_7
+
+.on_deploy:
+  - <<: *if_deploy
+
+.on_deploy_failure:
+  - <<: *if_deploy
+    when: on_failure
+
+.on_deploy_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_nightly_repo_branch_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_nightly_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_nightly_repo_branch_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_nightly_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_stable_or_beta_repo_branch_a6_always:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: always
+
+.on_deploy_stable_or_beta_repo_branch_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+
+.on_deploy_stable_or_beta_repo_branch_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_stable_or_beta_repo_branch_a7_always:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: always
+
+.except_deploy:
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_a6_except_deploy:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_a7_except_deploy:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: never
+  - when: on_success
+
+.on_main_or_release_branch:
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+
+.on_main_or_release_branch_or_deploy:
+  - <<: *if_deploy
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+
+.on_main_or_release_branch_or_deploy_failure:
+  - <<: *if_deploy
+    when: on_failure
+  - <<: *if_main_branch
+    when: on_failure
+  - <<: *if_release_branch
+    when: on_failure
+
+.on_all_builds:
+  - <<: *if_run_all_builds
+
+.on_all_builds_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_run_all_builds
+
+.on_all_builds_a6_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_run_all_builds
+    when: manual
+    allow_failure: true
+
+.on_all_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_run_all_builds
+
+.on_all_builds_a7_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_run_all_builds
+    when: manual
+    allow_failure: true
+
+.on_kitchen_tests_a6:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+
+.on_kitchen_tests_a6_always:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_kitchen
+    when: always
+
+.on_kitchen_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+
+.on_kitchen_tests_a7_always:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+    when: always
+
+# Default kitchen tests are also run on dev branches
+# In that case, the target OS versions is a subset of the
+# available versions, stored in DEFAULT_KITCHEN_OSVERS
+.on_default_kitchen_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_default_kitchen_tests_a7_always:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+    when: always
+  - <<: *if_default_kitchen
+    when: always
+    variables:
+      KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_testing_cleanup:
+  - <<: *if_testing_cleanup
+
+.on_system_probe_changes_or_manual:
+  - changes:
+      - pkg/ebpf/**/*
+      - pkg/network/**/*
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_install_script_release_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_main_branch
+    when: never
+  - <<: *if_kitchen
+    when: manual
+    allow_failure: true

@@ -18,6 +18,8 @@ const (
 	ContainerEventActionStart = "start"
 	// ContainerEventActionDie is the action of stopping a docker container
 	ContainerEventActionDie = "die"
+	// ContainerEventActionDied is the action of stopping a podman container
+	ContainerEventActionDied = "died"
 	// ContainerEventActionRename is the action of renaming a docker container
 	ContainerEventActionRename = "rename"
 )

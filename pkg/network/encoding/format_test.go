@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -144,4 +145,14 @@ func TestFormatHTTPStats(t *testing.T) {
 	aggregationKey.Method = http.MethodUnknown
 	aggregations := result[aggregationKey].EndpointAggregations
 	assert.ElementsMatch(t, out.EndpointAggregations, aggregations)
+}
+
+func BenchmarkConnectionReset(b *testing.B) {
+	c := new(model.Connection)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Reset()
+	}
+	runtime.KeepAlive(c)
 }

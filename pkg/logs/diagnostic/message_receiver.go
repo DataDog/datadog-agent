@@ -6,6 +6,7 @@
 package diagnostic
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -107,7 +108,7 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 					out <- formatMessage(msgPair.msg, msgPair.redactedMsg)
 				}
 			case <-done:
-				break
+				return
 			}
 		}
 	}()
@@ -137,7 +138,7 @@ func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 }
 
 func formatMessage(m *message.Message, redactedMsg []byte) string {
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

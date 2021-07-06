@@ -8,6 +8,8 @@
 package providers
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -43,7 +45,7 @@ func (p *PrometheusPodsConfigProvider) String() string {
 }
 
 // Collect retrieves templates from the kubelet's podlist, builds config objects and returns them
-func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
+func (p *PrometheusPodsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	var err error
 	if p.kubelet == nil {
 		p.kubelet, err = kubelet.GetKubeUtil()
@@ -52,7 +54,7 @@ func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := p.kubelet.GetLocalPodList()
+	pods, err := p.kubelet.GetLocalPodList(ctx)
 	if err != nil {
 		return []integration.Config{}, err
 	}
@@ -61,7 +63,7 @@ func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate always return false to poll new data from kubelet
-func (p *PrometheusPodsConfigProvider) IsUpToDate() (bool, error) {
+func (p *PrometheusPodsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 

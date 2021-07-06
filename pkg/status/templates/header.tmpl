@@ -178,7 +178,7 @@ Cluster Checks Dispatching
 {{- if .clusterchecks.Leader }}
   {{- if .clusterchecks.Active }}
   Status: Leader, serving requests
-  Active nodes: {{ .clusterchecks.NodeCount }}
+  Active agents: {{ .clusterchecks.NodeCount }}
   Check Configurations: {{ .clusterchecks.TotalConfigs }}
     - Dispatched: {{ .clusterchecks.ActiveConfigs }}
     - Unassigned: {{ .clusterchecks.DanglingConfigs }}

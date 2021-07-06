@@ -64,14 +64,14 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 }
 
 func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
-	endpoints, context, err := newLogContextCompliance()
+	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
-	stopper.Add(context)
+	stopper.Add(ctx)
 
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}

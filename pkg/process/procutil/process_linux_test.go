@@ -26,8 +26,9 @@ var (
 	skipLocalTest = true
 )
 
-func getProbeWithPermission() *Probe {
-	return NewProcessProbe(WithPermission(true))
+func getProbeWithPermission(options ...Option) *Probe {
+	options = append(options, WithPermission(true))
+	return NewProcessProbe(options...)
 }
 
 func TestGetActivePIDs(t *testing.T) {
@@ -757,8 +758,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 
 func TestBootTimeRefresh(t *testing.T) {
 	os.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	bootTimeRefreshInterval = 500 * time.Millisecond
-	probe := getProbeWithPermission()
+	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500 * time.Millisecond))
 	defer probe.Close()
 
 	assert.Equal(t, uint64(1606127264), atomic.LoadUint64(&probe.bootTime))

@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ var dummyConfigs = `{
 }`
 
 func (suite *clusterAgentSuite) TestClusterChecksNominal() {
+	ctx := context.Background()
 	dca, err := newDummyClusterAgent()
 	require.NoError(suite.T(), err)
 
@@ -43,11 +45,11 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 
-	response, err := ca.PostClusterCheckStatus("mynode", types.NodeStatus{})
+	response, err := ca.PostClusterCheckStatus(ctx, "mynode", types.NodeStatus{})
 	require.NoError(suite.T(), err)
 	assert.True(suite.T(), response.IsUpToDate)
 
-	configs, err := ca.GetClusterCheckConfigs("mynode")
+	configs, err := ca.GetClusterCheckConfigs(ctx, "mynode")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(42), configs.LastChange)
 	require.Len(suite.T(), configs.Configs, 2)
@@ -56,6 +58,8 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 }
 
 func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
+	ctx := context.Background()
+
 	// Leader starts first
 	leader, err := newDummyClusterAgent()
 	require.NoError(suite.T(), err)
@@ -87,7 +91,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	assert.NotNil(suite.T(), follower.PopRequest(), "request did not go through follower")
 
 	// First request will be redirected
-	response, err := ca.PostClusterCheckStatus("mynode", types.NodeStatus{})
+	response, err := ca.PostClusterCheckStatus(ctx, "mynode", types.NodeStatus{})
 	require.NoError(suite.T(), err)
 	assert.True(suite.T(), response.IsUpToDate)
 
@@ -95,7 +99,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	assert.NotNil(suite.T(), leader.PopRequest(), "request did not reach leader")
 
 	// Subsequent requests will bypass the follower
-	configs, err := ca.GetClusterCheckConfigs("mynode")
+	configs, err := ca.GetClusterCheckConfigs(ctx, "mynode")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(42), configs.LastChange)
 	require.Len(suite.T(), configs.Configs, 2)
@@ -114,7 +118,7 @@ func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	follower.redirectURL = ""
 	follower.Unlock()
 
-	response, err = ca.PostClusterCheckStatus("mynode", types.NodeStatus{})
+	response, err = ca.PostClusterCheckStatus(ctx, "mynode", types.NodeStatus{})
 	require.NoError(suite.T(), err, "request should not fail")
 	assert.False(suite.T(), response.IsUpToDate)
 	assert.NotNil(suite.T(), leader.PopRequest(), "request did not reach leader")
