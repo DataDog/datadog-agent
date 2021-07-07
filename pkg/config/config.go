@@ -1389,17 +1389,29 @@ func IsCLCRunner() bool {
 	if !Datadog.GetBool("clc_runner_enabled") {
 		return false
 	}
-	var cp []ConfigurationProviders
-	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
-		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
-			cp = append(cp, ConfigurationProviders{Name: name})
-		}
-		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
-			// A cluster check runner is an Agent configured to run clusterchecks only
-			return true
+
+	var cps []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cps); err != nil {
+		return false
+	}
+
+	for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+		cps = append(cps, ConfigurationProviders{Name: name})
+	}
+
+	// A cluster check runner is an Agent configured to run clusterchecks only
+	// We want exactly one ConfigProvider named clusterchecks
+	if len(cps) == 0 {
+		return false
+	}
+
+	for _, cp := range cps {
+		if cp.Name != "clusterchecks" {
+			return false
 		}
 	}
-	return false
+
+	return true
 }
 
 // GetBindHost returns `bind_host` variable or default value
