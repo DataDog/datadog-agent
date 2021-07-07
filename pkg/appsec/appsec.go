@@ -20,12 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrAgentDisabled is the error message logged when the AppSec agent is
-// disabled by configuration.
-var ErrAgentDisabled = errors.New("AppSec agent disabled. Set the " +
-	"environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
-	"`appsec_config.enabled: true` to your datadog.yaml file")
-
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
 // the agent configuration.
 func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
@@ -37,7 +31,8 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 		return disabled, errors.Wrap(err, "configuration: ")
 	}
 	if !cfg.Enabled {
-		log.Error("Appsec agent: ", err)
+		log.Error("AppSec agent disabled. Set the environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
+			"`appsec_config.enabled: true` to your datadog.yaml file")
 		return disabled, nil
 	}
 
