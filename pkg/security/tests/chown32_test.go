@@ -12,15 +12,24 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"gotest.tools/assert"
 )
 
 func TestChown32(t *testing.T) {
-	// The docker container used in functional tests is not able to run a x86 executable by default so we skip those tests
-	if testEnvironment == DockerEnvironment {
-		t.Skip("running in docker env, skipping x86 syscall tests")
+	isSuseKernel := func() bool {
+		kv, err := kernel.NewKernelVersion()
+		if err != nil {
+			return false
+		}
+		return kv.IsSuseKernel()
+	}()
+
+	if isSuseKernel {
+		t.Skip("SUSE kernel: skipping chown32 tests")
 	}
 
 	ruleDef := &rules.RuleDefinition{
@@ -33,7 +42,7 @@ func TestChown32(t *testing.T) {
 		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
 	}
 
-	test, err := newTestModule(nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,17 +65,16 @@ func TestChown32(t *testing.T) {
 	}
 
 	t.Run("chown", func(t *testing.T) {
-		runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
 
 		defer func() {
 			prevUID = 100
 			prevGID = 200
 		}()
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(100), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(200), "wrong user")
@@ -78,28 +86,26 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("fchown", func(t *testing.T) {
-		runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
-
 		defer func() {
 			prevUID = 101
 			prevGID = 201
 		}()
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(101), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(201), "wrong user")
@@ -111,28 +117,26 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
-		runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
-
 		defer func() {
 			prevUID = 102
 			prevGID = 202
 		}()
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(102), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(202), "wrong user")
@@ -144,13 +148,13 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
@@ -165,12 +169,10 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(103), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(203), "wrong user")
@@ -182,13 +184,13 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
@@ -203,12 +205,10 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(104), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(204), "wrong user")
@@ -220,28 +220,27 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
-		runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
 
 		defer func() {
 			prevUID = 105
 			prevGID = 205
 		}()
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(105), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(205), "wrong user")
@@ -253,28 +252,26 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("chown32", func(t *testing.T) {
-		runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
-
 		defer func() {
 			prevUID = 106
 			prevGID = 206
 		}()
 
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			// fchown syscall
+			return runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
+		}, func(event *sprobe.Event, r *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assert.Equal(t, event.Chown.UID, uint32(106), "wrong user")
 			assert.Equal(t, event.Chown.GID, uint32(206), "wrong user")
@@ -286,13 +283,13 @@ func TestChown32(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			if testEnvironment == DockerEnvironment {
-				testContainerPath(t, event, "chown.file.container_path")
-			}
-
 			if !validateChownSchema(t, event) {
 				t.Fatal(event.String())
 			}
+		})
+
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }
@@ -323,15 +320,20 @@ func checkSyscallTester(t *testing.T, path string) {
 	t.Helper()
 	sideTester := exec.Command(path, "check")
 	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Skip()
+		t.Error("cannot run syscall tester check")
 	}
 }
 
-func runSyscallTesterFunc(t *testing.T, path string, args ...string) {
+func runSyscallTesterFunc(t *testing.T, path string, args ...string) error {
 	t.Helper()
 	sideTester := exec.Command(path, args...)
-	if output, err := sideTester.CombinedOutput(); err != nil {
-		t.Error(string(output))
+	output, err := sideTester.CombinedOutput()
+	if err != nil {
 		t.Error(err)
+		output := string(output)
+		if output != "" {
+			t.Error(output)
+		}
 	}
+	return err
 }

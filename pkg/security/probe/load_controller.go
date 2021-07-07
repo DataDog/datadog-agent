@@ -181,7 +181,9 @@ func (lc *LoadController) cleanup() {
 }
 
 // Start resets the internal counters periodically
-func (lc *LoadController) Start(ctx context.Context) {
+func (lc *LoadController) Start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

@@ -29,7 +29,6 @@ const (
 type FileSerializer struct {
 	Path                string     `json:"path,omitempty"`
 	Name                string     `json:"name,omitempty"`
-	ContainerPath       string     `json:"container_path,omitempty"`
 	PathResolutionError string     `json:"path_resolution_error,omitempty"`
 	Inode               *uint64    `json:"inode,omitempty"`
 	Mode                *uint32    `json:"mode,omitempty"`
@@ -131,7 +130,6 @@ type ProcessCacheEntrySerializer struct {
 	GID                 int                           `json:"gid"`
 	User                string                        `json:"user,omitempty"`
 	Group               string                        `json:"group,omitempty"`
-	ContainerPath       string                        `json:"executable_container_path,omitempty"`
 	Path                string                        `json:"executable_path,omitempty"`
 	PathResolutionError string                        `json:"path_resolution_error,omitempty"`
 	Comm                string                        `json:"comm,omitempty"`
@@ -212,7 +210,6 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
-		ContainerPath:       e.ResolveFileContainerPath(fe),
 		Inode:               getUint64Pointer(&fe.Inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
@@ -233,7 +230,6 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Path:                process.PathnameStr,
 		PathResolutionError: process.GetPathResolutionError(),
 		Name:                process.BasenameStr,
-		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
 		Filesystem:          process.Filesystem,
@@ -334,7 +330,6 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Tid:           pce.Process.Tid,
 		PPid:          pce.Process.PPid,
 		Path:          pce.Process.PathnameStr,
-		ContainerPath: pce.Process.ContainerPath,
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),

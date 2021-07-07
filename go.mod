@@ -46,7 +46,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.74.0+incompatible
+	github.com/DataDog/agent-payload v4.76.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/util/log v0.29.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.29.0-rc.6
 	github.com/DataDog/datadog-go v4.8.0+incompatible
@@ -102,7 +102,7 @@ require (
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
-	github.com/golang/mock v1.5.0
+	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/gofuzz v1.2.0
