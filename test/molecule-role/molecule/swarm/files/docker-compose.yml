@@ -7,11 +7,6 @@ services:
     ports:
       - 2181:2181
     deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 30s
-        max_attempts: 10
-        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -37,11 +32,6 @@ services:
       timeout: 45s
       retries: 10
     deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 30s
-        max_attempts: 10
-        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -58,11 +48,6 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
     deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 30s
-        max_attempts: 10
-        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -79,11 +64,6 @@ services:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
     deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 30s
-        max_attempts: 10
-        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -106,5 +86,3 @@ services:
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
       DOCKER_SWARM: "true"
-    depends_on:
-      - receiver

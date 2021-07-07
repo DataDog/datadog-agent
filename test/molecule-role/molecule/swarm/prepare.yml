@@ -81,13 +81,6 @@
         dest: /home/ubuntu
         mode: u+x
 
-    - name: Configure .env file used by docker-swarm
-      copy:
-        content: |
-          AGENT_VERSION={{ agent_current_branch }}
-          STACKSTATE_BRANCH={{ stackstate_branch }}
-        dest: /home/ubuntu/.env
-
     - name: Create StacSktate Agent Service on Master
       command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
       args:
@@ -100,4 +93,11 @@
     - debug: var=output
 
     - import_tasks: ../wait-for-receiver.yml
-    - import_tasks: ../wait-for-agent.yml
+
+    - name: Wait for agent to be healthy (swarm stack)
+      shell: docker stack ps agent | grep 'stackstate-agent' | head -n 1 | grep Running
+      register: agent_healthy
+      until: agent_healthy.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
