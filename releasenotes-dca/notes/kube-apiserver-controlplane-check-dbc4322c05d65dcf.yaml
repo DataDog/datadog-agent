@@ -1,0 +1,25 @@
+---
+features:
+  - |
+    Introduce a `use_component_status` config option to the
+    kubernetes_apiserver check. When set to false, it no longer uses the
+    `ComponentStatus` object (deprecated since Kubernetes 1.19) for the
+    Kubernetes API Server Control Plane health checks, and instead uses each
+    component's health endpoints. It also introduces extra config options for each
+    component::
+
+      cluster_check: false
+      instances:
+        - use_component_status: false
+          kube_controller_manager:
+            url: "https://localhost:10257"
+            tls_verify: true
+            client_ca:
+            client_crt:
+            client_key:
+          kube_scheduler:
+            url: "https://localhost:10259"
+            tls_verify: true
+            client_ca:
+            client_crt:
+            client_key:
