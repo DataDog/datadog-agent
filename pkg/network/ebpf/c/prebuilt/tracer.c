@@ -900,29 +900,29 @@ cleanup:
 
 SEC("kprobe/do_sendfile")
 int kprobe__do_sendfile(struct pt_regs* ctx) {
-    u64 fd_out = (int)PT_REGS_PARM1(ctx);
-    u64 fd_in = (int)PT_REGS_PARM2(ctx);
+    u32 fd_out = (int)PT_REGS_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 val = (fd_in << 32) | fd_out;
-    bpf_map_update_elem(&do_sendfile_args, &pid_tgid, &val, BPF_ANY);
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = fd_out,
+    };
+    struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    if (sock == NULL) {
+        return 0;
+    }
+
+    // bring map value to eBPF stack to satisfy Kernel 4.4 verifier
+    struct sock* skp = *sock;
+    bpf_map_update_elem(&do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/do_sendfile")
 int kretprobe__do_sendfile(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 *fd_in_out = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
-    if (fd_in_out == NULL) {
-        return 0;
-    }
-
-    pid_fd_t key = {
-        .pid = pid_tgid >> 32,
-        .fd = *fd_in_out & 0xFFFFFFFF,
-    };
-    struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    struct sock** sock = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
     if (sock == NULL) {
-        goto cleanup;
+        return 0;
     }
 
     conn_tuple_t t = {};
