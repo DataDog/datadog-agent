@@ -68,13 +68,15 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // a lineHandler that emits outputs
 // Input->[decoder]->[parser]->[handler]->Message
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Message
-	matcher    EndLineMatcher
-	lineBuffer *bytes.Buffer
-	lineParser LineParser
 	// The number of raw lines decoded from the input before they are processed.
-	linesDecoded    int64
+	// Needs to be first to ensure 64 bit alignment
+	linesDecoded int64
+
+	InputChan       chan *Input
+	OutputChan      chan *Message
+	matcher         EndLineMatcher
+	lineBuffer      *bytes.Buffer
+	lineParser      LineParser
 	contentLenLimit int
 	rawDataLen      int
 }
