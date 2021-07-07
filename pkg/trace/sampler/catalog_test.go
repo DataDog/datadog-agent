@@ -6,6 +6,8 @@
 package sampler
 
 import (
+	"math"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -166,4 +168,30 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert.Equal(map[ServiceSignature]float64{
 		{}: 0.2,
 	}, rateByService)
+}
+
+func BenchmarkServiceKeyCatalog(b *testing.B) {
+	b.ReportAllocs()
+
+	b.Run("new", func(b *testing.B) {
+		x := 1
+		cat := newServiceLookup()
+		cat.maxEntries = math.MaxInt16
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			x *= 2
+			ss := ServiceSignature{Name: strconv.Itoa(x), Env: strconv.Itoa(x)}
+			cat.register(ss)
+		}
+	})
+
+	b.Run("same", func(b *testing.B) {
+		cat := newServiceLookup()
+		cat.maxEntries = math.MaxInt16
+		ss := ServiceSignature{Name: "sql-db", Env: "staging"}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cat.register(ss)
+		}
+	})
 }
