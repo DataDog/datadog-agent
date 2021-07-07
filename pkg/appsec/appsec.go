@@ -70,19 +70,20 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 	return withMetrics(proxy)
 }
 
+const (
+	appSecRequestMetricsPrefix            = "datadog.trace_agent.appsec."
+	appSecRequestCountMetricsID           = appSecRequestMetricsPrefix + "request"
+	appSecRequestDurationMetricsID        = appSecRequestMetricsPrefix + "request_duration_ms"
+	appSecRequestPayloadSizeMetricsID     = appSecRequestMetricsPrefix + "request_payload_size"
+	appSecRequestPayloadTooLargeMetricsID = appSecRequestMetricsPrefix + "request_payload_too_large"
+)
+
 func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
-	const (
-		AppSecRequestMetricsPrefix = "datadog.trace_agent.appsec."
-		CountID                    = AppSecRequestMetricsPrefix + "request"
-		DurationID                 = AppSecRequestMetricsPrefix + "request_duration_ms"
-		PayloadSizeID              = AppSecRequestMetricsPrefix + "request_payload_size"
-		PayloadTooLargeID          = AppSecRequestMetricsPrefix + "request_payload_too_large"
-	)
 	// Error metrics through the reverse proxy error handler
 	errorHandler := proxy.ErrorHandler
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
 		if err == apiutil.ErrLimitedReaderLimitReached {
-			metrics.Count(PayloadTooLargeID, 1, metricsTags(req), 1)
+			metrics.Count(appSecRequestPayloadTooLargeMetricsID, 1, metricsTags(req), 1)
 		}
 		errorHandler(w, req, err)
 	}
@@ -92,10 +93,10 @@ func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 		defer func() {
 			tags := metricsTags(req)
 			if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
-				metrics.Histogram(PayloadSizeID, float64(lr.Count), tags, 1)
+				metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
 			}
-			metrics.Gauge(CountID, 1, tags, 1)
-			metrics.Timing(DurationID, time.Since(now), tags, 1)
+			metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1)
+			metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
 		}()
 		proxy.ServeHTTP(w, req)
 	})
