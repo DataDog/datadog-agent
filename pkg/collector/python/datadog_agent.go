@@ -236,7 +236,7 @@ func ObfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
 		}
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s, &sqlCfg)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, sqlCfg)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
