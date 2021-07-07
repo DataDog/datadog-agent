@@ -253,6 +253,9 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules
 		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
 	}
 
+	monitor := m.probe.GetMonitor()
+	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
+
 	if selfTestPolicy != nil {
 		selfTestPolicyFilename := "datadog_cws_self_test.policy"
 		ruleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
@@ -309,8 +312,7 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules
 	m.displayReport(report)
 
 	// report that a new policy was loaded
-	monitor := m.probe.GetMonitor()
-	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
+	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
 	return nil
 }
