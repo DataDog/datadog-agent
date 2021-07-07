@@ -105,9 +105,6 @@ const (
 
 	// DoSendfileRet is the kretprobe used used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
-
-	// TCPV4Destroy is the kprobe used for cleaning up the socket file descriptor maps
-	TCPV4Destroy ProbeName = "kprobe/tcp_v4_destroy_sock"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info

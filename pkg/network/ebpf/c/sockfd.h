@@ -40,4 +40,23 @@ struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
     .namespace = "",
 };
 
+static __always_inline void clear_sockfd_maps(struct sock* sock) {
+    if (sock == NULL) {
+        return;
+    }
+
+    pid_fd_t* pid_fd = bpf_map_lookup_elem(&pid_fd_by_sock, &sock);
+    if (pid_fd == NULL) {
+        return;
+    }
+
+    // Copy map value to stack before re-using it (needed for Kernel 4.4)
+    pid_fd_t pid_fd_copy = {};
+    __builtin_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
+    pid_fd = &pid_fd_copy;
+
+    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
+    bpf_map_delete_elem(&pid_fd_by_sock, &sock);
+}
+
 #endif

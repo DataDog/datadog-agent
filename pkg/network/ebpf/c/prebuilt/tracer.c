@@ -372,6 +372,8 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
+    clear_sockfd_maps(sk);
+
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -933,24 +935,6 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
     handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
-    return 0;
-}
-
-SEC("kprobe/tcp_v4_destroy_sock")
-int kprobe__tcp_v4_destroy_sock(struct pt_regs* ctx) {
-    struct sock* sock = (struct sock*)PT_REGS_PARM1(ctx);
-    pid_fd_t* pid_fd = bpf_map_lookup_elem(&pid_fd_by_sock, &sock);
-    if (pid_fd == NULL) {
-        return 0;
-    }
-
-    // Copy map value to stack before re-using it (needed for Kernel 4.4)
-    pid_fd_t pid_fd_copy = {};
-    __builtin_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
-    pid_fd = &pid_fd_copy;
-
-    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
-    bpf_map_delete_elem(&pid_fd_by_sock, &sock);
     return 0;
 }
 

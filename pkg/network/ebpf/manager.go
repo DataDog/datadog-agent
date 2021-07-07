@@ -88,7 +88,6 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.SockFDLookupRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.DoSendfile), KProbeMaxActive: maxActive},
 			{Section: string(probes.DoSendfileRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.TCPV4Destroy), KProbeMaxActive: maxActive},
 		},
 	}
 
