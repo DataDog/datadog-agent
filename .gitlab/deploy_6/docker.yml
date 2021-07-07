@@ -42,7 +42,7 @@ deploy_latest-a6:
   rules:
     !reference [.on_deploy_a6_manual]
   dependencies: []
-  script:
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
