@@ -95,7 +95,7 @@
     - import_tasks: ../wait-for-receiver.yml
 
     - name: Wait for agent to be healthy (swarm stack)
-      shell: docker stack ps agent | grep 'stackstate-agent' | head -n 1 | grep Running
+      shell: docker stack ps agent | grep 'stackstate-agent' | grep Running
       register: agent_healthy
       until: agent_healthy.rc == 0
       retries: 20
