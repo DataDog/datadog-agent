@@ -685,7 +685,7 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
         .fd = (*sockfd),
     };
 
-    // These entries are cleaned up by tcp_{v4,v6}_destroy_sock kprobes
+    // These entries are cleaned up by tcp_close
     bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
     bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
 cleanup:
@@ -705,9 +705,6 @@ int kprobe__do_sendfile(struct pt_regs* ctx) {
 
 SEC("kretprobe/do_sendfile")
 int kretprobe__do_sendfile(struct pt_regs* ctx) {
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 *fd_in_out = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
     if (fd_in_out == NULL) {
@@ -718,8 +715,6 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         .pid = pid_tgid >> 32,
         .fd = *fd_in_out & 0xFFFFFFFF,
     };
-
-    size_t sent = (size_t)PT_REGS_RC(ctx);
     struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
     if (sock == NULL) {
         goto cleanup;
@@ -730,6 +725,9 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         goto cleanup;
     }
 
+    size_t sent = (size_t)PT_REGS_RC(ctx);
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
     get_tcp_segment_counts(*sock, &packets_in, &packets_out);
     handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE);
 cleanup:

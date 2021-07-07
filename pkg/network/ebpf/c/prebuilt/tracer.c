@@ -890,7 +890,7 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
         .fd = (*sockfd),
     };
 
-    // These entries are cleaned up by tcp_{v4,v6}_destroy_sock kprobes
+    // These entries are cleaned up by tcp_close
     bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
     bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
 cleanup:
@@ -920,8 +920,6 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         .pid = pid_tgid >> 32,
         .fd = *fd_in_out & 0xFFFFFFFF,
     };
-
-    size_t sent = (size_t)PT_REGS_RC(ctx);
     struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
     if (sock == NULL) {
         goto cleanup;
@@ -932,6 +930,7 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
         goto cleanup;
     }
 
+    size_t sent = (size_t)PT_REGS_RC(ctx);
     handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
