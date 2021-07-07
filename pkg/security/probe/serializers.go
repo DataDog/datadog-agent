@@ -470,6 +470,7 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
+// NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{

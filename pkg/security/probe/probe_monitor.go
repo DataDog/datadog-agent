@@ -142,12 +142,13 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 
+// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
 type RuleSetLoadedReport struct {
 	Rule  *rules.Rule
 	Event *CustomEvent
 }
 
-// PreareRuleSetLoadedReport prepares a report of new loaded ruleset
+// PrepareRuleSetLoadedReport prepares a report of new loaded ruleset
 func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multierror.Error) RuleSetLoadedReport {
 	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
 	return RuleSetLoadedReport{Rule: r, Event: ev}
