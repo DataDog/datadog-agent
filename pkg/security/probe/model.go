@@ -402,7 +402,7 @@ func (ev *Event) SetPathResolutionError(err error) {
 
 // MarshalJSON returns the JSON encoding of the event
 func (ev *Event) MarshalJSON() ([]byte, error) {
-	s := newEventSerializer(ev)
+	s := NewEventSerializer(ev)
 	return json.Marshal(s)
 }
 

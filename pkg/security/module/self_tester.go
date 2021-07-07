@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +43,7 @@ func getSelfTestRuleDefinitions(baseRuleName, targetFilePath string) []*rules.Ru
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
 	waitingForEvent uint32 // atomic bool
-	eventChan       chan eval.Event
+	eventChan       chan selfTestEvent
 	targetFilePath  string
 	targetTempDir   string
 }
@@ -51,7 +52,7 @@ type SelfTester struct {
 func NewSelfTester() *SelfTester {
 	return &SelfTester{
 		waitingForEvent: 0,
-		eventChan:       make(chan eval.Event, 10),
+		eventChan:       make(chan selfTestEvent, 10),
 	}
 }
 
@@ -110,24 +111,38 @@ func (t *SelfTester) EndWaitingForEvent() {
 	atomic.StoreUint32(&t.waitingForEvent, 0)
 }
 
+type selfTestEvent struct {
+	Type     string
+	Filepath string
+}
+
 // SendEventIfExpecting sends an event to the tester
 func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
-	if atomic.LoadUint32(&t.waitingForEvent) != 0 {
-		t.eventChan <- event
+	if atomic.LoadUint32(&t.waitingForEvent) != 0 && rule.Definition.Policy.Name == selfTestPolicyName {
+		ev, ok := event.(*probe.Event)
+		if !ok {
+			return
+		}
+
+		s := probe.NewEventSerializer(ev)
+		if s == nil || s.FileEventSerializer == nil {
+			return
+		}
+
+		selfTestEvent := selfTestEvent{
+			Type:     event.GetType(),
+			Filepath: s.FileEventSerializer.Path,
+		}
+		t.eventChan <- selfTestEvent
 	}
 }
 
-func (t *SelfTester) expectEvent(predicate func(eval.Event) (bool, error)) error {
+func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
 	timer := time.After(10 * time.Second)
 	for {
 		select {
 		case event := <-t.eventChan:
-			ok, err := predicate(event)
-			if err != nil {
-				return err
-			}
-
-			if ok {
+			if predicate(event) {
 				return nil
 			}
 		case <-timer:
@@ -145,12 +160,8 @@ func selfTestOpen(t *SelfTester) error {
 		return err
 	}
 
-	return t.expectEvent(func(event eval.Event) (bool, error) {
-		eventOpenFilePath, err := event.GetFieldValue("open.file.path")
-		if err != nil {
-			return false, errors.Wrap(err, "failed to extract open file path from event")
-		}
-		return eventOpenFilePath == t.targetFilePath, nil
+	return t.expectEvent(func(event selfTestEvent) bool {
+		return event.Type == "open" && event.Filepath == t.targetFilePath
 	})
 }
 
@@ -163,12 +174,8 @@ func selfTestChmod(t *SelfTester) error {
 		return err
 	}
 
-	return t.expectEvent(func(event eval.Event) (bool, error) {
-		eventOpenFilePath, err := event.GetFieldValue("chmod.file.path")
-		if err != nil {
-			return false, errors.Wrap(err, "failed to extract chmod file path from event")
-		}
-		return eventOpenFilePath == t.targetFilePath, nil
+	return t.expectEvent(func(event selfTestEvent) bool {
+		return event.Type == "chmod" && event.Filepath == t.targetFilePath
 	})
 }
 
@@ -187,12 +194,8 @@ func selfTestChown(t *SelfTester) error {
 		return err
 	}
 
-	return t.expectEvent(func(event eval.Event) (bool, error) {
-		eventOpenFilePath, err := event.GetFieldValue("chown.file.path")
-		if err != nil {
-			return false, errors.Wrap(err, "failed to extract chown file path from event")
-		}
-		return eventOpenFilePath == t.targetFilePath, nil
+	return t.expectEvent(func(event selfTestEvent) bool {
+		return event.Type == "chown" && event.Filepath == t.targetFilePath
 	})
 }
 
