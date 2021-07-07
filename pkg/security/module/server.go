@@ -218,12 +218,12 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 			Ok:    false,
 			Error: err.Error(),
 		}, nil
-	} else {
-		return &api.SecuritySelfTestResultMessage{
-			Ok:    true,
-			Error: "",
-		}, nil
 	}
+
+	return &api.SecuritySelfTestResultMessage{
+		Ok:    true,
+		Error: "",
+	}, nil
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog

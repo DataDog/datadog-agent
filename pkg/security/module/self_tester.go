@@ -55,6 +55,7 @@ func NewSelfTester() *SelfTester {
 	}
 }
 
+// CreateTargetFile creates the needed target file for self test operations
 func (t *SelfTester) CreateTargetFile() error {
 	// Create temp directory to put target file in
 	tmpDir, err := ioutil.TempDir("", "datadog_agent_cws_self_test")
@@ -75,6 +76,7 @@ func (t *SelfTester) CreateTargetFile() error {
 
 const selfTestPolicyName = "datadog-agent-cws-self-test-policy"
 
+// GetSelfTestPolicy returns the additional policy containing self test rules
 func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	rds := getSelfTestRuleDefinitions("datadog_agent_cws_self_test_rule", t.targetFilePath)
 	p := &rules.Policy{
@@ -90,7 +92,8 @@ func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	return p
 }
 
-func (t *SelfTester) CloseAndCleanup() error {
+// Cleanup removes temp directories and files used by the self tester
+func (t *SelfTester) Cleanup() error {
 	if t.targetTempDir != "" {
 		return os.RemoveAll(t.targetTempDir)
 	}

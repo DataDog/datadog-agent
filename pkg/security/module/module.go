@@ -349,7 +349,7 @@ func (m *Module) Close() {
 		os.Remove(m.config.SocketPath)
 	}
 
-	m.selfTester.CloseAndCleanup()
+	m.selfTester.Cleanup()
 
 	m.probe.Close()
 
