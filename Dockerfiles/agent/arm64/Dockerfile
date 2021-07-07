@@ -1,3 +1,12 @@
+FROM ubuntu:21.04 AS faccessat
+
+COPY faccessat/faccessat.c   /tmp/faccessat.c
+COPY faccessat/faccessat.sym /tmp/faccessat.sym
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && \
+    apt install -y gcc
+RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
+
 ############################################
 #  Preparation stage: extract and cleanup  #
 ############################################
@@ -121,7 +130,7 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
-COPY entrypoint /etc/cont-init.d/
+COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py /
 
 # Extract s6-overlay
@@ -175,7 +184,15 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
-CMD ["/init"]
+# Ensure the glibc doesn't try to call the `faccessat2` syscall
+COPY --from=faccessat /tmp/libfaccessat.so /lib/x86_64-linux-gnu/libfaccessat.so
+ENV LD_PRELOAD /lib/x86_64-linux-gnu/libfaccessat.so
+
+# Single entrypoint
+COPY entrypoint.sh /bin/entrypoint.sh
+COPY entrypoint.d /opt/entrypoints
+
+CMD ["/bin/entrypoint.sh"]
 
 
 ################################################################
