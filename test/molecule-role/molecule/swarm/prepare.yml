@@ -99,6 +99,5 @@
 
     - debug: var=output
 
-    - name: Wait a bit for the agent to start
-      pause:
-        seconds: 200
+    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../wait-for-agent.yml
