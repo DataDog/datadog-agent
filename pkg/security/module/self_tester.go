@@ -10,8 +10,10 @@ package module
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"os/user"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -39,16 +41,17 @@ func getSelfTestRuleDefinitions(baseRuleName, targetFilePath string) []*rules.Ru
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
-	waitingForEvent bool
+	waitingForEvent uint32 // atomic bool
 	eventChan       chan eval.Event
 	targetFilePath  string
+	targetTempDir   string
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester() *SelfTester {
 	return &SelfTester{
-		waitingForEvent: false,
-		eventChan:       make(chan eval.Event),
+		waitingForEvent: 0,
+		eventChan:       make(chan eval.Event, 10),
 	}
 }
 
@@ -58,6 +61,7 @@ func (t *SelfTester) CreateTargetFile() error {
 	if err != nil {
 		return err
 	}
+	t.targetTempDir = tmpDir
 
 	// Create target file
 	targetFile, err := ioutil.TempFile(tmpDir, "datadog_agent_cws_target_file")
@@ -69,10 +73,12 @@ func (t *SelfTester) CreateTargetFile() error {
 	return targetFile.Close()
 }
 
+const selfTestPolicyName = "datadog-agent-cws-self-test-policy"
+
 func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	rds := getSelfTestRuleDefinitions("datadog_agent_cws_self_test_rule", t.targetFilePath)
 	p := &rules.Policy{
-		Name:    "self-test-policy",
+		Name:    selfTestPolicyName,
 		Version: "1.3.3",
 	}
 
@@ -84,19 +90,26 @@ func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	return p
 }
 
+func (t *SelfTester) CloseAndCleanup() error {
+	if t.targetTempDir != "" {
+		return os.RemoveAll(t.targetTempDir)
+	}
+	return nil
+}
+
 // BeginWaitingForEvent passes the tester in the waiting for event state
 func (t *SelfTester) BeginWaitingForEvent() {
-	t.waitingForEvent = true
+	atomic.StoreUint32(&t.waitingForEvent, 1)
 }
 
 // EndWaitingForEvent exits the waiting for event state
 func (t *SelfTester) EndWaitingForEvent() {
-	t.waitingForEvent = false
+	atomic.StoreUint32(&t.waitingForEvent, 0)
 }
 
 // SendEventIfExpecting sends an event to the tester
-func (t *SelfTester) SendEventIfExpecting(event eval.Event) {
-	if t.waitingForEvent {
+func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
+	if atomic.LoadUint32(&t.waitingForEvent) != 0 {
 		t.eventChan <- event
 	}
 }

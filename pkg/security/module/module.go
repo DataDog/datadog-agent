@@ -309,17 +309,30 @@ func (m *Module) Reload() error {
 	return m.reloadWithPoliciesDir(m.config.PoliciesDir, m.selfTester.GetSelfTestPolicy())
 }
 
+const selfTestMaxRetry = 3
+
 func (m *Module) doSelfTest() error {
 	m.selfTester.BeginWaitingForEvent()
 	defer m.selfTester.EndWaitingForEvent()
 
-	for _, fn := range SelfTestFunctions {
-		if err := fn(m.selfTester); err != nil {
-			return err
+	actualTest := func(tryN int) error {
+		for _, fn := range SelfTestFunctions {
+			if err := fn(m.selfTester); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	var err error
+	for i := 0; i < selfTestMaxRetry; i++ {
+		err = actualTest(i)
+		if err == nil {
+			break
 		}
 	}
 
-	return nil
+	return err
 }
 
 // Close the module
@@ -335,6 +348,8 @@ func (m *Module) Close() {
 		m.listener.Close()
 		os.Remove(m.config.SocketPath)
 	}
+
+	m.selfTester.CloseAndCleanup()
 
 	m.probe.Close()
 
@@ -390,7 +405,7 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	m.selfTester.SendEventIfExpecting(event)
+	m.selfTester.SendEventIfExpecting(rule, event)
 	m.SendEvent(rule, event, extTagsCb, service)
 }
 
