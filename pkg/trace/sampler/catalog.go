@@ -9,6 +9,7 @@ import (
 	"container/list"
 	"sync"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,10 +36,14 @@ type catalogEntry struct {
 
 // newServiceLookup returns a new serviceKeyCatalog.
 func newServiceLookup() *serviceKeyCatalog {
+	entries := maxCatalogEntries
+	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
+		entries = v
+	}
 	return &serviceKeyCatalog{
 		items:      make(map[ServiceSignature]*list.Element),
 		ll:         list.New(),
-		maxEntries: maxCatalogEntries,
+		maxEntries: entries,
 	}
 }
 
