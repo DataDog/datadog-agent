@@ -220,7 +220,7 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-func (m *Module) reloadWithPoliciesDir(policiesDir string, additionalPolicy *rules.Policy) error {
+func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules.Policy) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -253,8 +253,12 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, additionalPolicy *rul
 		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
 	}
 
-	if additionalPolicy != nil {
-		_, rules, merr := additionalPolicy.GetValidMacroAndRules()
+	if selfTestPolicy != nil {
+		selfTestPolicyFilename := "datadog_cws_self_test.policy"
+		ruleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
+		approverRuleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
+
+		_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
 		if merr.ErrorOrNil() != nil {
 			logMultiErrors("error while loading additional policies", merr)
 		}
