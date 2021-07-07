@@ -121,7 +121,7 @@ require (
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20201110085921-73520a520aac
 	github.com/iovisor/gobpf v0.0.0
-	github.com/itchyny/gojq v0.12.3
+	github.com/itchyny/gojq v0.12.4
 	github.com/json-iterator/go v1.1.11
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/klauspost/compress v1.11.12 // indirect
@@ -174,7 +174,7 @@ require (
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210525143221-35b2ab0089ea
+	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b
 	golang.org/x/text v0.3.6
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.4
