@@ -6,17 +6,22 @@ services:
     image: wurstmeister/zookeeper
     ports:
       - 2181:2181
-    deploy:
-      placement:
-        constraints: [ node.role == manager ]
-      resources:
-        limits:
-          memory: 1G
     healthcheck:
       test: [ "CMD-SHELL", "echo ruok | nc -w 2 zookeeper 2181" ]
       interval: 5s
       timeout: 10s
       retries: 3
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 10
+        window: 30s
+      placement:
+        constraints: [ node.role == manager ]
+      resources:
+        limits:
+          memory: 1G
 
   kafka:
     image: wurstmeister/kafka:2.12-2.3.1
@@ -37,6 +42,11 @@ services:
       timeout: 45s
       retries: 10
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 10
+        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -53,6 +63,11 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 10
+        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
@@ -69,6 +84,11 @@ services:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 10
+        window: 30s
       placement:
         constraints: [ node.role == manager ]
       resources:
