@@ -33,7 +33,7 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 		return disabled, errors.Wrap(err, "configuration: ")
 	}
 	if !cfg.Enabled {
-		log.Error("AppSec agent disabled. Set the environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
+		log.Info("AppSec agent disabled. Set the environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
 			"`appsec_config.enabled: true` to your datadog.yaml file")
 		return disabled, nil
 	}
