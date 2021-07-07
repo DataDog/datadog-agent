@@ -24,7 +24,9 @@ import (
 // the agent configuration.
 func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 	disabled := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "appsec api disabled", http.StatusNotImplemented)
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotImplemented)
+		json.NewEncoder(w).Encode("appsec api disabled")
 	})
 	cfg, err := newConfig(coreconfig.Datadog)
 	if err != nil {
@@ -59,6 +61,7 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 		}
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
+		w.Header().Add("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
 	}
