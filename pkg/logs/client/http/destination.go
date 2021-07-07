@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -237,13 +238,16 @@ func buildURL(endpoint config.Endpoint) string {
 	} else {
 		address = endpoint.Host
 	}
-	uri := ""
-	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		uri = fmt.Sprintf("api/v2/%s", endpoint.TrackType)
-	} else {
-		uri = "v1/input"
+	url := url.URL{
+		Scheme: scheme,
+		Host:   address,
 	}
-	return fmt.Sprintf("%v://%v/%v", scheme, address, uri)
+	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
+		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+	} else {
+		url.Path = "/v1/input"
+	}
+	return url.String()
 }
 
 func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {
