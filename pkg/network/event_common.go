@@ -77,6 +77,31 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	DNS                         map[util.Address][]string
@@ -149,20 +174,21 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	SPort                       uint16
+	DPort                       uint16
+	Type                        ConnectionType
+	Family                      ConnectionFamily
+	Direction                   ConnectionDirection
+	SPortIsEphemeral            EphemeralPortType
+	IPTranslation               *IPTranslation
+	IntraHost                   bool
+	DNSSuccessfulResponses      uint32
+	DNSFailedResponses          uint32
+	DNSTimeouts                 uint32
+	DNSSuccessLatencySum        uint64
+	DNSFailureLatencySum        uint64
+	DNSCountByRcode             map[uint32]uint32
+	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
 
 	Via *Via
 }

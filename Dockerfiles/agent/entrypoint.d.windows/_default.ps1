@@ -1,0 +1,1 @@
+C:\entrypoint.exe datadogagent

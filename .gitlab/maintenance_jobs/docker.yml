@@ -24,13 +24,13 @@
 #
 # Use these steps to revert the latest tags to a previous release
 # while maintaining content trust signatures
-# - Create a pipeline on master with the RELEASE_6 and/or RELEASE_7 env vars
+# - Create a pipeline on main with the RELEASE_6 and/or RELEASE_7 env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 #
 revert_latest_6_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -45,7 +45,7 @@ revert_latest_6_docker_hub:
 revert_latest_7_docker_hub:
   extends: .docker_tag_job_definition
   rules:
-    !reference [.on_master_manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     <<: *docker_hub_variables
@@ -98,7 +98,7 @@ revert_latest_7_docker_hub:
 revert_latest_6_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    !reference [.on_master_manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -113,7 +113,7 @@ revert_latest_6_google_container_registry:
 revert_latest_7_google_container_registry:
   extends: .google_container_registry_tag_job_definition
   rules:
-    !reference [.on_master_manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   variables:
     <<: *google_container_registry_variables
@@ -166,11 +166,11 @@ revert_latest_7_google_container_registry:
 #
 # Use this step to delete a tag of a given image
 # We call the Docker Hub API because docker cli doesn't support deleting tags
-# - Run a pipeline on master with the IMAGE and TAG env vars
+# - Run a pipeline on main with the IMAGE and TAG env vars
 # - in the gitlab pipeline view, trigger the step (in the first column)
 delete_docker_tag:
   rules:
-    !reference [.on_master_manual]
+    !reference [.on_main_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
   tags: ["runner:docker", "size:large"]

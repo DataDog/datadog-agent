@@ -52,23 +52,29 @@ func GenerateSecretData(notBefore, notAfter time.Time, hosts []string) (map[stri
 	return data, nil
 }
 
-// GetDurationBeforeExpiration returns the time.Duration before the
-// TLS certificate contained in the provided Secret.Data expires.
-func GetDurationBeforeExpiration(data map[string][]byte) (time.Duration, error) {
+// GetCertFromSecret returns the x509.Certificate from Secret.Data.
+func GetCertFromSecret(data map[string][]byte) (*x509.Certificate, error) {
 	certPEM, ok := data[certKey]
 	if !ok {
-		return 0, fmt.Errorf("the Secret data doesn't contain an entry for %q", certKey)
-	}
-	certAsn1, _ := pem.Decode(certPEM)
-	if certAsn1 == nil {
-		return 0, errors.New("failed to parse certificate PEM")
-	}
-	cert, err := x509.ParseCertificate(certAsn1.Bytes)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse the certificate ASN.1: %v", err)
+		return nil, fmt.Errorf("the Secret data doesn't contain an entry for %q", certKey)
 	}
 
-	return -time.Since(cert.NotAfter), nil
+	certAsn1, _ := pem.Decode(certPEM)
+	if certAsn1 == nil {
+		return nil, errors.New("failed to parse certificate PEM")
+	}
+
+	return x509.ParseCertificate(certAsn1.Bytes)
+}
+
+// GetDurationBeforeExpiration returns the time.Duration before the TLS certificate expires.
+func GetDurationBeforeExpiration(cert *x509.Certificate) time.Duration {
+	return -time.Since(cert.NotAfter)
+}
+
+// GetDNSNames returns the configured DNS names from the certificate.
+func GetDNSNames(cert *x509.Certificate) []string {
+	return cert.DNSNames
 }
 
 // ParseSecretData return the tls.Certificate contained in the provided Secret.Data.

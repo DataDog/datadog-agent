@@ -6,6 +6,7 @@
 package diagnostic
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -137,7 +138,7 @@ func shouldHandleMessage(m *message.Message, filters *Filters) bool {
 }
 
 func formatMessage(m *message.Message, redactedMsg []byte) string {
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}

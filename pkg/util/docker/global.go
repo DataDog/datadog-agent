@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -67,12 +68,12 @@ func EnableTestingMode() {
 }
 
 // HostnameProvider docker implementation for the hostname provider
-func HostnameProvider() (string, error) {
+func HostnameProvider(ctx context.Context) (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return "", err
 	}
-	return du.GetHostname()
+	return du.GetHostname(ctx)
 }
 
 // Config is an exported configuration object that is used when

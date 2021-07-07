@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -39,7 +40,7 @@ func V2() (*v2.Client, error) {
 // V3 returns a client for the ECS metadata API v3 by detecting the endpoint
 // address for the specified container. Returns an error if it was not possible
 // to detect the endpoint address.
-func V3(containerID string) (*v3.Client, error) {
+func V3(ctx context.Context, containerID string) (*v3.Client, error) {
 	return nil, docker.ErrDockerNotCompiled
 }
 

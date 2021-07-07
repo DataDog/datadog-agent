@@ -228,7 +228,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		var ok bool
 		extractVA[key], ok = envVA[key]
 		if !ok || extractVA[key] == "" {
-			_ = log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
+			log.Tracef("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
 		}
 	}
 	appName := extractVA[ApplicationNameKey]
@@ -362,15 +362,17 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 		return res, err
 	}
 
-	// Keep only needed keys
+	// Keep only needed keys, if they are present
 	for _, key := range envVcapApplicationKeys {
 		val, ok := vcMap[key]
 		if !ok {
-			return res, fmt.Errorf("could not find key %s in VCAP_APPLICATION env var", key)
+			log.Tracef("Could not find key %s in VCAP_APPLICATION env var", key)
+			continue
 		}
 		valString, ok := val.(string)
 		if !ok {
-			return res, fmt.Errorf("could not parse the value of %s as a string", key)
+			log.Debugf("Could not parse the value of %s as a string", key)
+			continue
 		}
 		res[key] = valString
 	}

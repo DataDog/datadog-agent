@@ -357,7 +357,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(time.Duration(config.Datadog.GetInt("check_sampler_bucket_expiry")) * time.Second)
+	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"))
 	return nil
 }
 
@@ -594,7 +594,7 @@ func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks 
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
 	// Add a simple service check for the Agent status
 	agg.addServiceCheck(metrics.ServiceCheck{
-		CheckName: "datadog.agent.up",
+		CheckName: fmt.Sprintf("datadog.%s.up", agg.agentName),
 		Status:    metrics.ServiceCheckOK,
 		Tags:      agg.tags(false),
 		Host:      agg.hostname,

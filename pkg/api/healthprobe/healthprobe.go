@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -70,6 +71,9 @@ func healthHandler(getStatusNonBlocking func() (health.Status, error), w http.Re
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
+		if config.Datadog.GetBool("log_all_goroutines_when_unhealthy") {
+			log.Infof("Goroutines stack: \n%s\n", allStack())
+		}
 	}
 
 	jsonHealth, err := json.Marshal(health)

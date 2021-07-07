@@ -8,6 +8,7 @@
 package checks
 
 import (
+	"context"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -54,7 +55,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	podList, err := kubeUtil.GetRawLocalPodList()
+	podList, err := kubeUtil.GetRawLocalPodList(context.TODO())
 	if err != nil {
 		return nil, err
 	}

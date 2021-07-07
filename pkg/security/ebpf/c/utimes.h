@@ -15,10 +15,7 @@ struct utime_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    struct {
-        long tv_sec;
-        long tv_usec;
-    } atime, mtime;
+    struct ktimeval atime, mtime;
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
@@ -64,23 +61,17 @@ SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
 }
 
 int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UTIME);
     if (!syscall)
         return 0;
 
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
+
     struct utime_event_t event = {
         .syscall.retval = retval,
-        .atime = {
-            .tv_sec = syscall->setattr.atime.tv_sec,
-            .tv_usec = syscall->setattr.atime.tv_nsec,
-        },
-        .mtime = {
-            .tv_sec = syscall->setattr.mtime.tv_sec,
-            .tv_usec = syscall->setattr.mtime.tv_nsec,
-        },
+        .atime = syscall->setattr.atime,
+        .mtime = syscall->setattr.mtime,
         .file = syscall->setattr.file,
     };
 
@@ -142,6 +133,11 @@ int tracepoint_syscalls_sys_exit_futimesat(struct tracepoint_syscalls_sys_exit_t
 
 SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
     return kprobe_sys_utimes_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_utimes_exit")
+int tracepoint_handle_sys_utimes_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_utimes_ret(args, args->ret);
 }
 
 #endif

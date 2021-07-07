@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -61,36 +62,40 @@ func (pd *configPoller) start(ac *AutoConfig) {
 		return
 	}
 	pd.stopChan = make(chan struct{})
-	pd.healthHandle = health.RegisterReadiness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
+	pd.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
 	pd.isPolling = true
 	go pd.poll(ac)
 }
 
 // poll polls config of the corresponding config provider
 func (pd *configPoller) poll(ac *AutoConfig) {
+	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(pd.pollInterval)
 	for {
 		select {
-		case <-pd.healthHandle.C:
+		case healthDeadline := <-pd.healthHandle.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case <-pd.stopChan:
 			pd.healthHandle.Deregister() //nolint:errcheck
+			cancel()
 			ticker.Stop()
 			return
 		case <-ticker.C:
 			log.Tracef("Polling %s config provider", pd.provider.String())
 			// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
-			upToDate, err := pd.provider.IsUpToDate()
+			upToDate, err := pd.provider.IsUpToDate(ctx)
 			if err != nil {
 				log.Errorf("Cache processing of %v configuration provider failed: %v", pd.provider, err)
 			}
-			if upToDate == true {
+			if upToDate {
 				log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
 				break
 			}
 
 			// retrieve the list of newly added configurations as well
 			// as removed configurations
-			newConfigs, removedConfigs := pd.collect()
+			newConfigs, removedConfigs := pd.collect(ctx)
 			if len(newConfigs) > 0 || len(removedConfigs) > 0 {
 				log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConfigs), len(removedConfigs))
 			} else {
@@ -113,12 +118,12 @@ func (pd *configPoller) poll(ac *AutoConfig) {
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (pd *configPoller) collect() ([]integration.Config, []integration.Config) {
+func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []integration.Config) {
 	var newConf []integration.Config
 	var removedConf []integration.Config
 	old := pd.configs
 
-	fetched, err := pd.provider.Collect()
+	fetched, err := pd.provider.Collect(ctx)
 	if err != nil {
 		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
 		return nil, nil

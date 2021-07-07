@@ -251,7 +251,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			[]Metric{},
-			fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseInt: parsing \"abc\": invalid syntax"),
+			fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
 		},
 		{
 			"cannot convert ifHCInOctets to float",
@@ -280,7 +280,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			[]Metric{},
-			fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseInt: parsing \"abc\": invalid syntax"),
+			fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
 		},
 	}
 	for _, tt := range tests {

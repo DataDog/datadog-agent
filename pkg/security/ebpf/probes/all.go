@@ -116,6 +116,7 @@ func AllTailRoutes() []manager.TailCallRoute {
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getSysExitTailCallRoutes()...)
 
 	return routes
 }

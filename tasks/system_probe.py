@@ -49,6 +49,7 @@ def build(
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
+    compile_ebpf=True,
     bundle_ebpf=False,
 ):
     """
@@ -84,8 +85,9 @@ def build(
             )
         )
     else:
-        # Only build ebpf files on unix
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        if compile_ebpf:
+            # Only build ebpf files on unix
+            build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path

@@ -189,6 +189,10 @@ build do
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
 
+            # We get the following error when the aerospike lib is stripped:
+            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
+            strip_exclude("*aerospike*")
+
             # Do not strip eBPF programs
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")

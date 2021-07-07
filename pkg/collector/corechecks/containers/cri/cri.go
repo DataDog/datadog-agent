@@ -108,6 +108,16 @@ func (c *CRICheck) generateMetrics(sender aggregator.Sender, containerStats map[
 			continue
 		}
 
+		ctnStatus, err := criUtil.GetContainerStatus(cid)
+		if err != nil {
+			log.Debugf("Could not retrieve the status of container %q: %s", cid, err)
+			continue
+		}
+
+		if ctnStatus == nil || ctnStatus.State != pb.ContainerState_CONTAINER_RUNNING || c.isExcluded(ctnStatus) {
+			continue
+		}
+
 		entityID := containers.BuildTaggerEntityName(cid)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
@@ -115,15 +125,8 @@ func (c *CRICheck) generateMetrics(sender aggregator.Sender, containerStats map[
 		}
 		tags = append(tags, "runtime:"+criUtil.GetRuntime())
 
-		ctnStatus, err := criUtil.GetContainerStatus(cid)
-		if err == nil && ctnStatus != nil {
-			if c.isExcluded(ctnStatus) {
-				continue
-			}
-
-			currentUnixTime := time.Now().UnixNano()
-			c.computeContainerUptime(sender, currentUnixTime, *ctnStatus, tags)
-		}
+		currentUnixTime := time.Now().UnixNano()
+		c.computeContainerUptime(sender, currentUnixTime, *ctnStatus, tags)
 
 		c.processContainerStats(sender, *stats, tags)
 	}

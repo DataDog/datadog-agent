@@ -108,6 +108,11 @@ func (b *Builder) WithGenerateStoreFunc(f ksmtypes.BuildStoreFunc) {
 	b.ksmBuilder.WithGenerateStoreFunc(f)
 }
 
+// WithAllowLabels configures which labels can be returned for metrics
+func (b *Builder) WithAllowLabels(l map[string][]string) {
+	b.ksmBuilder.WithAllowLabels(l)
+}
+
 // Build initializes and registers all enabled stores.
 func (b *Builder) Build() []cache.Store {
 	return b.ksmBuilder.Build()

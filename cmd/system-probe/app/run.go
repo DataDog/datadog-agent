@@ -198,6 +198,7 @@ func enableProfiling(cfg *config.Config) error {
 		"system-probe",
 		cfg.ProfilingPeriod,
 		cfg.ProfilingCPUDuration,
+		false,
 		fmt.Sprintf("version:%v", v),
 	)
 }

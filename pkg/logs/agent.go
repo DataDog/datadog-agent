@@ -95,7 +95,7 @@ func NewAgent(sources *config.LogSources, services *service.Services, processing
 	// setup the inputs
 	inputs := []restart.Restartable{
 		file.NewScanner(sources, coreConfig.Datadog.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor,
-			file.DefaultSleepDuration, validatePodContainerID),
+			file.DefaultSleepDuration, validatePodContainerID, time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second))),
 		listener.NewLauncher(sources, coreConfig.Datadog.GetInt("logs_config.frame_size"), pipelineProvider),
 		journald.NewLauncher(sources, pipelineProvider, auditor),
 		windowsevent.NewLauncher(sources, pipelineProvider),

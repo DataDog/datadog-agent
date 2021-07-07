@@ -94,14 +94,6 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 	return f.BasenameStr
 }
 
-// ResolveFileContainerPath resolves the inode to a full path
-func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
-	if len(f.ContainerPath) == 0 {
-		f.ContainerPath = ev.resolvers.resolveContainerPath(&f.FileFields)
-	}
-	return f.ContainerPath
-}
-
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
@@ -301,7 +293,7 @@ func (ev *Event) ResolveExecArgsOptions(e *model.ExecEvent) (options []string) {
 			}
 			if len(name) > 0 && model.IsAlphaNumeric(rune(name[0])) {
 				if index := strings.IndexRune(name, '='); index == -1 {
-					if i < len(args)-1 && args[i+1][0] != '-' {
+					if i < len(args)-1 && (len(args[i+1]) == 0 || args[i+1][0] != '-') {
 						options = append(options, name+"="+args[i+1])
 						i++
 					}

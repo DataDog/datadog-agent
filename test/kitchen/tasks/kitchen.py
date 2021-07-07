@@ -48,7 +48,7 @@ def genconfig(
                 "Fetching the latest kitchen platforms.json from Github. Use --platformfile=platforms.json to override with a local file."
             )
             r = requests.get(
-                'https://raw.githubusercontent.com/DataDog/datadog-agent/master/test/kitchen/platforms.json',
+                'https://raw.githubusercontent.com/DataDog/datadog-agent/main/test/kitchen/platforms.json',
                 allow_redirects=True,
             )
             r.raise_for_status()
@@ -168,7 +168,7 @@ def should_rerun_failed(_, runlog):
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
     test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
-    with open(runlog, 'r') as f:
+    with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
         result = set(test_result_re.findall(text))
         if result == {'0'} or result == set():

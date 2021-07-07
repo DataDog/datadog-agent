@@ -6,6 +6,7 @@
 package agentchecks
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -20,9 +21,9 @@ import (
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
-func GetPayload() *Payload {
+func GetPayload(ctx context.Context) *Payload {
 	agentChecksPayload := ACPayload{}
-	hostnameData, _ := util.GetHostnameData()
+	hostnameData, _ := util.GetHostnameData(ctx)
 	hostname := hostnameData.Hostname
 	checkStats := runner.GetCheckStats()
 	jmxStartupError := status.GetJMXStartupError()
@@ -79,7 +80,7 @@ func GetPayload() *Payload {
 	}
 
 	// Grab the non agent checks information
-	metaPayload := host.GetMeta(hostnameData)
+	metaPayload := host.GetMeta(ctx, hostnameData)
 	metaPayload.Hostname = hostname
 	cp := common.GetPayload(hostname)
 	ehp := externalhost.GetPayload()

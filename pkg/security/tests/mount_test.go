@@ -15,16 +15,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/model"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
 func TestMount(t *testing.T) {
 	dstMntBasename := "test-dest-mount"
 
-	rules := []*rules.RuleDefinition{{
+	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
 	}, {
@@ -38,7 +40,7 @@ func TestMount(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(nil, rules, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,22 +60,24 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	// Test mount
-	if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
-		t.Fatalf("could not create bind mount: %s", err)
-	}
-
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
-		event, err := test.GetProbeEvent(3*time.Second, "mount")
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetProbeEvent(func() error {
+			// Test mount
+			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
+				t.Fatalf("could not create bind mount: %s", err)
+			}
+			return nil
+		}, func(event *sprobe.Event) bool {
 			assert.Equal(t, event.GetType(), "mount", "wrong event type")
 			assert.Equal(t, event.Mount.MountPointStr, "/"+dstMntBasename, "wrong mount point")
 			assert.Equal(t, event.Mount.GetFSType(), "xfs", "wrong mount fs type")
 
 			mntID = event.Mount.MountID
+			return true
+		}, 3*time.Second, model.FileMountEventType)
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
@@ -93,16 +97,14 @@ func TestMount(t *testing.T) {
 		}
 		defer os.Remove(file)
 
-		if err := os.Chmod(file, 0707); err != nil {
-			t.Fatal(err)
-		}
-
-		event, _, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			return os.Chmod(file, 0707)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
 			assert.Equal(t, event.Chmod.File.PathnameStr, file, "wrong path")
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
@@ -112,32 +114,32 @@ func TestMount(t *testing.T) {
 	}
 	defer releaseFile.Close()
 
-	// Test umount
-	if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
-		t.Fatalf("could not unmount test-mount: %s", err)
-	}
-
 	t.Run("umount", func(t *testing.T) {
-		event, err := test.GetProbeEvent(3*time.Second, "umount")
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetProbeEvent(func() error {
+			// Test umount
+			if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+				t.Fatalf("could not unmount test-mount: %s", err)
+			}
+			return nil
+		}, func(event *sprobe.Event) bool {
 			assert.Equal(t, event.GetType(), "umount", "wrong event type")
 			assert.Equal(t, event.Umount.MountID, mntID, "wrong mount id")
+			return true
+		}, 3*time.Second, model.FileUmountEventType)
+		if err != nil {
+			t.Error(err)
 		}
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
-		if err := syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH); err != nil {
-			t.Fatal(err)
-		}
-
-		event, rule, err := test.GetEvent()
-		if err != nil {
-			t.Error(err)
-		} else {
+		err = test.GetSignal(t, func() error {
+			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, event.GetType(), "chown", "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
+		})
+		if err != nil {
+			t.Error(err)
 		}
 	})
 }

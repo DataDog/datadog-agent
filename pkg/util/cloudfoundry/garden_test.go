@@ -1,15 +1,16 @@
 package cloudfoundry
 
 import (
-	"code.cloudfoundry.org/garden/gardenfakes"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"net"
 	"testing"
 
 	"code.cloudfoundry.org/garden"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"code.cloudfoundry.org/garden/gardenfakes"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 )
 
 func TestParseContainerPorts(t *testing.T) {
@@ -42,60 +43,9 @@ func TestParseContainerPorts(t *testing.T) {
 	assert.Equal(t, expected, addresses)
 }
 
-type fakeContainerImpl struct {
-}
-
-func (f fakeContainerImpl) Prefetch() error {
-	return nil
-}
-
-func (f fakeContainerImpl) ContainerExists(containerID string) bool {
-	return true
-}
-
-func (f fakeContainerImpl) GetContainerStartTime(containerID string) (int64, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) DetectNetworkDestinations(pid int) ([]containers.NetworkDestination, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) GetAgentCID() (string, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) GetPIDs(containerID string) ([]int32, error) {
-	return []int32{123}, nil
-}
-
-func (f fakeContainerImpl) ContainerIDForPID(pid int) (string, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) GetDefaultGateway() (net.IP, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) GetDefaultHostIPs() ([]string, error) {
-	panic("implement me")
-}
-
-func (f fakeContainerImpl) GetContainerMetrics(containerID string) (*metrics.ContainerMetrics, error) {
-	return nil, nil
-}
-
-func (f fakeContainerImpl) GetContainerLimits(containerID string) (*metrics.ContainerLimits, error) {
-	return nil, nil
-}
-
-func (f fakeContainerImpl) GetNetworkMetrics(containerID string, networks map[string]string) (metrics.ContainerNetStats, error) {
-	return nil, nil
-}
-
 func TestListContainers(t *testing.T) {
 	defer providers.Deregister()
-	providers.Register(fakeContainerImpl{})
+	providers.Register(providerMocks.FakeContainerImpl{})
 	cli := gardenfakes.FakeClient{}
 	bulkContainers := map[string]garden.ContainerInfoEntry{
 		"ok": {

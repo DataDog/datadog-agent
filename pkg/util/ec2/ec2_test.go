@@ -6,6 +6,7 @@
 package ec2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -61,6 +62,7 @@ func TestIsDefaultHostnameForIntake(t *testing.T) {
 }
 
 func TestGetInstanceID(t *testing.T) {
+	ctx := context.Background()
 	expected := "i-0123456789abcdef0"
 	var responseCode int
 	var lastRequest *http.Request
@@ -77,21 +79,21 @@ func TestGetInstanceID(t *testing.T) {
 
 	// API errors out, should return error
 	responseCode = http.StatusInternalServerError
-	val, err := GetInstanceID()
+	val, err := GetInstanceID(ctx)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// API successful, should return API result
 	responseCode = http.StatusOK
-	val, err = GetInstanceID()
+	val, err = GetInstanceID(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// the internal cache is populated now, should return the cached value even if API errors out
 	responseCode = http.StatusInternalServerError
-	val, err = GetInstanceID()
+	val, err = GetInstanceID(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
@@ -99,13 +101,14 @@ func TestGetInstanceID(t *testing.T) {
 	// the internal cache is populated, should refresh result if API call succeeds
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
-	val, err = GetInstanceID()
+	val, err = GetInstanceID(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	expected := "ip-10-10-10-10.ec2.internal"
 	var responseCode int
 	var lastRequest *http.Request
@@ -122,21 +125,21 @@ func TestGetHostname(t *testing.T) {
 
 	// API errors out, should return error
 	responseCode = http.StatusInternalServerError
-	val, err := GetHostname()
+	val, err := GetHostname(ctx)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// API successful, should return hostname
 	responseCode = http.StatusOK
-	val, err = GetHostname()
+	val, err = GetHostname(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// the internal cache is populated now, should return the cached hostname even if API errors out
 	responseCode = http.StatusInternalServerError
-	val, err = GetHostname()
+	val, err = GetHostname(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
@@ -144,7 +147,7 @@ func TestGetHostname(t *testing.T) {
 	// the internal cache is populated, should refresh result if API call succeeds
 	responseCode = http.StatusOK
 	expected = "ip-20-20-20-20.ec2.internal"
-	val, err = GetHostname()
+	val, err = GetHostname(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
@@ -153,7 +156,7 @@ func TestGetHostname(t *testing.T) {
 	cache.Cache.Delete(hostnameCacheKey)
 	// ensure we get an empty string along with the error when not on EC2
 	metadataURL = "foo"
-	val, err = GetHostname()
+	val, err = GetHostname(ctx)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
@@ -205,6 +208,7 @@ func TestExtractClusterName(t *testing.T) {
 }
 
 func TestGetNetworkID(t *testing.T) {
+	ctx := context.Background()
 	mac := "00:00:00:00:00"
 	vpc := "vpc-12345"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -224,12 +228,13 @@ func TestGetNetworkID(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := GetNetworkID()
+	val, err := GetNetworkID(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, vpc, val)
 }
 
 func TestGetInstanceIDNoMac(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "")
 	}))
@@ -239,12 +244,13 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	_, err := GetNetworkID()
+	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no mac addresses returned")
 }
 
 func TestGetInstanceIDMultipleVPC(t *testing.T) {
+	ctx := context.Background()
 	mac := "00:00:00:00:00"
 	vpc := "vpc-12345"
 	mac2 := "00:00:00:00:01"
@@ -269,7 +275,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	_, err := GetNetworkID()
+	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }
@@ -297,6 +303,7 @@ func TestGetLocalIPv4(t *testing.T) {
 }
 
 func TestGetPublicIPv4(t *testing.T) {
+	ctx := context.Background()
 	ip := "10.0.0.2"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -313,12 +320,13 @@ func TestGetPublicIPv4(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := GetPublicIPv4()
+	val, err := GetPublicIPv4(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, ip, val)
 }
 
 func TestGetToken(t *testing.T) {
+	ctx := context.Background()
 	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -335,7 +343,7 @@ func TestGetToken(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	token, err := getToken()
+	token, err := getToken(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, originalToken, token)
 }
@@ -468,6 +476,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.123"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -478,7 +487,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 	metadataURL = ts.URL
 	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
-	actualHosts := GetNTPHosts()
+	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
 }
