@@ -5,7 +5,6 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,6 +51,23 @@ func TestCommandLineSplitting(t *testing.T) {
 				"--renderer-client-id=1103",
 				"--mojo-platform-channel-handle=13292",
 				"/prefetch:1",
+			},
+		},
+		{
+			input: "cmd /c \"\"c:\\devtools\\vstudio\\VC\\Auxiliary\\Build\\vcvarsall.bat\" -vcvars_ver=14.2 amd64 >nul 2>&1 <NUL\" & echo cdARN4xjKueKScMy9C6H& set",
+			expected: []string{
+				"cmd",
+				"/c",
+				"\"c:\\devtools\\vstudio\\VC\\Auxiliary\\Build\\vcvarsall.bat\"",
+				"-vcvars_ver=14.2",
+				"amd64",
+				">nul",
+				"2>&1",
+				"<NUL",
+				"&",
+				"echo",
+				"cdARN4xjKueKScMy9C6H&",
+				"set",
 			},
 		},
 	} {
