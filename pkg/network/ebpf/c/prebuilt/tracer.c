@@ -876,7 +876,7 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     // For now let's only store information for TCP sockets
     struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
     enum sock_type sock_type = 0;
-    bpf_probe_read(&sock_type, sizeof(short), (char*)socket + offsetof(struct socket, type));
+    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
     if (sock_type != SOCK_STREAM) {
         goto cleanup;
     }
@@ -929,7 +929,7 @@ int kretprobe__do_sendfile(struct pt_regs* ctx) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
+        goto cleanup;
     }
 
     handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
