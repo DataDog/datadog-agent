@@ -37,7 +37,6 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 			"`appsec_config.enabled: true` to your datadog.yaml file")
 		return disabled, nil
 	}
-
 	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
 }
 
@@ -56,7 +55,7 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 		// Set extra headers
 		req.Header.Set("Via", via)
 		req.Header.Set("Dd-Api-Key", apiKey)
-		if maxPayloadSize > 0 {
+		if req.Body != nil && maxPayloadSize > 0 {
 			req.Body = apiutil.NewLimitedReader(req.Body, maxPayloadSize)
 		}
 	}
