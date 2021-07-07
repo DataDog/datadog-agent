@@ -2,11 +2,13 @@
 # e2e stage
 # Contains jobs which runs e2e tests on our Docker images.
 
-.pupernetes_template:
+.k8s_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main", "size:large"]
   dependencies: []
+  variables:
+    LANG: C.UTF-8
   before_script:
     - cd $SRC_PATH
     - python3.6 -m pip install --user -r requirements.txt
@@ -14,8 +16,8 @@
     - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
 
-pupernetes-dev:
-  extends: .pupernetes_template
+k8s-e2e-dev:
+  extends: .k8s_e2e_template
   rules:
     !reference [.on_dev_branch_manual]
   # Note: pupernetes-dev requires the below jobs to work. However,
@@ -33,18 +35,18 @@ pupernetes-dev:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}
 
-pupernetes-main:
-  extends: .pupernetes_template
+k8s-e2e-main:
+  extends: .k8s_e2e_template
   allow_failure: true # temporary while investigating
   rules:
     !reference [.on_main]
-  needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
+#  needs: ["dev_master_docker_hub-a6", "dev_master_docker_hub-a7"]
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master
 
-pupernetes-tags-6:
-  extends: .pupernetes_template
+k8s-e2e-tags-6:
+  extends: .k8s_e2e_template
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
   script:
@@ -52,8 +54,8 @@ pupernetes-tags-6:
     - DCA_VERSION=$(inv -e cluster-agent.version)
     - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION}
 
-pupernetes-tags-7:
-  extends: .pupernetes_template
+k8s-e2e-tags-7:
+  extends: .k8s_e2e_template
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   script:
