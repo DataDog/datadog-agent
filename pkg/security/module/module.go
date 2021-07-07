@@ -254,14 +254,21 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, additionalPolicy *rul
 	}
 
 	if additionalPolicy != nil {
-		merr := ruleSet.AddRules(additionalPolicy.Rules)
+		_, rules, merr := additionalPolicy.GetValidMacroAndRules()
 		if merr.ErrorOrNil() != nil {
 			logMultiErrors("error while loading additional policies", merr)
 		}
 
-		merr = approverRuleSet.AddRules(additionalPolicy.Rules)
-		if merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
+		if len(rules) != 0 {
+			merr = ruleSet.AddRules(rules)
+			if merr.ErrorOrNil() != nil {
+				logMultiErrors("error while loading additional policies", merr)
+			}
+
+			merr = approverRuleSet.AddRules(rules)
+			if merr.ErrorOrNil() != nil {
+				logMultiErrors("error while loading additional policies", merr)
+			}
 		}
 	}
 
