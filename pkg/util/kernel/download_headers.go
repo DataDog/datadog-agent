@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/nikos/apt"
@@ -40,13 +39,6 @@ func downloadHeaders(headerDownloadDir string) ([]string, error) {
 		outputDir string
 		err       error
 	)
-
-	// Before downloading new kernel headers, we'll delete anything we previously downloaded (if it exists).
-	// To ensure we don't delete anything we didn't download, we'll only do this if the user hasn't set a
-	// custom kernel header download directory.
-	if headerDownloadDir == config.DefaultKernelHeadersDownloadDir {
-		deleteDirContents(headerDownloadDir)
-	}
 
 	if outputDir, err = createOutputDir(headerDownloadDir); err != nil {
 		return nil, fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
@@ -118,16 +110,6 @@ func getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err 
 		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
 	}
 	return
-}
-
-func deleteDirContents(path string) {
-	contents, _ := filepath.Glob(filepath.Join(path, "*"))
-	for _, item := range contents {
-		err := os.RemoveAll(item)
-		if err != nil {
-			log.Warnf("error deleting previously downloaded kernel headers: %s", err)
-		}
-	}
 }
 
 func createOutputDir(path string) (string, error) {
