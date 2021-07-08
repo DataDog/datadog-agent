@@ -26,6 +26,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type pendingMsg struct {
@@ -206,8 +207,8 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
 	agentContext := &AgentContext{
-		RuleID:      rule.Definition.ID,
-		RuleVersion: rule.Definition.Version,
+		RuleID:  rule.Definition.ID,
+		Version: version.AgentVersion,
 	}
 
 	ruleEvent := &Signal{
