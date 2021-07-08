@@ -39,7 +39,7 @@ func (m *sysprobeWindowService) Execute(args []string, r <-chan svc.ChangeReques
 	changes <- svc.Status{State: svc.StartPending}
 
 	if err := app.StartSystemProbe(); err != nil {
-		if err == ErrNotEnabled {
+		if err == app.ErrNotEnabled {
 			changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 			return
 		}
