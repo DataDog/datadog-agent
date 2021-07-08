@@ -445,7 +445,7 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	case model.SELinuxStatusChangeEventKind:
 		return &SELinuxEventSerializer{
 			EnforceStatus: &selinuxEnforceStatusSerializer{
-				Status: e.ResolveSELinuxEnforceStatus(&e.SELinux),
+				Status: e.SELinux.EnforceStatus,
 			},
 		}
 	case model.SELinuxBoolCommitEventKind:

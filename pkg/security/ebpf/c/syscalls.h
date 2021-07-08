@@ -23,6 +23,15 @@ struct dentry_resolver_input_t {
     int iteration;
 };
 
+union selinux_write_payload_t {
+    // 1 for true, 0 for false, -1 (max) for error
+    u32 bool_value;
+    struct {
+        u16 disable_value;
+        u16 enforce_value;
+    } status;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -125,7 +134,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct file_t file;
             u32 event_kind;
-            u32 value;
+            union selinux_write_payload_t payload;
         } selinux;
     };
 };

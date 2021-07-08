@@ -328,10 +328,10 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
-	boolValue := ByteOrder.Uint32(data[4:8])
 
 	switch e.EventKind {
 	case SELinuxBoolChangeEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
 		if boolValue == ^uint32(0) {
 			e.BoolChangeValue = "error"
 		} else if boolValue > 0 {
@@ -340,7 +340,18 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 			e.BoolChangeValue = "off"
 		}
 	case SELinuxBoolCommitEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
 		e.BoolCommitValue = boolValue != 0
+	case SELinuxStatusChangeEventKind:
+		disableValue := ByteOrder.Uint16(data[4:6]) != 0
+		enforceValue := ByteOrder.Uint16(data[6:8]) != 0
+		if disableValue {
+			e.EnforceStatus = "disabled"
+		} else if enforceValue {
+			e.EnforceStatus = "enforcing"
+		} else {
+			e.EnforceStatus = "permissive"
+		}
 	}
 
 	return n + 8, nil

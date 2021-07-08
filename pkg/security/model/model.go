@@ -427,7 +427,7 @@ type SELinuxEvent struct {
 	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
 	BoolChangeValue string           `field:"bool.state"`
 	BoolCommitValue bool             `field:"bool_commit.state"`
-	EnforceStatus   string           `field:"enforce.status,ResolveSELinuxEnforceStatus"`
+	EnforceStatus   string           `field:"enforce.status"`
 }
 
 var zeroProcessContext ProcessContext

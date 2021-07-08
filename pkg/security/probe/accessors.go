@@ -3351,10 +3351,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveSELinuxEnforceStatus(&(*Event)(ctx.Object).SELinux)
+				return (*Event)(ctx.Object).SELinux.EnforceStatus
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "setgid.egid":
@@ -6158,7 +6158,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "selinux.enforce.status":
 
-		return e.ResolveSELinuxEnforceStatus(&e.SELinux), nil
+		return e.SELinux.EnforceStatus, nil
 
 	case "setgid.egid":
 

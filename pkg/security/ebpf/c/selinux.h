@@ -6,6 +6,13 @@
 #include "syscalls.h"
 #include "process.h"
 
+enum selinux_source_event_t {
+    SELINUX_BOOL_CHANGE_SOURCE_EVENT,
+    SELINUX_DISABLE_CHANGE_SOURCE_EVENT,
+    SELINUX_ENFORCE_CHANGE_SOURCE_EVENT,
+    SELINUX_BOOL_COMMIT_SOURCE_EVENT,
+};
+
 enum selinux_event_kind_t {
     SELINUX_BOOL_CHANGE_EVENT_KIND,
     SELINUX_STATUS_CHANGE_EVENT_KIND,
@@ -18,7 +25,7 @@ struct selinux_event_t {
     struct container_context_t container;
     struct file_t file;
     u32 event_kind;
-    u32 value; // 1 for true, 0 for false, -1 (max) for error
+    union selinux_write_payload_t payload;
 };
 
 #define SELINUX_WRITE_BUFFER_LEN 64
@@ -35,6 +42,18 @@ struct bpf_map_def SEC("maps/selinux_write_buffer") selinux_write_buffer = {
     .pinning = 0,
     .namespace = "",
 };
+
+struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u16),
+    .max_entries = 2,
+    .pinning = 0,
+    .namespace = "",
+};
+
+#define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
+#define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1
 
 int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     u32 key = 0;
@@ -62,13 +81,32 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_event_kind_t kind) {
+int __attribute__((always_inline)) fill_selinux_status_payload(struct syscall_cache_t *syscall) {
+    // disable
+    u32 key = SELINUX_ENFORCE_STATUS_DISABLE_KEY;
+    void* ptr = bpf_map_lookup_elem(&selinux_enforce_status, &key);
+    if (!ptr) {
+        return 0;
+    }
+    syscall->selinux.payload.status.disable_value = *(u16*)ptr;
+
+    // enforce
+    key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
+    ptr = bpf_map_lookup_elem(&selinux_enforce_status, &key);
+    if (!ptr) {
+        return 0;
+    }
+    syscall->selinux.payload.status.enforce_value = *(u16*)ptr;
+
+    return 0;
+}
+
+int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SELINUX,
         .policy = fetch_policy(EVENT_SELINUX),
         .selinux = {
-            .event_kind = kind,
-            .value = -1,
+            .payload.bool_value = -1,
         },
     };
 
@@ -77,7 +115,33 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     syscall.selinux.file.path_key.mount_id = get_file_mount_id(file);
 
     if (count < SELINUX_WRITE_BUFFER_LEN) {
-        syscall.selinux.value = parse_buf_to_bool(buf);
+        int value = parse_buf_to_bool(buf);
+        switch(source_event) {
+        case SELINUX_BOOL_CHANGE_SOURCE_EVENT:
+            syscall.selinux.event_kind = SELINUX_BOOL_CHANGE_EVENT_KIND;
+            syscall.selinux.payload.bool_value = value;
+            break;
+        case SELINUX_BOOL_COMMIT_SOURCE_EVENT:
+            syscall.selinux.event_kind = SELINUX_BOOL_COMMIT_EVENT_KIND;
+            syscall.selinux.payload.bool_value = value;
+            break;
+        case SELINUX_ENFORCE_CHANGE_SOURCE_EVENT:
+            syscall.selinux.event_kind = SELINUX_STATUS_CHANGE_EVENT_KIND;
+            if (value >= 0) {
+                u32 key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
+                bpf_map_update_elem(&selinux_enforce_status, &key, &value, BPF_ANY);
+            }
+            fill_selinux_status_payload(&syscall);
+            break;
+        case SELINUX_DISABLE_CHANGE_SOURCE_EVENT:
+            syscall.selinux.event_kind = SELINUX_STATUS_CHANGE_EVENT_KIND;
+            if (value >= 0) {
+                u32 key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
+                bpf_map_update_elem(&selinux_enforce_status, &key, &value, BPF_ANY);
+            }
+            fill_selinux_status_payload(&syscall);
+            break;
+        }
     }
     // otherwise let's keep the value = error state.
 
@@ -113,7 +177,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     struct selinux_event_t event = {};
     event.event_kind = syscall->selinux.event_kind;
     event.file = syscall->selinux.file;
-    event.value = syscall->selinux.value;
+    event.payload = syscall->selinux.payload;
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
@@ -128,19 +192,19 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
     return dr_selinux_callback(ctx, retval);
 }
 
-#define PROBE_SEL_WRITE_FUNC(func_name, kind)                  \
+#define PROBE_SEL_WRITE_FUNC(func_name, source_event)          \
     SEC("kprobe/" #func_name)                                  \
     int kprobe__##func_name(struct pt_regs *ctx) {             \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
         const char *buf = (const char *)PT_REGS_PARM2(ctx);    \
         size_t count = (size_t)PT_REGS_PARM3(ctx);             \
         /* selinux only supports ppos = 0 */                   \
-        return handle_selinux_event(ctx, file, buf, count, (kind));    \
+        return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 
-PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_STATUS_CHANGE_EVENT_KIND)
-PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_STATUS_CHANGE_EVENT_KIND)
-PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_EVENT_KIND)
-PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_EVENT_KIND)
+PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_SOURCE_EVENT)
+PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_SOURCE_EVENT)
+PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_SOURCE_EVENT)
+PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_SOURCE_EVENT)
 
 #endif

@@ -387,25 +387,6 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 	return ev.SELinux.BoolName
 }
 
-// ResolveSELinuxEnforceStatus resolves the enforcement status
-func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
-	if e.EventKind != model.SELinuxStatusChangeEventKind {
-		return ""
-	}
-
-	if len(ev.SELinux.EnforceStatus) != 0 {
-		return ev.SELinux.EnforceStatus
-	}
-
-	status, err := ev.resolvers.SELinuxResolver.ResolveCurrentEnforceStatus()
-	if err != nil {
-		return ""
-	}
-
-	ev.SELinux.EnforceStatus = status
-	return ev.SELinux.EnforceStatus
-}
-
 func (ev *Event) String() string {
 	d, err := json.Marshal(ev)
 	if err != nil {
