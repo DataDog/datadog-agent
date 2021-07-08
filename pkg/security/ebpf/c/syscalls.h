@@ -125,8 +125,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct file_t file;
             u32 event_kind;
-            u32 buf_size;
-            char buf[SELINUX_BUF_LEN];
+            u32 value;
         } selinux;
     };
 };

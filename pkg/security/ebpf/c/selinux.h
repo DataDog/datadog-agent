@@ -18,9 +18,49 @@ struct selinux_event_t {
     struct container_context_t container;
     struct file_t file;
     u32 event_kind;
-    u32 buf_size;
-    char buf[SELINUX_BUF_LEN];
+    u32 value; // 1 for true, 0 for false, -1 (max) for error
 };
+
+#define SELINUX_WRITE_BUFFER_LEN 64
+
+struct selinux_write_buffer_t {
+    char buffer[SELINUX_WRITE_BUFFER_LEN];
+};
+
+struct bpf_map_def SEC("maps/selinux_write_buffer") selinux_write_buffer = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct selinux_write_buffer_t),
+    .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
+    u32 key = 0;
+    struct selinux_write_buffer_t *copy = bpf_map_lookup_elem(&selinux_write_buffer, &key);
+    if (!copy) {
+        return -1;
+    }
+    int read_status = bpf_probe_read_str(&copy->buffer, SELINUX_WRITE_BUFFER_LEN, (void *)buf);
+    if (!read_status) {
+        return -1;
+    }
+
+    #pragma unroll
+    for (size_t i = 0; i < SELINUX_WRITE_BUFFER_LEN; i++) {
+        char curr = copy->buffer[i];
+        if (curr == 0) {
+            return 0;
+        } else if ('0' < curr && curr <= '9') {
+            return 1;
+        } else if (curr != '0') {
+            return 0;
+        }
+    }
+
+    return 0;
+}
 
 int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_event_kind_t kind) {
     struct syscall_cache_t syscall = {
@@ -28,6 +68,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
         .policy = fetch_policy(EVENT_SELINUX),
         .selinux = {
             .event_kind = kind,
+            .value = -1,
         },
     };
 
@@ -35,13 +76,10 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     syscall.selinux.dentry = dentry;
     syscall.selinux.file.path_key.mount_id = get_file_mount_id(file);
 
-    size_t buf_size = SELINUX_BUF_LEN;
-    if (count < SELINUX_BUF_LEN) {
-        buf_size = count;
+    if (count < SELINUX_WRITE_BUFFER_LEN) {
+        syscall.selinux.value = parse_buf_to_bool(buf);
     }
-
-    bpf_probe_read(syscall.selinux.buf, buf_size, (void *)buf);
-    syscall.selinux.buf_size = buf_size;
+    // otherwise let's keep the value = error state.
 
     fill_file_metadata(syscall.selinux.dentry, &syscall.selinux.file.metadata);
     set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, 0);
@@ -74,9 +112,8 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
 
     struct selinux_event_t event = {};
     event.event_kind = syscall->selinux.event_kind;
-    event.buf_size = syscall->selinux.buf_size;
-    memcpy(event.buf, syscall->selinux.buf, SELINUX_BUF_LEN);
     event.file = syscall->selinux.file;
+    event.value = syscall->selinux.value;
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

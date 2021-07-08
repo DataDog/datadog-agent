@@ -408,9 +408,6 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
-// SELinuxRawBufCapacity represents the capacity of the byte array in a SELinuxEvent
-const SELinuxRawBufCapacity = 32
-
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -425,14 +422,13 @@ const (
 
 // SELinuxEvent represents a selinux event
 type SELinuxEvent struct {
-	File            FileEvent                   `field:"-"`
-	EventKind       SELinuxEventKind            `field:"-"`
-	RawBufSize      uint32                      `field:"-"`
-	RawBuf          [SELinuxRawBufCapacity]byte `field:"-"`
-	BoolName        string                      `field:"bool.name,ResolveSELinuxBoolName"`
-	BoolChangeValue string                      `field:"bool.state,ResolveSELinuxBoolChangeValue"`
-	BoolCommitValue bool                        `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
-	EnforceStatus   string                      `field:"enforce.status,ResolveSELinuxEnforceStatus"`
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
+	BoolAnyValue    uint32           `field:"-"`
+	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
+	BoolChangeValue string           `field:"bool.state,ResolveSELinuxBoolChangeValue"`
+	BoolCommitValue bool             `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
+	EnforceStatus   string           `field:"enforce.status,ResolveSELinuxEnforceStatus"`
 }
 
 var zeroProcessContext ProcessContext

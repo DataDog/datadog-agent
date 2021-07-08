@@ -187,20 +187,18 @@ type ProcessContextSerializer struct {
 
 // easyjson:json
 type selinuxBoolChangeSerializer struct {
-	Name    string `json:"name,omitempty"`
-	State   string `json:"state,omitempty"`
-	Changed bool   `json:"changed"`
+	Name  string `json:"name,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 // easyjson:json
 type selinuxEnforceStatusSerializer struct {
-	Status  string `json:"status,omitempty"`
-	Changed bool   `json:"changed"`
+	Status string `json:"status,omitempty"`
 }
 
 // easyjson:json
 type selinuxBoolCommitSerializer struct {
-	State bool `json:"state"`
+	State bool `json:"state,omitempty"`
 }
 
 // SELinuxEventSerializer serializes a SELinux context to JSON

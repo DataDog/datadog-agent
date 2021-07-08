@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"path"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -394,28 +393,16 @@ func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
 		return ""
 	}
 
-	if ev.SELinux.BoolChangeValue == "on" || ev.SELinux.BoolChangeValue == "off" {
+	if ev.SELinux.BoolChangeValue == "on" || ev.SELinux.BoolChangeValue == "off" || ev.SELinux.BoolChangeValue == "error" {
 		return ev.SELinux.BoolChangeValue
 	}
 
-	var builder strings.Builder
-	builder.Grow(int(e.RawBufSize))
-	for _, b := range e.RawBuf[:e.RawBufSize] {
-		if b == 0 {
-			break
-		}
-		builder.WriteByte(b)
-	}
-
-	booleanInt, err := strconv.Atoi(builder.String())
-	if err != nil {
-		return ""
-	}
-
-	if booleanInt == 0 {
-		ev.SELinux.BoolChangeValue = "off"
-	} else {
+	if ev.SELinux.BoolAnyValue == ^uint32(0) {
+		ev.SELinux.BoolChangeValue = "error"
+	} else if ev.SELinux.BoolAnyValue > 0 {
 		ev.SELinux.BoolChangeValue = "on"
+	} else {
+		ev.SELinux.BoolChangeValue = "off"
 	}
 	return ev.SELinux.BoolChangeValue
 }
@@ -426,21 +413,7 @@ func (ev *Event) ResolveSELinuxBoolCommitValue(e *model.SELinuxEvent) bool {
 		return false
 	}
 
-	var builder strings.Builder
-	builder.Grow(int(e.RawBufSize))
-	for _, b := range e.RawBuf[:e.RawBufSize] {
-		if b == 0 {
-			break
-		}
-		builder.WriteByte(b)
-	}
-
-	booleanInt, err := strconv.Atoi(builder.String())
-	if err != nil {
-		return false
-	}
-
-	ev.SELinux.BoolCommitValue = booleanInt != 0
+	ev.SELinux.BoolCommitValue = ev.SELinux.BoolAnyValue != 0
 	return ev.SELinux.BoolCommitValue
 }
 
