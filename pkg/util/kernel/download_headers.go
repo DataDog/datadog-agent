@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/nikos/apt"
@@ -40,8 +41,12 @@ func downloadHeaders(headerDownloadDir string) ([]string, error) {
 		err       error
 	)
 
-	// Before downloading new kernel headers, we'll delete anything we previously downloaded (if it exists)
-	deleteDirContents(headerDownloadDir)
+	// Before downloading new kernel headers, we'll delete anything we previously downloaded (if it exists).
+	// To ensure we don't delete anything we didn't download, we'll only do this if the user hasn't set a
+	// custom kernel header download directory.
+	if headerDownloadDir == config.DefaultKernelHeadersDownloadDir {
+		deleteDirContents(headerDownloadDir)
+	}
 
 	if outputDir, err = createOutputDir(headerDownloadDir); err != nil {
 		return nil, fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
