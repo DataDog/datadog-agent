@@ -18,8 +18,7 @@ import (
 type SELinuxResolver struct {
 	sync.RWMutex
 
-	previousEnforceStatus string
-	currentEnforceStatus  string
+	currentEnforceStatus string
 }
 
 // NewSELinuxResolver returns a new SELinux resolver
@@ -32,16 +31,7 @@ func (r *SELinuxResolver) BeginNewResolveStep() {
 	r.Lock()
 	defer r.Unlock()
 
-	r.previousEnforceStatus = r.currentEnforceStatus
 	r.currentEnforceStatus = ""
-}
-
-// ResolvePreviousEnforceStatus returns the previous SELinux enforcement status, one of "enforcing", "permissive", "disabled" or "" if it was not set
-func (r *SELinuxResolver) ResolvePreviousEnforceStatus() string {
-	r.RLock()
-	defer r.RUnlock()
-
-	return r.previousEnforceStatus
 }
 
 // ResolveCurrentEnforceStatus returns the current SELinux enforcement status, one of "enforcing", "permissive", "disabled"

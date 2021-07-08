@@ -3142,16 +3142,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
-	case "selinux.enforce.changed":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-
-				return (*Event)(ctx.Object).SELinux.EnforceStatusHasChanged
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "selinux.enforce.status":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4211,8 +4201,6 @@ func (e *Event) GetFields() []eval.Field {
 		"selinux.bool.state",
 
 		"selinux.bool_commit.state",
-
-		"selinux.enforce.changed",
 
 		"selinux.enforce.status",
 
@@ -5963,10 +5951,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.SELinux.BoolCommitValue, nil
 
-	case "selinux.enforce.changed":
-
-		return e.SELinux.EnforceStatusHasChanged, nil
-
 	case "selinux.enforce.status":
 
 		return e.SELinux.EnforceStatus, nil
@@ -6957,9 +6941,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "selinux", nil
 
 	case "selinux.bool_commit.state":
-		return "selinux", nil
-
-	case "selinux.enforce.changed":
 		return "selinux", nil
 
 	case "selinux.enforce.status":
@@ -8153,10 +8134,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "selinux.bool_commit.state":
-
-		return reflect.Bool, nil
-
-	case "selinux.enforce.changed":
 
 		return reflect.Bool, nil
 
@@ -11150,14 +11127,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		var ok bool
 		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolCommitValue"}
-		}
-		return nil
-
-	case "selinux.enforce.changed":
-
-		var ok bool
-		if e.SELinux.EnforceStatusHasChanged, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatusHasChanged"}
 		}
 		return nil
 

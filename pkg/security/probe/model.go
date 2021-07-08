@@ -463,26 +463,6 @@ func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
 	return ev.SELinux.EnforceStatus
 }
 
-// ResolveSELinuxEnforceStatusHasChanged resolves if the SELinux enforcement has changed
-func (ev *Event) ResolveSELinuxEnforceStatusHasChanged(e *model.SELinuxEvent) bool {
-	if ev.SELinux.EnforceStatusHasChanged {
-		return true
-	}
-
-	previousValue := ev.resolvers.SELinuxResolver.ResolvePreviousEnforceStatus()
-	if previousValue == "" {
-		return true
-	}
-
-	newValue := ev.ResolveSELinuxEnforceStatus(&ev.SELinux)
-	if newValue == "" {
-		return true
-	}
-
-	ev.SELinux.EnforceStatusHasChanged = newValue != previousValue
-	return ev.SELinux.EnforceStatusHasChanged
-}
-
 func (ev *Event) String() string {
 	d, err := json.Marshal(ev)
 	if err != nil {
