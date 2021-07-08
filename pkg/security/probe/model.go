@@ -388,30 +388,6 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 	return ev.SELinux.BoolName
 }
 
-// ResolveSELinuxBoolPreviousValue resolves the previous boolean value of the SELinux event
-func (ev *Event) ResolveSELinuxBoolPreviousValue(e *model.SELinuxEvent) string {
-	if e.EventKind != model.SELinuxBoolChangeEventKind {
-		return ""
-	}
-
-	if ev.SELinux.BoolPreviousValue == "on" || ev.SELinux.BoolPreviousValue == "off" {
-		return ev.SELinux.BoolPreviousValue
-	}
-
-	boolName := ev.ResolveSELinuxBoolName(e)
-	previousValue, err := ev.resolvers.SELinuxResolver.GetCurrentBoolValue(boolName)
-	if err != nil {
-		return ""
-	}
-
-	if previousValue {
-		ev.SELinux.BoolPreviousValue = "on"
-	} else {
-		ev.SELinux.BoolPreviousValue = "off"
-	}
-	return ev.SELinux.BoolPreviousValue
-}
-
 // ResolveSELinuxBoolChangeValue resolves the boolean value of the SELinux event
 func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxBoolChangeEventKind {
@@ -442,47 +418,6 @@ func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
 		ev.SELinux.BoolChangeValue = "on"
 	}
 	return ev.SELinux.BoolChangeValue
-}
-
-// ResolveSELinuxBoolHasChangedValue resolves if the boolean value of the SELinux event has changed
-func (ev *Event) ResolveSELinuxBoolHasChangedValue(e *model.SELinuxEvent) bool {
-	if e.EventKind != model.SELinuxBoolChangeEventKind {
-		return false
-	}
-
-	if ev.SELinux.BoolHasChangedValue {
-		return true
-	}
-
-	previousValue := ev.ResolveSELinuxBoolPreviousValue(e)
-	newValue := ev.ResolveSELinuxBoolChangeValue(e)
-
-	if len(previousValue) == 0 {
-		ev.SELinux.BoolHasChangedValue = true
-	} else {
-		ev.SELinux.BoolHasChangedValue = previousValue != newValue
-	}
-	return ev.SELinux.BoolHasChangedValue
-}
-
-// StoreSELinuxCurrentBoolValue stores the current bool value in the resolver
-func (ev *Event) StoreSELinuxCurrentBoolValue(e *model.SELinuxEvent) {
-	if e.EventKind != model.SELinuxBoolChangeEventKind {
-		return
-	}
-
-	boolName := ev.ResolveSELinuxBoolName(e)
-	var newValue bool
-	switch ev.ResolveSELinuxBoolChangeValue(e) {
-	case "on":
-		newValue = true
-	case "off":
-		newValue = false
-	default:
-		return
-	}
-
-	ev.resolvers.SELinuxResolver.SetCurrentBoolValue(boolName, newValue)
 }
 
 // ResolveSELinuxBoolCommitValue resolves the boolean value of the SELinux event

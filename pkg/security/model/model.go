@@ -431,8 +431,6 @@ type SELinuxEvent struct {
 	RawBuf                  [SELinuxRawBufCapacity]byte `field:"-"`
 	BoolName                string                      `field:"bool.name,ResolveSELinuxBoolName"`
 	BoolChangeValue         string                      `field:"bool.state,ResolveSELinuxBoolChangeValue"`
-	BoolPreviousValue       string                      `field:"-"`
-	BoolHasChangedValue     bool                        `field:"bool.changed,ResolveSELinuxBoolHasChangedValue"`
 	BoolCommitValue         bool                        `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
 	EnforceStatus           string                      `field:"enforce.status,ResolveSELinuxEnforceStatus"`
 	EnforceStatusHasChanged bool                        `field:"enforce.changed,ResolveSELinuxEnforceStatusHasChanged"`

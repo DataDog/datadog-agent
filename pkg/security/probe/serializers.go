@@ -440,9 +440,8 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	case model.SELinuxBoolChangeEventKind:
 		return &SELinuxEventSerializer{
 			BoolChange: &selinuxBoolChangeSerializer{
-				Name:    e.ResolveSELinuxBoolName(&e.SELinux),
-				State:   e.ResolveSELinuxBoolChangeValue(&e.SELinux),
-				Changed: e.ResolveSELinuxBoolHasChangedValue(&e.SELinux),
+				Name:  e.ResolveSELinuxBoolName(&e.SELinux),
+				State: e.ResolveSELinuxBoolChangeValue(&e.SELinux),
 			},
 		}
 	case model.SELinuxStatusChangeEventKind:

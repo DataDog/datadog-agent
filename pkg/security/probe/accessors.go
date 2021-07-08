@@ -3317,16 +3317,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "selinux.bool.changed":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-
-				return (*Event)(ctx.Object).ResolveSELinuxBoolHasChangedValue(&(*Event)(ctx.Object).SELinux)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "selinux.bool.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4420,8 +4410,6 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.user",
 
 		"rmdir.retval",
-
-		"selinux.bool.changed",
 
 		"selinux.bool.name",
 
@@ -6168,10 +6156,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
-	case "selinux.bool.changed":
-
-		return e.ResolveSELinuxBoolHasChangedValue(&e.SELinux), nil
-
 	case "selinux.bool.name":
 
 		return e.ResolveSELinuxBoolName(&e.SELinux), nil
@@ -7170,9 +7154,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
-
-	case "selinux.bool.changed":
-		return "selinux", nil
 
 	case "selinux.bool.name":
 		return "selinux", nil
@@ -8367,10 +8348,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.retval":
 
 		return reflect.Int, nil
-
-	case "selinux.bool.changed":
-
-		return reflect.Bool, nil
 
 	case "selinux.bool.name":
 
@@ -11349,14 +11326,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
-		return nil
-
-	case "selinux.bool.changed":
-
-		var ok bool
-		if e.SELinux.BoolHasChangedValue, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolHasChangedValue"}
-		}
 		return nil
 
 	case "selinux.bool.name":

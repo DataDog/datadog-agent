@@ -501,7 +501,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		event.resolvers.SELinuxResolver.BeginNewResolveStep()
-		event.StoreSELinuxCurrentBoolValue(&event.SELinux)
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return

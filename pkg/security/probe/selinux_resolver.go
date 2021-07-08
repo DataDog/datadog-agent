@@ -17,8 +17,6 @@ import (
 // SELinuxResolver resolved SELinux context
 type SELinuxResolver struct {
 	sync.RWMutex
-	currentBoolValues map[string]bool
-	pendingBoolValues map[string]bool
 
 	previousEnforceStatus string
 	currentEnforceStatus  string
@@ -26,18 +24,7 @@ type SELinuxResolver struct {
 
 // NewSELinuxResolver returns a new SELinux resolver
 func NewSELinuxResolver() *SELinuxResolver {
-	return &SELinuxResolver{
-		currentBoolValues: make(map[string]bool),
-		pendingBoolValues: make(map[string]bool),
-	}
-}
-
-// flushPendingBools flushes currently pending bools so that their values can be retrieved through `GetCurrentBoolValue`
-func (r *SELinuxResolver) flushPendingBools() {
-	for k, v := range r.pendingBoolValues {
-		r.currentBoolValues[k] = v
-		delete(r.pendingBoolValues, k)
-	}
+	return &SELinuxResolver{}
 }
 
 // BeginNewResolveStep starts a new resolver step by converting current state to previous state
@@ -45,29 +32,8 @@ func (r *SELinuxResolver) BeginNewResolveStep() {
 	r.Lock()
 	defer r.Unlock()
 
-	r.flushPendingBools()
 	r.previousEnforceStatus = r.currentEnforceStatus
 	r.currentEnforceStatus = ""
-}
-
-// GetCurrentBoolValue returns the current value of the provided SELinux boolean
-func (r *SELinuxResolver) GetCurrentBoolValue(boolName string) (bool, error) {
-	r.RLock()
-	defer r.RUnlock()
-
-	val, ok := r.currentBoolValues[boolName]
-	if !ok {
-		return false, errors.New("no current value")
-	}
-	return val, nil
-}
-
-// SetCurrentBoolValue sets the current value of the provided SELinux boolean
-func (r *SELinuxResolver) SetCurrentBoolValue(boolName string, value bool) {
-	r.Lock()
-	defer r.Unlock()
-
-	r.pendingBoolValues[boolName] = value
 }
 
 // ResolvePreviousEnforceStatus returns the previous SELinux enforcement status, one of "enforcing", "permissive", "disabled" or "" if it was not set
