@@ -16,7 +16,9 @@ import (
 )
 
 const (
+	// SELinuxStatusDisableKey represents the key in the kernel map managing the current SELinux disable status
 	SELinuxStatusDisableKey uint32 = 0
+	// SELinuxStatusEnforceKey represents the key in the kernel map managing the current SELinux enforce status
 	SELinuxStatusEnforceKey uint32 = 0
 )
 
@@ -54,9 +56,5 @@ func snapshotSELinux(selinuxStatusMap *ebpf.Map) error {
 		return err
 	}
 
-	if err := selinuxStatusMap.Update(sebpf.Uint32MapItem(SELinuxStatusEnforceKey), sebpf.Uint16MapItem(enforceValue), ebpf.UpdateAny); err != nil {
-		return err
-	}
-
-	return nil
+	return selinuxStatusMap.Update(sebpf.Uint32MapItem(SELinuxStatusEnforceKey), sebpf.Uint16MapItem(enforceValue), ebpf.UpdateAny)
 }
