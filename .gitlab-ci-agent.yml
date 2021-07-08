@@ -51,6 +51,11 @@ stages:
   - &only_agent_3_release
     if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
+  - &agent_base
+    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+      when: never
+    - if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
+      when: on_success
 
 ######################### /pipeline bricks
 
@@ -131,15 +136,7 @@ deps_deb:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
 
-.agent_base: &agent_base
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
-      when: never
-    - if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
-      when: on_success
-
 deps_rpm:
-  <<: *agent_base
   stage: prepare
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
@@ -162,9 +159,10 @@ deps_rpm:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
+  rules:
+    - *agent_base
 
 deps_win:
-  <<: *agent_base
   stage: prepare
   before_script:
     - *configure_windows_ps1_env_script
@@ -188,12 +186,13 @@ deps_win:
     expire_in: 1 week
   tags:
     - windows_agent7_ps1
+  rules:
+    - *agent_base
 
 
 ## build_and_test stage
 
 unit_tests:
-  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
@@ -208,9 +207,10 @@ unit_tests:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
+  rules:
+    - *agent_base
 
 unit_tests_cluster_agent:
-  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
@@ -226,15 +226,18 @@ unit_tests_cluster_agent:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
   tags:
     - sts-aws
+  rules:
+    - *agent_base
 
 filename_linting:
-  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
   script:
     - conda activate $CONDA_ENV
     - inv -e lint-filenames
+  rules:
+    - *agent_base
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
@@ -253,7 +256,6 @@ filename_linting:
 #    - sts-aws
 
 build_binaries:
-  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_deb
@@ -266,6 +268,8 @@ build_binaries:
     - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
+  rules:
+    - *agent_base
 
 build_cluster_agent:
   stage: build_and_test
@@ -360,7 +364,6 @@ build_deb:
     expire_in: 1 week
 
 build_rpm:
-  <<: *agent_base
   stage: build_and_test
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
@@ -415,9 +418,10 @@ build_rpm:
       - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
+  rules:
+    - *agent_base
 
 build_win:
-  <<: *agent_base
   stage: build_and_test
   needs:
     - deps_win
@@ -442,21 +446,23 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
+  rules:
+    - *agent_base
 
 
 ## pre_release stage
 
 test_deb_renaming:
-  <<: *agent_base
   stage: pre_release
   needs:
     - build_deb
   before_script: []
   script:
     - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
+  rules:
+    - *agent_base
 
 test_rpm_renaming:
-  <<: *agent_base
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
@@ -464,9 +470,10 @@ test_rpm_renaming:
   before_script: []
   script:
     - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
+  rules:
+    - *agent_base
 
 pre_release_deb:
-  <<: *agent_base
   stage: pre_release
   needs:
     - deps_deb
@@ -482,9 +489,10 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+  rules:
+    - *agent_base
 
 pre_release_win:
-  <<: *agent_base
   stage: pre_release
   needs:
     - deps_win
@@ -506,9 +514,10 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
+  rules:
+    - *agent_base
 
 pre_release_rpm:
-  <<: *agent_base
   stage: pre_release
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
@@ -517,6 +526,8 @@ pre_release_rpm:
   script:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
+  rules:
+    - *agent_base
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
@@ -539,16 +550,16 @@ pre_release_main_agent_image: &pre_release_image
     - sts-k8s-m-runner
 
 pre_release_trace_agent_image:
-  <<: *agent_base
   <<: *pre_release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+  rules:
+    - *agent_base
 
 pre_release_cluster_agent_image:
-  <<: *agent_base
   <<: *pre_release_image
   needs:
     - build_cluster_agent
@@ -558,6 +569,7 @@ pre_release_cluster_agent_image:
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
   rules:
     - *only_agent_3
+    - *agent_base
 
 ## acceptance stage
 
@@ -587,7 +599,6 @@ molecule_tests_vms:
     expire_in: 1 week
 
 molecule_tests_compose:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_main_agent_image
@@ -599,9 +610,10 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
+  rules:
+    - *agent_base
 
 molecule_tests_integrations:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_main_agent_image
@@ -613,9 +625,10 @@ molecule_tests_integrations:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
     expire_in: 1 week
+  rules:
+    - *agent_base
 
 molecule_tests_kubernetes:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_cluster_agent_image
@@ -631,21 +644,22 @@ molecule_tests_kubernetes:
     expire_in: 1 week
   rules:
     - *only_agent_3
+    - *agent_base
 
 molecule_tests_local_install:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_deb
     - pre_release_rpm
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
+  rules:
+    - *agent_base
 #  only:
 #    - tags
 #    - master
 
 molecule_tests_secrets:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_deb
@@ -656,12 +670,13 @@ molecule_tests_secrets:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
+  rules:
+    - *agent_base
 #  only:
 #    - tags
 #    - master
 
 molecule_tests_swarm:
-  <<: *agent_base
   <<: *molecule_base
   needs:
     - pre_release_cluster_agent_image
@@ -673,6 +688,8 @@ molecule_tests_swarm:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
     expire_in: 1 week
+  rules:
+    - *agent_base
 
 
 ## release stage
