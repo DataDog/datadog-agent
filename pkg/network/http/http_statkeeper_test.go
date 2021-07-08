@@ -28,7 +28,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 		for j := 0; j < 10; j++ {
 			statusCode := (j%5 + 1) * 100
-			latency := time.Duration(j%5) * time.Second
+			latency := time.Duration(j%5) * time.Millisecond
 			txs[i*10+j] = generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
 		}
 	}
@@ -47,7 +47,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			p50, err := stats[i].Latencies.GetValueAtQuantile(0.5)
 			assert.Nil(t, err)
 
-			expectedLatency := float64(i)
+			expectedLatency := float64(time.Duration(i) * time.Millisecond)
 			acceptableError := expectedLatency * stats[i].Latencies.IndexMapping.RelativeAccuracy()
 			assert.True(t, p50 >= expectedLatency-acceptableError)
 			assert.True(t, p50 <= expectedLatency+acceptableError)
