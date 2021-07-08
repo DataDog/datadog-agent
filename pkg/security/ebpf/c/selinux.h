@@ -6,14 +6,16 @@
 #include "syscalls.h"
 #include "process.h"
 
-enum selinux_source_event_t {
+enum selinux_source_event_t
+{
     SELINUX_BOOL_CHANGE_SOURCE_EVENT,
     SELINUX_DISABLE_CHANGE_SOURCE_EVENT,
     SELINUX_ENFORCE_CHANGE_SOURCE_EVENT,
     SELINUX_BOOL_COMMIT_SOURCE_EVENT,
 };
 
-enum selinux_event_kind_t {
+enum selinux_event_kind_t
+{
     SELINUX_BOOL_CHANGE_EVENT_KIND,
     SELINUX_STATUS_CHANGE_EVENT_KIND,
     SELINUX_BOOL_COMMIT_EVENT_KIND,
@@ -66,7 +68,7 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
         return -1;
     }
 
-    #pragma unroll
+#pragma unroll
     for (size_t i = 0; i < SELINUX_WRITE_BUFFER_LEN; i++) {
         char curr = copy->buffer[i];
         if (curr == 0) {
@@ -84,11 +86,11 @@ int __attribute__((always_inline)) parse_buf_to_bool(const char *buf) {
 int __attribute__((always_inline)) fill_selinux_status_payload(struct syscall_cache_t *syscall) {
     // disable
     u32 key = SELINUX_ENFORCE_STATUS_DISABLE_KEY;
-    void* ptr = bpf_map_lookup_elem(&selinux_enforce_status, &key);
+    void *ptr = bpf_map_lookup_elem(&selinux_enforce_status, &key);
     if (!ptr) {
         return 0;
     }
-    syscall->selinux.payload.status.disable_value = *(u16*)ptr;
+    syscall->selinux.payload.status.disable_value = *(u16 *)ptr;
 
     // enforce
     key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
@@ -96,7 +98,7 @@ int __attribute__((always_inline)) fill_selinux_status_payload(struct syscall_ca
     if (!ptr) {
         return 0;
     }
-    syscall->selinux.payload.status.enforce_value = *(u16*)ptr;
+    syscall->selinux.payload.status.enforce_value = *(u16 *)ptr;
 
     return 0;
 }
@@ -116,7 +118,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
     if (count < SELINUX_WRITE_BUFFER_LEN) {
         int value = parse_buf_to_bool(buf);
-        switch(source_event) {
+        switch (source_event) {
         case SELINUX_BOOL_CHANGE_SOURCE_EVENT:
             syscall.selinux.event_kind = SELINUX_BOOL_CHANGE_EVENT_KIND;
             syscall.selinux.payload.bool_value = value;
@@ -192,13 +194,13 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
     return dr_selinux_callback(ctx, retval);
 }
 
-#define PROBE_SEL_WRITE_FUNC(func_name, source_event)          \
-    SEC("kprobe/" #func_name)                                  \
-    int kprobe__##func_name(struct pt_regs *ctx) {             \
-        struct file *file = (struct file *)PT_REGS_PARM1(ctx); \
-        const char *buf = (const char *)PT_REGS_PARM2(ctx);    \
-        size_t count = (size_t)PT_REGS_PARM3(ctx);             \
-        /* selinux only supports ppos = 0 */                   \
+#define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
+    SEC("kprobe/" #func_name)                                               \
+    int kprobe__##func_name(struct pt_regs *ctx) {                          \
+        struct file *file = (struct file *)PT_REGS_PARM1(ctx);              \
+        const char *buf = (const char *)PT_REGS_PARM2(ctx);                 \
+        size_t count = (size_t)PT_REGS_PARM3(ctx);                          \
+        /* selinux only supports ppos = 0 */                                \
         return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 

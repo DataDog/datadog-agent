@@ -5,7 +5,6 @@
 #include "process.h"
 
 #define FSTYPE_LEN 16
-#define SELINUX_BUF_LEN 32
 
 struct str_array_ref_t {
     u32 id;

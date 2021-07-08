@@ -30,7 +30,7 @@ func (i Uint8MapItem) MarshalBinary() ([]byte, error) {
 	return []byte{uint8(i)}, nil
 }
 
-// Uint16MapItem describes an uint32 table key or value
+// Uint16MapItem describes an uint16 table key or value
 type Uint16MapItem uint16
 
 // MarshalBinary returns the binary representation of a Uint16MapItem
