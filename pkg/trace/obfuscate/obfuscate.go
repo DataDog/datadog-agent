@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -102,7 +103,9 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLString(b.Resource, config.SQLObfuscationConfig{})
+		oq, err := o.ObfuscateSQLString(b.Resource, config.SQLObfuscationConfig{
+			QuantizeSQLTables: features.Has("quantize_sql_tables"),
+		})
 		if err != nil {
 			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
 			b.Resource = nonParsableResource
