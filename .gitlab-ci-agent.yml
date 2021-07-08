@@ -59,6 +59,12 @@ before_script:
   - *configure_debian_env_script
   - *retrieve_linux_go_deps_script
 
+retry: &retry_job
+  max: 2
+  when:
+    - runner_system_failure
+    - stuck_or_timeout_failure
+    - script_failure
 
 ## prepare stage
 
@@ -197,6 +203,7 @@ unit_tests:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
+  <<: *retry_job
 
 unit_tests_cluster_agent:
   stage: build_and_test
@@ -216,6 +223,7 @@ unit_tests_cluster_agent:
     - sts-aws
   rules:
     - *only_agent_3
+  <<: *retry_job
 
 filename_linting:
   stage: build_and_test
@@ -224,7 +232,6 @@ filename_linting:
   script:
     - conda activate $CONDA_ENV
     - inv -e lint-filenames
-  rules:
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
@@ -255,7 +262,6 @@ build_binaries:
     - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
-  rules:
 
 build_cluster_agent:
   stage: build_and_test
@@ -348,6 +354,7 @@ build_deb:
       - $CI_PROJECT_DIR/version.txt
       - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
+  <<: *retry_job
 
 build_rpm:
   stage: build_and_test
@@ -404,6 +411,7 @@ build_rpm:
       - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
+  <<: *retry_job
 
 build_win:
   stage: build_and_test
@@ -430,6 +438,7 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
+  <<: *retry_job
 
 
 ## pre_release stage
@@ -490,6 +499,7 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
+  <<: *retry_job
 
 pre_release_rpm:
   stage: pre_release
@@ -517,7 +527,7 @@ pre_release_main_agent_image: &pre_release_image
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb ./Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
 
@@ -527,7 +537,7 @@ pre_release_trace_agent_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $CI_COMMIT_SHORT_SHA
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
@@ -536,7 +546,7 @@ pre_release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
   rules:
     - *only_agent_3
 
@@ -551,6 +561,7 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
+  <<: *retry_job
 
 molecule_tests_vms:
   <<: *molecule_base
@@ -704,6 +715,7 @@ release_win:
     - triggers
   tags:
     - windows_agent7_ps1
+  <<: *retry_job
 
 .base_release_image: &base_release_image
   stage: release

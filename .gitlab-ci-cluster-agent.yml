@@ -30,6 +30,13 @@ stages:
 before_script:
   - *retrieve_linux_go_deps_script
 
+retry: &retry_job
+  max: 2
+  when:
+    - runner_system_failure
+    - stuck_or_timeout_failure
+    - script_failure
+
 ## prepare stage
 
 clear_deps_deb_cache:
@@ -87,6 +94,7 @@ unit_tests_cluster_agent:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
   tags:
     - sts-aws
+  <<: *retry_job
 
 
 build_cluster_agent:
@@ -102,7 +110,6 @@ build_cluster_agent:
       - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
       - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
       - $CI_PROJECT_DIR/version.txt
-
 
 build_deb:
   stage: build_and_test
@@ -212,6 +219,7 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
+  <<: *retry_job
 
 molecule_tests_kubernetes:
   <<: *molecule_base

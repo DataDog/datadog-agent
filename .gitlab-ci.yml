@@ -50,10 +50,10 @@ variables: &commonvariables
 
 
 .rules:
-  - &exclude_cluster_agent
+  - &exclude_on_cluster_agent
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: never
-  - &include_cluster_agent
+  - &include_on_cluster_agent
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: on_success
 
@@ -66,7 +66,7 @@ agent2:
     include: .gitlab-ci-agent.yml
     strategy: depend
   rules:
-    - <<: *exclude_cluster_agent
+    - <<: *exclude_on_cluster_agent
     - when: on_success
 
 agent3:
@@ -78,7 +78,7 @@ agent3:
     include: .gitlab-ci-agent.yml
     strategy: depend
   rules:
-    - <<: *exclude_cluster_agent
+    - <<: *exclude_on_cluster_agent
     - when: on_success
 
 cluster_agent:
@@ -90,5 +90,5 @@ cluster_agent:
     include: .gitlab-ci-cluster-agent.yml
     strategy: depend
   rules:
-    - <<: *include_cluster_agent
+    - <<: *include_on_cluster_agent
     - when: never
