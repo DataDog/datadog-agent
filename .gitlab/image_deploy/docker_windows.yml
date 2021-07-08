@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/docker_common/tag_job_templates.yml
+#   - /.gitlab/docker_common/publish_job_templates.yml
 
 dev_branch-a7-windows:
   extends: .docker_job_definition
