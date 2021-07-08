@@ -84,15 +84,6 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		}
 	}
 
-	// get Leader information
-	engine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		status["LeaderError"] = err
-	} else {
-		status["Leader"] = engine.IsLeader()
-		status["LeaderName"] = engine.GetLeader()
-	}
-
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
@@ -118,10 +109,23 @@ func setClusterName(status map[string]interface{}) {
 
 // setCollectionIsWorking checks whether collection is running by checking telemetry/cache data
 func setCollectionIsWorking(status map[string]interface{}) {
-	c := orchestrator.KubernetesResourceCache.ItemCount()
-	if c > 0 {
-		status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
-	} else {
-		status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		status["CollectionWorking"] = "The collection has not run successfully because no leader has been elected."
+		status["LeaderError"] = err
+		return
 	}
+	status["Leader"] = engine.IsLeader()
+	status["LeaderName"] = engine.GetLeader()
+	if engine.IsLeader() {
+		c := orchestrator.KubernetesResourceCache.ItemCount()
+		if c > 0 {
+			status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
+		} else {
+			status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+		}
+	} else {
+		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
+	}
+
 }
