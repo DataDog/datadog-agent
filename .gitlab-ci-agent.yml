@@ -584,8 +584,8 @@ pre_release_cluster_agent_image:
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
   rules:
     - *only_agent_3
-    - *commit_message_contains_cluster_agent
-    - *commit_message_does_not_contain_cluster_agent
+    # - *commit_message_contains_cluster_agent
+    # - *commit_message_does_not_contain_cluster_agent
 
 ## acceptance stage
 
@@ -662,8 +662,8 @@ molecule_tests_kubernetes:
     expire_in: 1 week
   rules:
     - *only_agent_3
-    - *commit_message_contains_cluster_agent
-    - *commit_message_does_not_contain_cluster_agent
+    # - *commit_message_contains_cluster_agent
+    # - *commit_message_does_not_contain_cluster_agent
 
 molecule_tests_local_install:
   <<: *molecule_base
