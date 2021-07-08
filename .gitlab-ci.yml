@@ -56,6 +56,9 @@ agent2:
   trigger:
     include: .gitlab-ci-agent.yml
     strategy: depend
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+      when: never
 
 agent3:
   stage: triggers
@@ -65,3 +68,18 @@ agent3:
   trigger:
     include: .gitlab-ci-agent.yml
     strategy: depend
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+      when: never
+
+cluster_agent:
+  stage: triggers
+  variables:
+    <<: *commonvariables
+    <<: *agent2_variables
+  trigger:
+    include: .gitlab-ci-cluster-agent.yml.yml
+    strategy: depend
+  rules:
+    - if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
+      when: on_success
