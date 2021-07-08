@@ -13,7 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var defaultOidBatchSize = 60
+// Python snmp integration is using oid_batch_size=10 as default.
+// Using high oid batch size might lead to snmp calls timing out.
+// For some devices, the default oid_batch_size of 10 might be high (leads to timeouts),
+// and require manual setting oid_batch_size to a lower value e.g. 1 or 5
+var defaultOidBatchSize = 10
+
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
