@@ -784,6 +784,7 @@ molecule_tests_integrations:
 
 molecule_tests_kubernetes:
   <<: *molecule_base
+  resource_group: kubernetes-test-cluster
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
