@@ -71,7 +71,7 @@
 : Number of namespaces. Tags:`phase`.
 
 `kubernetes_state.node.count`
-: Information about a cluster node. Tags:`node` `kernel_version` `os_image` `container_runtime_version` `kubelet_version` `kubeproxy_version` `provider_id` `pod_cidr`.
+: Number of nodes. Tags:`kernel_version` `os_image` `container_runtime_version` `kubelet_version`.
 
 `kubernetes_state.node.cpu_allocatable`
 : The allocatable CPU of a node that is available for scheduling. Tags:`node` `resource` `unit`.

@@ -63,7 +63,6 @@ var (
 		"kube_daemonset_status_number_available":                                                   "daemonset.daemons_available",
 		"kube_endpoint_address_available":                                                          "endpoint.address_available",
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
-		"kube_node_info":                                                                           "node.count",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
 		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
