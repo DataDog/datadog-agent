@@ -231,8 +231,9 @@ unit_tests_cluster_agent:
   tags:
     - sts-aws
   rules:
-    - *commit_message_contains_cluster_agent
-    - *commit_message_does_not_contain_cluster_agent
+    - *only_agent_3
+    # - *commit_message_contains_cluster_agent
+    # - *commit_message_does_not_contain_cluster_agent
 
 filename_linting:
   stage: build_and_test
