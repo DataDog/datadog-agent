@@ -98,6 +98,7 @@ type KSMCheck struct {
 	telemetry   *telemetryCache
 	cancel      context.CancelFunc
 	isCLCRunner bool
+	clusterName string
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -159,6 +160,9 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper)
 
+	// Retrieve cluster name
+	k.getClusterName()
+
 	k.initTags()
 
 	builder := kubestatemetrics.New()
@@ -174,6 +178,16 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	if err := builder.WithEnabledResources(collectors); err != nil {
 		return err
 	}
+
+	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+	// Equivalent to configuring --metric-labels-allowlist.
+	allowedLabels := map[string][]string{}
+	for _, collector := range collectors {
+		// Any label can be used for label joins.
+		allowedLabels[collector] = []string{"*"}
+	}
+
+	builder.WithAllowLabels(allowedLabels)
 
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
@@ -345,7 +359,11 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tag, hostTag := k.buildTag(key, value)
 		tags = append(tags, tag)
 		if hostTag != "" {
-			hostname = hostTag
+			if k.clusterName != "" {
+				hostname = hostTag + "-" + k.clusterName
+			} else {
+				hostname = hostTag
+			}
 		}
 	}
 
@@ -354,7 +372,11 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tag, hostTag := k.buildTag(label.key, label.value)
 		tags = append(tags, tag)
 		if hostTag != "" {
-			hostname = hostTag
+			if k.clusterName != "" {
+				hostname = hostTag + "-" + k.clusterName
+			} else {
+				hostname = hostTag
+			}
 		}
 	}
 
@@ -419,15 +441,22 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 	}
 }
 
+// getClusterName retrieves the name of the cluster, if found
+func (k *KSMCheck) getClusterName() {
+	hostname, _ := util.GetHostname(context.TODO())
+	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
+		k.clusterName = clusterName
+	}
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
 // and sets the kube_cluster_name tag for all metrics
 func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
 	}
-	hostname, _ := util.GetHostname()
-	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+clusterName)
+	if k.clusterName != "" {
+		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterName)
 	}
 }
 

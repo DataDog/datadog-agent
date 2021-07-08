@@ -8,6 +8,7 @@
 package python
 
 import (
+	"context"
 	"sync"
 	"unsafe"
 
@@ -47,7 +48,7 @@ func GetVersion(agentVersion **C.char) {
 // GetHostname exposes the current hostname of the agent to Python checks.
 //export GetHostname
 func GetHostname(hostname **C.char) {
-	goHostname, err := util.GetHostname()
+	goHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
@@ -59,8 +60,8 @@ func GetHostname(hostname **C.char) {
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := util.GetHostname()
-	goClusterName := clustername.GetClusterName(goHostname)
+	goHostname, _ := util.GetHostname(context.TODO())
+	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }
@@ -259,10 +260,19 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		// mysql
 		"attached_condition",
 		// postgres
+		"Cache Key",
+		"Conflict Filter",
+		"Function Call",
+		"Filter",
 		"Hash Cond",
+		"Index Cond",
 		"Join Filter",
 		"Merge Cond",
+		"Output",
 		"Recheck Cond",
+		"Repeatable Seed",
+		"Sampling Parameters",
+		"TID Cond",
 	},
 	KeepValues: []string{
 		// mysql
@@ -287,14 +297,108 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		"using_join_buffer",
 		"using_temporary_table",
 		// postgres
+		"Actual Loops",
+		"Actual Rows",
+		"Actual Startup Time",
+		"Actual Total Time",
 		"Alias",
+		"Async Capable",
+		"Average Sort Space Used",
+		"Cache Evictions",
+		"Cache Hits",
+		"Cache Misses",
+		"Cache Overflows",
+		"Calls",
+		"Command",
+		"Conflict Arbiter Indexes",
+		"Conflict Resolution",
+		"Conflicting Tuples",
+		"Constraint Name",
+		"CTE Name",
+		"Custom Plan Provider",
+		"Deforming",
+		"Emission",
+		"Exact Heap Blocks",
+		"Execution Time",
+		"Expressions",
+		"Foreign Delete",
+		"Foreign Insert",
+		"Foreign Update",
+		"Full-sort Group",
+		"Function Name",
+		"Generation",
+		"Group Count",
+		"Grouping Sets",
+		"Group Key",
+		"HashAgg Batches",
+		"Hash Batches",
+		"Hash Buckets",
+		"Heap Fetches",
+		"I/O Read Time",
+		"I/O Write Time",
 		"Index Name",
+		"Inlining",
+		"Join Type",
+		"Local Dirtied Blocks",
+		"Local Hit Blocks",
+		"Local Read Blocks",
+		"Local Written Blocks",
+		"Lossy Heap Blocks",
 		"Node Type",
+		"Optimization",
+		"Original Hash Batches",
+		"Original Hash Buckets",
 		"Parallel Aware",
 		"Parent Relationship",
+		"Partial Mode",
+		"Peak Memory Usage",
+		"Peak Sort Space Used",
+		"Planned Partitions",
+		"Planning Time",
+		"Pre-sorted Groups",
+		"Presorted Key",
+		"Query Identifier",
 		"Relation Name",
+		"Rows Removed by Conflict Filter",
+		"Rows Removed by Filter",
+		"Rows Removed by Index Recheck",
+		"Rows Removed by Join Filter",
+		"Sampling Method",
 		"Scan Direction",
+		"Schema",
+		"Settings",
+		"Shared Dirtied Blocks",
+		"Shared Hit Blocks",
+		"Shared Read Blocks",
+		"Shared Written Blocks",
+		"Single Copy",
 		"Sort Key",
+		"Sort Method",
+		"Sort Methods Used",
+		"Sort Space Type",
+		"Sort Space Used",
+		"Strategy",
+		"Subplan Name",
+		"Subplans Removed",
+		"Target Tables",
+		"Temp Read Blocks",
+		"Temp Written Blocks",
+		"Time",
+		"Timing",
+		"Total",
+		"Trigger",
+		"Trigger Name",
+		"Triggers",
+		"Tuples Inserted",
+		"Tuplestore Name",
+		"WAL Bytes",
+		"WAL FPI",
+		"WAL Records",
+		"Worker",
+		"Worker Number",
+		"Workers",
+		"Workers Launched",
+		"Workers Planned",
 	},
 }
 

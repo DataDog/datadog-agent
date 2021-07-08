@@ -129,7 +129,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
-			hostname, err := util.GetHostname()
+			hostname, err := util.GetHostname(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 				return err

@@ -1,0 +1,33 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "chmod.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "file:///container_event.json"
+        },
+        {
+            "$ref": "file:///host_event.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "file": {
+                    "type": "object",
+                    "required": [
+                        "destination"
+                    ],
+                    "properties": {
+                        "destination": {
+                            "type": "object",
+                            "required": [
+                                "mode"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

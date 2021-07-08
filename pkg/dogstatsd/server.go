@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -267,7 +268,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	}
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 
-	defaultHostname, err := util.GetHostname()
+	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
 	}
@@ -690,13 +691,18 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
+// storeMetricStats stores stats on the given metric sample.
+// It is storing the stats of the sample as they are received: it means that if
+// a metric is received with duplicated tags, it will be stored this way here.
+// It can help troubleshooting clients with bad behaviors but it is different that
+// what will be outputted by the aggregator, which takes care of deduping the tags
+// to aggregate the metrics.
 func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	now := time.Now()
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
 	// key
-	util.SortUniqInPlace(sample.Tags)
 	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
 
 	// store

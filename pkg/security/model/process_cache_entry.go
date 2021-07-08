@@ -32,7 +32,6 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
 		child.ContainerID = parent.ContainerID
-		child.ContainerPath = parent.ContainerPath
 	}
 }
 
@@ -40,8 +39,8 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
 
-	// empty and mark as exit previous entry
-	pc.ExitTime = entry.ExecTime
+	// use exec time a exit time
+	pc.Exit(entry.ExecTime)
 
 	// keep some context
 	copyProcessContext(pc, entry)
@@ -59,7 +58,6 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.BasenameStr = pc.BasenameStr
 	childEntry.Filesystem = pc.Filesystem
 	childEntry.ContainerID = pc.ContainerID
-	childEntry.ContainerPath = pc.ContainerPath
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.Cookie = pc.Cookie

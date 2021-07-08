@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -40,7 +41,7 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 
 	c.identifier = config.Datadog.GetString("clc_runner_id")
 	if c.identifier == "" {
-		c.identifier, _ = util.GetHostname()
+		c.identifier, _ = util.GetHostname(context.TODO())
 		if config.Datadog.GetBool("cloud_foundry") {
 			boshID := config.Datadog.GetString("bosh_id")
 			if boshID == "" {
@@ -56,7 +57,7 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	}
 
 	// Register in the cluster agent as soon as possible
-	c.IsUpToDate() //nolint:errcheck
+	c.IsUpToDate(context.TODO()) //nolint:errcheck
 
 	return c, nil
 }
@@ -80,7 +81,7 @@ func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
 
 // IsUpToDate queries the cluster-agent to update its status and
 // query if new configurations are available
-func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
+func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
@@ -92,7 +93,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 		LastChange: c.lastChange,
 	}
 
-	reply, err := c.dcaClient.PostClusterCheckStatus(c.identifier, status)
+	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	if err != nil {
 		if c.withinGracePeriod() {
 			// Return true to keep the configs during the grace period
@@ -113,7 +114,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 }
 
 // Collect retrieves configurations the cluster-agent dispatched to this agent
-func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
+func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
@@ -121,7 +122,7 @@ func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	reply, err := c.dcaClient.GetClusterCheckConfigs(c.identifier)
+	reply, err := c.dcaClient.GetClusterCheckConfigs(ctx, c.identifier)
 	if err != nil {
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once

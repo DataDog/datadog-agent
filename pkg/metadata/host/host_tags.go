@@ -1,6 +1,7 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 }
 
 // GetHostTags get the host tags, optionally looking in the cache
-func GetHostTags(cached bool) *Tags {
+func GetHostTags(ctx context.Context, cached bool) *Tags {
 
 	key := buildKey("hostTags")
 	if cached {
@@ -75,8 +76,8 @@ func GetHostTags(cached bool) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
-	hostname, _ := util.GetHostname()
-	clusterName := clustername.GetClusterName(hostname)
+	hostname, _ := util.GetHostname(ctx)
+	clusterName := clustername.GetClusterName(ctx, hostname)
 	if len(clusterName) != 0 {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
 		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
@@ -86,17 +87,17 @@ func GetHostTags(cached bool) *Tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	getEC2 := func() ([]string, error) {
+	getEC2 := func(ctx context.Context) ([]string, error) {
 		if config.Datadog.GetBool("collect_ec2_tags") {
-			return ec2.GetTags()
+			return ec2.GetTags(ctx)
 		}
 		return nil, nil
 	}
 
 	gceTags := []string{}
-	getGCE := func() ([]string, error) {
+	getGCE := func(ctx context.Context) ([]string, error) {
 		if config.Datadog.GetBool("collect_gce_tags") {
-			rawGceTags, err := gce.GetTags()
+			rawGceTags, err := gce.GetTags(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -107,7 +108,7 @@ func GetHostTags(cached bool) *Tags {
 
 	providers := map[string]*struct {
 		retries   int
-		getTags   func() ([]string, error)
+		getTags   func(context.Context) ([]string, error)
 		retrieved bool
 	}{
 		"ec2":        {1, getEC2, false},
@@ -123,7 +124,7 @@ func GetHostTags(cached bool) *Tags {
 	for {
 		for name, provider := range providers {
 			provider.retries--
-			tags, err := provider.getTags()
+			tags, err := provider.getTags(ctx)
 			if err != nil {
 				log.Debugf("No %s host tags, remaining attempts: %d, err: %v", name, provider.retries, err)
 			} else {

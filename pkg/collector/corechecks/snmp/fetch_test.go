@@ -69,13 +69,13 @@ func Test_fetchColumnOids(t *testing.T) {
 			},
 		},
 	}
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.1.1.3"}).Return(&bulkPacket2, nil)
-	session.On("GetBulk", []string{"1.1.1.5"}).Return(&bulkPacket3, nil)
+	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.1.1.3"}, defaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.1.1.5"}, defaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, defaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -156,17 +156,17 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 		},
 	}
 	// First bulk iteration with two batches with batch size 2
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	// Second bulk iteration
-	session.On("GetBulk", []string{"1.1.1.3"}).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.1.1.3"}, defaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
 	// Third bulk iteration
-	session.On("GetBulk", []string{"1.1.1.5"}).Return(&bulkPacket3, nil)
+	session.On("GetBulk", []string{"1.1.1.5"}, defaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -263,7 +263,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := columnResultValuesType{
@@ -572,6 +572,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "invalid batch size",
 			config: snmpConfig{
+				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidConfig: oidConfig{
 					scalarOids: []string{"1.1", "1.2"},
 				},
@@ -581,7 +582,8 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "get fetch error",
 			config: snmpConfig{
-				oidBatchSize: 10,
+				bulkMaxRepetitions: defaultBulkMaxRepetitions,
+				oidBatchSize:       10,
 				oidConfig: oidConfig{
 					scalarOids: []string{"1.1", "2.2"},
 				},
@@ -591,7 +593,8 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "bulk fetch error",
 			config: snmpConfig{
-				oidBatchSize: 10,
+				bulkMaxRepetitions: defaultBulkMaxRepetitions,
+				oidBatchSize:       10,
 				oidConfig: oidConfig{
 					scalarOids: []string{},
 					columnOids: []string{"1.1", "2.2"},
@@ -604,7 +607,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			session := createMockSession()
 			session.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
-			session.On("GetBulk", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+			session.On("GetBulk", []string{"1.1", "2.2"}, defaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 
 			_, err := fetchValues(session, tt.config)
 

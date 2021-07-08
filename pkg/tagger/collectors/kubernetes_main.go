@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ type KubeMetadataCollector struct {
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
-func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *KubeMetadataCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
@@ -103,7 +104,7 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
-func (c *KubeMetadataCollector) Pull() error {
+func (c *KubeMetadataCollector) Pull(ctx context.Context) error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.getLastUpdate().Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
@@ -111,7 +112,7 @@ func (c *KubeMetadataCollector) Pull() error {
 		return nil
 	}
 
-	pods, err := c.kubeUtil.GetLocalPodList()
+	pods, err := c.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return err
 	}
@@ -169,16 +170,16 @@ func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
 // the metadataMapper
-func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *KubeMetadataCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	var lowCards, orchestratorCards, highCards []string
 
-	pod, err := c.kubeUtil.GetPodForEntityID(entity)
+	pod, err := c.kubeUtil.GetPodForEntityID(ctx, entity)
 	if err != nil {
 		return lowCards, orchestratorCards, highCards, err
 	}
 
-	if kubelet.IsPodReady(pod) == false {
-		return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
+	if !kubelet.IsPodReady(pod) {
+		return lowCards, orchestratorCards, highCards, nil
 	}
 
 	pods := []*kubelet.Pod{pod}
@@ -197,6 +198,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
+
 	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
 }
 

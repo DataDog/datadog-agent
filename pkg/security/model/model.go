@@ -230,7 +230,6 @@ type Process struct {
 	Tid uint32 `field:"tid"`
 
 	PathnameStr         string `field:"file.path"`
-	ContainerPath       string `field:"file.container_path"`
 	BasenameStr         string `field:"file.name"`
 	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
@@ -304,10 +303,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFilePath"`
-	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
-	BasenameStr   string `field:"name,ResolveFileBasename"`
-	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
+	PathnameStr string `field:"path,ResolveFilePath"`
+	BasenameStr string `field:"name,ResolveFileBasename"`
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`
 
 	PathResolutionError error `field:"-"`
 }

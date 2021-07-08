@@ -227,7 +227,15 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return tkn.scanBindVar()
 			}
 			fallthrough
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '~', '[', ']', '?':
+		case '~':
+			switch tkn.lastChar {
+			case '*':
+				tkn.advance()
+				return TokenKind('~'), []byte("~*")
+			default:
+				return TokenKind(ch), tkn.bytes()
+			}
+		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']', '?':
 			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
@@ -278,12 +286,23 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			}
 			return TokenKind(ch), tkn.bytes()
 		case '!':
-			if tkn.lastChar == '=' {
+			switch tkn.lastChar {
+			case '=':
 				tkn.advance()
 				return NE, []byte("!=")
+			case '~':
+				tkn.advance()
+				switch tkn.lastChar {
+				case '*':
+					tkn.advance()
+					return NE, []byte("!~*")
+				default:
+					return NE, []byte("!~")
+				}
+			default:
+				tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
+				return LexError, tkn.bytes()
 			}
-			tkn.setErr(`expected "=" after "!", got "%c" (%d)`, tkn.lastChar, tkn.lastChar)
-			return LexError, tkn.bytes()
 		case '\'':
 			return tkn.scanString(ch, String)
 		case '"':

@@ -189,6 +189,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: setting env vars for click
+          command: |
+              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+      - run:
           name: lint python files
           command: inv -e lint-python
 
@@ -320,7 +325,7 @@ workflows:
       - release_note:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:
@@ -328,7 +333,7 @@ workflows:
       - team_label:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:
@@ -336,7 +341,7 @@ workflows:
       - milestone:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:
