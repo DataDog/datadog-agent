@@ -42,7 +42,6 @@ const (
 
 	defaultCacheExpire = 2 * time.Minute
 	defaultCachePurge  = 10 * time.Minute
-	defaultTimeout     = time.Second
 )
 
 // KubeASConfig is the config of the API server.
@@ -332,18 +331,10 @@ func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 		return err
 	}
 
-	err = k.parseComponentStatus(sender, componentsStatus)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return k.parseComponentStatus(sender, componentsStatus)
 }
 
 func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-
 	ready, err := k.ac.IsAPIServerReady(ctx)
 
 	var (
