@@ -7,32 +7,11 @@ import os
 import shutil
 import sys
 import tempfile
-import time
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .dogstatsd import DOGSTATSD_TAG
-
-
-def retry_run(ctx, *args, **kwargs):
-    remaining_retries = 5
-    while True:
-        warn = True
-        if remaining_retries == 0:
-            warn = False
-
-        r = ctx.run(*args, warn=warn, **kwargs)
-
-        if r.ok:
-            return r
-
-        # Pause between retries. Hope it helps.
-        time.sleep(5)
-
-        remaining_retries -= 1
-
-    return r
 
 
 @task
