@@ -53,6 +53,7 @@ type KubeASConfig struct {
 	MaxEventCollection       int      `yaml:"max_events_per_run"`
 	LeaderSkip               bool     `yaml:"skip_leader_election"`
 	ResyncPeriodEvents       int      `yaml:"kubernetes_event_resync_period_s"`
+	UseComponentStatus       bool     `yaml:"use_component_status"`
 }
 
 // EventC holds the information pertaining to which event we collected last and when we last re-synced.
@@ -77,6 +78,7 @@ func (c *KubeASConfig) parse(data []byte) error {
 	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
+	c.UseComponentStatus = true
 
 	return yaml.Unmarshal(data, c)
 }
@@ -181,13 +183,15 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running the Control Plane status check.
-	componentsStatus, err := k.ac.ComponentStatuses()
-	if err != nil {
-		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error()) //nolint:errcheck
-	} else {
-		err = k.parseComponentStatus(sender, componentsStatus)
+	if k.instance.UseComponentStatus {
+		err = k.componentStatusCheck(sender)
 		if err != nil {
-			k.Warnf("Could not collect API Server component status: %s", err.Error()) //nolint:errcheck
+			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
+		}
+	} else {
+		err = k.controlPlaneHealthCheck(context.TODO(), sender)
+		if err != nil {
+			k.Warnf("Could not collect control plane status from health checks: %s", err.Error()) //nolint:errcheck
 		}
 	}
 
@@ -251,7 +255,6 @@ func (k *KubeASCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
-
 		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
 		}
@@ -259,7 +262,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			log.Debug("API Server component's structure is not expected")
 			continue
 		}
-		tagComp := []string{fmt.Sprintf("component:%s", component.Name)}
+
 		for _, condition := range component.Conditions {
 			statusCheck := metrics.ServiceCheckUnknown
 			message := ""
@@ -269,6 +272,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 				log.Debugf("Condition %q not supported", condition.Type)
 				continue
 			}
+
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
@@ -277,8 +281,13 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			case "False":
 				statusCheck = metrics.ServiceCheckCritical
 				message = condition.Error
+				if message == "" {
+					message = condition.Message
+				}
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tagComp, message)
+
+			tags := []string{fmt.Sprintf("component:%s", component.Name)}
+			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
 		}
 	}
 	return nil
@@ -313,6 +322,40 @@ func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 		}
 		sender.Event(datadogEv)
 	}
+	return nil
+}
+
+func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
+	componentsStatus, err := k.ac.ComponentStatuses()
+	if err != nil {
+		return err
+	}
+
+	return k.parseComponentStatus(sender, componentsStatus)
+}
+
+func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
+	ready, err := k.ac.IsAPIServerReady(ctx)
+
+	var (
+		msg    string
+		status metrics.ServiceCheckStatus
+	)
+
+	if ready {
+		msg = "ok"
+		status = metrics.ServiceCheckOK
+	} else {
+		status = metrics.ServiceCheckCritical
+		if err != nil {
+			msg = err.Error()
+		} else {
+			msg = "unknown error"
+		}
+	}
+
+	sender.ServiceCheck(KubeControlPaneCheck, status, "", nil, msg)
+
 	return nil
 }
 
