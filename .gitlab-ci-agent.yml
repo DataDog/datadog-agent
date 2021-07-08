@@ -59,13 +59,6 @@ before_script:
   - *configure_debian_env_script
   - *retrieve_linux_go_deps_script
 
-retry: &retry_job
-  max: 2
-  when:
-    - runner_system_failure
-    - stuck_or_timeout_failure
-    - script_failure
-
 ## prepare stage
 
 clear_deps_deb_cache:
@@ -203,7 +196,12 @@ unit_tests:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 unit_tests_cluster_agent:
   stage: build_and_test
@@ -223,7 +221,12 @@ unit_tests_cluster_agent:
     - sts-aws
   rules:
     - *only_agent_3
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 filename_linting:
   stage: build_and_test
@@ -354,7 +357,12 @@ build_deb:
       - $CI_PROJECT_DIR/version.txt
       - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 build_rpm:
   stage: build_and_test
@@ -411,7 +419,12 @@ build_rpm:
       - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 build_win:
   stage: build_and_test
@@ -438,7 +451,12 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 
 ## pre_release stage
@@ -499,7 +517,12 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 pre_release_rpm:
   stage: pre_release
@@ -561,7 +584,12 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 molecule_tests_vms:
   <<: *molecule_base

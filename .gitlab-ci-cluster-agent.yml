@@ -30,13 +30,6 @@ stages:
 before_script:
   - *retrieve_linux_go_deps_script
 
-retry: &retry_job
-  max: 2
-  when:
-    - runner_system_failure
-    - stuck_or_timeout_failure
-    - script_failure
-
 ## prepare stage
 
 clear_deps_deb_cache:
@@ -94,7 +87,12 @@ unit_tests_cluster_agent:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
   tags:
     - sts-aws
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 
 build_cluster_agent:
@@ -195,7 +193,7 @@ pre_release_main_agent_image: &pre_release_image
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb ./Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
 
@@ -206,7 +204,7 @@ pre_release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
 
 ## acceptance stage
 
@@ -219,7 +217,12 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
-  <<: *retry_job
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
 
 molecule_tests_kubernetes:
   <<: *molecule_base
