@@ -153,20 +153,11 @@ func getDefaultHeaderDirs() []string {
 }
 
 func getDownloadedHeaderDirs(headerDownloadDir string) []string {
-	hi := host.GetStatusInformation()
-	if hi.KernelVersion == "" {
-		return []string{}
+	dirs := getDefaultHeaderDirs()
+	for i, dir := range dirs {
+		dirs[i] = filepath.Join(headerDownloadDir, dir)
 	}
 
-	dirs := []string{
-		fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), hi.KernelVersion),
-	}
-	switch hi.Platform {
-	case "debian":
-		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), hi.KernelVersion))
-	case "cos":
-		dirs = append(dirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), hi.KernelVersion))
-	}
 	return dirs
 }
 
