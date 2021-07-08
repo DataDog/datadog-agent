@@ -209,14 +209,7 @@ func (f *groupingFilter) Reset() {
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, defaultSQLObfuscationConfig)
-}
-
-// ObfuscateSQLStringWithOptions accepts an optional SQL obfuscation config that changes the behavior of the obfuscator
-// to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
-// and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLString(in string, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
 	if v, ok := o.queryCache.Get(in); ok {
 		return v.(*ObfuscatedQuery), nil
 	}
@@ -231,12 +224,12 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts config.SQLObf
 func (o *Obfuscator) obfuscateSQLString(in string, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
-	out, err := attemptObfuscationWithOptions(tok, opts)
+	out, err := attemptObfuscation(tok, opts)
 	if err != nil && tok.SeenEscape() {
 		// If the tokenizer failed, but saw an escape character in the process,
 		// try again treating escapes differently
 		tok = NewSQLTokenizer(in, !lesc)
-		if out, err2 := attemptObfuscationWithOptions(tok, opts); err2 == nil {
+		if out, err2 := attemptObfuscation(tok, opts); err2 == nil {
 			// If the second attempt succeeded, change the default behavior so that
 			// on the next run we get it right in the first run.
 			o.SetSQLLiteralEscapes(!lesc)
@@ -319,16 +312,10 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
-func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	return attemptObfuscationWithOptions(tokenizer, defaultSQLObfuscationConfig)
-}
-
-// attemptObfuscationWithOptions accepts an optional SQL obfuscation config to change the behavior of the obfuscator
-// and attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
-func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, options config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
+func attemptObfuscation(tokenizer *SQLTokenizer, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
 	var (
 		storeTableNames    = features.Has("table_names")
-		quantizeTableNames = options.QuantizeSQLTables
+		quantizeTableNames = opts.QuantizeSQLTables
 		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err                error
 		lastToken          TokenKind
@@ -395,7 +382,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource)
+	oq, err := o.ObfuscateSQLString(span.Resource, config.SQLObfuscationConfig{})
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
@@ -429,6 +416,3 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 	}
 	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
 }
-
-// defaultSQLObfuscationConfig defines the default SQL obfuscation values.
-var defaultSQLObfuscationConfig = config.SQLObfuscationConfig{QuantizeSQLTables: false}

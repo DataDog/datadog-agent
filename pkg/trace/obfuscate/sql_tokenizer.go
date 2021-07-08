@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
@@ -330,7 +331,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
-				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes))
+				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes), config.SQLObfuscationConfig{})
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
 					return DollarQuotedString, tok
