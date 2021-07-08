@@ -51,10 +51,10 @@ stages:
   - &only_agent_3_release
     if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
-  - &agent_base_equal_cluster_agent
+  - &commit_message_contains_cluster_agent
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: never
-  - &agent_base_not_equal_cluster_agent
+  - &commit_message_does_not_contain_cluster_agent
     if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
     when: on_success
 
@@ -161,8 +161,8 @@ deps_rpm:
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 deps_win:
   stage: prepare
@@ -189,8 +189,8 @@ deps_win:
   tags:
     - windows_agent7_ps1
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 
 ## build_and_test stage
@@ -211,8 +211,8 @@ unit_tests:
   tags:
     - sts-aws
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 unit_tests_cluster_agent:
   stage: build_and_test
@@ -231,8 +231,8 @@ unit_tests_cluster_agent:
   tags:
     - sts-aws
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 filename_linting:
   stage: build_and_test
@@ -242,8 +242,8 @@ filename_linting:
     - conda activate $CONDA_ENV
     - inv -e lint-filenames
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
@@ -275,8 +275,8 @@ build_binaries:
   tags:
     - sts-k8s-m-runner
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 build_cluster_agent:
   stage: build_and_test
@@ -426,8 +426,8 @@ build_rpm:
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 build_win:
   stage: build_and_test
@@ -455,8 +455,8 @@ build_win:
   tags:
     - windows_agent7_ps1
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 
 ## pre_release stage
@@ -469,8 +469,8 @@ test_deb_renaming:
   script:
     - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 test_rpm_renaming:
   stage: pre_release
@@ -481,8 +481,8 @@ test_rpm_renaming:
   script:
     - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 pre_release_deb:
   stage: pre_release
@@ -501,8 +501,8 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 pre_release_win:
   stage: pre_release
@@ -527,8 +527,8 @@ pre_release_win:
   tags:
     - windows_agent7_ps1
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 pre_release_rpm:
   stage: pre_release
@@ -540,8 +540,8 @@ pre_release_rpm:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
@@ -571,8 +571,8 @@ pre_release_trace_agent_image:
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
@@ -584,8 +584,8 @@ pre_release_cluster_agent_image:
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
   rules:
     - *only_agent_3
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 ## acceptance stage
 
@@ -627,8 +627,8 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 molecule_tests_integrations:
   <<: *molecule_base
@@ -643,8 +643,8 @@ molecule_tests_integrations:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 molecule_tests_kubernetes:
   <<: *molecule_base
@@ -662,8 +662,8 @@ molecule_tests_kubernetes:
     expire_in: 1 week
   rules:
     - *only_agent_3
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 molecule_tests_local_install:
   <<: *molecule_base
@@ -673,8 +673,8 @@ molecule_tests_local_install:
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s localinstall
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 #  only:
 #    - tags
 #    - master
@@ -691,8 +691,8 @@ molecule_tests_secrets:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 #  only:
 #    - tags
 #    - master
@@ -710,8 +710,8 @@ molecule_tests_swarm:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
     expire_in: 1 week
   rules:
-    - *agent_base_equal_cluster_agent
-    - *agent_base_not_equal_cluster_agent
+    - *commit_message_contains_cluster_agent
+    - *commit_message_does_not_contain_cluster_agent
 
 
 ## release stage
