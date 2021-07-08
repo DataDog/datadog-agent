@@ -48,6 +48,15 @@ variables: &commonvariables
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-3
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-3-test
 
+
+.rules:
+  - &exclude_cluster_agent
+    if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+    when: never
+  - &include_cluster_agent
+    if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+    when: on_success
+
 agent2:
   stage: triggers
   variables:
@@ -57,8 +66,8 @@ agent2:
     include: .gitlab-ci-agent.yml
     strategy: depend
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
-      when: never
+    - <<: *exclude_cluster_agent
+    - when: on_success
 
 agent3:
   stage: triggers
@@ -69,8 +78,8 @@ agent3:
     include: .gitlab-ci-agent.yml
     strategy: depend
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
-      when: never
+    - <<: *exclude_cluster_agent
+    - when: on_success
 
 cluster_agent:
   stage: triggers
@@ -78,8 +87,8 @@ cluster_agent:
     <<: *commonvariables
     <<: *agent2_variables
   trigger:
-    include: .gitlab-ci-cluster-agent.yml.yml
+    include: .gitlab-ci-cluster-agent.yml
     strategy: depend
   rules:
-    - if: $CI_COMMIT_MESSAGE !~ /\[cluster-agent]/
-      when: on_success
+    - <<: *include_cluster_agent
+    - when: never
