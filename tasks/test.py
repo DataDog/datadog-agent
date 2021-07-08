@@ -541,15 +541,3 @@ def install_shellcheck(ctx, version="0.7.0", destination="/usr/local/bin"):
         )
     )
     ctx.run("rm -rf \"/tmp/shellcheck-v{sc_version}\"".format(sc_version=version))
-
-
-@task
-def version(ctx, url_safe=False, git_sha_length=8):
-    """
-    Get the agent version.
-    url_safe: get the version that is able to be addressed as a url
-    git_sha_length: different versions of git have a different short sha length,
-                    use this to explicitly set the version
-                    (the windows builder and the default ubuntu version have such an incompatibility)
-    """
-    print(get_version(ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length))

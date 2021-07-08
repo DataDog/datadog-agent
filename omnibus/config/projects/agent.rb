@@ -181,7 +181,7 @@ end
 
 # Additional software
 if windows?
-  dependency 'cacerts_py2' if with_python_runtime? "2"
+  dependency 'cacerts_py2_local' if with_python_runtime? "2"
   dependency 'cacerts_py3_local' if with_python_runtime? "3"
 else
   dependency 'cacerts'
