@@ -30,14 +30,6 @@ type sqlTokenizerTestCase struct {
 	expectedKind TokenKind
 }
 
-var sqlOnOptions = config.SQLObfuscationConfig{
-	QuantizeSQLTables: true,
-}
-
-var sqlOffOptions = config.SQLObfuscationConfig{
-	QuantizeSQLTables: false,
-}
-
 func SQLSpan(query string) *pb.Span {
 	return &pb.Span{
 		Resource: query,
@@ -276,7 +268,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, sqlOnOptions)
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, config.SQLObfuscationConfig{QuantizeSQLTables: true})
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -296,7 +288,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, sqlOffOptions)
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, config.SQLObfuscationConfig{})
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -387,7 +379,7 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, sqlOnOptions)
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, config.SQLObfuscationConfig{QuantizeSQLTables: true})
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -396,7 +388,7 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 	})
 
 	t.Run("off", func(t *testing.T) {
-		oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions("DELETE FROM table WHERE table.a=1", sqlOffOptions)
+		oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions("DELETE FROM table WHERE table.a=1", config.SQLObfuscationConfig{})
 		assert.NoError(t, err)
 		assert.Empty(t, oq.TablesCSV)
 	})
@@ -1384,7 +1376,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, sqlOnOptions)
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, config.SQLObfuscationConfig{QuantizeSQLTables: true})
 				if err != nil {
 					b.Fatal(err)
 				}

@@ -239,10 +239,10 @@ func readPersistentCache(key *C.char) *C.char {
 }
 
 //export obfuscateSQL
-func obfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
+func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	var sqlCfg traceconfig.SQLObfuscationConfig
-	if options != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(options))}
+	if opts != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
 		sqlCfg.UnmarshalEasyJSON(jl)
 		if jl.Error() != nil {
 			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))

@@ -224,10 +224,10 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
-func ObfuscateSQL(rawQuery, options *C.char, errResult **C.char) *C.char {
+func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	var sqlCfg traceconfig.SQLObfuscationConfig
-	if options != nil {
-		jl := &jlexer.Lexer{Data: []byte(C.GoString(options))}
+	if opts != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
 		sqlCfg.UnmarshalEasyJSON(jl)
 		if jl.Error() != nil {
 			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())

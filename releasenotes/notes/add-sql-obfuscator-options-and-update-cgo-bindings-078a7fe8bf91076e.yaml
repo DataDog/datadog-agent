@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Adds support to provide options to the SQL obfuscator to change the behavior.
+    APM: Adds support to provide options to the SQL obfuscator to change the behavior.
 enhancements:
   - |
-    The quantize_sql_tables obfuscator option is now configured at the integration level via the instance config.
+    APM: The quantize_sql_tables obfuscator option is now configured at the integration level via the instance config.
