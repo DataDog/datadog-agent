@@ -120,8 +120,10 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	if err := m.selfTester.CreateTargetFile(); err != nil {
-		log.Errorf("failed to create target file for self test: %v", err)
+	if m.selfTester != nil {
+		if err := m.selfTester.CreateTargetFile(); err != nil {
+			log.Errorf("failed to create target file for self test: %v", err)
+		}
 	}
 
 	if err := m.Reload(); err != nil {
@@ -133,7 +135,7 @@ func (m *Module) Start() error {
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
-	if m.config.SelfTestAtStartEnabled {
+	if m.selfTester != nil && m.config.SelfTestAtStartEnabled {
 		if err := m.doSelfTest(); err != nil {
 			log.Errorf("failed to run self-test: %v", err)
 		} else {
@@ -319,10 +321,19 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules
 
 // Reload the rule set
 func (m *Module) Reload() error {
-	return m.reloadWithPoliciesDir(m.config.PoliciesDir, m.selfTester.GetSelfTestPolicy())
+	var selfTestPolicy *rules.Policy
+	if m.selfTester != nil {
+		selfTestPolicy = m.selfTester.GetSelfTestPolicy()
+	}
+
+	return m.reloadWithPoliciesDir(m.config.PoliciesDir, selfTestPolicy)
 }
 
 func (m *Module) doSelfTest() error {
+	if m.selfTester == nil {
+		return errors.New("self test called when self test was disabled")
+	}
+
 	m.selfTester.BeginWaitingForEvent()
 	defer m.selfTester.EndWaitingForEvent()
 
@@ -348,7 +359,9 @@ func (m *Module) Close() {
 		os.Remove(m.config.SocketPath)
 	}
 
-	_ = m.selfTester.Cleanup()
+	if m.selfTester != nil {
+		_ = m.selfTester.Cleanup()
+	}
 
 	m.probe.Close()
 
@@ -404,7 +417,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	m.selfTester.SendEventIfExpecting(rule, event)
+	if m.selfTester != nil {
+		m.selfTester.SendEventIfExpecting(rule, event)
+	}
 	m.SendEvent(rule, event, extTagsCb, service)
 }
 
@@ -513,6 +528,11 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
 
+	var selfTester *SelfTester
+	if cfg.SelfTestEnabled {
+		selfTester = NewSelfTester()
+	}
+
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
@@ -524,8 +544,7 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		currentRuleSet: 1,
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
-
-		selfTester: NewSelfTester(),
+		selfTester:     selfTester,
 	}
 	m.apiServer.module = m
 
