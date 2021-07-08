@@ -1,15 +1,17 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -24,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+var ErrNotEnabled = errors.New("system-probe not enabled")
 
 var (
 	// flags variables
@@ -88,8 +92,12 @@ func run(_ *cobra.Command, _ []string) error {
 	}()
 
 	if err := StartSystemProbe(); err != nil {
+		if err == ErrNotEnabled {
+			return nil
+		}
 		return err
 	}
+
 	log.Infof("system probe successfully started")
 
 	select {
@@ -140,7 +148,7 @@ func StartSystemProbe() error {
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting.")
-		return nil
+		return ErrNotEnabled
 	}
 
 	if cfg.ProfilingEnabled {
