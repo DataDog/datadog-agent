@@ -424,10 +424,9 @@ const (
 type SELinuxEvent struct {
 	File            FileEvent        `field:"-"`
 	EventKind       SELinuxEventKind `field:"-"`
-	BoolAnyValue    uint32           `field:"-"`
 	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
-	BoolChangeValue string           `field:"bool.state,ResolveSELinuxBoolChangeValue"`
-	BoolCommitValue bool             `field:"bool_commit.state,ResolveSELinuxBoolCommitValue"`
+	BoolChangeValue string           `field:"bool.state"`
+	BoolCommitValue bool             `field:"bool_commit.state"`
 	EnforceStatus   string           `field:"enforce.status,ResolveSELinuxEnforceStatus"`
 }
 

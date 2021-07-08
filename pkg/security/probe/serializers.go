@@ -439,7 +439,7 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 		return &SELinuxEventSerializer{
 			BoolChange: &selinuxBoolChangeSerializer{
 				Name:  e.ResolveSELinuxBoolName(&e.SELinux),
-				State: e.ResolveSELinuxBoolChangeValue(&e.SELinux),
+				State: e.SELinux.BoolChangeValue,
 			},
 		}
 	case model.SELinuxStatusChangeEventKind:
@@ -451,7 +451,7 @@ func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
 	case model.SELinuxBoolCommitEventKind:
 		return &SELinuxEventSerializer{
 			BoolCommit: &selinuxBoolCommitSerializer{
-				State: e.ResolveSELinuxBoolCommitValue(&e.SELinux),
+				State: e.SELinux.BoolCommitValue,
 			},
 		}
 	default:

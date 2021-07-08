@@ -328,7 +328,20 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
-	e.BoolAnyValue = ByteOrder.Uint32(data[4:8])
+	boolValue := ByteOrder.Uint32(data[4:8])
+
+	switch e.EventKind {
+	case SELinuxBoolChangeEventKind:
+		if boolValue == ^uint32(0) {
+			e.BoolChangeValue = "error"
+		} else if boolValue > 0 {
+			e.BoolChangeValue = "on"
+		} else {
+			e.BoolChangeValue = "off"
+		}
+	case SELinuxBoolCommitEventKind:
+		e.BoolCommitValue = boolValue != 0
+	}
 
 	return n + 8, nil
 }

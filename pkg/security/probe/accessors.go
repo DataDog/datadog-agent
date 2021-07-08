@@ -3331,20 +3331,20 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 
-				return (*Event)(ctx.Object).ResolveSELinuxBoolChangeValue(&(*Event)(ctx.Object).SELinux)
+				return (*Event)(ctx.Object).SELinux.BoolChangeValue
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "selinux.bool_commit.state":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 
-				return (*Event)(ctx.Object).ResolveSELinuxBoolCommitValue(&(*Event)(ctx.Object).SELinux)
+				return (*Event)(ctx.Object).SELinux.BoolCommitValue
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 
 	case "selinux.enforce.status":
@@ -6150,11 +6150,11 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "selinux.bool.state":
 
-		return e.ResolveSELinuxBoolChangeValue(&e.SELinux), nil
+		return e.SELinux.BoolChangeValue, nil
 
 	case "selinux.bool_commit.state":
 
-		return e.ResolveSELinuxBoolCommitValue(&e.SELinux), nil
+		return e.SELinux.BoolCommitValue, nil
 
 	case "selinux.enforce.status":
 

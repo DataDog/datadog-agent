@@ -387,36 +387,6 @@ func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
 	return ev.SELinux.BoolName
 }
 
-// ResolveSELinuxBoolChangeValue resolves the boolean value of the SELinux event
-func (ev *Event) ResolveSELinuxBoolChangeValue(e *model.SELinuxEvent) string {
-	if e.EventKind != model.SELinuxBoolChangeEventKind {
-		return ""
-	}
-
-	if ev.SELinux.BoolChangeValue == "on" || ev.SELinux.BoolChangeValue == "off" || ev.SELinux.BoolChangeValue == "error" {
-		return ev.SELinux.BoolChangeValue
-	}
-
-	if ev.SELinux.BoolAnyValue == ^uint32(0) {
-		ev.SELinux.BoolChangeValue = "error"
-	} else if ev.SELinux.BoolAnyValue > 0 {
-		ev.SELinux.BoolChangeValue = "on"
-	} else {
-		ev.SELinux.BoolChangeValue = "off"
-	}
-	return ev.SELinux.BoolChangeValue
-}
-
-// ResolveSELinuxBoolCommitValue resolves the boolean value of the SELinux event
-func (ev *Event) ResolveSELinuxBoolCommitValue(e *model.SELinuxEvent) bool {
-	if e.EventKind != model.SELinuxBoolCommitEventKind {
-		return false
-	}
-
-	ev.SELinux.BoolCommitValue = ev.SELinux.BoolAnyValue != 0
-	return ev.SELinux.BoolCommitValue
-}
-
 // ResolveSELinuxEnforceStatus resolves the enforcement status
 func (ev *Event) ResolveSELinuxEnforceStatus(e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxStatusChangeEventKind {
