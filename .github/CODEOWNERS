@@ -160,6 +160,7 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries
