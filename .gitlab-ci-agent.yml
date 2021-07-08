@@ -710,8 +710,9 @@ molecule_tests_swarm:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
     expire_in: 1 week
   rules:
-    - *commit_message_contains_cluster_agent
-    - *commit_message_does_not_contain_cluster_agent
+    - *only_agent_3
+    # - *commit_message_contains_cluster_agent
+    # - *commit_message_does_not_contain_cluster_agent
 
 
 ## release stage
