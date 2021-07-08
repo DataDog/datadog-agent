@@ -46,7 +46,6 @@ clear_deps_deb_cache:
     - rm -rf $CI_PROJECT_DIR/venv
     - rm -rf $CI_PROJECT_DIR/vendor
 
-
 deps_deb:
   stage: prepare
   cache:
@@ -93,7 +92,6 @@ unit_tests_cluster_agent:
       - runner_system_failure
       - stuck_or_timeout_failure
       - script_failure
-
 
 build_cluster_agent:
   stage: build_and_test
