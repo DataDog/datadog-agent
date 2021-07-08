@@ -172,6 +172,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		BackoffMax:       2.0,
 		RecoveryInterval: 10,
 		RecoveryReset:    true,
+		Version:          EPIntakeVersion1,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -179,18 +180,22 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2}
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion1,
+	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2}
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion1,
+	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
 		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
-	endpoints, err := BuildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto")
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -264,6 +269,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion1,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -271,18 +277,92 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2}
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion1,
+	}
 	expectedAdditionalEndpoint2 := Endpoint{
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
 		UseSSL:           true,
 		UseCompression:   true,
-		CompressionLevel: 2}
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion1,
+	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
 		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
-	endpoints, err := BuildHTTPEndpoints()
+	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto")
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("logs_config.batch_wait", 1)
+	suite.config.Set("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")
+	suite.config.Set("logs_config.use_compression", true)
+	suite.config.Set("logs_config.compression_level", 6)
+	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.use_v2_api", true)
+	endpointsInConfig := []map[string]interface{}{
+		{
+			"api_key":           "456     \n\n",
+			"host":              "additional.endpoint.1",
+			"port":              1234,
+			"use_compression":   true,
+			"compression_level": 2,
+			"version":           1,
+		},
+		{
+			"api_key":           "789",
+			"host":              "additional.endpoint.2",
+			"port":              1234,
+			"use_compression":   true,
+			"compression_level": 2},
+	}
+	suite.config.Set("logs_config.additional_endpoints", endpointsInConfig)
+
+	expectedMainEndpoint := Endpoint{
+		APIKey:           "123",
+		Host:             "agent-http-intake.logs.datadoghq.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+	}
+	expectedAdditionalEndpoint1 := Endpoint{
+		APIKey:           "456",
+		Host:             "additional.endpoint.1",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion1,
+	}
+	expectedAdditionalEndpoint2 := Endpoint{
+		APIKey:           "789",
+		Host:             "additional.endpoint.2",
+		Port:             1234,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 2,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+	}
+
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
+		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
+	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto")
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
@@ -332,7 +412,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 	suite.config.Set("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.")
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.", "test-track", "test-proto")
 
 	suite.Nil(err)
 
@@ -350,6 +430,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+			Version:          EPIntakeVersion1,
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
@@ -370,7 +451,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	defer os.Unsetenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.")
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.", "test-track", "test-proto")
 
 	suite.Nil(err)
 
@@ -388,6 +469,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+			Version:          EPIntakeVersion1,
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
@@ -416,13 +498,14 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+			Version:          EPIntakeVersion1,
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
-	endpoints, err := BuildServerlessEndpoints()
+	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto")
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)

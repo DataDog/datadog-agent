@@ -6,8 +6,20 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
+// EPIntakeVersion is the events platform intake API version
+type EPIntakeVersion uint8
+
+const (
+	_ EPIntakeVersion = iota
+	// EPIntakeVersion1 is version 1 of the envets platform intake API
+	EPIntakeVersion1
+	// EPIntakeVersion2 is version 2 of the envets platform intake API
+	EPIntakeVersion2
 )
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
@@ -26,6 +38,10 @@ type Endpoint struct {
 	BackoffMax       float64
 	RecoveryInterval int
 	RecoveryReset    bool
+
+	Version   EPIntakeVersion
+	TrackType string
+	Protocol  string
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
