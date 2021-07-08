@@ -27,7 +27,7 @@ type agentWindowsService struct{}
 
 // Execute sets up the configuration and runs the Agent as a Windows service
 func (m *agentWindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
-	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
 	if err := common.CheckAndUpgradeConfig(); err != nil {
@@ -56,6 +56,10 @@ loop:
 			case svc.Stop:
 				log.Info("Received stop message from service control manager")
 				elog.Info(0x4000000c, config.ServiceName)
+				break loop
+			case svc.PreShutdown:
+				log.Info("Received pre shutdown message from service control manager")
+				elog.Info(0x40000010, config.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")

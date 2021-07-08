@@ -101,10 +101,11 @@ type AgentConfig struct {
 	ProfilingEnabled          bool
 	ProfilingSite             string
 	ProfilingURL              string
-	ProfilingAPIKey           string
 	ProfilingEnvironment      string
 	ProfilingPeriod           time.Duration
 	ProfilingCPUDuration      time.Duration
+	ProfilingMutexFraction    int
+	ProfilingBlockRate        int
 	ProfilingWithGoroutines   bool
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType

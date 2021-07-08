@@ -44,8 +44,8 @@ func newContextResolver() *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)
-	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsBuffer)
+	metricSampleContext.GetTags(cr.tagsBuffer)                              // tags here are not sorted and can contain duplicates
+	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsBuffer) // the generator is ignoring duplicates (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer

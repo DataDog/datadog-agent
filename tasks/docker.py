@@ -4,13 +4,11 @@ Docker related tasks
 
 
 import os
-import re
 import shutil
 import sys
 import tempfile
 import time
 
-import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -120,128 +118,6 @@ COPY test.bin /test.bin
 
     if exit_code != 0:
         raise Exit(code=exit_code)
-
-
-@task
-def mirror_image(_, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
-    """
-    Pull an upstream image and mirror it to our docker-library repository
-    for integration tests. Tag format should be A-Z_n_n_n
-    """
-    if dst_tag == "auto":
-        # Autogenerate tag
-        match = re.search(r'([^:\/\s]+):[v]?(.*)$', src_image)
-        if not match:
-            print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
-            raise Exit(code=1)
-        dst_tag = "_".join(match.groups()).replace(".", "_")
-
-    dst = "{}:{}".format(dst_image, dst_tag)
-    publish(src_image, dst)
-
-
-@task
-def publish(ctx, src, dst, signed_pull=False, signed_push=False):
-    print("Uploading {} to {}".format(src, dst))
-
-    pull_env = {}
-    if signed_pull:
-        pull_env["DOCKER_CONTENT_TRUST"] = "1"
-    ctx.run("docker pull {src} && docker tag {src} {dst}".format(src=src, dst=dst), env=pull_env)
-
-    push_env = {}
-    if signed_push:
-        push_env["DOCKER_CONTENT_TRUST"] = "1"
-    retry_run(
-        ctx, "docker push {dst}".format(dst=dst), env=push_env,
-    )
-
-    ctx.run("docker rmi {src} {dst}".format(src=src, dst=dst))
-
-
-@task(iterable=['platform'])
-def publish_bulk(ctx, platform, src_template, dst_template, signed_push=False):
-    """
-    Publish a group of platform-specific images.
-    """
-    for p in platform:
-        parts = p.split("/")
-
-        if len(parts) != 2:
-            print("Invalid platform format: expected 'OS/ARCH' parameter, got {}".format(p))
-            raise Exit(code=1)
-
-        def evalTemplate(s):
-            s = s.replace("OS", parts[0].lower())
-            s = s.replace("ARCH", parts[1].lower())
-            return s
-
-        publish(ctx, evalTemplate(src_template), evalTemplate(dst_template), signed_push=signed_push)
-
-
-@task(iterable=['image'])
-def publish_manifest(ctx, name, tag, image, signed_push=False):
-    """
-    Publish a manifest referencing image names matching the specified pattern.
-    In that pattern, OS and ARCH strings are replaced, if found, by corresponding
-    entries in the list of platforms passed as an argument. This allows creating
-    a set of image references more easily. See the manifest tool documentation for
-    further details: https://github.com/estesp/manifest-tool.
-    """
-    manifest_spec = {"image": "{}:{}".format(name, tag)}
-    src_images = []
-
-    for img in image:
-        img_splitted = img.replace(' ', '').split(',')
-        if len(img_splitted) != 2:
-            print("Impossible to parse source format for: '{}'".format(img))
-            raise Exit(code=1)
-
-        platform_splitted = img_splitted[1].split('/')
-        if len(platform_splitted) != 2:
-            print("Impossible to parse platform format for: '{}'".format(img))
-            raise Exit(code=1)
-
-        src_images.append(
-            {"image": img_splitted[0], "platform": {"architecture": platform_splitted[1], "os": platform_splitted[0]}}
-        )
-    manifest_spec["manifests"] = src_images
-
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
-        temp_file_path = f.name
-        yaml.dump(manifest_spec, f, default_flow_style=False)
-
-    print("Using temp file: {}".format(temp_file_path))
-    ctx.run("cat {}".format(temp_file_path))
-
-    try:
-        result = retry_run(ctx, "manifest-tool push from-spec {}".format(temp_file_path))
-        if result.stdout:
-            out = result.stdout.split('\n')[0]
-            fields = out.split(" ")
-
-            if len(fields) != 3:
-                print("Unexpected output when invoking manifest-tool")
-                raise Exit(code=1)
-
-            digest_fields = fields[1].split(":")
-
-            if len(digest_fields) != 2 or digest_fields[0] != "sha256":
-                print("Unexpected digest format in manifest-tool output")
-                raise Exit(code=1)
-
-            digest = digest_fields[1]
-            length = fields[2]
-
-        if signed_push:
-            cmd = """
-            notary -s https://notary.docker.io -d {home}/.docker/trust addhash \
-                -p docker.io/{name} {tag} {length} --sha256 {sha256} \
-                -r targets/releases
-            """
-            retry_run(ctx, cmd.format(home=os.path.expanduser("~"), name=name, tag=tag, length=length, sha256=digest))
-    finally:
-        os.remove(temp_file_path)
 
 
 @task

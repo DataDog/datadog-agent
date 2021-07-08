@@ -212,7 +212,7 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
@@ -237,7 +237,7 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
@@ -258,7 +258,7 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
@@ -280,7 +280,7 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
