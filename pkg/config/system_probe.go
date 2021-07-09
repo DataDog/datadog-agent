@@ -114,6 +114,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// process module
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	cfg.BindEnvAndSetDefault(join(spNS, "process_config.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
+	cfg.SetDefault(join(netNS, "dns_recorded_query_types"), []string{})
+
 }
 
 func join(pieces ...string) string {

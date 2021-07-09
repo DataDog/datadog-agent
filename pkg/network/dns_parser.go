@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/pkg/errors"
@@ -18,29 +20,31 @@ var (
 
 	// recordedRecordTypes defines a map of DNS types that we'd like to capture.
 	// add additional types here to add DNSQueryTypes that will be recorded
-	recordedQueryTypes = map[layers.DNSType]struct{}{
-		layers.DNSTypeA:    {},
-		layers.DNSTypeAAAA: {}}
+	defaultRecordedQueryTypes = map[layers.DNSType]struct{}{
+		layers.DNSTypeA: {},
+	}
 )
 
 type dnsParser struct {
-	decoder           *gopacket.DecodingLayerParser
-	layers            []gopacket.LayerType
-	ipv4Payload       *layers.IPv4
-	ipv6Payload       *layers.IPv6
-	udpPayload        *layers.UDP
-	tcpPayload        *tcpWithDNSSupport
-	dnsPayload        *layers.DNS
-	collectDNSStats   bool
-	collectDNSDomains bool
+	decoder            *gopacket.DecodingLayerParser
+	layers             []gopacket.LayerType
+	ipv4Payload        *layers.IPv4
+	ipv6Payload        *layers.IPv6
+	udpPayload         *layers.UDP
+	tcpPayload         *tcpWithDNSSupport
+	dnsPayload         *layers.DNS
+	collectDNSStats    bool
+	collectDNSDomains  bool
+	recordedQueryTypes map[layers.DNSType]struct{}
 }
 
-func newDNSParser(layerType gopacket.LayerType, collectDNSStats bool, collectDNSDomains bool) *dnsParser {
+func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 	ipv4Payload := &layers.IPv4{}
 	ipv6Payload := &layers.IPv6{}
 	udpPayload := &layers.UDP{}
 	tcpPayload := &tcpWithDNSSupport{}
 	dnsPayload := &layers.DNS{}
+	queryTypes := getRecordedQueryTypes(cfg)
 
 	stack := []gopacket.DecodingLayer{
 		&layers.Ethernet{},
@@ -52,14 +56,15 @@ func newDNSParser(layerType gopacket.LayerType, collectDNSStats bool, collectDNS
 	}
 
 	return &dnsParser{
-		decoder:           gopacket.NewDecodingLayerParser(layerType, stack...),
-		ipv4Payload:       ipv4Payload,
-		ipv6Payload:       ipv6Payload,
-		udpPayload:        udpPayload,
-		tcpPayload:        tcpPayload,
-		dnsPayload:        dnsPayload,
-		collectDNSStats:   collectDNSStats,
-		collectDNSDomains: collectDNSDomains,
+		decoder:            gopacket.NewDecodingLayerParser(layerType, stack...),
+		ipv4Payload:        ipv4Payload,
+		ipv6Payload:        ipv6Payload,
+		udpPayload:         udpPayload,
+		tcpPayload:         tcpPayload,
+		dnsPayload:         dnsPayload,
+		collectDNSStats:    cfg.CollectDNSStats,
+		collectDNSDomains:  cfg.CollectDNSDomains,
+		recordedQueryTypes: queryTypes,
 	}
 }
 
@@ -139,7 +144,7 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	question := dns.Questions[0]
-	if question.Class != layers.DNSClassIN || !isWantedQueryType(question.Type) {
+	if question.Class != layers.DNSClassIN || !p.isWantedQueryType(question.Type) {
 		return errSkippedPayload
 	}
 
@@ -195,7 +200,71 @@ func (*dnsParser) extractIPsInto(alias []byte, records []layers.DNSResourceRecor
 	}
 }
 
-func isWantedQueryType(checktype layers.DNSType) bool {
-	_, ok := recordedQueryTypes[checktype]
+func (p *dnsParser) isWantedQueryType(checktype layers.DNSType) bool {
+	_, ok := p.recordedQueryTypes[checktype]
 	return ok
+}
+
+func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
+	if len(cfg.RecordedQueryTypes) <= 0 {
+		return defaultRecordedQueryTypes
+	}
+	queryTypes := make(map[layers.DNSType]struct{})
+	//
+	// check to see if we're recording more/different than the default
+	// query types
+	if len(cfg.RecordedQueryTypes) > 0 {
+
+		for _, t := range cfg.RecordedQueryTypes {
+			switch t {
+			default:
+				log.Warnf("Unknown DNS type %v, skipping", t)
+			case "A":
+				queryTypes[layers.DNSTypeA] = struct{}{}
+			case "NS":
+				queryTypes[layers.DNSTypeNS] = struct{}{}
+			case "MD":
+				queryTypes[layers.DNSTypeMD] = struct{}{}
+			case "MF":
+				queryTypes[layers.DNSTypeMF] = struct{}{}
+			case "CNAME":
+				queryTypes[layers.DNSTypeCNAME] = struct{}{}
+			case "SOA":
+				queryTypes[layers.DNSTypeSOA] = struct{}{}
+			case "MB":
+				queryTypes[layers.DNSTypeMB] = struct{}{}
+			case "MG":
+				queryTypes[layers.DNSTypeMG] = struct{}{}
+			case "MR":
+				queryTypes[layers.DNSTypeMR] = struct{}{}
+			case "NULL":
+				queryTypes[layers.DNSTypeNULL] = struct{}{}
+			case "WKS":
+				queryTypes[layers.DNSTypeWKS] = struct{}{}
+			case "PTR":
+				queryTypes[layers.DNSTypePTR] = struct{}{}
+			case "HINFO":
+				queryTypes[layers.DNSTypeHINFO] = struct{}{}
+			case "MINFO":
+				queryTypes[layers.DNSTypeMINFO] = struct{}{}
+			case "MX":
+				queryTypes[layers.DNSTypeMX] = struct{}{}
+			case "TXT":
+				queryTypes[layers.DNSTypeTXT] = struct{}{}
+			case "AAAA":
+				queryTypes[layers.DNSTypeAAAA] = struct{}{}
+			case "SRV":
+				queryTypes[layers.DNSTypeSRV] = struct{}{}
+			case "OPT":
+				queryTypes[layers.DNSTypeOPT] = struct{}{}
+			case "URI":
+				queryTypes[layers.DNSTypeURI] = struct{}{}
+			}
+		}
+	}
+	if len(queryTypes) <= 0 {
+		log.Warnf("No known query types providing in config, reverting to default")
+		return defaultRecordedQueryTypes
+	}
+	return queryTypes
 }
