@@ -23,21 +23,23 @@ import (
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
 // the agent configuration.
 func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
-	disabled := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		if err := json.NewEncoder(w).Encode("appsec api disabled"); err != nil {
-			log.Error(err)
-		}
-	})
+	disabled := func (reason string) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotImplemented)
+			if err := json.NewEncoder(w).Encode(reason); err != nil {
+				log.Error(err)
+			}
+		})
+	}
 	cfg, err := newConfig(coreconfig.Datadog)
 	if err != nil {
-		return disabled, errors.Wrap(err, "configuration: ")
+		return disabled(fmt.Sprintf("appsec agent disabled due to a configuration error: %v", err)), errors.Wrap(err, "configuration: ")
 	}
 	if !cfg.Enabled {
 		log.Info("AppSec agent disabled. Set the environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
 			"`appsec_config.enabled: true` to your datadog.yaml file")
-		return disabled, nil
+		return disabled("appsec agent disabled by configuration"), nil
 	}
 	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
 }
