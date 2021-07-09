@@ -3,8 +3,11 @@
 package checks
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	log "github.com/cihub/seelog"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -237,22 +240,24 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 }
 
 func parseCmdLineArgs(cmdline string) (res []string) {
-	var argc int32
-	cmdPtr, err := syscall.UTF16PtrFromString(cp.commandLine)
+	cmdPtr, err := syscall.UTF16PtrFromString(cmdline)
 	if err != nil {
-		return err
+		log.Debugf("Error converting command line to utf16 ptr %v", err.Error())
+		return res
 	}
+	var argc int32
 	argv, err := syscall.CommandLineToArgv(cmdPtr, &argc)
 	if err != nil {
-		return err
+		log.Debugf("Error calling CommandLineToArgv, giving up (%v)", err)
+		return res
 	}
 	defer syscall.LocalFree(syscall.Handle(unsafe.Pointer(argv)))
 
-	parsedArgs := make([]string, argc)
+	res = make([]string, argc)
 	for i, v := range (*argv)[:argc] {
-		parsedArgs[i] = syscall.UTF16ToString((*v)[:])
+		res[i] = syscall.UTF16ToString((*v)[:])
 	}
-	return parsedArgs
+	return res
 	//blocks := strings.Split(cmdline, " ")
 	//findCloseQuote := false
 	//donestring := false
