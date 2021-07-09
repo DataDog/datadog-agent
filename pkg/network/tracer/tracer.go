@@ -609,6 +609,9 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		if result, ok := telemetry["runtime_compilation_result"]; ok {
 			tm.RuntimeCompilationResult = int32(result)
 		}
+		if result, ok := telemetry["kernel_header_fetch_result"]; ok {
+			tm.KernelHeaderFetchResult = int32(result)
+		}
 		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
 			tm.RuntimeCompilationDuration = duration
 		}
