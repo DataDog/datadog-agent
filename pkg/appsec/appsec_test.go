@@ -294,7 +294,7 @@ func TestMetrics(t *testing.T) {
 		require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
 		require.Equal(t, tags, calls[0].Tags)
 		require.Equal(t, float64(1), calls[0].Rate)
-		require.NotZero(t, calls[0].Value)
+		// Not testing the time duration value as it can be 0 on Windows due to its time resolution
 
 		// Test the proxy error handler with an error that is not monitored
 		proxy.ErrorHandler(httptest.NewRecorder(), req, errors.New("an error occurred"))
