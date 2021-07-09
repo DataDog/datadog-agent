@@ -26,7 +26,9 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 	disabled := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotImplemented)
-		json.NewEncoder(w).Encode("appsec api disabled")
+		if err := json.NewEncoder(w).Encode("appsec api disabled"); err != nil {
+			log.Error(err)
+		}
 	})
 	cfg, err := newConfig(coreconfig.Datadog)
 	if err != nil {
@@ -62,7 +64,9 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
 		w.Header().Add("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err)
+		if err := json.NewEncoder(w).Encode(err); err != nil {
+			log.Error(err)
+		}
 	}
 	proxy.Transport = transport
 	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "Appsec backend proxy: ", 0)
@@ -82,7 +86,9 @@ func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 	errorHandler := proxy.ErrorHandler
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
 		if err == apiutil.ErrLimitedReaderLimitReached {
-			metrics.Count(appSecRequestPayloadTooLargeMetricsID, 1, metricsTags(req), 1)
+			if err := metrics.Count(appSecRequestPayloadTooLargeMetricsID, 1, metricsTags(req), 1); err != nil {
+				log.Error(err)
+			}
 		}
 		errorHandler(w, req, err)
 	}
@@ -92,10 +98,16 @@ func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 		defer func() {
 			tags := metricsTags(req)
 			if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
-				metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
+				if err := metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1); err != nil {
+					log.Error(err)
+				}
 			}
-			metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1)
-			metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
+			if err := metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1); err != nil {
+				log.Error(err)
+			}
+			if err := metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1); err != nil {
+				log.Error(err)
+			}
 		}()
 		proxy.ServeHTTP(w, req)
 	})
