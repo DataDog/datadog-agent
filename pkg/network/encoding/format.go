@@ -65,10 +65,10 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 
 	if dnsWithQueryType {
 		c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
-		c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
+		c.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(conn.DNSStatsByDomainByQueryType, domainSet)
 	} else {
 		// downconvert to simply by domain
-		c.DnsStatsByDomain = formatSingleADNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
+		c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
 		c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
 	}
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
@@ -285,7 +285,7 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -308,26 +308,34 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 	}
 	return m
 }
-func formatSingleADNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
 
-		for t, stat := range bytype {
-			if t != network.DNSTypeA {
-				continue
-			}
-			var ms model.DNSStats
-			ms.DnsCountByRcode = stat.DNSCountByRcode
-			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
-			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
-			ms.DnsTimeouts = stat.DNSTimeouts
+		for _, stat := range bytype {
 
 			pos, ok := domainSet[d]
 			if !ok {
 				pos = len(domainSet)
 				domainSet[d] = pos
 			}
-			m[int32(pos)] = &ms
+			if ms, ok := m[int32(pos)]; ok {
+				for rcode, count := range stat.DNSCountByRcode {
+					ms.DnsCountByRcode[rcode] += count
+				}
+				ms.DnsFailureLatencySum += stat.DNSFailureLatencySum
+				ms.DnsSuccessLatencySum += stat.DNSSuccessLatencySum
+				ms.DnsTimeouts += stat.DNSTimeouts
+
+			} else {
+				var ms model.DNSStats
+				ms.DnsCountByRcode = stat.DNSCountByRcode
+				ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
+				ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
+				ms.DnsTimeouts = stat.DNSTimeouts
+
+				m[int32(pos)] = &ms
+			}
 			break
 		}
 	}

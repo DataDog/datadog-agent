@@ -647,7 +647,6 @@ func InitConfig(config Config) {
 	}
 
 	config.BindEnv("process_config.process_dd_url", "") //nolint:errcheck
-	config.SetDefault("process_config.enable_dns_by_querytype", false)
 
 	// Logs Agent
 

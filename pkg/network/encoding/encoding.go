@@ -56,7 +56,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	httpIndex := FormatHTTPStats(conns.HTTP)
 	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
 
-	dnsWithQueryType := config.Datadog.GetBool("process_config.enable_dns_by_querytype")
+	dnsWithQueryType := config.Datadog.GetBool("network_config.enable_dns_by_querytype")
 
 	for i, conn := range conns.Conns {
 		httpKey := httpKeyFromConn(conn)

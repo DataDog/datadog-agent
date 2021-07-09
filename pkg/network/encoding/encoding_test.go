@@ -220,7 +220,7 @@ func TestSerialization(t *testing.T) {
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
-		config.Datadog.Set("process_config.enable_dns_by_querytype", true)
+		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -329,7 +329,7 @@ func TestSerialization(t *testing.T) {
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
-		config.Datadog.Set("process_config.enable_dns_by_querytype", true)
+		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		// protobufs evaluate empty maps as nil
 		out.CompilationTelemetryByAsset = nil
