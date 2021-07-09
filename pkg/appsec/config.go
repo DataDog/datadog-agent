@@ -13,7 +13,7 @@ const (
 	// the intake URL from a given site.
 	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
 	// defaultSite is the default intake site.
-	defaultSite = "datad0g.com"
+	defaultSite = "datadoghq.com"
 )
 
 // Config handles the interpretation of the configuration. It is also a simple
