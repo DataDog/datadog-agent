@@ -297,7 +297,7 @@ func TestMetrics(t *testing.T) {
 		require.NotZero(t, calls[0].Value)
 
 		// Test the proxy error handler with an error that is not monitored
-		proxy.ErrorHandler(httptest.NewRecorder(), req, errors.New("an error occured"))
+		proxy.ErrorHandler(httptest.NewRecorder(), req, errors.New("an error occurred"))
 		calls = stats.CountCalls
 		require.Len(t, calls, 0)
 
