@@ -209,7 +209,7 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, defaultSQLOptions)
+	return o.ObfuscateSQLStringWithOptions(in, SQLOptions{QuantizeSQLTables: features.Has("quantize_sql_tables")})
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
@@ -319,7 +319,7 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	return attemptObfuscationWithOptions(tokenizer, defaultSQLOptions)
+	return attemptObfuscationWithOptions(tokenizer, SQLOptions{QuantizeSQLTables: features.Has("quantize_sql_tables")})
 }
 
 // attemptObfuscationWithOptions attempts to obfuscate the SQL query loaded into the tokenizer, using the given
@@ -428,6 +428,3 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 	}
 	return o.sqlExecPlan.obfuscate([]byte(jsonPlan))
 }
-
-// defaultSQLOptions defines the default SQL obfuscation option values.
-var defaultSQLOptions = SQLOptions{QuantizeSQLTables: features.Has("quantize_sql_tables")}
