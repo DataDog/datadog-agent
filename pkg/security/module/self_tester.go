@@ -141,7 +141,7 @@ func (t *SelfTester) SendEventIfExpecting(rule *rules.Rule, event eval.Event) {
 }
 
 func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
-	timer := time.After(10 * time.Second)
+	timer := time.After(3 * time.Second)
 	for {
 		select {
 		case event := <-t.eventChan:
