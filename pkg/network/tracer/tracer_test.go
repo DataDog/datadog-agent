@@ -785,7 +785,6 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 func TestUDPPeekCount(t *testing.T) {
 	config := testConfig()
-	config.BPFDebug = true
 	tr, err := NewTracer(config)
 	if err != nil {
 		t.Fatal(err)
@@ -794,6 +793,8 @@ func TestUDPPeekCount(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	getConnections(t, tr)
 
 	cmd := exec.CommandContext(ctx, "testdata/peek.py")
 	err = cmd.Start()
@@ -814,15 +815,19 @@ func TestUDPPeekCount(t *testing.T) {
 	_, err = c.Write(msg)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
 
-	connections := getConnections(t, tr)
-
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	require.True(t, ok)
-
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
 
 	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
 	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
@@ -833,6 +838,7 @@ func TestUDPPeekCount(t *testing.T) {
 	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
 	require.True(t, incoming.IntraHost)
 }
+
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
