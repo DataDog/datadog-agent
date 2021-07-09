@@ -578,6 +578,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
 		labels       map[string]string
 		metricsToGet []ksmstore.DDMetricsFam
+		clusterName  string
 	}
 	tests := []struct {
 		name         string
@@ -768,10 +769,44 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
 			wantHostname: "foo",
 		},
+		{
+			name:   "cluster name appended to hostname",
+			config: &KSMConfig{},
+			args: args{
+				labels:      map[string]string{"foo_label": "foo_value", "node": "foo"},
+				clusterName: "bar",
+			},
+			wantTags:     []string{"foo_label:foo_value", "node:foo"},
+			wantHostname: "foo-bar",
+		},
+		{
+			name: "cluster name appended to hostname from label joins",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label", "node"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"}}},
+					},
+				},
+				clusterName: "bar",
+			},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantHostname: "foo-bar",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
+			kubeStateMetricsSCheck.clusterName = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)

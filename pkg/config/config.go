@@ -196,6 +196,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_to_syslog", false)
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -218,7 +219,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
-	config.BindEnvAndSetDefault("check_sampler_bucket_expiry", 60) // in seconds
+
+	// The number of commits before expiring a context. The value is 2 to handle
+	// the case where a check miss to send a metric.
+	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -247,6 +251,12 @@ func InitConfig(config Config) {
 	// Whether to honour the value of PYTHONPATH, if set, on Windows. On other OSes we always do.
 	config.BindEnvAndSetDefault("windows_use_pythonpath", false)
 
+	// When the Python full interpreter path cannot be deduced via heuristics, the agent
+	// is expected to prevent rtloader from initializing. When set to true, this override
+	// allows us to proceed but with some capabilities unavailable (e.g. `multiprocessing`
+	// library support will not work reliably in those environments)
+	config.BindEnvAndSetDefault("allow_python_path_heuristics_failure", false)
+
 	// if/when the default is changed to true, make the default platform
 	// dependent; default should remain false on Windows to maintain backward
 	// compatibility with Agent5 behavior/win
@@ -263,8 +273,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 5)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
+	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -456,6 +467,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
 	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
 	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
+	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -530,7 +542,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -565,10 +577,12 @@ func InitConfig(config Config) {
 
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
-	config.BindEnvAndSetDefault("exclude_gce_tags", []string{"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script",
+	config.BindEnvAndSetDefault("exclude_gce_tags", []string{
+		"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script",
 		"configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest",
 		"bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable",
-		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig"})
+		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig",
+	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
@@ -620,6 +634,9 @@ func InitConfig(config Config) {
 	config.BindEnv("internal_profiling.profile_dd_url", "") //nolint:errcheck
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
+	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
+	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
+	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 
 	// Process agent
 	config.SetDefault("process_config.enabled", "false")
@@ -646,7 +663,7 @@ func InitConfig(config Config) {
 	config.BindEnv("logs_config.api_key") //nolint:errcheck
 
 	// Duration during which the host tags will be submitted with log events.
-	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", 0) // duration-formatted string (parsed by `time.ParseDuration`)
+	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
@@ -696,6 +713,8 @@ func InitConfig(config Config) {
 	// It may be useful to increase it when logs writing is slowed down, that
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
+	// Time in seconds
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -876,6 +895,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.agent_monitoring_events", true)
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
+	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 
 	// Serverless Agent
@@ -889,9 +909,7 @@ func InitConfig(config Config) {
 	setupAPM(config)
 }
 
-var (
-	ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
-)
+var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)
 
 // GetProxies returns the proxy settings from the configuration
 func GetProxies() *Proxy {
@@ -1051,7 +1069,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	SanitizeAPIKeyConfig(config, "api_key")
 	// Environment feature detection needs to run before applying override funcs
 	// as it may provide such overrides
-	detectFeatures()
+	DetectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1061,7 +1079,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
-// See: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 func ResolveSecrets(config Config, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
@@ -1137,6 +1155,7 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
+	config.BindEnvAndSetDefault(prefix+"use_v2_api", false)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
@@ -1372,17 +1391,29 @@ func IsCLCRunner() bool {
 	if !Datadog.GetBool("clc_runner_enabled") {
 		return false
 	}
-	var cp []ConfigurationProviders
-	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
-		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
-			cp = append(cp, ConfigurationProviders{Name: name})
-		}
-		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
-			// A cluster check runner is an Agent configured to run clusterchecks only
-			return true
+
+	var cps []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cps); err != nil {
+		return false
+	}
+
+	for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+		cps = append(cps, ConfigurationProviders{Name: name})
+	}
+
+	// A cluster check runner is an Agent configured to run clusterchecks only
+	// We want exactly one ConfigProvider named clusterchecks
+	if len(cps) == 0 {
+		return false
+	}
+
+	for _, cp := range cps {
+		if cp.Name != "clusterchecks" {
+			return false
 		}
 	}
-	return false
+
+	return true
 }
 
 // GetBindHost returns `bind_host` variable or default value

@@ -13,7 +13,7 @@ from invoke import task
 
 # constants
 ORG_PATH = "github.com/DataDog"
-DEFAULT_BRANCH = "master"
+DEFAULT_BRANCH = "main"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
 

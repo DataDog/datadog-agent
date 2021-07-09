@@ -32,6 +32,49 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
+func processStatefulSetList(statefulSetList []*v1.StatefulSet, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	statefulSetMsgs := make([]*model.StatefulSet, 0, len(statefulSetList))
+
+	for _, statefulSet := range statefulSetList {
+		if orchestrator.SkipKubernetesResource(statefulSet.UID, statefulSet.ResourceVersion, orchestrator.K8sStatefulSet) {
+			continue
+		}
+
+		// extract statefulSet info
+		statefulSetModel := extractStatefulSet(statefulSet)
+
+		// k8s objects only have json "omitempty" annotations
+		// and marshalling is more performant than YAML
+		jsonStatefulSet, err := jsoniter.Marshal(statefulSet)
+		if err != nil {
+			log.Warnf("Could not marshal StatefulSet to JSON: %s", err)
+			continue
+		}
+		statefulSetModel.Yaml = jsonStatefulSet
+
+		statefulSetMsgs = append(statefulSetMsgs, statefulSetModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(statefulSetMsgs), cfg.MaxPerMessage)
+
+	chunked := chunkStatefulSets(statefulSetMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorStatefulSet{
+			ClusterName:  cfg.KubeClusterName,
+			StatefulSets: chunked[i],
+			GroupId:      groupID,
+			GroupSize:    int32(groupSize),
+			ClusterId:    clusterID,
+			Tags:         cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d StatefulSets in %s", len(statefulSetMsgs), len(statefulSetList), time.Since(start))
+	return messages, nil
+}
+
 func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
 	daemonSetMsgs := make([]*model.DaemonSet, 0, len(daemonSetList))
@@ -48,7 +91,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		// and marshalling is more performant than YAML
 		jsonDaemonSet, err := jsoniter.Marshal(daemonSet)
 		if err != nil {
-			log.Warnf("Could not marshal daemon sets to JSON: %s", err)
+			log.Warnf("Could not marshal DaemonSet to JSON: %s", err)
 			continue
 		}
 		daemonSetModel.Yaml = jsonDaemonSet
@@ -71,7 +114,7 @@ func processDaemonSetList(daemonSetList []*v1.DaemonSet, groupID int32, cfg *con
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d daemon sets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d DaemonSets in %s", len(daemonSetMsgs), len(daemonSetList), time.Since(start))
 	return messages, nil
 }
 
@@ -100,7 +143,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		// and marshalling is more performant than YAML
 		jsonCronJob, err := jsoniter.Marshal(cronJob)
 		if err != nil {
-			log.Warnf("Could not marshal cron job to JSON: %s", err)
+			log.Warnf("Could not marshal CronJob to JSON: %s", err)
 			continue
 		}
 		cronJobModel.Yaml = jsonCronJob
@@ -123,7 +166,7 @@ func processCronJobList(cronJobList []*batchv1beta1.CronJob, groupID int32, cfg 
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d cron jobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d CronJobs in %s", len(cronJobMsgs), len(cronJobList), time.Since(start))
 	return messages, nil
 }
 
@@ -165,7 +208,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		// and marshalling is more performant than YAML
 		jsonDeploy, err := jsoniter.Marshal(depl)
 		if err != nil {
-			log.Warnf("Could not marshal deployment to JSON: %s", err)
+			log.Warnf("Could not marshal Deployment to JSON: %s", err)
 			continue
 		}
 		deployModel.Yaml = jsonDeploy
@@ -188,7 +231,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
 	return messages, nil
 }
 
@@ -229,7 +272,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		// and marshalling is more performant than YAML
 		jsonJob, err := jsoniter.Marshal(job)
 		if err != nil {
-			log.Warnf("Could not marshal job to JSON: %s", err)
+			log.Warnf("Could not marshal Job to JSON: %s", err)
 			continue
 		}
 		jobModel.Yaml = jsonJob
@@ -252,7 +295,7 @@ func processJobList(jobList []*batchv1.Job, groupID int32, cfg *config.Orchestra
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d Jobs in %s", len(jobMsgs), len(jobList), time.Since(start))
 	return messages, nil
 }
 
@@ -296,7 +339,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		// and marshalling is more performant than YAML
 		jsonRS, err := jsoniter.Marshal(r)
 		if err != nil {
-			log.Warnf("Could not marshal replica set to JSON: %s", err)
+			log.Warnf("Could not marshal ReplicaSet to JSON: %s", err)
 			continue
 		}
 		rsModel.Yaml = jsonRS
@@ -319,7 +362,7 @@ func processReplicaSetList(rsList []*v1.ReplicaSet, groupID int32, cfg *config.O
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d replica sets in %s", len(rsMsgs), len(rsList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d ReplicaSets in %s", len(rsMsgs), len(rsList), time.Since(start))
 	return messages, nil
 }
 
@@ -352,7 +395,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		// + marshalling is more performant than YAML
 		jsonSvc, err := jsoniter.Marshal(svc)
 		if err != nil {
-			log.Warnf("Could not marshal service to JSON: %s", err)
+			log.Warnf("Could not marshal Service to JSON: %s", err)
 			continue
 		}
 		serviceModel.Yaml = jsonSvc
@@ -376,7 +419,7 @@ func processServiceList(serviceList []*corev1.Service, groupID int32, cfg *confi
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d Services in %s", len(serviceMsgs), len(serviceList), time.Since(start))
 	return messages, nil
 }
 
@@ -455,7 +498,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		// + marshalling is more performant than YAML
 		jsonNode, err := jsoniter.Marshal(node)
 		if err != nil {
-			log.Warnf("Could not marshal node to JSON: %s", err)
+			log.Warnf("Could not marshal Node to JSON: %s", err)
 			continue
 		}
 		nodeModel.Yaml = jsonNode
@@ -487,7 +530,7 @@ func processNodesList(nodesList []*corev1.Node, groupID int32, cfg *config.Orche
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d Nodes in %s", len(nodeMsgs), len(nodesList), time.Since(start))
 	return nodeMessages, model.Cluster{
 		KubeletVersions:   kubeletVersions,
 		PodCapacity:       podCap,
@@ -565,6 +608,19 @@ func chunkDaemonSets(daemonSets []*model.DaemonSet, chunkCount, chunkSize int) [
 	for counter := 1; counter <= chunkCount; counter++ {
 		chunkStart, chunkEnd := orchestrator.ChunkRange(len(daemonSets), chunkCount, chunkSize, counter)
 		chunks = append(chunks, daemonSets[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// chunkStatefulSets chunks the given list of statefulsets, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkStatefulSets(statefulSets []*model.StatefulSet, chunkCount, chunkSize int) [][]*model.StatefulSet {
+	chunks := make([][]*model.StatefulSet, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(statefulSets), chunkCount, chunkSize, counter)
+		chunks = append(chunks, statefulSets[chunkStart:chunkEnd])
 	}
 
 	return chunks

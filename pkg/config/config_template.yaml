@@ -12,7 +12,7 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
-## Set to 'us3.datadoghq.com' to send data to the US3 site. 
+## Set to 'us3.datadoghq.com' to send data to the US3 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
@@ -479,7 +479,7 @@ api_key:
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -495,10 +495,15 @@ api_key:
 #
 # secret_backend_output_max_size: 1048576
 
-## @param secret_backend_timeout - integer - optional - default: 5
+## @param secret_backend_timeout - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
-# secret_backend_timeout: 5
+# secret_backend_timeout: 30
+
+## @param secret_backend_skip_checks - boolean - optional - default: false
+## Disable fetching secrets for check configurations
+#
+# secret_backend_skip_checks: false
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
@@ -733,6 +738,11 @@ api_key:
   #
   # compression_level: 6
 
+  ## @param batch_wait - integer - optional - default: 5
+  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  #
+  # batch_wait: 5
+  
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -864,6 +874,30 @@ api_key:
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  {{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the trace-agent process.
+    #
+    # enabled: false
+
+  {{ end }}
 
 {{ end -}}
 {{- if .ProcessAgent }}
@@ -1476,6 +1510,12 @@ api_key:
 #
 # log_format_rfc3339: false
 
+## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
+## If enabled, when the health probe of an internal component fails, the stack traces
+## of all the goroutines are logged.
+#
+# log_all_goroutines_when_unhealthy: false
+
 {{ end -}}
 {{- if .Autoconfig }}
 
@@ -1538,6 +1578,34 @@ api_key:
 #
 # extra_config_providers:
 #   - clusterchecks
+
+## @param autoconfig_exclude_features - list of comma separated strings - optional
+## Exclude features automatically detected and enabled by environment autodiscovery.
+## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
+## When no attribute is present, it defaults to `name:` attribute.
+#
+# autoconfig_exclude_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
+## @param autoconfig_include_features - list of comma separated strings - optional
+## Force activation of features (as if they were discovered by environment autodiscovery).
+#
+# autoconfig_include_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
 
 {{ end -}}
 {{- if .Autodiscovery }}
@@ -1933,7 +2001,7 @@ api_key:
 ## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
 ## Set this to false to disable tag collection for the Agent.
 ## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#kubernetes
 #
 # kubernetes_collect_metadata_tags: true
 
@@ -1951,7 +2019,7 @@ api_key:
 ## Set `collect_kubernetes_events` to true to enable log collection.
 ## Note: leader election must be enabled must be enabled  bellow to to collect events.
 ##       Only the leader Agent collects events.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#event-collection
 #
 # collect_kubernetes_events: false
 
@@ -1962,7 +2030,7 @@ api_key:
 
 ## @param leader_election - boolean - optional - default: false
 ## Set the parameter to true to enable leader election on this node.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#leader-election
 #
 # leader_election: false
 

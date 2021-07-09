@@ -100,7 +100,12 @@ func TestOrderRate(t *testing.T) {
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go reOrderer.Start(ctx)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go reOrderer.Start(ctx, &wg)
 
 	var e uint8
 	for i := 0; i != 10; i++ {

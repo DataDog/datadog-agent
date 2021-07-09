@@ -109,7 +109,7 @@ func TestGetHealthy(t *testing.T) {
 
 	// Start responding, become healthy
 	<-token.C
-	cat.pingComponents()
+	cat.pingComponents(time.Time{})
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
@@ -117,7 +117,7 @@ func TestGetHealthy(t *testing.T) {
 	// Make sure we keep staying healthy
 	for i := 1; i < 10; i++ {
 		<-token.C
-		cat.pingComponents()
+		cat.pingComponents(time.Time{})
 	}
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)

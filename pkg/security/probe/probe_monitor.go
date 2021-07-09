@@ -9,9 +9,11 @@ package probe
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,9 +74,11 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 }
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
-func (m *Monitor) Start(ctx context.Context) error {
-	go m.loadController.Start(ctx)
-	go m.reordererMonitor.Start(ctx)
+func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
+	wg.Add(2)
+
+	go m.loadController.Start(ctx, wg)
+	go m.reordererMonitor.Start(ctx, wg)
 	return nil
 }
 
@@ -134,7 +138,7 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 
 // ProcessLostEvent processes a lost event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfMap) {
-	log.Tracef("lost %d events\n", count)
+	seclog.Tracef("lost %d events\n", count)
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 

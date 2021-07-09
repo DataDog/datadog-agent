@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -40,7 +41,7 @@ type KubeletCollector struct {
 }
 
 // Detect tries to connect to the kubelet
-func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *KubeletCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	if !config.IsKubernetes() {
 		return NoCollection, errors.New("the Agent is not running in Kubernetes")
 	}
@@ -71,9 +72,9 @@ func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagIn
 
 // Pull triggers a podlist refresh and sends new info. It also triggers
 // container deletion computation every 'expireFreq'
-func (c *KubeletCollector) Pull() error {
+func (c *KubeletCollector) Pull(ctx context.Context) error {
 	// Compute new/updated pods
-	updatedPods, err := c.watcher.PullChanges()
+	updatedPods, err := c.watcher.PullChanges(ctx)
 	if err != nil {
 		return err
 	}
@@ -105,8 +106,8 @@ func (c *KubeletCollector) Pull() error {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
-func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	pod, err := c.watcher.GetPodForEntityID(entity)
+func (c *KubeletCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
+	pod, err := c.watcher.GetPodForEntityID(ctx, entity)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

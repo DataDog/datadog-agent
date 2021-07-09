@@ -101,10 +101,12 @@ type AgentConfig struct {
 	ProfilingEnabled          bool
 	ProfilingSite             string
 	ProfilingURL              string
-	ProfilingAPIKey           string
 	ProfilingEnvironment      string
 	ProfilingPeriod           time.Duration
 	ProfilingCPUDuration      time.Duration
+	ProfilingMutexFraction    int
+	ProfilingBlockRate        int
+	ProfilingWithGoroutines   bool
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -273,16 +275,17 @@ func loadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
 	var err error
 
+	// For Agent 6 we will have a YAML config file to use.
+	if err := loadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
 	// Note: This only considers container sources that are already setup. It's possible that container sources may
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
-	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
@@ -334,7 +337,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
+		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -368,7 +371,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 // getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
 func getContainerHostType() model.ContainerHostType {
-	switch fargate.GetOrchestrator() {
+	switch fargate.GetOrchestrator(context.TODO()) {
 	case fargate.ECS:
 		return model.ContainerHostType_fargateECS
 	case fargate.EKS:
@@ -462,10 +465,10 @@ func isAffirmative(value string) (bool, error) {
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
-func getHostname(ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
+func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
 	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	if fargate.IsFargateInstance() {
-		hostname, err := fargate.GetFargateHost()
+	if fargate.IsFargateInstance(ctx) {
+		hostname, err := fargate.GetFargateHost(ctx)
 		if err == nil {
 			return hostname, nil
 		}
@@ -473,7 +476,7 @@ func getHostname(ddAgentBin string, grpcConnectionTimeout time.Duration) (string
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
+	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
 	if err == nil {
 		return hostname, nil
 	}
@@ -516,8 +519,8 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(grpcClientFn func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), grpcConnectionTimeout)
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
 	ddAgentClient, err := grpcClientFn(ctx)
@@ -525,7 +528,6 @@ func getHostnameFromGRPC(grpcClientFn func(ctx context.Context, opts ...grpc.Dia
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
 	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
-
 	if err != nil {
 		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
 	}

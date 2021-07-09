@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -62,6 +63,7 @@ func TestParseContainerHealth(t *testing.T) {
 }
 
 func TestResolveImageName(t *testing.T) {
+	ctx := context.Background()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -93,7 +95,7 @@ func TestResolveImageName(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			name, err := globalDockerUtil.ResolveImageName(tc.input)
+			name, err := globalDockerUtil.ResolveImageName(ctx, tc.input)
 			assert.Equal(tc.expected, name, "test %s failed", i)
 			assert.Nil(err, "test %s failed", i)
 		})
@@ -101,6 +103,7 @@ func TestResolveImageName(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainer(t *testing.T) {
+	ctx := context.Background()
 	imageName := "datadog/docker-dd-agent:latest"
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
@@ -152,7 +155,7 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %s", tc.name), func(t *testing.T) {
-			result, err := globalDockerUtil.ResolveImageNameFromContainer(tc.input)
+			result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, tc.input)
 			assert.Equal(tc.expectedImage, result, "%s test failed; expected %s but got %s", tc.name, tc.expectedImage, result)
 			assert.Nil(err, "%s test failed; expected nil error but got %s", tc.name, err)
 		})
@@ -160,6 +163,7 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 }
 
 func TestResolveImageNameFromContainerError(t *testing.T) {
+	ctx := context.Background()
 	imageSha := "sha256:bdc7dc8ba08c2ac8c8e03550d8ebf3297a669a3f03e36c377b9515f08c1b4ef4"
 	assert := assert.New(t)
 
@@ -177,7 +181,7 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 		Config:            &container.Config{Image: imageSha},
 	}
 
-	result, err := globalDockerUtil.ResolveImageNameFromContainer(input)
+	result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, input)
 	assert.Equal(imageSha, result, "test failed; expected %s but got %s", imageSha, result)
 	assert.NotNil(err, "test failed; expected an error but got %s", err)
 }

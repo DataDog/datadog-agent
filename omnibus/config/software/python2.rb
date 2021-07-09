@@ -82,21 +82,20 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "2.7.18"
-  dependency "vc_redist"
+  default_version "2.7.18-fc7d4ab"
+  dependency "vc_redist_14"
 
   if windows_arch_i386?
+    dependency "vc_ucrt_redist"
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-           :sha256 => "c8309b3351610a7159e91e55f09f7341bc3bbdd67d2a5e3049a9d1157e5a9110",
-           :extract => :seven_zip
+           :sha256 => "310A4E7DCDA84B086D325C6C54C90DBD48ABF6366534706FBEEAAEFF274F91D3".downcase
   else
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "7989b2efe6106a3df82c47d403dbb166db6d4040f3654871323df7e724a9fdd2",
-         :extract => :seven_zip
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
+           :sha256 => "F94C925BC08DBF215EAA0C398507E928634EEA98A9FFF77489C4EE0FF148DC47".downcase
   end
+  vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do
-    #
-    # expand python zip into the embedded directory
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_2_embedded)}\""
+    command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_2_embedded)}\""
   end
 end

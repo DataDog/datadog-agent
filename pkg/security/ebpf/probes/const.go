@@ -45,6 +45,8 @@ const (
 	DentryResolverLinkDstCallbackKprobeKey
 	// DentryResolverRenameCallbackKprobeKey is the key to the callback program to execute after resolving the destination dentry of a rename event
 	DentryResolverRenameCallbackKprobeKey
+	// DentryResolverSELinuxCallbackKprobeKey is the key to the callback program to execute after resolving the destination dentry of a selinux event
+	DentryResolverSELinuxCallbackKprobeKey
 )
 
 const (

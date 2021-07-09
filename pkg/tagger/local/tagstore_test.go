@@ -8,6 +8,7 @@ package local
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -15,6 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (f fakeClock) Now() time.Time {
+	return f.now
+}
 
 type StoreTestSuite struct {
 	suite.Suite
@@ -121,7 +130,9 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 	assert.Nil(s.T(), sources)
 }
 
-func (s *StoreTestSuite) TestPruneDeletedEntities() {
+func (s *StoreTestSuite) TestPrune__deletedEntities() {
+	clock := &fakeClock{now: time.Now()}
+	s.store.clock = clock
 	s.store.processTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
@@ -151,8 +162,6 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 		},
 	})
 
-	assert.Len(s.T(), s.store.toDelete, 1)
-
 	// Data should still be in the store
 	tagsHigh, sourcesHigh := s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 4)
@@ -164,10 +173,8 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	s.store.pruneDeletedEntities()
-
-	// deletion map should be empty now
-	assert.Len(s.T(), s.store.toDelete, 0)
+	clock.now = clock.now.Add(10 * time.Minute)
+	s.store.prune()
 
 	// test1 should only have tags from source2, source1 should be removed
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
@@ -197,7 +204,8 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 		},
 	})
 
-	s.store.pruneDeletedEntities()
+	clock.now = clock.now.Add(10 * time.Minute)
+	s.store.prune()
 
 	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
@@ -207,7 +215,7 @@ func (s *StoreTestSuite) TestPruneDeletedEntities() {
 	assert.Len(s.T(), sourcesHigh, 1)
 }
 
-func (s *StoreTestSuite) TestPruneEmptyEntries() {
+func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	s.store.processTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source1",
@@ -244,7 +252,7 @@ func (s *StoreTestSuite) TestPruneEmptyEntries() {
 	})
 
 	assert.Len(s.T(), s.store.store, 5)
-	s.store.pruneEmptyEntries()
+	s.store.prune()
 	assert.Len(s.T(), s.store.store, 3)
 
 	// Assert non-empty tags aren't deleted
@@ -306,6 +314,31 @@ func TestGetEntityTags(t *testing.T) {
 	assert.Len(t, sources, 1)
 }
 
+func (s *StoreTestSuite) TestGetExpiredTags() {
+	s.store.processTagInfo([]*collectors.TagInfo{
+		{
+			Source:       "source",
+			Entity:       "entityA",
+			HighCardTags: []string{"expired"},
+			ExpiryDate:   time.Now().Add(-10 * time.Second),
+		},
+		{
+			Source:       "source",
+			Entity:       "entityB",
+			HighCardTags: []string{"expiresSoon"},
+			ExpiryDate:   time.Now().Add(10 * time.Second),
+		},
+	})
+
+	s.store.prune()
+
+	tagsHigh, _ := s.store.lookup("entityB", collectors.HighCardinality)
+	assert.Contains(s.T(), tagsHigh, "expiresSoon")
+
+	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
+	assert.NotContains(s.T(), tagsHigh, "expired")
+}
+
 func TestDuplicateSourceTags(t *testing.T) {
 	etags := newEntityTags("deadbeef")
 
@@ -365,7 +398,9 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
+	clock := &fakeClock{now: time.Now()}
 	store := newTagStore()
+	store.clock = clock
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
 
@@ -413,7 +448,8 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.pruneDeletedEntities()
+	clock.now = clock.now.Add(10 * time.Minute)
+	store.prune()
 
 	store.processTagInfo([]*collectors.TagInfo{
 		{
@@ -423,7 +459,8 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	store.pruneDeletedEntities()
+	clock.now = clock.now.Add(10 * time.Minute)
+	store.prune()
 
 	var wg sync.WaitGroup
 	wg.Add(2)

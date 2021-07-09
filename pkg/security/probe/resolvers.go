@@ -77,15 +77,6 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveContainerPath resolves the inode to a path relative to the container
-func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
-	containerPath, _, _, err := r.MountResolver.GetMountPath(e.MountID)
-	if err != nil {
-		return ""
-	}
-	return containerPath
-}
-
 // resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
@@ -198,7 +189,11 @@ func (r *Resolvers) Snapshot() error {
 
 	r.ProcessResolver.SetState(snapshotted)
 
-	return nil
+	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	if err != nil {
+		return errors.Wrap(err, "unable to snapshot SELinux")
+	}
+	return snapshotSELinux(selinuxStatusMap)
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.

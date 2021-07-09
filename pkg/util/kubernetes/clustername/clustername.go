@@ -6,6 +6,7 @@
 package clustername
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -43,7 +44,7 @@ type clusterNameData struct {
 }
 
 // Provider is a generic function to grab the clustername and return it
-type Provider func() (string, error)
+type Provider func(context.Context) (string, error)
 
 // ProviderCatalog holds all the various kinds of clustername providers
 var ProviderCatalog map[string]Provider
@@ -63,7 +64,7 @@ func init() {
 	}
 }
 
-func getClusterName(data *clusterNameData, hostname string) string {
+func getClusterName(ctx context.Context, data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
@@ -87,7 +88,7 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		if data.clusterName == "" {
 			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
 				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
-				clusterName, err := getClusterNameFunc()
+				clusterName, err := getClusterNameFunc(ctx)
 				if err != nil {
 					log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
 					// try the next cloud provider
@@ -102,7 +103,7 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		}
 
 		if data.clusterName == "" {
-			clusterName, err := hostinfo.GetNodeClusterNameLabel()
+			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
 			} else {
@@ -115,8 +116,8 @@ func getClusterName(data *clusterNameData, hostname string) string {
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClusterName(hostname string) string {
-	return getClusterName(defaultClusterNameData, hostname)
+func GetClusterName(ctx context.Context, hostname string) string {
+	return getClusterName(ctx, defaultClusterNameData, hostname)
 }
 
 func resetClusterName(data *clusterNameData) {

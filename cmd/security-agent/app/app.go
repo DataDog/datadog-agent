@@ -44,8 +44,10 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// loggerName is the name of the security agent logger
-const loggerName coreconfig.LoggerName = "SECURITY"
+const (
+	// loggerName is the name of the security agent logger
+	loggerName coreconfig.LoggerName = "SECURITY"
+)
 
 var (
 	// SecurityAgentCmd is the entry point for security agent CLI commands
@@ -114,13 +116,13 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
+func newLogContext(logsConfig *config.LogsConfigKeys, intakeTrackType, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints()
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol)
 		}
 	}
 
@@ -226,7 +228,7 @@ func RunAgent(ctx context.Context) (err error) {
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

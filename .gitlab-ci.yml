@@ -2,6 +2,7 @@
 include:
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/windows_python_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/binary_build.yml
@@ -127,11 +128,11 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v4452649-b69b5d5
-  DATADOG_AGENT_BUILDERS: v4529511-a0d9303
-  DATADOG_AGENT_WINBUILDIMAGES: v4319944-68f7e12
-  DATADOG_AGENT_ARMBUILDIMAGES: v4319944-68f7e12
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v4319944-68f7e12
+  DATADOG_AGENT_BUILDIMAGES: v4907599-0f65dfe
+  DATADOG_AGENT_BUILDERS: v4907602-55e258b
+  DATADOG_AGENT_WINBUILDIMAGES: v4907599-0f65dfe
+  DATADOG_AGENT_ARMBUILDIMAGES: v4907599-0f65dfe
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v4907599-0f65dfe
   BCC_VERSION: v0.19.0
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: 8387EEAF
@@ -145,14 +146,15 @@ variables:
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
 
 #
 # Condition mixins for simplification of rules
 #
-.if_master_branch: &if_master_branch
+.if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"
 
-.if_not_master_branch: &if_not_master_branch
+.if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
@@ -173,6 +175,9 @@ variables:
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true"
 
+.if_not_deploy: &if_not_deploy
+  if: $DEPLOY_AGENT != "true"
+
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
 
@@ -184,23 +189,23 @@ variables:
 
 # Rule to trigger all builds conditionally.
 # By default:
-# - on master and deploy pipelines, all builds are run
+# - on main and deploy pipelines, all builds are run
 # - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
 # RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
-# RUN_ALL_BUILDS has no effect on master/deploy pipelines: they always run all builds (as some jobs 
-# on master and deploy pipelines depend on jobs that are only run if we run all builds).
+# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
+# on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "master" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "master" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
 # Rule to trigger test kitchen setup, run, and cleanup.
 # By default:
-# - on master and deploy pipelines, kitchen tests are run
+# - on main and deploy pipelines, kitchen tests are run
 # - on branch pipelines, kitchen tests are not run
 # RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on master/deploy pipelines.
+# RUN_KITCHEN_TESTS can be set to false to force kithcen tests to not run on main/deploy pipelines.
 .if_kitchen: &if_kitchen
   if: ($CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
 
@@ -239,30 +244,30 @@ variables:
     allow_failure: true
 
 .on_dev_branch_manual:
-  - <<: *if_master_branch
+  - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
     when: never
   - when: manual
     allow_failure: true
 
-.on_master:
-  - <<: *if_master_branch
+.on_main:
+  - <<: *if_main_branch
 
-.on_master_manual:
-  - <<: *if_master_branch
+.on_main_manual:
+  - <<: *if_main_branch
     when: manual
     allow_failure: true
 
-.on_master_a6:
+.on_main_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_master_branch
+  - <<: *if_main_branch
 
-.on_master_a7:
+.on_main_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_master_branch
+  - <<: *if_main_branch
 
 .on_tag_or_a7:
   - <<: *if_tagged_commit
@@ -289,9 +294,18 @@ variables:
 .on_deploy_a6_manual:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_deploy
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -301,9 +315,20 @@ variables:
 .on_deploy_a7_manual:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_deploy
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
     when: manual
     allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
@@ -391,19 +416,19 @@ variables:
     when: never
   - when: on_success
 
-.on_master_or_release_branch:
-  - <<: *if_master_branch
+.on_main_or_release_branch:
+  - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_master_or_release_branch_or_deploy:
+.on_main_or_release_branch_or_deploy:
   - <<: *if_deploy
-  - <<: *if_master_branch
+  - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_master_or_release_branch_or_deploy_failure:
+.on_main_or_release_branch_or_deploy_failure:
   - <<: *if_deploy
     when: on_failure
-  - <<: *if_master_branch
+  - <<: *if_main_branch
     when: on_failure
   - <<: *if_release_branch
     when: on_failure
@@ -494,7 +519,7 @@ variables:
     when: never
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_master_branch
+  - <<: *if_not_main_branch
     when: never
   - <<: *if_kitchen
     when: manual
