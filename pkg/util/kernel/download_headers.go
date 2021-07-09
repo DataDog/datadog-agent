@@ -32,7 +32,7 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 var _ types.Logger = customLogger{}
 
 // downloadHeaders attempts to download kernel headers & place them in headerDownloadDir
-func downloadHeaders(headerDownloadDir string) ([]string, error) {
+func downloadHeaders(headerDownloadDir string) error {
 	var (
 		target    types.Target
 		backend   types.Backend
@@ -41,11 +41,11 @@ func downloadHeaders(headerDownloadDir string) ([]string, error) {
 	)
 
 	if outputDir, err = createOutputDir(headerDownloadDir); err != nil {
-		return nil, fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
+		return fmt.Errorf("unable create output directory %s: %s", headerDownloadDir, err)
 	}
 
 	if target, err = getHeaderDownloadTarget(); err != nil {
-		return nil, fmt.Errorf("failed to retrieve target information: %s", err)
+		return fmt.Errorf("failed to retrieve target information: %s", err)
 	}
 
 	log.Infof("Downloading kernel headers for target distribution %s, release %s, kernel %s",
@@ -56,22 +56,14 @@ func downloadHeaders(headerDownloadDir string) ([]string, error) {
 	log.Debugf("Target OSRelease: %s", target.OSRelease)
 
 	if backend, err = getHeaderDownloadBackend(&target); err != nil {
-		return nil, fmt.Errorf("unable to get kernel header download backend: %s", err)
+		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
 
 	if err = backend.GetKernelHeaders(outputDir); err != nil {
-		return nil, fmt.Errorf("failed to download kernel headers: %s", err)
+		return fmt.Errorf("failed to download kernel headers: %s", err)
 	}
 
-	headerDirs := []string{fmt.Sprintf(filepath.Join(headerDownloadDir, kernelModulesPath), target.Uname.Kernel)}
-	switch strings.ToLower(target.Distro.Display) {
-	case "debian":
-		headerDirs = append(headerDirs, fmt.Sprintf(filepath.Join(headerDownloadDir, debKernelModulesPath), target.Uname.Kernel))
-	case "cos":
-		headerDirs = append(headerDirs, fmt.Sprintf(filepath.Join(headerDownloadDir, cosKernelModulesPath), target.Uname.Kernel))
-	}
-
-	return headerDirs, nil
+	return nil
 }
 
 func getHeaderDownloadTarget() (types.Target, error) {

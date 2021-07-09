@@ -41,7 +41,8 @@ const (
 	downloadFailure
 )
 
-// GetKernelHeaders attempts to find kernel headers on the
+// GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
+// to  download them to headerDownloadDir
 func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
@@ -77,7 +78,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, 
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if dirs, err = downloadHeaders(headerDownloadDir); err == nil {
+	if err = downloadHeaders(headerDownloadDir); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", dirs)
 		return dirs, downloadSuccess, nil
 	}
