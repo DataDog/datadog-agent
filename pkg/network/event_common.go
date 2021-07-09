@@ -279,13 +279,25 @@ func BeautifyKey(key string) string {
 // ConnectionSummary returns a string summarizing a connection
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
 		printAddress(c.Dest, names[c.Dest]),
 		c.DPort,
+	)
+	if c.IPTranslation != nil {
+		str += fmt.Sprintf(
+			"xlated [%v:%d ⇄ %v:%d] ",
+			c.IPTranslation.ReplSrcIP,
+			c.IPTranslation.ReplSrcPort,
+			c.IPTranslation.ReplDstIP,
+			c.IPTranslation.ReplDstPort,
+		)
+	}
+
+	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
 		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
 		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
