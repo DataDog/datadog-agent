@@ -18,8 +18,8 @@ var (
 	errTruncated      = errors.New("the packet is truncated")
 	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
 
-	// recordedRecordTypes defines a map of DNS types that we'd like to capture.
-	// add additional types here to add DNSQueryTypes that will be recorded
+	// recordedRecordTypes defines a map of DNS types that we'll capture by default.
+	// add additional types here to change the default.
 	defaultRecordedQueryTypes = map[layers.DNSType]struct{}{
 		layers.DNSTypeA: {},
 	}
@@ -55,6 +55,13 @@ func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 		dnsPayload,
 	}
 
+	qtypelist := make([]string, len(queryTypes))
+	i := 0
+	for k := range queryTypes {
+		qtypelist[i] = k.String()
+		i++
+	}
+	log.Infof("Recording dns query types: %v", qtypelist)
 	return &dnsParser{
 		decoder:            gopacket.NewDecodingLayerParser(layerType, stack...),
 		ipv4Payload:        ipv4Payload,
@@ -263,7 +270,7 @@ func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 		}
 	}
 	if len(queryTypes) <= 0 {
-		log.Warnf("No known query types providing in config, reverting to default")
+		log.Warnf("No known query types provided in config, reverting to default")
 		return defaultRecordedQueryTypes
 	}
 	return queryTypes
