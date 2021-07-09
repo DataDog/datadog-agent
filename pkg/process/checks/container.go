@@ -129,6 +129,10 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
+		// Just in case the container is found, but refs are nil
+		ctr = fillNilContainer(ctr)
+		lastCtr = fillNilRates(lastCtr)
+
 		// If ctr.CPU is nil, then return -1 for the CPU metric values.
 		// This is handled on the backend to skip reporting, rather than report an
 		// errant value due to the expectation that CPU is reported cumulatively
@@ -147,9 +151,12 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			cpuTotalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
 		}
 
-		// Just in case the container is found, but refs are nil
-		ctr = fillNilContainer(ctr)
-		lastCtr = fillNilRates(lastCtr)
+		var cpuThreadCount uint64
+		if ctr.CPU == nil {
+			cpuThreadCount = 0
+		} else {
+			cpuThreadCount = ctr.CPU.ThreadCount
+		}
 
 		ifStats := ctr.Network.SumInterfaces()
 
@@ -186,7 +193,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.CPU.ThreadCount,
+			ThreadCount: cpuThreadCount,
 			ThreadLimit: ctr.Limits.ThreadLimit,
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
@@ -234,9 +241,6 @@ func convertAddressList(ctr *containers.Container) []*model.ContainerAddr {
 }
 
 func fillNilContainer(ctr *containers.Container) *containers.Container {
-	if ctr.CPU == nil {
-		ctr.CPU = util.NullContainerRates.CPU
-	}
 	if ctr.IO == nil {
 		ctr.IO = util.NullContainerRates.IO
 	}
@@ -251,9 +255,6 @@ func fillNilContainer(ctr *containers.Container) *containers.Container {
 
 func fillNilRates(rates util.ContainerRateMetrics) util.ContainerRateMetrics {
 	r := &rates
-	if rates.CPU == nil {
-		r.CPU = util.NullContainerRates.CPU
-	}
 	if rates.IO == nil {
 		r.IO = util.NullContainerRates.IO
 	}
