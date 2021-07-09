@@ -791,20 +791,17 @@ func TestUDPPeekCount(t *testing.T) {
 	}
 	defer tr.Stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	getConnections(t, tr)
 
-	cmd := exec.CommandContext(ctx, "testdata/peek.py")
-	err = cmd.Start()
+	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
 	require.NoError(t, err)
+	defer ln.Close()
 
-	time.Sleep(100 * time.Millisecond)
+	saddr := ln.LocalAddr().String()
 
 	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 	require.NoError(t, err)
-	raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:34568")
+	raddr, err := net.ResolveUDPAddr("udp", saddr)
 	require.NoError(t, err)
 
 	c, err := net.DialUDP("udp", laddr, raddr)
@@ -813,6 +810,42 @@ func TestUDPPeekCount(t *testing.T) {
 
 	msg := []byte("asdf")
 	_, err = c.Write(msg)
+	require.NoError(t, err)
+
+	rawConn, err := ln.(*net.UDPConn).SyscallConn()
+	require.NoError(t, err)
+	err = rawConn.Control(func(fd uintptr) {
+		buf := make([]byte, 1024)
+		var n int
+		var err error
+		done := make(chan struct{})
+
+		recv := func(flags int) {
+			for {
+				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
+				if err == syscall.EINTR || err == syscall.EAGAIN {
+					continue
+				}
+				break
+			}
+		}
+		go func() {
+			defer close(done)
+			recv(syscall.MSG_PEEK)
+			if n == 0 || err != nil {
+				return
+			}
+			recv(0)
+		}()
+
+		select {
+		case <-done:
+			require.NoError(t, err)
+			require.NotZero(t, n)
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "receive timed out")
+		}
+	})
 	require.NoError(t, err)
 
 	var incoming *network.ConnectionStats
