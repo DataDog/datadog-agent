@@ -74,10 +74,10 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
 	if r.conf.IsFargate {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		orch := fargate.GetOrchestrator(context.Background())
+		orch := fargate.GetOrchestrator(ctx)
 		cancel()
 		if err := ctx.Err(); err != nil && err != context.Canceled {
-			log.Warnf("Failed to detect if running in AWS Fargate. If you are in a Fargate instance, this may cause issues with your profiles: %v", err)
+			log.Warnf("Failed to get Fargate orchestrator. This may cause issues with your profiles: %v", err)
 		}
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag

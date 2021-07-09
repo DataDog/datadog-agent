@@ -158,8 +158,11 @@ func TestProfileProxyHandler(t *testing.T) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			tags := strings.Split(v, ",")
 			m := make(map[string]string)
-			for _, t := range tags {
-				kv := strings.Split(t, ":")
+			for _, tag := range tags {
+				kv := strings.Split(tag, ":")
+				if strings.Contains(kv[0], "orchestrator") {
+					t.Fatalf("non-fargate environment shouldn't contain '%s' tag : %q", kv[0], v)
+				}
 				m[kv[0]] = kv[1]
 			}
 			for _, tag := range []string{"host", "default_env", "agent_version"} {
@@ -176,6 +179,30 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 		conf := newTestReceiverConfig()
 		conf.Hostname = "myhost"
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		if !called {
+			t.Fatal("request not proxied")
+		}
+	})
+
+	t.Run("ok_fargate", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			v := req.Header.Get("X-Datadog-Additional-Tags")
+			if !strings.Contains(v, "orchestrator:fargate_unknown") {
+				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
+			}
+			called = true
+		}))
+		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conf := newTestReceiverConfig()
+		conf.Hostname = "myhost"
+		conf.IsFargate = true
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {
