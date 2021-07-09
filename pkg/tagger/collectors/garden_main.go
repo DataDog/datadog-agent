@@ -31,6 +31,9 @@ type GardenCollector struct {
 
 // Detect tries to connect to the Garden API and the cluster agent
 func (c *GardenCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsFeaturePresent(config.CloudFoundry) {
+		return NoCollection, nil
+	}
 
 	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error

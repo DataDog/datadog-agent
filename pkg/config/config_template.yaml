@@ -1579,6 +1579,34 @@ api_key:
 # extra_config_providers:
 #   - clusterchecks
 
+## @param autoconfig_exclude_features - list of comma separated strings - optional
+## Exclude features automatically detected and enabled by environment autodiscovery.
+## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
+## When no attribute is present, it defaults to `name:` attribute.
+#
+# autoconfig_exclude_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
+## @param autoconfig_include_features - list of comma separated strings - optional
+## Force activation of features (as if they were discovered by environment autodiscovery).
+#
+# autoconfig_include_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
 {{ end -}}
 {{- if .Autodiscovery }}
 
