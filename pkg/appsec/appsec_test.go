@@ -176,7 +176,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 
 				url, err := url.Parse(srv.URL + expectedServerEndpoint)
 				require.NoError(t, err)
-				proxy := newIntakeReverseProxy(url, expectedApiKey, expectedMaxPayloadSize, http.DefaultTransport)
+				proxy := newIntakeReverseProxy(url, expectedAPIKey, expectedMaxPayloadSize, http.DefaultTransport)
 
 				req := tc.prepareServerRequest(t)
 				rec := httptest.NewRecorder()
