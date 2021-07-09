@@ -2250,6 +2250,8 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	cmd := exec.Command("ip", args...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "ip command returned error, output: %s", out)
+	t.Log(strings.Join(cmd.Args, " "))
+	t.Log(out)
 
 	matches := ipRouteGetOut.FindSubmatch(out)
 	require.Len(t, matches, 2, string(out))
@@ -2271,7 +2273,6 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	cloud = m
 
 	cfg := testConfig()
-	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
@@ -2284,6 +2285,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		t.Logf("subnet lookup: %s", hwAddr)
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
 				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
@@ -2304,7 +2306,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 		return ok
 	}, 2*time.Second, time.Second)
 
-	require.NotNil(t, conn.Via)
+	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
 }
 
