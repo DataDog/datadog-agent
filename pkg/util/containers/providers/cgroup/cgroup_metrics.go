@@ -189,7 +189,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
-		return ret, nil
+		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -215,7 +215,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	}
 
 	usage, err := c.ParseSingleStat("cpuacct", "cpuacct.usage")
-	ret.Timestsamp = time.Now()
+	ret.Timestamp = time.Now()
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
