@@ -82,7 +82,7 @@ func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	rds := getSelfTestRuleDefinitions("datadog_agent_cws_self_test_rule", t.targetFilePath)
 	p := &rules.Policy{
 		Name:    selfTestPolicyName,
-		Version: "1.3.3",
+		Version: "1.0.0",
 	}
 
 	for _, rd := range rds {
@@ -102,8 +102,11 @@ func (t *SelfTester) Cleanup() error {
 }
 
 // BeginWaitingForEvent passes the tester in the waiting for event state
-func (t *SelfTester) BeginWaitingForEvent() {
-	atomic.StoreUint32(&t.waitingForEvent, 1)
+func (t *SelfTester) BeginWaitingForEvent() error {
+	if atomic.SwapUint32(&t.waitingForEvent, 1) != 0 {
+		return errors.New("a self test is already running")
+	}
+	return nil
 }
 
 // EndWaitingForEvent exits the waiting for event state

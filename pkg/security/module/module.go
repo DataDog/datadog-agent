@@ -269,13 +269,11 @@ func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules
 		}
 
 		if len(rules) != 0 {
-			merr = ruleSet.AddRules(rules)
-			if merr.ErrorOrNil() != nil {
+			if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
 				logMultiErrors("error while loading additional policies", merr)
 			}
 
-			merr = approverRuleSet.AddRules(rules)
-			if merr.ErrorOrNil() != nil {
+			if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
 				logMultiErrors("error while loading additional policies", merr)
 			}
 		}
@@ -334,7 +332,9 @@ func (m *Module) doSelfTest() error {
 		return errors.New("self test called when self test was disabled")
 	}
 
-	m.selfTester.BeginWaitingForEvent()
+	if err := m.selfTester.BeginWaitingForEvent(); err != nil {
+		return errors.Wrap(err, "failed to run self test")
+	}
 	defer m.selfTester.EndWaitingForEvent()
 
 	for _, fn := range SelfTestFunctions {
