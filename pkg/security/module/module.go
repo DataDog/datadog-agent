@@ -41,21 +41,22 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg             sync.WaitGroup
-	probe          *sprobe.Probe
-	config         *sconfig.Config
-	ruleSets       [2]*rules.RuleSet
-	currentRuleSet uint64
-	reloading      uint64
-	statsdClient   *statsd.Client
-	apiServer      *APIServer
-	grpcServer     *grpc.Server
-	listener       net.Listener
-	rateLimiter    *RateLimiter
-	sigupChan      chan os.Signal
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	rulesLoaded    func(rs *rules.RuleSet)
+	wg               sync.WaitGroup
+	probe            *sprobe.Probe
+	config           *sconfig.Config
+	ruleSets         [2]*rules.RuleSet
+	currentRuleSet   uint64
+	reloading        uint64
+	statsdClient     *statsd.Client
+	apiServer        *APIServer
+	grpcServer       *grpc.Server
+	listener         net.Listener
+	rateLimiter      *RateLimiter
+	sigupChan        chan os.Signal
+	ctx              context.Context
+	cancelFnc        context.CancelFunc
+	rulesLoaded      func(rs *rules.RuleSet)
+	policiesVersions []string
 }
 
 // Register the runtime security agent module
@@ -189,6 +190,23 @@ func logMultiErrors(msg string, m *multierror.Error) {
 	}
 }
 
+func getPoliciesVersions(rs *rules.RuleSet) []string {
+	var versions []string
+
+	cache := make(map[string]bool)
+	for _, rule := range rs.GetRules() {
+		version := rule.Definition.Policy.Version
+
+		if _, exists := cache[version]; !exists {
+			cache[version] = true
+
+			versions = append(versions, version)
+		}
+	}
+
+	return versions
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -227,6 +245,8 @@ func (m *Module) Reload() error {
 	if err != nil {
 		return err
 	}
+
+	m.policiesVersions = getPoliciesVersions(ruleSet)
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
@@ -366,6 +386,13 @@ func (m *Module) metricsSender() {
 			}
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+
+			m.RLock()
+			for _, version := range m.policiesVersions {
+				tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+			}
+			m.RUnlock()
+
 			if m.config.RuntimeEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
 			} else if m.config.FIMEnabled {
