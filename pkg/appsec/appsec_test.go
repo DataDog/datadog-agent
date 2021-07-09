@@ -63,14 +63,14 @@ func TestIntakeReverseProxy(t *testing.T) {
 		// Helper value and functions
 
 		const (
-			expectedApiKey         = "an api key"
+			expectedAPIKey         = "an api key"
 			expectedServerEndpoint = "/server/endpoint"
 			expectedMaxPayloadSize = 5 * 1024 * 1024
 		)
 
 		requireProxyHeaders := func(t *testing.T, req *http.Request) {
 			require.Contains(t, "trace-agent", req.Header.Get("Via"))
-			require.Equal(t, expectedApiKey, req.Header.Get("Dd-Api-Key"))
+			require.Equal(t, expectedAPIKey, req.Header.Get("Dd-Api-Key"))
 		}
 		requireRequest := func(t *testing.T, req *http.Request, expectedMethod, expectedEndpoint string, expectedBody []byte) {
 			require.Equal(t, expectedMethod, req.Method)
