@@ -3,7 +3,7 @@ package appsec
 import (
 	"bytes"
 	"errors"
-	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -76,7 +76,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 			require.Equal(t, expectedMethod, req.Method)
 			require.Equal(t, expectedServerEndpoint+expectedEndpoint, req.URL.String())
 			if expectedBody != nil {
-				body, err := io.ReadAll(req.Body)
+				body, err := ioutil.ReadAll(req.Body)
 				require.NoError(t, err)
 				require.Equal(t, expectedBody, body)
 			}
@@ -156,7 +156,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 				targetHandler: func(t *testing.T, w http.ResponseWriter, req *http.Request) {
 					requireProxyHeaders(t, req)
 					requireRequest(t, req, "PUT", "/my/endpoint/3", nil)
-					_, err := io.ReadAll(req.Body)
+					_, err := ioutil.ReadAll(req.Body)
 					// a server-side error occurs because the proxy cancels the request
 					// when the max payload size being reach
 					require.Error(t, err)
