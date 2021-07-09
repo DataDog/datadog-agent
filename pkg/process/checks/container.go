@@ -135,7 +135,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		var cpuUserPct float32
 		var cpuSystemPct float32
 		var cpuTotalPct float32
-		if ctr.CPU == nil {
+		if ctr.CPU == nil || lastCtr.CPU == nil {
 			cpuUserPct = -1
 			cpuSystemPct = -1
 			cpuTotalPct = -1
