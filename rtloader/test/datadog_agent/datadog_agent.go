@@ -11,7 +11,7 @@ import (
 	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
@@ -240,10 +240,10 @@ func readPersistentCache(key *C.char) *C.char {
 
 //export obfuscateSQL
 func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlCfg traceconfig.SQLObfuscationConfig
+	var sqlOpts obfuscate.SQLOptions
 	if opts != nil {
 		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlCfg.UnmarshalEasyJSON(jl)
+		sqlOpts.UnmarshalEasyJSON(jl)
 		if jl.Error() != nil {
 			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))
 			return nil

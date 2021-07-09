@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//go:generate easyjson -no_std_marshalers $GOFILE
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -32,6 +34,13 @@ type Obfuscator struct {
 	sqlLiteralEscapes int32
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
+}
+
+// SQLOptions holds options that change the behavior of the obfuscator for SQL.
+// easyjson:json
+type SQLOptions struct {
+	// QuantizeSQLTables determines if the obfuscator will perform quantization on the SQL tables.
+	QuantizeSQLTables bool `json:"quantize_sql_tables"`
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -103,7 +112,7 @@ func (o *Obfuscator) Obfuscate(span *pb.Span) {
 func (o *Obfuscator) ObfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	switch b.Type {
 	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLString(b.Resource, config.SQLObfuscationConfig{
+		oq, err := o.ObfuscateSQLString(b.Resource, SQLOptions{
 			QuantizeSQLTables: features.Has("quantize_sql_tables"),
 		})
 		if err != nil {

@@ -13,7 +13,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -209,7 +208,7 @@ func (f *groupingFilter) Reset() {
 // ObfuscateSQLString quantizes and obfuscates the given input SQL query string. Quantization removes
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLString(in string, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) ObfuscateSQLString(in string, opts SQLOptions) (*ObfuscatedQuery, error) {
 	if v, ok := o.queryCache.Get(in); ok {
 		return v.(*ObfuscatedQuery), nil
 	}
@@ -221,7 +220,7 @@ func (o *Obfuscator) ObfuscateSQLString(in string, opts config.SQLObfuscationCon
 	return oq, nil
 }
 
-func (o *Obfuscator) obfuscateSQLString(in string, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
+func (o *Obfuscator) obfuscateSQLString(in string, opts SQLOptions) (*ObfuscatedQuery, error) {
 	lesc := o.SQLLiteralEscapes()
 	tok := NewSQLTokenizer(in, lesc)
 	out, err := attemptObfuscation(tok, opts)
@@ -312,7 +311,7 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
-func attemptObfuscation(tokenizer *SQLTokenizer, opts config.SQLObfuscationConfig) (*ObfuscatedQuery, error) {
+func attemptObfuscation(tokenizer *SQLTokenizer, opts SQLOptions) (*ObfuscatedQuery, error) {
 	var (
 		storeTableNames    = features.Has("table_names")
 		quantizeTableNames = opts.QuantizeSQLTables
@@ -382,7 +381,7 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource, config.SQLObfuscationConfig{})
+	oq, err := o.ObfuscateSQLString(span.Resource, SQLOptions{})
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)

@@ -225,10 +225,10 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 // fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
 func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
-	var sqlCfg traceconfig.SQLObfuscationConfig
+	var sqlOpts obfuscate.SQLOptions
 	if opts != nil {
 		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
-		sqlCfg.UnmarshalEasyJSON(jl)
+		sqlOpts.UnmarshalEasyJSON(jl)
 		if jl.Error() != nil {
 			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
 			*errResult = TrackedCString(jl.Error().Error())
@@ -236,7 +236,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		}
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s, sqlCfg)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s, sqlOpts)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
