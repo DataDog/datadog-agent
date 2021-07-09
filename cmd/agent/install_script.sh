@@ -261,6 +261,11 @@ if [ ! "$apikey" ]; then
   fi
 fi
 
+if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
+    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot'agent'.\033[0m\n"
+    exit 1;
+fi
+
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
