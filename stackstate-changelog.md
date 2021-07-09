@@ -1,5 +1,19 @@
 # StackState Agent v2 releases
 
+## 2.12.0 (2021-07-09)
+**Features**
+- Collect HTTP/1.x request rate and response time metrics for connection discovered by the StackState process agent. [(STAC-11668)](https://stackstate.atlassian.net/browse/STAC-11668)
+
+**Improvements**
+- Integrations
+  - [StackState Agent Integrations 1.14.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1140--2021-07-09)
+
+**Bugfix**
+- StackState process agent:
+  - Namespaces are not always reported for containers/processes running in k8s. [(STAC-11588)](https://stackstate.atlassian.net/browse/STAC-11588)
+  - Increase network connection tracking limits and make them configurable [(STAC-13362)](https://stackstate.atlassian.net/browse/STAC-13362)
+  - Pods merge with the same ip address while using argo [(STAC-13322)](https://stackstate.atlassian.net/browse/STAC-13322)
+
 ## 2.11.0 (2021-04-20)
 
 **Features**
