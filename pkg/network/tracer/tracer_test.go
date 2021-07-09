@@ -2272,18 +2272,18 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	ifs, err := net.Interfaces()
+	require.NoError(t, err)
+
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	defer tr.Stop()
-
 	require.NotNil(t, tr.gwLookup)
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
-	ifs, err := net.Interfaces()
-	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		t.Logf("subnet lookup: %s", hwAddr)
 		for _, i := range ifs {
