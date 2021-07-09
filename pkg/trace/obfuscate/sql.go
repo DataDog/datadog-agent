@@ -381,7 +381,9 @@ func (o *Obfuscator) obfuscateSQL(span *pb.Span) {
 	if span.Resource == "" {
 		return
 	}
-	oq, err := o.ObfuscateSQLString(span.Resource, SQLOptions{})
+	oq, err := o.ObfuscateSQLString(span.Resource, SQLOptions{
+		QuantizeSQLTables: features.Has("quantize_sql_tables"),
+	})
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
