@@ -22,6 +22,7 @@ import (
 const (
 	FIMCategory     = "File Activity"
 	ProcessActivity = "Process Activity"
+	KernelActivity  = "Kernel Activity"
 )
 
 // FileSerializer serializes a file to JSON
@@ -184,11 +185,36 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty"`
 }
 
+// easyjson:json
+type selinuxBoolChangeSerializer struct {
+	Name  string `json:"name,omitempty"`
+	State string `json:"state,omitempty"`
+}
+
+// easyjson:json
+type selinuxEnforceStatusSerializer struct {
+	Status string `json:"status,omitempty"`
+}
+
+// easyjson:json
+type selinuxBoolCommitSerializer struct {
+	State bool `json:"state,omitempty"`
+}
+
+// SELinuxEventSerializer serializes a SELinux context to JSON
+// easyjson:json
+type SELinuxEventSerializer struct {
+	BoolChange    *selinuxBoolChangeSerializer    `json:"bool,omitempty"`
+	EnforceStatus *selinuxEnforceStatusSerializer `json:"enforce,omitempty"`
+	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
 	*EventContextSerializer    `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
+	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
@@ -407,6 +433,32 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 	return ps
 }
 
+func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
+	switch e.SELinux.EventKind {
+	case model.SELinuxBoolChangeEventKind:
+		return &SELinuxEventSerializer{
+			BoolChange: &selinuxBoolChangeSerializer{
+				Name:  e.ResolveSELinuxBoolName(&e.SELinux),
+				State: e.SELinux.BoolChangeValue,
+			},
+		}
+	case model.SELinuxStatusChangeEventKind:
+		return &SELinuxEventSerializer{
+			EnforceStatus: &selinuxEnforceStatusSerializer{
+				Status: e.SELinux.EnforceStatus,
+			},
+		}
+	case model.SELinuxBoolCommitEventKind:
+		return &SELinuxEventSerializer{
+			BoolCommit: &selinuxBoolCommitSerializer{
+				State: e.SELinux.BoolCommitValue,
+			},
+		}
+	default:
+		return nil
+	}
+}
+
 func serializeSyscallRetval(retval int64) string {
 	switch {
 	case syscall.Errno(retval) == syscall.EACCES || syscall.Errno(retval) == syscall.EPERM:
@@ -592,6 +644,13 @@ func newEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
+	case model.SELinuxEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
+		}
+		s.SELinuxEventSerializer = newSELinuxSerializer(event)
+		s.Category = KernelActivity
 	}
 
 	return s

@@ -316,6 +316,48 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
+func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return n, ErrNotEnoughData
+	}
+
+	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
+
+	switch e.EventKind {
+	case SELinuxBoolChangeEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		if boolValue == ^uint32(0) {
+			e.BoolChangeValue = "error"
+		} else if boolValue > 0 {
+			e.BoolChangeValue = "on"
+		} else {
+			e.BoolChangeValue = "off"
+		}
+	case SELinuxBoolCommitEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		e.BoolCommitValue = boolValue != 0
+	case SELinuxStatusChangeEventKind:
+		disableValue := ByteOrder.Uint16(data[4:6]) != 0
+		enforceValue := ByteOrder.Uint16(data[6:8]) != 0
+		if disableValue {
+			e.EnforceStatus = "disabled"
+		} else if enforceValue {
+			e.EnforceStatus = "enforcing"
+		} else {
+			e.EnforceStatus = "permissive"
+		}
+	}
+
+	return n + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
