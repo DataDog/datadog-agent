@@ -2251,7 +2251,7 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "ip command returned error, output: %s", out)
 	t.Log(strings.Join(cmd.Args, " "))
-	t.Log(out)
+	t.Log(string(out))
 
 	matches := ipRouteGetOut.FindSubmatch(out)
 	require.Len(t, matches, 2, string(out))
