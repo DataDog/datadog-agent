@@ -67,6 +67,7 @@ func (nullReverseDNS) GetStats() map[string]int64 {
 		"packets_dropped":   0,
 		"socket_polls":      0,
 		"decoding_errors":   0,
+		"errors":            0,
 	}
 }
 
