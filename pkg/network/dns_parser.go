@@ -23,6 +23,30 @@ var (
 	defaultRecordedQueryTypes = map[layers.DNSType]struct{}{
 		layers.DNSTypeA: {},
 	}
+
+	// map for translating config strings back to the typed value
+	queryTypeStrings = map[string]layers.DNSType{
+		layers.DNSTypeA.String():     layers.DNSTypeA,
+		layers.DNSTypeNS.String():    layers.DNSTypeNS,
+		layers.DNSTypeMD.String():    layers.DNSTypeMD,
+		layers.DNSTypeMF.String():    layers.DNSTypeMF,
+		layers.DNSTypeCNAME.String(): layers.DNSTypeCNAME,
+		layers.DNSTypeSOA.String():   layers.DNSTypeSOA,
+		layers.DNSTypeMB.String():    layers.DNSTypeMB,
+		layers.DNSTypeMG.String():    layers.DNSTypeMG,
+		layers.DNSTypeMR.String():    layers.DNSTypeMR,
+		layers.DNSTypeNULL.String():  layers.DNSTypeNULL,
+		layers.DNSTypeWKS.String():   layers.DNSTypeWKS,
+		layers.DNSTypePTR.String():   layers.DNSTypePTR,
+		layers.DNSTypeHINFO.String(): layers.DNSTypeHINFO,
+		layers.DNSTypeMINFO.String(): layers.DNSTypeMINFO,
+		layers.DNSTypeMX.String():    layers.DNSTypeMX,
+		layers.DNSTypeTXT.String():   layers.DNSTypeTXT,
+		layers.DNSTypeAAAA.String():  layers.DNSTypeAAAA,
+		layers.DNSTypeSRV.String():   layers.DNSTypeSRV,
+		layers.DNSTypeOPT.String():   layers.DNSTypeOPT,
+		layers.DNSTypeURI.String():   layers.DNSTypeURI,
+	}
 )
 
 type dnsParser struct {
@@ -223,49 +247,10 @@ func getRecordedQueryTypes(cfg *config.Config) map[layers.DNSType]struct{} {
 	if len(cfg.RecordedQueryTypes) > 0 {
 
 		for _, t := range cfg.RecordedQueryTypes {
-			switch t {
-			default:
-				log.Warnf("Unknown DNS type %v, skipping", t)
-			case "A":
-				queryTypes[layers.DNSTypeA] = struct{}{}
-			case "NS":
-				queryTypes[layers.DNSTypeNS] = struct{}{}
-			case "MD":
-				queryTypes[layers.DNSTypeMD] = struct{}{}
-			case "MF":
-				queryTypes[layers.DNSTypeMF] = struct{}{}
-			case "CNAME":
-				queryTypes[layers.DNSTypeCNAME] = struct{}{}
-			case "SOA":
-				queryTypes[layers.DNSTypeSOA] = struct{}{}
-			case "MB":
-				queryTypes[layers.DNSTypeMB] = struct{}{}
-			case "MG":
-				queryTypes[layers.DNSTypeMG] = struct{}{}
-			case "MR":
-				queryTypes[layers.DNSTypeMR] = struct{}{}
-			case "NULL":
-				queryTypes[layers.DNSTypeNULL] = struct{}{}
-			case "WKS":
-				queryTypes[layers.DNSTypeWKS] = struct{}{}
-			case "PTR":
-				queryTypes[layers.DNSTypePTR] = struct{}{}
-			case "HINFO":
-				queryTypes[layers.DNSTypeHINFO] = struct{}{}
-			case "MINFO":
-				queryTypes[layers.DNSTypeMINFO] = struct{}{}
-			case "MX":
-				queryTypes[layers.DNSTypeMX] = struct{}{}
-			case "TXT":
-				queryTypes[layers.DNSTypeTXT] = struct{}{}
-			case "AAAA":
-				queryTypes[layers.DNSTypeAAAA] = struct{}{}
-			case "SRV":
-				queryTypes[layers.DNSTypeSRV] = struct{}{}
-			case "OPT":
-				queryTypes[layers.DNSTypeOPT] = struct{}{}
-			case "URI":
-				queryTypes[layers.DNSTypeURI] = struct{}{}
+			if qt, ok := queryTypeStrings[t]; ok {
+				queryTypes[qt] = struct{}{}
+			} else {
+				log.Warnf("Unknown query type %v, skipping", qt)
 			}
 		}
 	}
