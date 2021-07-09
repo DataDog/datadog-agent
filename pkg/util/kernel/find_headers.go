@@ -80,7 +80,10 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, 
 
 	if err = downloadHeaders(headerDownloadDir); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", dirs)
-		return dirs, downloadSuccess, nil
+		if err = validateHeaderDirs(hv, dirs); err == nil {
+			return dirs, downloadSuccess, nil
+		}
+		return nil, downloadFailure, fmt.Errorf("downloaded headers are not valid: %w", err)
 	}
 	return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
 }
