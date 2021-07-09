@@ -71,6 +71,9 @@ type KSMConfig struct {
 	//   - zone:eu
 	Tags []string `yaml:"tags"`
 
+	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
+	DisableGlobalTags bool `yaml:"disable_global_tags"`
+
 	// Namespaces contains the namespaces from which we collect metrics
 	// Example: Enable metric collection for objects in prod and kube-system namespaces.
 	// namespaces:
@@ -450,13 +453,19 @@ func (k *KSMCheck) getClusterName() {
 }
 
 // initTags avoids keeping a nil Tags field in the check instance
-// and sets the kube_cluster_name tag for all metrics
+// Sets the kube_cluster_name tag for all metrics.
+// Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
 	}
+
 	if k.clusterName != "" {
 		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterName)
+	}
+
+	if !k.instance.DisableGlobalTags {
+		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(false)...)
 	}
 }
 
