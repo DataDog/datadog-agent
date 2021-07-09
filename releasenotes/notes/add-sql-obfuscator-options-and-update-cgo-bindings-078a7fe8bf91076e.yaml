@@ -6,9 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
-  - |
-    APM: Adds support to provide options to the SQL obfuscator to change the behavior.
 enhancements:
   - |
-    APM: The quantize_sql_tables obfuscator option is now configured at the integration level via the instance config.
+    Add support to provide options to the obfuscator from the CGo bindings.
