@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add support to provide options to the obfuscator from the CGo bindings.
+    Add support to provide options to the obfuscator to change the behavior.
