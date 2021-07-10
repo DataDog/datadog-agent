@@ -336,7 +336,6 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 
 				m[int32(pos)] = &ms
 			}
-			break
 		}
 	}
 	return m
