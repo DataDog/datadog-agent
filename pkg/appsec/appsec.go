@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,7 +22,7 @@ import (
 // NewIntakeReverseProxy returns the AppSec Intake Proxy handler according to
 // the agent configuration.
 func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
-	disabled := func (reason string) http.Handler {
+	disabled := func(reason string) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotImplemented)
@@ -76,22 +75,26 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 }
 
 const (
-	appSecRequestMetricsPrefix            = "datadog.trace_agent.appsec."
-	appSecRequestCountMetricsID           = appSecRequestMetricsPrefix + "request"
-	appSecRequestDurationMetricsID        = appSecRequestMetricsPrefix + "request_duration_ms"
-	appSecRequestPayloadSizeMetricsID     = appSecRequestMetricsPrefix + "request_payload_size"
-	appSecRequestPayloadTooLargeMetricsID = appSecRequestMetricsPrefix + "request_payload_too_large"
+	appSecRequestMetricsPrefix        = "datadog.trace_agent.appsec."
+	appSecRequestCountMetricsID       = appSecRequestMetricsPrefix + "request"
+	appSecRequestDurationMetricsID    = appSecRequestMetricsPrefix + "request_duration_ms"
+	appSecRequestPayloadSizeMetricsID = appSecRequestMetricsPrefix + "request_payload_size"
+	appSecRequestErrorMetricsID       = appSecRequestMetricsPrefix + "request_error"
 )
 
 func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 	// Error metrics through the reverse proxy error handler
 	errorHandler := proxy.ErrorHandler
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-		if err == apiutil.ErrLimitedReaderLimitReached {
-			if err := metrics.Count(appSecRequestPayloadTooLargeMetricsID, 1, metricsTags(req), 1); err != nil {
-				log.Error(err)
-			}
+		var kind string
+		switch err {
+		case apiutil.ErrLimitedReaderLimitReached:
+			kind = "ErrLimitedReaderLimitReached"
+		default:
+			kind = fmt.Sprintf("%T", err)
 		}
+		tags := append(metricsTags(req), fmt.Sprintf("error:%s", kind))
+		metrics.Count(appSecRequestErrorMetricsID, 1, append(tags, "error:"), 1)
 		errorHandler(w, req, err)
 	}
 	// Request metrics through the reverse proxy handler
@@ -100,16 +103,10 @@ func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 		defer func() {
 			tags := metricsTags(req)
 			if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
-				if err := metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1); err != nil {
-					log.Error(err)
-				}
+				metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
 			}
-			if err := metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1); err != nil {
-				log.Error(err)
-			}
-			if err := metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1); err != nil {
-				log.Error(err)
-			}
+			metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1)
+			metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
 		}()
 		proxy.ServeHTTP(w, req)
 	})
@@ -120,9 +117,6 @@ func metricsTags(req *http.Request) []string {
 	tags := []string{"path:" + req.URL.Path}
 	if ct := req.Header.Get("Content-Type"); ct != "" {
 		tags = append(tags, "content_type:"+ct)
-	}
-	if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
-		tags = append(tags, "payload_size:"+strconv.FormatInt(lr.Count, 10))
 	}
 	return tags
 }
