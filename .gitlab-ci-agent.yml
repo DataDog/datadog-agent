@@ -110,6 +110,7 @@ clear_deps_win_cache:
 
 deps_deb:
   stage: prepare
+  interruptible: true
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -132,6 +133,7 @@ deps_deb:
 
 deps_rpm:
   stage: prepare
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
     key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -156,6 +158,7 @@ deps_rpm:
 
 deps_win:
   stage: prepare
+  interruptible: true
   before_script:
     - *configure_windows_ps1_env_script
   cache:
@@ -183,6 +186,7 @@ deps_win:
 
 unit_tests:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -205,6 +209,7 @@ unit_tests:
 
 unit_tests_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -230,6 +235,7 @@ unit_tests_cluster_agent:
 
 filename_linting:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -254,6 +260,7 @@ filename_linting:
 
 build_binaries:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -268,6 +275,7 @@ build_binaries:
 
 build_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -308,6 +316,7 @@ clear_build_rpm_cache:
 
 build_deb:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   tags:
@@ -365,6 +374,7 @@ build_deb:
 
 build_rpm:
   stage: build_and_test
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
     - deps_rpm
@@ -427,6 +437,7 @@ build_rpm:
 
 build_win:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_win
   cache:
@@ -461,6 +472,7 @@ build_win:
 
 test_deb_renaming:
   stage: pre_release
+  interruptible: true
   needs:
     - build_deb
   before_script: []
@@ -469,6 +481,7 @@ test_deb_renaming:
 
 test_rpm_renaming:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
     - build_rpm
@@ -478,6 +491,7 @@ test_rpm_renaming:
 
 pre_release_deb:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_deb
     - build_deb
@@ -495,6 +509,7 @@ pre_release_deb:
 
 pre_release_win:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_win
     - build_win
@@ -524,6 +539,7 @@ pre_release_win:
 
 pre_release_rpm:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - build_rpm
@@ -534,6 +550,7 @@ pre_release_rpm:
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
+  interruptible: true
   image: docker:18.06.0
   needs:
     - build_deb

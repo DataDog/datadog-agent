@@ -48,6 +48,7 @@ clear_deps_deb_cache:
 
 deps_deb:
   stage: prepare
+  interruptible: true
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -72,6 +73,7 @@ deps_deb:
 
 unit_tests_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -95,6 +97,7 @@ unit_tests_cluster_agent:
 
 build_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -109,6 +112,7 @@ build_cluster_agent:
 
 build_deb:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   tags:
@@ -160,6 +164,7 @@ build_deb:
 
 pre_release_deb:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_deb
     - build_deb
@@ -177,6 +182,7 @@ pre_release_deb:
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
+  interruptible: true
   image: docker:18.06.0
   needs:
     - build_deb
