@@ -2,7 +2,10 @@ package checks
 
 import "time"
 
-func calculateCtrPct(cur, prev, sys2, sys1 uint64, numCPU int, before time.Time) float32 {
+func calculateCtrPct(cur, prev float64, sys2, sys1 uint64, numCPU int, before time.Time) float32 {
+	if cur == -1 || prev == -1 {
+		return -1
+	}
 	now := time.Now()
 	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 {

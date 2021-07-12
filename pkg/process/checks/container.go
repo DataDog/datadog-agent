@@ -129,7 +129,8 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
-		// Just in case the container is found, but refs are nil
+		// Just in case the container is found, but refs are nil.
+		// Note some CPU values are set to -1, to be skipped on the backend, because they are reported cumulatively
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
