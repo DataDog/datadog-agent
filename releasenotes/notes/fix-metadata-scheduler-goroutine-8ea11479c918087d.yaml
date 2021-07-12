@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix a bug where when the log agent is mis-configured, it temporarily hog on resources after being killed

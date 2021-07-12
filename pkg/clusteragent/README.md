@@ -31,7 +31,7 @@ To start working on the Cluster Agent, you can build the `master` branch:
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
 3. install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. build the whole project with `invoke cluster-agent.build --build-exclude=snmp`
+4. build the whole project with `invoke cluster-agent.build`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 

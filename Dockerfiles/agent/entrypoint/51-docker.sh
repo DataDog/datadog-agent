@@ -5,7 +5,7 @@
 #     (in that case, we trust the user wants docker integration and don't check existence)
 #   - we find the docker socket at it's default location
 
-if [[ -z "${DOCKER_HOST}" && ! -e /var/run/docker.sock ]]; then
+if [[ -z "${DOCKER_HOST}" && ! -S /var/run/docker.sock ]]; then
     exit 0
 fi
 
@@ -19,8 +19,7 @@ if [[ ! -e /etc/stackstate-agent/stackstate.yaml ]]; then
 fi
 
 # Enable the docker corecheck
-# TP: Not using the docker corecheck metrics, provided by the process agent.
-#if [[ ! -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default ]]; then
-#    mv /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example \
-#    /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default
-#fi
+if [[ ! -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default && -e /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example ]]; then
+    mv /etc/stackstate-agent/conf.d/docker.d/conf.yaml.example \
+    /etc/stackstate-agent/conf.d/docker.d/conf.yaml.default
+fi

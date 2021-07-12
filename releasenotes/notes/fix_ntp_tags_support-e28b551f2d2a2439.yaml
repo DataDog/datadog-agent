@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix tag support for NTP check.

@@ -1,0 +1,14 @@
+#!/bin/execlineb -S0
+
+# This is the shutdown script, running as process 1.
+cd /
+
+# Merge environments from our custom stage into current context
+s6-envdir -I /var/run/s6/env-stage3
+
+# Reap all the zombies, and we're done.
+wait { }
+
+# Use CMD exit code defaulting to zero if not present.
+importas -u -D0 S6_STAGE2_EXITED S6_STAGE2_EXITED
+exit ${S6_STAGE2_EXITED}

@@ -46,16 +46,16 @@ var EventTypeMap map[string]MetricsCategory = map[string]MetricsCategory{
 	events.PulledImage:  Activities,
 
 	// Kubelet events
-	events.NodeReady:                            Changes,
-	events.NodeNotReady:                         Activities,
-	events.NodeSchedulable:                      Activities,
-	events.StartingKubelet:                      Activities,
-	events.VolumeResizeSuccess:                  Activities,
-	events.FileSystemResizeSuccess:              Activities,
-	events.SuccessfulDetachVolume:               Activities,
-	events.SuccessfulAttachVolume:               Activities,
-	events.SuccessfulMountVolume:                Activities,
-	events.SuccessfulUnMountVolume:              Activities,
+	events.NodeReady:               Changes,
+	events.NodeNotReady:            Activities,
+	events.NodeSchedulable:         Activities,
+	events.StartingKubelet:         Activities,
+	events.VolumeResizeSuccess:     Activities,
+	events.FileSystemResizeSuccess: Activities,
+	//events.SuccessfulDetachVolume:               Activities, //TODO agent3
+	events.SuccessfulAttachVolume: Activities,
+	events.SuccessfulMountVolume:  Activities,
+	//events.SuccessfulUnMountVolume:              Activities, //TODO agent3
 	events.NodeRebooted:                         Activities,
 	events.ContainerGCFailed:                    Activities,
 	events.ImageGCFailed:                        Activities,

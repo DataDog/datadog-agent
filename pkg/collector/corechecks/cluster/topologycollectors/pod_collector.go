@@ -40,7 +40,7 @@ func NewPodCollector(componentChannel chan<- *topology.Component, relationChanne
 }
 
 // GetName returns the name of the Collector
-func (_ *PodCollector) GetName() string {
+func (*PodCollector) GetName() string {
 	return "Pod Collector"
 }
 
@@ -163,7 +163,7 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 		// We map the pod ip including clustername, namespace and podName because
 		// the pod ip is not necessarily unique:
 		// * Pods can use Host networking which gives them the ip of the host
-		// * Pods for jobs can remain present after completion or failure (their status will not be running but Completed or Failed) 
+		// * Pods for jobs can remain present after completion or failure (their status will not be running but Completed or Failed)
 		//   with their IP (that is now free again for reuse) still attached in the pod.Status
 		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s:%s", pc.GetInstance().URL, pod.Namespace, pod.Name, pod.Status.PodIP))
 	}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package api
 
 import (
@@ -8,6 +13,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const (
@@ -21,15 +27,16 @@ type traceResponse struct {
 	Rates map[string]float64 `json:"rate_by_service"`
 }
 
-// HTTPFormatError is used for payload format errors
-func HTTPFormatError(tags []string, w http.ResponseWriter) {
-	tags = append(tags, "error:format-error")
+// httpFormatError is used for payload format errors
+func httpFormatError(w http.ResponseWriter, v Version, err error) {
+	log.Errorf("Rejecting client request: %v", err)
+	tags := []string{"error:format-error", "version:" + string(v)}
 	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, "format-error", http.StatusUnsupportedMediaType)
+	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 }
 
-// HTTPDecodingError is used for errors happening in decoding
-func HTTPDecodingError(err error, tags []string, w http.ResponseWriter) {
+// httpDecodingError is used for errors happening in decoding
+func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	status := http.StatusBadRequest
 	errtag := "decoding-error"
 	msg := err.Error()
@@ -46,22 +53,14 @@ func HTTPDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// HTTPEndpointNotSupported is for payloads getting sent to a wrong endpoint
-func HTTPEndpointNotSupported(tags []string, w http.ResponseWriter) {
-	tags = append(tags, "error:unsupported-endpoint")
-	metrics.Count(receiverErrorKey, 1, tags, 1)
-	http.Error(w, "unsupported-endpoint", http.StatusInternalServerError)
-}
-
-// HTTPOK is a dumb response for when things are a OK
-func HTTPOK(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusOK)
+// httpOK is a dumb response for when things are a OK
+func httpOK(w http.ResponseWriter) {
 	io.WriteString(w, "OK\n")
 }
 
-// HTTPRateByService outputs, as a JSON, the recommended sampling rates for all services.
-func HTTPRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
-	w.WriteHeader(http.StatusOK)
+// httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
+func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) {
+	w.Header().Set("Content-Type", "application/json")
 	response := traceResponse{
 		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
 	}

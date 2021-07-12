@@ -1,0 +1,18 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: the writer will now flush based on an estimated number of bytes
+    in accumulated buffer size, as opposed to a maximum number of spans,
+    resulting in better traffic and payload size management.
+deprecations:
+  - |
+    APM: the yaml setting `apm_config.trace_writer.max_spans_per_payload`
+    is no longer in use; writes are now based solely on accumulated byte
+    size.

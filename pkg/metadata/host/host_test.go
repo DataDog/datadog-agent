@@ -1,16 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build !windows
 
 package host
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/logs"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/host/container"
+	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
@@ -19,12 +24,14 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	p := GetPayload("myhostname")
+	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
+	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
 	assert.NotNil(t, p.HostTags)
+	assert.NotNil(t, p.InstallMethod)
 }
 
 func TestGetSystemStats(t *testing.T) {
@@ -63,7 +70,7 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	meta := getMeta()
+	meta := getMeta(util.HostnameData{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -95,4 +102,66 @@ func TestGetContainerMetaTimeout(t *testing.T) {
 
 	meta := getContainerMeta(50 * time.Millisecond)
 	assert.Equal(t, map[string]string{"foo": "bar"}, meta)
+}
+
+func TestGetLogsMeta(t *testing.T) {
+	// No transport
+	logs.CurrentTransport = ""
+	meta := getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: ""}, meta)
+	// TCP transport
+	logs.CurrentTransport = logs.TransportTCP
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "TCP"}, meta)
+	// HTTP transport
+	logs.CurrentTransport = logs.TransportHTTP
+	meta = getLogsMeta()
+	assert.Equal(t, &LogsMeta{Transport: "HTTP"}, meta)
+}
+
+func TestGetInstallMethod(t *testing.T) {
+	dir, err := ioutil.TempDir("", "test_install_method")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir)
+
+	installInfoPath := path.Join(dir, "install_info")
+
+	// ------------- Without file, the install is considered private
+	installMethod := getInstallMethod(installInfoPath)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.InstallerVersion)
+
+	// ------------- with a correct file
+	var installInfoContent = `
+---
+install_method:
+  tool_version: chef-15
+  tool: chef
+  installer_version: datadog-cookbook-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+
+	// the install is considered coming from chef (example)
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "chef-15", installMethod.ToolVersion)
+	assert.NotNil(t, installMethod.Tool)
+	require.Equal(t, "chef", *installMethod.Tool)
+	assert.NotNil(t, installMethod.InstallerVersion)
+	require.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
+
+	// ------------- with an incorrect file
+	installInfoContent = `
+---
+install_methodlol:
+  name: chef-15
+  version: datadog-cookbook-4.2.1
+`
+	assert.Nil(t, ioutil.WriteFile(installInfoPath, []byte(installInfoContent), 0666))
+
+	// the parsing does not occur and the install is kept undefined
+	installMethod = getInstallMethod(installInfoPath)
+	require.Equal(t, "undefined", installMethod.ToolVersion)
+	assert.Nil(t, installMethod.Tool)
+	assert.Nil(t, installMethod.InstallerVersion)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package listeners
 
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
 	"github.com/StackVista/stackstate-agent/pkg/config"
@@ -23,12 +24,23 @@ var (
 	udsOriginDetectionErrors = expvar.Int{}
 	udsPacketReadingErrors   = expvar.Int{}
 	udsPackets               = expvar.Int{}
+	udsBytes                 = expvar.Int{}
+
+	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
+		[]string{"state"}, "Dogstatsd UDS packets count")
+
+	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
+		nil, "Dogstatsd UDS origin detection error count")
+
+	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
+		nil, "Dogstatsd UDS packets bytes")
 )
 
 func init() {
 	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
 	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
 	udsExpvars.Set("Packets", &udsPackets)
+	udsExpvars.Set("Bytes", &udsBytes)
 }
 
 // UDSListener implements the StatsdListener interface for Unix Domain
@@ -36,15 +48,15 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	conn            *net.UnixConn
-	packetBuffer    *packetBuffer
-	packetPool      *PacketPool
-	oobPool         *sync.Pool // For origin detection ancilary data
-	OriginDetection bool
+	conn             *net.UnixConn
+	packetsBuffer    *packetsBuffer
+	sharedPacketPool *PacketPool
+	oobPool          *sync.Pool // For origin detection ancilary data
+	OriginDetection  bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListener, error) {
+func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -93,10 +105,10 @@ func NewUDSListener(packetOut chan Packets, packetPool *PacketPool) (*UDSListene
 
 	listener := &UDSListener{
 		OriginDetection: originDetection,
-		packetPool:      packetPool,
 		conn:            conn,
-		packetBuffer: newPacketBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
+		sharedPacketPool: sharedPacketPool,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -118,7 +130,9 @@ func (l *UDSListener) Listen() {
 	for {
 		var n int
 		var err error
-		packet := l.packetPool.Get()
+		// retrieve an available packet from the packet pool,
+		// which will be pushed back by the server when processed.
+		packet := l.sharedPacketPool.Get()
 		udsPackets.Add(1)
 		if l.OriginDetection {
 			// Read datagram + credentials in ancilary data
@@ -130,6 +144,7 @@ func (l *UDSListener) Listen() {
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)
+				tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
 			}
@@ -148,19 +163,23 @@ func (l *UDSListener) Listen() {
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
 			udsPacketReadingErrors.Add(1)
+			tlmUDSPackets.Inc("error")
 			continue
 		}
+		tlmUDSPackets.Inc("ok")
 
+		udsBytes.Add(int64(n))
+		tlmUDSPacketsBytes.Add(float64(n))
 		packet.Contents = packet.buffer[:n]
 
-		// packetBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetBuffer.append(packet)
+		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
+		l.packetsBuffer.append(packet)
 	}
 }
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
-	l.packetBuffer.close()
+	l.packetsBuffer.close()
 	l.conn.Close()
 
 	// Socket cleanup on exit

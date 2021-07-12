@@ -9,15 +9,6 @@ kubeconfig_env = "KUBECONFIG=/home/ubuntu/deployment/aws-eks/tf-cluster/kubeconf
 
 
 @pytest.mark.first
-def test_receiver_healthy(host):
-    def assert_healthy():
-        c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1618/readiness"
-        assert host.check_output(c) == "200"
-
-    util.wait_until(assert_healthy, 30, 5)
-
-
-@pytest.mark.second
 def test_node_agent_healthy(host, ansible_var):
     namespace = ansible_var("namespace")
 
@@ -28,7 +19,7 @@ def test_node_agent_healthy(host, ansible_var):
     util.wait_until(assert_healthy, 30, 5)
 
 
-@pytest.mark.third
+@pytest.mark.second
 def test_cluster_agent_healthy(host, ansible_var):
     namespace = ansible_var("namespace")
 

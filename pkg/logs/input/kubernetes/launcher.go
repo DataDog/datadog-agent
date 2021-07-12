@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubelet
 
@@ -10,41 +10,41 @@ package kubernetes
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
-	"github.com/StackVista/stackstate-agent/pkg/tagger"
-	"github.com/StackVista/stackstate-agent/pkg/tagger/collectors"
+	"github.com/StackVista/stackstate-agent/pkg/logs/config"
+	"github.com/StackVista/stackstate-agent/pkg/logs/input"
+	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-
-	"github.com/StackVista/stackstate-agent/pkg/logs/config"
-	"github.com/StackVista/stackstate-agent/pkg/logs/service"
 )
 
-// The path to the pods log directory.
-const podsDirectoryPath = "/var/log/pods"
+const (
+	basePath      = "/var/log/pods"
+	anyLogFile    = "*.log"
+	anyV19LogFile = "%s_*.log"
+)
 
-var collectAllDisabledError = fmt.Errorf("%s disabled", config.ContainerCollectAll)
+var errCollectAllDisabled = fmt.Errorf("%s disabled", config.ContainerCollectAll)
 
 // Launcher looks for new and deleted pods to create or delete one logs-source per container.
 type Launcher struct {
-	sources                   *config.LogSources
-	sourcesByContainer        map[string]*config.LogSource
-	stopped                   chan struct{}
-	kubeutil                  *kubelet.KubeUtil
-	dockerAddedServices       chan *service.Service
-	dockerRemovedServices     chan *service.Service
-	containerdAddedServices   chan *service.Service
-	containerdRemovedServices chan *service.Service
-	collectAll                bool
+	sources            *config.LogSources
+	sourcesByContainer map[string]*config.LogSource
+	stopped            chan struct{}
+	kubeutil           kubelet.KubeUtilInterface
+	addedServices      chan *service.Service
+	removedServices    chan *service.Service
+	collectAll         bool
+	serviceNameFunc    func(string, string) string // serviceNameFunc gets the service name from the tagger, it is in a separate field for testing purpose
 }
 
 // NewLauncher returns a new launcher.
 func NewLauncher(sources *config.LogSources, services *service.Services, collectAll bool) (*Launcher, error) {
 	if !isIntegrationAvailable() {
-		return nil, fmt.Errorf("%s not found", podsDirectoryPath)
+		return nil, fmt.Errorf("%s not found", basePath)
 	}
-
 	kubeutil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -55,35 +55,19 @@ func NewLauncher(sources *config.LogSources, services *service.Services, collect
 		stopped:            make(chan struct{}),
 		kubeutil:           kubeutil,
 		collectAll:         collectAll,
+		serviceNameFunc:    input.ServiceNameFromTags,
 	}
-	err = launcher.setup()
-	if err != nil {
-		return nil, err
-	}
-	// Sources and services are added after the setup to avoid creating
-	// a channel that will lock the scheduler in case of setup failure
-	// FIXME(achntrl): Find a better way of choosing the right launcher
-	// between Docker and Kubernetes
-	launcher.dockerAddedServices = services.GetAddedServices(service.Docker)
-	launcher.dockerRemovedServices = services.GetRemovedServices(service.Docker)
-	launcher.containerdAddedServices = services.GetAddedServices(service.Containerd)
-	launcher.containerdRemovedServices = services.GetRemovedServices(service.Containerd)
+	launcher.addedServices = services.GetAllAddedServices()
+	launcher.removedServices = services.GetAllRemovedServices()
 	return launcher, nil
 }
 
 func isIntegrationAvailable() bool {
-	if _, err := os.Stat(podsDirectoryPath); err != nil {
+	if _, err := os.Stat(basePath); err != nil {
 		return false
 	}
 
 	return true
-}
-
-// setup initializes the pod watcher and the tagger.
-func (l *Launcher) setup() error {
-	// initialize the tagger to collect container tags
-	tagger.Init()
-	return nil
 }
 
 // Start starts the launcher
@@ -103,13 +87,9 @@ func (l *Launcher) Stop() {
 func (l *Launcher) run() {
 	for {
 		select {
-		case service := <-l.dockerAddedServices:
+		case service := <-l.addedServices:
 			l.addSource(service)
-		case service := <-l.dockerRemovedServices:
-			l.removeSource(service)
-		case service := <-l.containerdAddedServices:
-			l.addSource(service)
-		case service := <-l.containerdRemovedServices:
+		case service := <-l.removedServices:
 			l.removeSource(service)
 		case <-l.stopped:
 			log.Info("Kubernetes launcher stopped")
@@ -133,32 +113,28 @@ func (l *Launcher) addSource(svc *service.Service) {
 		log.Warnf("Could not add source for container %v: %v", svc.Identifier, err)
 		return
 	}
-	container, err := searchContainer(svc, pod)
+	container, err := l.kubeutil.GetStatusForContainerID(pod, svc.GetEntityID())
 	if err != nil {
 		log.Warn(err)
 		return
 	}
 	source, err := l.getSource(pod, container)
 	if err != nil {
-		if err != collectAllDisabledError {
+		if err != errCollectAllDisabled {
 			log.Warnf("Invalid configuration for pod %v, container %v: %v", pod.Metadata.Name, container.Name, err)
 		}
 		return
 	}
 
-	source.SetSourceType(svc.Type)
+	switch svc.Type {
+	case config.DockerType:
+		source.SetSourceType(config.DockerSourceType)
+	default:
+		source.SetSourceType(config.KubernetesSourceType)
+	}
 
 	l.sourcesByContainer[svc.GetEntityID()] = source
 	l.sources.AddSource(source)
-}
-
-func searchContainer(service *service.Service, pod *kubelet.Pod) (kubelet.ContainerStatus, error) {
-	for _, container := range pod.Status.Containers {
-		if service.GetEntityID() == container.ID {
-			return container, nil
-		}
-	}
-	return kubelet.ContainerStatus{}, fmt.Errorf("Container %v not found", service.GetEntityID())
 }
 
 // removeSource removes a new log-source from a service
@@ -176,6 +152,7 @@ const kubernetesIntegration = "kubernetes"
 // getSource returns a new source for the container in pod.
 func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus) (*config.LogSource, error) {
 	var cfg *config.LogsConfig
+	standardService := l.serviceNameFunc(container.Name, getTaggerEntityID(container.ID))
 	if annotation := l.getAnnotation(pod, container); annotation != "" {
 		configs, err := config.ParseJSON([]byte(annotation))
 		if err != nil || len(configs) == 0 {
@@ -184,30 +161,51 @@ func (l *Launcher) getSource(pod *kubelet.Pod, container kubelet.ContainerStatus
 		cfg = configs[0]
 	} else {
 		if !l.collectAll {
-			return nil, collectAllDisabledError
+			return nil, errCollectAllDisabled
 		}
-		shortImageName, err := l.getShortImageName(container)
-		if err != nil {
+		if standardService != "" {
 			cfg = &config.LogsConfig{
 				Source:  kubernetesIntegration,
-				Service: kubernetesIntegration,
+				Service: standardService,
 			}
 		} else {
-			cfg = &config.LogsConfig{
-				Source:  shortImageName,
-				Service: shortImageName,
+			shortImageName, err := l.getShortImageName(container)
+			if err != nil {
+				cfg = &config.LogsConfig{
+					Source:  kubernetesIntegration,
+					Service: kubernetesIntegration,
+				}
+			} else {
+				cfg = &config.LogsConfig{
+					Source:  shortImageName,
+					Service: shortImageName,
+				}
 			}
 		}
 	}
+	if cfg.Service == "" && standardService != "" {
+		cfg.Service = standardService
+	}
 	cfg.Type = config.FileType
-	cfg.Path = l.getPath(pod, container)
-	cfg.Identifier = container.ID
-	cfg.Tags = append(cfg.Tags, l.getTags(container)...)
+	cfg.Path = l.getPath(basePath, pod, container)
+	cfg.Identifier = getTaggerEntityID(container.ID)
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid kubernetes annotation: %v", err)
 	}
 
 	return config.NewLogSource(l.getSourceName(pod, container), cfg), nil
+}
+
+// getTaggerEntityID builds an entity ID from a kubernetes container ID
+// Transforms the <runtime>:// prefix into container_id://
+// Returns the original container ID if an error occurred
+func getTaggerEntityID(ctrID string) string {
+	taggerEntityID, err := kubelet.KubeContainerIDToTaggerEntityID(ctrID)
+	if err != nil {
+		log.Warnf("Could not get tagger entity ID: %v", err)
+		return ctrID
+	}
+	return taggerEntityID
 }
 
 // configPath refers to the configuration that can be passed over a pod annotation,
@@ -238,15 +236,52 @@ func (l *Launcher) getSourceName(pod *kubelet.Pod, container kubelet.ContainerSt
 	return fmt.Sprintf("%s/%s/%s", pod.Metadata.Namespace, pod.Metadata.Name, container.Name)
 }
 
-// getPath returns the path where all the logs of the container of the pod are stored.
-func (l *Launcher) getPath(pod *kubelet.Pod, container kubelet.ContainerStatus) string {
-	return fmt.Sprintf("%s/%s/%s/*.log", podsDirectoryPath, pod.Metadata.UID, container.Name)
+// getPath returns a wildcard matching with any logs file of container in pod.
+func (l *Launcher) getPath(basePath string, pod *kubelet.Pod, container kubelet.ContainerStatus) string {
+	// the pattern for container logs is different depending on the version of Kubernetes
+	// so we need to try three possbile formats
+	// until v1.9 it was `/var/log/pods/{pod_uid}/{container_name_n}.log`,
+	// v.1.10 to v1.13 it was `/var/log/pods/{pod_uid}/{container_name}/{n}.log`,
+	// since v1.14 it is `/var/log/pods/{pod_namespace}_{pod_name}_{pod_uid}/{container_name}/{n}.log`.
+	// see: https://github.com/kubernetes/kubernetes/pull/74441 for more information.
+	oldDirectory := filepath.Join(basePath, l.getPodDirectoryUntil1_13(pod))
+	if _, err := os.Stat(oldDirectory); err == nil {
+		v110Dir := filepath.Join(oldDirectory, container.Name)
+		_, err := os.Stat(v110Dir)
+		if err == nil {
+			log.Debugf("Logs path found for container %s, v1.13 >= kubernetes version >= v1.10", container.Name)
+			return filepath.Join(v110Dir, anyLogFile)
+		}
+		if !os.IsNotExist(err) {
+			log.Debugf("Cannot get file info for %s: %v", v110Dir, err)
+		}
+
+		v19Files := filepath.Join(oldDirectory, fmt.Sprintf(anyV19LogFile, container.Name))
+		files, err := filepath.Glob(v19Files)
+		if err == nil && len(files) > 0 {
+			log.Debugf("Logs path found for container %s, kubernetes version <= v1.9", container.Name)
+			return v19Files
+		}
+		if err != nil {
+			log.Debugf("Cannot get file info for %s: %v", v19Files, err)
+		}
+		if len(files) == 0 {
+			log.Debugf("Files matching %s not found", v19Files)
+		}
+	}
+
+	log.Debugf("Using the latest kubernetes logs path for container %s", container.Name)
+	return filepath.Join(basePath, l.getPodDirectorySince1_14(pod), container.Name, anyLogFile)
 }
 
-// getTags returns all the tags of the container
-func (l *Launcher) getTags(container kubelet.ContainerStatus) []string {
-	tags, _ := tagger.Tag(container.ID, collectors.HighCardinality)
-	return tags
+// getPodDirectoryUntil1_13 returns the name of the directory of pod containers until Kubernetes v1.13.
+func (l *Launcher) getPodDirectoryUntil1_13(pod *kubelet.Pod) string {
+	return pod.Metadata.UID
+}
+
+// getPodDirectorySince1_14 returns the name of the directory of pod containers since Kubernetes v1.14.
+func (l *Launcher) getPodDirectorySince1_14(pod *kubelet.Pod) string {
+	return fmt.Sprintf("%s_%s_%s", pod.Metadata.Namespace, pod.Metadata.Name, pod.Metadata.UID)
 }
 
 // getShortImageName returns the short image name of a container

@@ -1,0 +1,49 @@
+init_config:
+
+instances:
+    ## @param unit_names - list of strings - required
+    ## List of systemd units to monitor.
+    ## Full names must be used. Examples: ssh.service, docker.socket
+    #
+  - unit_names:
+      - <UNIT_NAME>
+
+    ## @param private_socket - string - optional
+    ## Path to systemd private socket needed to retrieve systemd data.
+    ## Defaults to `/run/systemd/private` or `/host/run/systemd/private` when
+    ## using Docker Agent (https://docs.datadoghq.com/agent/docker/).
+    ##
+    # private_socket: <PATH_TO_SYSTEMD_PRIVATE_SOCKET>
+
+    ## @param substate_status_mapping - object - optional
+    ## The integration will emits an additional `systemd.unit.substate` service check which value is
+    ## based on the provided mapping from systemd substate to service check status.
+    ## This configuration option allows you to be alerted on the unit substate for some specific situations.
+    ## Such a case includes units that are expected to be always running
+    ## but the systemd reported state and substate is 'active (exited)'. The provided example will send a
+    ## CRITICAL service check in that situation.
+    ## Valid statuses are 'ok', 'warning', 'critical', and 'unknown'. If the substate is not mapped,
+    ## the service check status will report 'unknown'.
+    #
+    # substate_status_mapping:
+    #   <UNIT_NAME_1>:
+    #     running: ok
+    #     exited: critical
+    #   <UNIT_NAME_2>:
+    #     plugged: ok
+    #     mounted: ok
+    #     running: ok
+    #     exited: critical
+    #     stopped: critical
+
+
+
+    ## @param tags  - list of key:value elements - optional
+    ## List of tags to attach to every metric, event, and service check emitted
+    ## by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

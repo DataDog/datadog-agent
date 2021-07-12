@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build !windows
 
 package listeners
@@ -23,7 +23,7 @@ var packetPoolUDP = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size")
 
 func TestNewUDPListener(t *testing.T) {
 	s, err := NewUDPListener(nil, packetPoolUDP)
-	require.NotNil(t, s)
+	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
 	s.Stop()
@@ -112,7 +112,6 @@ func TestUDPLocalOnly(t *testing.T) {
 
 func TestUDPReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)

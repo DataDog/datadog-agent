@@ -114,6 +114,6 @@ func NewTestCollector(clusterTopologyCollector ClusterTopologyCollector) Cluster
 }
 
 // GetName returns the name of the TestCollector
-func (_ *TestCollector) GetName() string {
+func (*TestCollector) GetName() string {
 	return "Test Collector"
 }

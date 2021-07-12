@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package health
 
@@ -127,6 +127,12 @@ func (c *catalog) getStatus() Status {
 	status := Status{}
 	c.RLock()
 	defer c.RUnlock()
+
+	// If no component registered, do not check anything, not even the checker itself
+	// as the `run()` function exits in such a case.
+	if len(c.components) == 0 {
+		return status
+	}
 
 	// Test the checker itself
 	if time.Now().After(c.latestRun.Add(2 * pingFrequency)) {

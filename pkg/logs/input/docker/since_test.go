@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -19,7 +19,7 @@ import (
 )
 
 func TestSince(t *testing.T) {
-	now := time.Now()
+	now := time.Now().UTC().Add(-5 * time.Second)
 	registry := mock.NewRegistry()
 
 	var since time.Time

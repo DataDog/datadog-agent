@@ -1,0 +1,33 @@
+description "Datadog IoT Agent"
+
+start on started network
+stop on runlevel [!2345]
+
+respawn
+respawn limit 10 5
+normal exit 0
+
+console output
+
+script
+  # Logging to console from the agent is disabled since the agent already logs using file or
+  # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
+  # to log panic/crashes.
+  #
+  # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
+  # This is the best way to set the user in the absence of setuid.
+  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false exec "$0" "$@"' dd-agent -- <%= install_dir %>/bin/agent/agent run -p <%= install_dir %>/run/agent.pid &>> /var/log/datadog/errors.log
+end script
+
+pre-start script
+  # Manual rotation of errors log
+  log_file_size=`du -b /var/log/datadog/errors.log | cut -f1`
+  if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
+    # Rotate log file if it's larger than 5MB
+    mv /var/log/datadog/errors.log /var/log/datadog/errors.log.1
+  fi
+end script
+
+post-stop script
+  rm -f <%= install_dir %>/run/agent.pid
+end script

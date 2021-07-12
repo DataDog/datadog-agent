@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package legacy
 
@@ -110,7 +110,6 @@ var expectedHostTags = map[string]string{
 }
 
 func TestConvertKubernetes(t *testing.T) {
-	mockConfig := config.Mock()
 	dir, err := ioutil.TempDir("", "agent_test_legacy")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -125,7 +124,8 @@ func TestConvertKubernetes(t *testing.T) {
 	err = ioutil.WriteFile(srcEmpty, []byte(kubernetesLegacyEmptyConf), 0640)
 	require.NoError(t, err)
 
-	deprecations, err := importKubernetesConfWithDeprec(src, dst, true)
+	configConverter := config.NewConfigConverter()
+	deprecations, err := importKubernetesConfWithDeprec(src, dst, true, configConverter)
 	require.NoError(t, err)
 	require.EqualValues(t, expectedKubeDeprecations, deprecations)
 
@@ -152,8 +152,8 @@ func TestConvertKubernetes(t *testing.T) {
 	assert.Equal(t, 1200, config.Datadog.GetInt("leader_lease_duration"))
 	assert.Equal(t, 3000, config.Datadog.GetInt("kubernetes_service_tag_update_freq"))
 
-	mockConfig.Set("kubelet_tls_verify", true)
-	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true)
+	configConverter.Set("kubelet_tls_verify", true)
+	deprecations, err = importKubernetesConfWithDeprec(srcEmpty, dstEmpty, true, configConverter)
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 0, len(deprecations))
@@ -162,12 +162,12 @@ func TestConvertKubernetes(t *testing.T) {
 	assert.Equal(t, kubeletNewEmptyConf, string(newEmptyConf))
 
 	// test overwrite
-	err = ImportKubernetesConf(src, dst, false)
+	err = ImportKubernetesConf(src, dst, false, configConverter)
 	require.NotNil(t, err)
 	_, err = os.Stat(filepath.Join(dir, "kubelet.yaml.bak"))
 	assert.True(t, os.IsNotExist(err))
 
-	err = ImportKubernetesConf(src, dst, true)
+	err = ImportKubernetesConf(src, dst, true, configConverter)
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "kubelet.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))

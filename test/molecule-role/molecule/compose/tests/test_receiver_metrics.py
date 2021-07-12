@@ -48,7 +48,8 @@ def test_no_datadog_metrics(host):
                 metrics[m_name] += values
 
         # assert that we don't see any datadog metrics
-        datadog_metrics = [(key, value) for key, value in metrics.iteritems() if key.startswith("datadog")]
+        # datadog.dogstatsd is a part of external dependency datadog-go
+        datadog_metrics = [(key, value) for key, value in metrics.items() if key.startswith("datadog") and not key.startswith("datadog.dogstatsd") ]
         assert len(datadog_metrics) == 0, 'datadog metrics found in sts_multi_metrics: [%s]' % ', '.join(map(str, datadog_metrics))
 
     util.wait_until(wait_for_metrics, 60, 3)

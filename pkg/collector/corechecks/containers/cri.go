@@ -1,15 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build cri
 
 package containers
 
 import (
+	"time"
+
 	yaml "gopkg.in/yaml.v2"
-	pb "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
@@ -61,8 +63,8 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(config, initConfig integration.Data) error {
-	err := c.CommonConfigure(config)
+func (c *CRICheck) Configure(config, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}
@@ -79,36 +81,58 @@ func (c *CRICheck) Run() error {
 
 	util, err := cri.GetUtil()
 	if err != nil {
-		c.Warnf("Error initialising check: %s", err)
+		c.Warnf("Error initialising check: %s", err) //nolint:errcheck
 		return err
 	}
 
 	containerStats, err := util.ListContainerStats()
 	if err != nil {
-		c.Warnf("Cannot get containers from the CRI: %s", err)
+		c.Warnf("Cannot get containers from the CRI: %s", err) //nolint:errcheck
 		return err
 	}
-	c.processContainerStats(sender, util.Runtime, containerStats)
+	c.generateMetrics(sender, containerStats, util)
 
 	sender.Commit()
 	return nil
 }
 
-// processContainerStats extracts metrics from the protobuf object
-func (c *CRICheck) processContainerStats(sender aggregator.Sender, runtime string, containerStats map[string]*pb.ContainerStats) {
+func (c *CRICheck) generateMetrics(sender aggregator.Sender, containerStats map[string]*pb.ContainerStats, criUtil cri.CRIClient) {
 	for cid, stats := range containerStats {
-		entityID := containers.BuildEntityName(runtime, cid)
+		if stats == nil {
+			log.Warnf("Missing stats for container: %s", cid)
+			continue
+		}
+
+		entityID := containers.BuildTaggerEntityName(cid)
 		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", cid[:12], err)
 		}
-		tags = append(tags, "runtime:"+runtime)
-		sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
-		// Cumulative CPU usage (sum across all cores) since object creation.
-		sender.Rate("cri.cpu.usage", float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()), "", tags)
-		if c.instance.CollectDisk {
-			sender.Gauge("cri.disk.used", float64(stats.GetWritableLayer().GetUsedBytes().GetValue()), "", tags)
-			sender.Gauge("cri.disk.inodes", float64(stats.GetWritableLayer().GetInodesUsed().GetValue()), "", tags)
+		tags = append(tags, "runtime:"+criUtil.GetRuntime())
+
+		c.processContainerStats(sender, *stats, tags)
+
+		ctnStatus, err := criUtil.GetContainerStatus(cid)
+		if err == nil && ctnStatus != nil {
+			currentUnixTime := time.Now().UnixNano()
+			c.computeContainerUptime(sender, currentUnixTime, *ctnStatus, tags)
 		}
+	}
+}
+
+// processContainerStats extracts metrics from the protobuf object
+func (c *CRICheck) processContainerStats(sender aggregator.Sender, stats pb.ContainerStats, tags []string) {
+	sender.Gauge("cri.mem.rss", float64(stats.GetMemory().GetWorkingSetBytes().GetValue()), "", tags)
+	// Cumulative CPU usage (sum across all cores) since object creation.
+	sender.Rate("cri.cpu.usage", float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue()), "", tags)
+	if c.instance.CollectDisk {
+		sender.Gauge("cri.disk.used", float64(stats.GetWritableLayer().GetUsedBytes().GetValue()), "", tags)
+		sender.Gauge("cri.disk.inodes", float64(stats.GetWritableLayer().GetInodesUsed().GetValue()), "", tags)
+	}
+}
+
+func (c *CRICheck) computeContainerUptime(sender aggregator.Sender, currentTime int64, ctnStatus pb.ContainerStatus, tags []string) {
+	if ctnStatus.StartedAt != 0 && currentTime-ctnStatus.StartedAt > 0 {
+		sender.Gauge("cri.uptime", float64((currentTime-ctnStatus.StartedAt)/int64(time.Second)), "", tags)
 	}
 }

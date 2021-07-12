@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The system-probe will no longer log excessively when its internal copy of the conntrack table
+    is full.  Furthermore, the artificial cap of 65536  on  ``system_probe_config.max_tracked_connections``,
+    which controlled the maximum number of conntrack entries seen by the system-probe has been lifted.

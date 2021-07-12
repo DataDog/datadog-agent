@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-install
 # Recipe:: _install_windows
 #
-# Copyright (C) 2019 Datadog
+# Copyright (C) 2019-2020 Datadog
 #
 # All rights reserved - Do Not Redistribute
 #

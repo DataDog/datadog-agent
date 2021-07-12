@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package listener
 
@@ -96,7 +96,7 @@ func (l *TCPListener) run() {
 				l.source.Status.Success()
 				continue
 			default:
-				l.startNewTailer(conn)
+				l.startTailer(conn)
 				l.source.Status.Success()
 			}
 		}
@@ -115,7 +115,7 @@ func (l *TCPListener) startListener() error {
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
 func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
-	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout)) //nolint:errcheck
 	frame := make([]byte, l.frameSize)
 	n, err := tailer.conn.Read(frame)
 	if err != nil {
@@ -126,8 +126,8 @@ func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
 	return frame[:n], nil
 }
 
-// startNewTailer creates and starts a new tailer that reads from the connection.
-func (l *TCPListener) startNewTailer(conn net.Conn) {
+// startTailer creates and starts a new tailer that reads from the connection.
+func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	tailer := NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
@@ -137,9 +137,9 @@ func (l *TCPListener) startNewTailer(conn net.Conn) {
 
 // stopTailer stops the tailer.
 func (l *TCPListener) stopTailer(tailer *Tailer) {
+	tailer.Stop()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer.Stop()
 	for i, t := range l.tailers {
 		if t == tailer {
 			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)

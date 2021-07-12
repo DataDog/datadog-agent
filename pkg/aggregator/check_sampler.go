@@ -1,14 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package aggregator
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"math"
+	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/aggregator/ckey"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const checksSourceTypeName = "System"
@@ -16,16 +19,26 @@ const checksSourceTypeName = "System"
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
+	sketches        []metrics.SketchSeries
 	contextResolver *ContextResolver
 	metrics         metrics.ContextMetrics
+	sketchMap       sketchMap
+	lastBucketValue map[ckey.ContextKey]int64
+	lastSeenBucket  map[ckey.ContextKey]time.Time
+	bucketExpiry    time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler() *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
+		sketches:        make([]metrics.SketchSeries, 0),
 		contextResolver: newContextResolver(),
 		metrics:         metrics.MakeContextMetrics(),
+		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int64),
+		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
+		bucketExpiry:    1 * time.Minute,
 	}
 }
 
@@ -37,7 +50,76 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 }
 
-func (cs *CheckSampler) commit(timestamp float64) {
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
+	ctx := cs.contextResolver.contextsByKey[ck]
+	ss := metrics.SketchSeries{
+		Name: ctx.Name,
+		Tags: ctx.Tags,
+		Host: ctx.Host,
+		// Interval: TODO: investigate
+		Points:     points,
+		ContextKey: ck,
+	}
+
+	return ss
+}
+
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
+	if bucket.Value < 0 {
+		log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
+		return
+	}
+	if bucket.Value == 0 {
+		// noop
+		return
+	}
+
+	bucketRange := bucket.UpperBound - bucket.LowerBound
+	if bucketRange < 0 {
+		log.Warnf(
+			"Negative bucket range [%f-%f] for metric %s discarding",
+			bucket.LowerBound, bucket.UpperBound, bucket.Name,
+		)
+		return
+	}
+
+	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
+
+	// if the bucket is monotonic and we have already seen the bucket we only send the delta
+	if bucket.Monotonic {
+		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
+		rawValue := bucket.Value
+		if bucketFound {
+			cs.lastSeenBucket[contextKey] = time.Now()
+			bucket.Value = rawValue - lastBucketValue
+		}
+		cs.lastBucketValue[contextKey] = rawValue
+		cs.lastSeenBucket[contextKey] = time.Now()
+	}
+
+	if bucket.Value < 0 {
+		log.Warnf("Negative bucket delta %d for metric %s discarding", bucket.Value, bucket.Name)
+		return
+	}
+	if bucket.Value == 0 {
+		// noop
+		return
+	}
+
+	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
+	if math.IsInf(bucket.UpperBound, 1) {
+		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		return
+	}
+
+	log.Tracef(
+		"Interpolating %d values over the [%f-%f] bucket",
+		bucket.Value, bucket.LowerBound, bucket.UpperBound,
+	)
+	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
+}
+
+func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.contextsByKey[ckey]
@@ -61,12 +143,45 @@ func (cs *CheckSampler) commit(timestamp float64) {
 
 		cs.series = append(cs.series, serie)
 	}
+}
 
+func (cs *CheckSampler) commitSketches(timestamp float64) {
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+
+	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
+		if p.Sketch == nil {
+			return
+		}
+		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+	})
+	for ck, points := range pointsByCtx {
+		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+	}
+}
+
+func (cs *CheckSampler) commit(timestamp float64) {
+	cs.commitSeries(timestamp)
+	cs.commitSketches(timestamp)
 	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
 }
 
-func (cs *CheckSampler) flush() metrics.Series {
+func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
+	// series
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
-	return series
+
+	// sketches
+	sketches := cs.sketches
+	cs.sketches = make([]metrics.SketchSeries, 0)
+
+	// garbage collect unused bucket deltas
+	now := time.Now()
+	for ctxKey, lastSeenBucket := range cs.lastSeenBucket {
+		if now.Sub(lastSeenBucket) > cs.bucketExpiry {
+			delete(cs.lastSeenBucket, ctxKey)
+			delete(cs.lastBucketValue, ctxKey)
+		}
+	}
+
+	return series, sketches
 }

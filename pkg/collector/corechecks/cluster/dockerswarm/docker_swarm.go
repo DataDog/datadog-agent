@@ -36,7 +36,6 @@ type SwarmConfig struct {
 type SwarmCheck struct {
 	core.CheckBase
 	instance       *SwarmConfig
-	dockerHostname string
 	// sts
 	topologyCollector *SwarmTopologyCollector
 }
@@ -84,8 +83,8 @@ func (c *SwarmConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (s *SwarmCheck) Configure(config, initConfig integration.Data) error {
-	err := s.CommonConfigure(config)
+func (s *SwarmCheck) Configure(config, initConfig integration.Data, source string) error {
+	err := s.CommonConfigure(config, source)
 	if err != nil {
 		return err
 	}

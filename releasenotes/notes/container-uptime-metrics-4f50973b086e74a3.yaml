@@ -1,0 +1,3 @@
+features:
+  - |
+    Add docker.uptime, cri.uptime, and containerd.uptime metrics for all containers

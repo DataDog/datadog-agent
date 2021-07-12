@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -18,17 +18,15 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
-// Collect at init time
-var cpuInfo []cpu.InfoStat
-
 // InitHostMetadata initializes necessary CPU info
 func InitHostMetadata() error {
 	var err error
-	cpuInfo, err = cpu.Info()
+	_, err = cpu.Info()
 
 	return err
 
 }
+
 func getSystemStats() *systemStats {
 	var stats *systemStats
 	key := buildKey("systemStats")

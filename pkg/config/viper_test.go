@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package config
 
@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/viper"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -78,8 +78,6 @@ func TestGetConfigEnvVars(t *testing.T) {
 
 	config.BindEnv("app_key")
 	assert.Contains(t, config.GetEnvVars(), "DD_APP_KEY")
-	config.BindEnv("logset")
-	assert.Contains(t, config.GetEnvVars(), "DD_LOGSET")
 	config.BindEnv("logs_config.run_path")
 	assert.Contains(t, config.GetEnvVars(), "DD_LOGS_CONFIG.RUN_PATH")
 

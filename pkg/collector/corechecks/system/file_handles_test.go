@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 // +build !windows
 
 package system
@@ -45,10 +45,18 @@ func TestFhCheckLinux(t *testing.T) {
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
-	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(nil, nil)
+	// we have to init the mocked sender here before fileHandleCheck.Configure(...)
+	// (and append it to the aggregator, which is automatically done in NewMockSender)
+	// because the FinalizeCheckServiceTag is called in Configure.
+	// Hopefully, the check ID is an empty string while running unit tests;
+	mock := mocksender.NewMockSender("")
+	mock.On("FinalizeCheckServiceTag").Return()
 
-	mock := mocksender.NewMockSender(fileHandleCheck.ID())
+	fileHandleCheck := new(fhCheck)
+	fileHandleCheck.Configure(nil, nil, "test")
+
+	// reset the check ID for the sake of correctness
+	mocksender.SetSender(mock, fileHandleCheck.ID())
 
 	mock.On("Gauge", "system.fs.file_handles.allocated", 896.0, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.fs.file_handles.allocated_unused", 201.0, "", []string(nil)).Return().Times(1)

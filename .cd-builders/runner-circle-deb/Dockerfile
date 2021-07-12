@@ -1,12 +1,11 @@
-FROM golang:1.11.5
+FROM golang:1.13.11
 
 RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/main/main contrib non-free/' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y python2.7-dev autoconf autogen intltool libssl1.0-dev
-RUN apt-get install -y libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader libsystemd-dev libkrb5-dev unixodbc-dev
-
+RUN apt-get install -y libpq-dev libsystemd-dev
 RUN go get -u golang.org/x/lint/golint
 
 # Ruby,,,

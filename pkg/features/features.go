@@ -72,7 +72,7 @@ func (f *Features) getSupportedFeatures() {
 		f.features = featuresParsed
 		f.retriesLeft = response.RetriesLeft
 	} else {
-		log.Errorf("Server does not support features: %s", response.Err)
+		_ = log.Errorf("Server does not support features: %s", response.Err)
 	}
 }
 

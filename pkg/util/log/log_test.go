@@ -1,22 +1,31 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Go vet raise an error when test the "Warn" method: call has possible formatting directive %s
-// +build !novet
+// +build !dovet
 
 package log
 
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
+
+func changeLogLevel(level string) error {
+	if logger == nil {
+		return errors.New("cannot set log-level: logger not initialized")
+	}
+
+	return logger.changeLogLevel(level)
+}
 
 func TestBasicLogging(t *testing.T) {
 	var b bytes.Buffer
@@ -39,14 +48,17 @@ func TestBasicLogging(t *testing.T) {
 	// Trace will not be logged
 	assert.Equal(t, strings.Count(b.String(), "foo"), 5)
 
-	Err := Error // Alias to avoid go-vet false positive
+	// Alias to avoid go-vet false positives
+	Wn := Warn
+	Err := Error
+	Crt := Critical
 
 	Trace("%s", "bar")
 	Debug("%s", "bar")
 	Info("%s", "bar")
-	Warn("%s", "bar")
+	Wn("%s", "bar")
 	Err("%s", "bar")
-	Critical("%s", "bar")
+	Crt("%s", "bar")
 	w.Flush()
 
 	// Trace will not be logged

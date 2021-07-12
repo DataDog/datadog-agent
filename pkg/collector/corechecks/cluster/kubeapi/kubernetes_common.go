@@ -12,7 +12,6 @@ import (
 	core "github.com/StackVista/stackstate-agent/pkg/collector/corechecks"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
-	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -23,11 +22,11 @@ type CommonCheck struct {
 	ac                    *apiserver.APIClient
 }
 
-func (k *CommonCheck) ConfigureKubeApiCheck(config integration.Data) error {
-	return k.CommonConfigure(config)
+func (k *CommonCheck) ConfigureKubeAPICheck(config integration.Data, source string) error {
+	return k.CommonConfigure(config, source)
 }
 
-func (k *CommonCheck) InitKubeApiCheck() error {
+func (k *CommonCheck) InitKubeAPICheck() error {
 	if config.Datadog.GetBool("cluster_agent.enabled") {
 		var errMsg = "cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events"
 		log.Debug(errMsg)
@@ -45,27 +44,5 @@ func (k *CommonCheck) InitKubeApiCheck() error {
 		}
 	}
 
-	return nil
-}
-
-func (k *CommonCheck) runLeaderElection() error {
-
-	leaderEngine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		_ = k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
-		return err
-	}
-
-	err = leaderEngine.EnsureLeaderElectionRuns()
-	if err != nil {
-		_ = k.Warn("Leader Election process failed to start")
-		return err
-	}
-
-	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
-		return apiserver.ErrNotLeader
-	}
-	log.Tracef("Current leader: %q, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
 	return nil
 }

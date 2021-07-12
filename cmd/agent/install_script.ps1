@@ -23,7 +23,7 @@ new-module -name StsAgentInstaller -scriptblock {
 
         $stsDownloadBase = "$env:WIN_REPO"
         If ( [string]::IsNullOrEmpty($stsDownloadBase) ) {
-          $stsDownloadBase = "https://stackstate-agent-2.s3.amazonaws.com/windows"
+          $stsDownloadBase = "https://stackstate-agent-3.s3.amazonaws.com/windows"
         }
         $DirectFileExists = $False
 

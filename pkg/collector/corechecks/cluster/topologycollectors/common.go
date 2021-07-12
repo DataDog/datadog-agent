@@ -56,7 +56,7 @@ func NewClusterTopologyCommon(instance topology.Instance, ac apiserver.APICollec
 }
 
 // GetName
-func (c *clusterTopologyCommon) GetName() string {
+func (*clusterTopologyCommon) GetName() string {
 	return "Unknown Collector"
 }
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -13,13 +13,14 @@ import (
 	"sort"
 	"sync"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
@@ -46,6 +47,9 @@ type KubeServiceService struct {
 	creationTime integration.CreationTime
 }
 
+// Make sure KubeServiceService implements the Service interface
+var _ Service = &KubeServiceService{}
+
 func init() {
 	Register("kube_services", NewKubeServiceListener)
 }
@@ -55,10 +59,12 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
+
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
+
 	return &KubeServiceListener{
 		services: make(map[types.UID]Service),
 		informer: servicesInformer,
@@ -137,8 +143,12 @@ func servicesDiffer(first, second *v1.Service) bool {
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
-	// AD annotations
-	if isServiceAnnotated(first) != isServiceAnnotated(second) {
+	// AD annotations - check templates
+	if isServiceAnnotated(first, kubeServiceAnnotationFormat) != isServiceAnnotated(second, kubeServiceAnnotationFormat) {
+		return true
+	}
+	// AD labels - standard tags
+	if standardTagsDigest(first.GetLabels()) != standardTagsDigest(second.GetLabels()) {
 		return true
 	}
 	// Cluster IP
@@ -165,7 +175,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 	if ksvc == nil {
 		return
 	}
-	if !isServiceAnnotated(ksvc) {
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) {
 		// Ignore services with no AD annotation
 		return
 	}
@@ -188,11 +198,14 @@ func processService(ksvc *v1.Service, firstRun bool) *KubeServiceService {
 		svc.creationTime = integration.Before
 	}
 
-	// Tags, static for now
+	// Service tags
 	svc.tags = []string{
 		fmt.Sprintf("kube_service:%s", ksvc.Name),
 		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
 	}
+
+	// Standard tags from the service's labels
+	svc.tags = append(svc.tags, getStandardTags(ksvc.GetLabels())...)
 
 	// Hosts, only use internal ClusterIP for now
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
@@ -238,6 +251,11 @@ func (s *KubeServiceService) GetEntity() string {
 	return s.entity
 }
 
+// GetEntity returns the unique entity name linked to that service
+func (s *KubeServiceService) GetTaggerEntity() string {
+	return s.entity
+}
+
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
 	// Only the entity for now, to match on annotation
@@ -274,7 +292,24 @@ func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
-func isServiceAnnotated(ksvc *v1.Service) bool {
-	_, found := ksvc.Annotations[kubeServiceAnnotationFormat]
-	return found
+// IsReady returns if the service is ready
+func (s *KubeServiceService) IsReady() bool {
+	return true
+}
+
+// GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) GetCheckNames() []string {
+	return nil
+}
+
+// HasFilter always return false
+// KubeServiceService doesn't implement this method
+func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, ErrNotSupported
 }

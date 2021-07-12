@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -42,7 +42,7 @@ log_level: info`
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(input), n)
 	assert.Equal(t, redacted, buf.String())
 
 }
@@ -74,7 +74,7 @@ instances:
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(clear), n)
 	assert.Equal(t, redacted, buf.String())
 }
 
@@ -108,7 +108,7 @@ log_level: info`
 	assert.Nil(t, err)
 	err = w.Flush()
 	assert.Nil(t, err)
-	assert.Equal(t, len(redacted), n)
+	assert.Equal(t, len(input), n)
 	assert.Equal(t, redacted, buf.String())
 
 }

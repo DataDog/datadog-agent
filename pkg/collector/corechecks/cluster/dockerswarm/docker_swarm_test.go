@@ -10,7 +10,9 @@ package dockerswarm
 import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator/mocksender"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
@@ -41,24 +43,27 @@ func TestDockerSwarmCheck_True(t *testing.T) {
 	}
 	config, err := yaml.Marshal(testConfig)
 	assert.NoError(t, err)
-	swarmcheck.Configure(config, nil)
+	swarmcheck.Configure(config, nil, "test")
 	swarmcheck.Run()
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	expectedTopology := batcher.Topologies{
+	expectedTopology := batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"swarm_topology": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
-			Components: []topology.Component{
-				*serviceComponent,
-				*containerComponent,
-			},
-			Relations: []topology.Relation{
-				*serviceRelation,
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
+				Components: []topology.Component{
+					*serviceComponent,
+					*containerComponent,
+				},
+				Relations: []topology.Relation{
+					*serviceRelation,
+				},
 			},
 		},
-	}
+	})
 	assert.EqualValues(t, expectedTopology, producedTopology)
 	sender.AssertExpectations(t)
 }
@@ -86,24 +91,27 @@ func TestDockerSwarmCheck_FromEnv(t *testing.T) {
 	sender.On("Gauge", "swarm.service.desired_replicas", 2.0, "", expectedTags).Return().Times(1)
 	sender.On("Commit").Return().Times(1)
 
-	swarmcheck.Configure(nil, nil)
+	swarmcheck.Configure(nil, nil, "test")
 	swarmcheck.Run()
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	expectedTopology := batcher.Topologies{
+	expectedTopology := batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{
 		"swarm_topology": {
-			StartSnapshot: false,
-			StopSnapshot:  false,
-			Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
-			Components: []topology.Component{
-				*serviceComponent,
-				*containerComponent,
-			},
-			Relations: []topology.Relation{
-				*serviceRelation,
+			Health: make(map[string]health.Health),
+			Topology: &topology.Topology{
+				StartSnapshot: false,
+				StopSnapshot:  false,
+				Instance:      topology.Instance{Type: "docker-swarm", URL: "agents"},
+				Components: []topology.Component{
+					*serviceComponent,
+					*containerComponent,
+				},
+				Relations: []topology.Relation{
+					*serviceRelation,
+				},
 			},
 		},
-	}
+	})
 	assert.EqualValues(t, expectedTopology, producedTopology)
 	sender.AssertExpectations(t)
 
@@ -113,7 +121,7 @@ func TestDockerSwarmCheck_FromEnv(t *testing.T) {
 func TestDockerSwarmCheck_False(t *testing.T) {
 
 	swarmcheck := SwarmFactory().(*SwarmCheck)
-	swarmcheck.Configure(nil, nil)
+	swarmcheck.Configure(nil, nil, "test")
 
 	// set up the mock batcher
 	mockBatcher := batcher.NewMockBatcher()
@@ -127,7 +135,7 @@ func TestDockerSwarmCheck_False(t *testing.T) {
 	swarmcheck.Run()
 
 	producedTopology := mockBatcher.CollectedTopology.Flush()
-	expectedTopology := batcher.Topologies{}
+	expectedTopology := batcher.CheckInstanceBatchStates(map[check.ID]batcher.CheckInstanceBatchState{})
 	// since instance flag is not true, no topology will be collected by default
 	assert.EqualValues(t, expectedTopology, producedTopology)
 }

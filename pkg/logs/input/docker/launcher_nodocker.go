@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !docker
 
 package docker
 
 import (
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/pipeline"
@@ -18,7 +20,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) (*Launcher, error) {
+func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry bool) (*Launcher, error) {
 	return &Launcher{}, nil
 }
 

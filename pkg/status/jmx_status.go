@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package status
 
@@ -20,23 +20,47 @@ type JMXStatus struct {
 	Timestamp    int64          `json:"timestamp"`
 }
 
+// JMXStartupError holds startup status and errors
+type JMXStartupError struct {
+	LastError string
+	Timestamp int64
+}
+
 var (
-	lastJMXStatus JMXStatus
-	m             sync.RWMutex
+	lastJMXStatus            JMXStatus
+	lastJMXStatusMutex       sync.RWMutex
+	lastJMXStartupError      JMXStartupError
+	lastJMXStartupErrorMutex sync.RWMutex
 )
 
 // SetJMXStatus sets the last JMX Status
 func SetJMXStatus(s JMXStatus) {
-	m.Lock()
-	defer m.Unlock()
+	lastJMXStatusMutex.Lock()
+	defer lastJMXStatusMutex.Unlock()
 
 	lastJMXStatus = s
 }
 
 // GetJMXStatus retrieves latest JMX Status
 func GetJMXStatus() JMXStatus {
-	m.RLock()
-	defer m.RUnlock()
+	lastJMXStatusMutex.RLock()
+	defer lastJMXStatusMutex.RUnlock()
 
 	return lastJMXStatus
+}
+
+// SetJMXStartupError sets the last JMX startup error
+func SetJMXStartupError(s JMXStartupError) {
+	lastJMXStatusMutex.Lock()
+	defer lastJMXStatusMutex.Unlock()
+
+	lastJMXStartupError = s
+}
+
+// GetJMXStartupError retrieves latest JMX startup error
+func GetJMXStartupError() JMXStartupError {
+	lastJMXStartupErrorMutex.RLock()
+	defer lastJMXStartupErrorMutex.RUnlock()
+	copy := JMXStartupError{lastJMXStartupError.LastError, lastJMXStartupError.Timestamp}
+	return copy
 }

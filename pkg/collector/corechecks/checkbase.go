@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package corechecks
 
@@ -14,6 +14,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/collector/check/defaults"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
@@ -40,14 +42,22 @@ type CheckBase struct {
 	checkID        check.ID
 	latestWarnings []error
 	checkInterval  time.Duration
+	source         string
+	telemetry      bool
 }
 
 // NewCheckBase returns a check base struct with a given check name
 func NewCheckBase(name string) CheckBase {
+	return NewCheckBaseWithInterval(name, defaults.DefaultCheckInterval)
+}
+
+// NewCheckBaseWithInterval returns a check base struct with a given check name and interval
+func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
 	return CheckBase{
 		checkName:     name,
 		checkID:       check.ID(name),
-		checkInterval: check.DefaultCheckInterval,
+		checkInterval: defaultInterval,
+		telemetry:     telemetry.IsCheckEnabled(name),
 	}
 }
 
@@ -59,13 +69,43 @@ func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data) error {
-	return c.CommonConfigure(data)
+func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	commonGlobalOptions := integration.CommonGlobalConfig{}
+	err := yaml.Unmarshal(initConfig, &commonGlobalOptions)
+	if err != nil {
+		log.Errorf("invalid init_config section for check %s: %s", string(c.ID()), err)
+		return err
+	}
+
+	// Set service for this check
+	if len(commonGlobalOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckService(commonGlobalOptions.Service)
+	}
+
+	err = c.CommonConfigure(data, source)
+	if err != nil {
+		return err
+	}
+
+	// Add the possibly configured service as a tag for this check
+	s, err := aggregator.GetSender(c.checkID)
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
+	return nil
 }
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(instance integration.Data) error {
+func (c *CheckBase) CommonConfigure(instance integration.Data, source string) error {
 	commonOptions := integration.CommonInstanceConfig{}
 	err := yaml.Unmarshal(instance, &commonOptions)
 	if err != nil {
@@ -98,6 +138,17 @@ func (c *CheckBase) CommonConfigure(instance integration.Data) error {
 		s.SetCheckCustomTags(commonOptions.Tags)
 	}
 
+	// Set configured service for this check, overriding the one possibly defined globally
+	if len(commonOptions.Service) > 0 {
+		s, err := aggregator.GetSender(c.checkID)
+		if err != nil {
+			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+			return err
+		}
+		s.SetCheckService(commonOptions.Service)
+	}
+
+	c.source = source
 	return nil
 }
 
@@ -138,6 +189,12 @@ func (c *CheckBase) Version() string {
 	return ""
 }
 
+// ConfigSource returns an empty string as Go check can't be updated independently
+// from the agent
+func (c *CheckBase) ConfigSource() string {
+	return c.source
+}
+
 // ID returns a unique ID for that check instance
 //
 // For checks that only support one instance, the default value is
@@ -145,6 +202,11 @@ func (c *CheckBase) Version() string {
 // to build their ID.
 func (c *CheckBase) ID() check.ID {
 	return c.checkID
+}
+
+// IsTelemetryEnabled returns if the telemetry is enabled for this check.
+func (c *CheckBase) IsTelemetryEnabled() bool {
+	return c.telemetry
 }
 
 // GetWarnings grabs the latest integration warnings for the check.

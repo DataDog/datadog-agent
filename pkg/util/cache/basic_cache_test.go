@@ -15,18 +15,22 @@ func TestBasicCache(t *testing.T) {
 
 	c := NewBasicCache()
 	for k, v := range m {
-		c.Add(k, v)
+		added := c.Add(k, v)
+		assert.True(t, added)
 	}
 	assert.Equal(t, len(m), c.Size())
 
+	added := c.Add("a", 1)
+	assert.False(t, added) // Already there
+
 	for k, v := range m {
-		cached, err := c.Get(k)
-		assert.Nil(t, err)
+		cached, found := c.Get(k)
+		assert.True(t, found)
 		assert.Equal(t, v, cached)
 	}
 
-	_, err := c.Get("notincache")
-	assert.NotNil(t, err)
+	_, found := c.Get("notincache")
+	assert.False(t, found)
 
 	items := c.Items()
 	for k, v := range items {

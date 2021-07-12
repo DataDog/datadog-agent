@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package agent
 
 import (
@@ -6,12 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/info"
 	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
 	"github.com/StackVista/stackstate-agent/pkg/trace/watchdog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 // Sampler chooses which spans to write to the API
@@ -54,8 +58,8 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *sampler.DynamicConfig
 	}
 }
 
-// Run starts sampling traces
-func (s *Sampler) Run() {
+// Start starts sampling traces
+func (s *Sampler) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		s.engine.Run()
@@ -109,13 +113,13 @@ func (s *Sampler) logStats() {
 				stats.TotalTPS = float64(totalTraceCount) / duration.Seconds()
 			}
 			engineType := fmt.Sprint(reflect.TypeOf(s.engine))
-			log.Debugf("%s: flushed %d sampled traces out of %d", engineType, keptTraceCount, totalTraceCount)
+			log.Tracef("%s: flushed %d sampled traces out of %d", engineType, keptTraceCount, totalTraceCount)
 
 			state := s.engine.GetState()
 
 			switch state := state.(type) {
 			case sampler.InternalState:
-				log.Debugf("%s: inTPS: %f, outTPS: %f, maxTPS: %f, offset: %f, slope: %f, cardinality: %d",
+				log.Tracef("%s: inTPS: %f, outTPS: %f, maxTPS: %f, offset: %f, slope: %f, cardinality: %d",
 					engineType, state.InTPS, state.OutTPS, state.MaxTPS, state.Offset, state.Slope, state.Cardinality)
 
 				// publish through expvar

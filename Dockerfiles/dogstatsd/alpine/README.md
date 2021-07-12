@@ -14,11 +14,14 @@ The following environment variables are supported:
 This is a sample Kubernetes DaemonSet, using the UDS protocol, running alongside an existing agent5:
 
 ```
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: dogstatsd
 spec:
+  selector:
+    matchLabels:
+      app: dogstatsd
   template:
     metadata:
       labels:
@@ -55,11 +58,14 @@ spec:
 If you want to use the UDP protocol on port 8125, running alongside an existing agent5:
 
 ```
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: dogstatsd
 spec:
+  selector:
+    matchLabels:
+      app: dogstatsd
   template:
     metadata:
       labels:

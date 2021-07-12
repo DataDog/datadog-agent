@@ -8,6 +8,7 @@ package kubeapi
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"time"
@@ -61,9 +62,9 @@ func TestProcessBundledEvents(t *testing.T) {
 	ev4 := createEvent(29, "default", "localhost", "Node", "e63e74fa-f566-11e7-9749-0e4863e1cbf4", "kubelet", "machine-blue", "MissingClusterDNS", "MountVolume.SetUp succeeded", 709675200, "warning")
 	// (As Object kinds are Pod and Node here, the event should take the remote hostname `machine-blue`)
 
-	kubeApiEventsCheck := &EventsCheck{
+	kubeAPIEventsCheck := &EventsCheck{
 		instance: &EventsConfig{
-			FilteredEventType: []string{"ignored"},
+			FilteredEventTypes: []string{"ignored"},
 		},
 		CommonCheck: CommonCheck{
 			CheckBase:             core.NewCheckBase(kubernetesAPIEventsCheckName),
@@ -84,10 +85,10 @@ func TestProcessBundledEvents(t *testing.T) {
 		ev1,
 		ev2,
 	}
-	mocked := mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked := mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, newKubeEventsBundle, false)
+	_ = kubeAPIEventsCheck.processEvents(mocked, newKubeEventsBundle)
 
 	// We are only expecting one bundle event.
 	// We need to check that the countByAction concatenated string contains the source events.
@@ -104,10 +105,11 @@ func TestProcessBundledEvents(t *testing.T) {
 		ev4,
 	}
 	modifiedNewDatadogEvents := metrics.Event{
-		Title:          "Events from the machine-blue Node",
-		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
-		Priority:       "normal",
-		Tags:           []string{"kube_namespace:default", "source_component:kubelet"},
+		Title:    "Events from the machine-blue Node",
+		Text:     "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
+		Priority: "normal",
+		Tags:     []string{"kube_namespace:default", "source_component:kubelet"},
+		// AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
 		Host:           "machine-blue",
@@ -118,18 +120,19 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, modifiedKubeEventsBundle, true)
+	_ = kubeAPIEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEvents, 0)
 	mocked.AssertExpectations(t)
 
 	// Test the hostname change when a cluster name is set
-	var testClusterName = "Laika"
+	var testClusterName = "laika"
 	mockConfig := config.Mock()
 	mockConfig.Set("cluster_name", testClusterName)
 	clustername.ResetClusterName() // reset state as clustername was already read
@@ -138,10 +141,11 @@ func TestProcessBundledEvents(t *testing.T) {
 	defer clustername.ResetClusterName()
 
 	modifiedNewDatadogEventsWithClusterName := metrics.Event{
-		Title:          "Events from the machine-blue Node",
-		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
-		Priority:       "normal",
-		Tags:           []string{"kube_namespace:default", "source_component:kubelet"},
+		Title:    "Events from the machine-blue Node",
+		Text:     "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
+		Priority: "normal",
+		Tags:     []string{"kube_namespace:default", "source_component:kubelet"},
+		// AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
 		SourceTypeName: "kubernetes",
 		Ts:             709675200,
 		Host:           "machine-blue-" + testClusterName,
@@ -152,13 +156,14 @@ func TestProcessBundledEvents(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:node/localhost", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
-	_ = kubeApiEventsCheck.processEvents(mocked, modifiedKubeEventsBundle, true)
+	_ = kubeAPIEventsCheck.processEvents(mocked, modifiedKubeEventsBundle)
 
 	mocked.AssertEvent(t, modifiedNewDatadogEventsWithClusterName, 0)
 	mocked.AssertExpectations(t)
@@ -170,9 +175,9 @@ func TestProcessEvent(t *testing.T) {
 	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "ReplicaSet", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "info")
 	// (Object kind was changed from Pod to ReplicaSet to test the choice of hostname: it should take here the local hostname below `hostname`)
 
-	kubeApiEventsCheck := &EventsCheck{
+	kubeAPIEventsCheck := &EventsCheck{
 		instance: &EventsConfig{
-			FilteredEventType: []string{"ignored"},
+			FilteredEventTypes: []string{"ignored"},
 		},
 		CommonCheck: CommonCheck{
 			CheckBase:             core.NewCheckBase(kubernetesAPIEventsCheckName),
@@ -186,7 +191,7 @@ func TestProcessEvent(t *testing.T) {
 			}
 		},
 	}
-	mocked := mocksender.NewMockSender(kubeApiEventsCheck.ID())
+	mocked := mocksender.NewMockSender(kubeAPIEventsCheck.ID())
 
 	newKubeEventBundle := []*v1.Event{
 		ev1,
@@ -207,17 +212,18 @@ func TestProcessEvent(t *testing.T) {
 			ElementIdentifiers: []string{
 				fmt.Sprintf("urn:kubernetes:/%s:default:replicaset/dca-789976f5d7-2ljx6", clustername.GetClusterName()),
 			},
+			Data: map[string]interface{}{},
 		},
 	}
 	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
-	_ = kubeApiEventsCheck.processEvents(mocked, newKubeEventBundle, false)
+	_ = kubeAPIEventsCheck.processEvents(mocked, newKubeEventBundle)
 	mocked.AssertEvent(t, newDatadogEvent, 0)
 	mocked.AssertExpectations(t)
 
 	// No events
 	empty := []*v1.Event{}
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
-	_ = kubeApiEventsCheck.processEvents(mocked, empty, false)
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
+	_ = kubeAPIEventsCheck.processEvents(mocked, empty)
 	mocked.AssertNotCalled(t, "Event")
 	mocked.AssertExpectations(t)
 
@@ -226,8 +232,80 @@ func TestProcessEvent(t *testing.T) {
 	filteredKubeEventsBundle := []*v1.Event{
 		ev5,
 	}
-	mocked = mocksender.NewMockSender(kubeApiEventsCheck.ID())
-	_ = kubeApiEventsCheck.processEvents(mocked, filteredKubeEventsBundle, false)
+	mocked = mocksender.NewMockSender(kubeAPIEventsCheck.ID())
+	_ = kubeAPIEventsCheck.processEvents(mocked, filteredKubeEventsBundle)
 	mocked.AssertNotCalled(t, "Event")
+	mocked.AssertExpectations(t)
+}
+
+func TestConvertFilter(t *testing.T) {
+	for n, tc := range []struct {
+		caseName string
+		filters  []string
+		output   string
+	}{
+		{
+			caseName: "legacy support",
+			filters:  []string{"OOM"},
+			output:   "reason!=OOM",
+		},
+		{
+			caseName: "exclude node and type",
+			filters:  []string{"involvedObject.kind!=Node", "type==Normal"},
+			output:   "involvedObject.kind!=Node,type==Normal",
+		},
+		{
+			caseName: "legacy support and exclude HorizontalPodAutoscaler",
+			filters:  []string{"involvedObject.kind!=HorizontalPodAutoscaler", "type!=Normal", "OOM"},
+			output:   "involvedObject.kind!=HorizontalPodAutoscaler,type!=Normal,reason!=OOM",
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", n, tc.caseName), func(t *testing.T) {
+			output := convertFilter(tc.filters)
+			assert.Equal(t, tc.output, output)
+		})
+	}
+}
+
+func TestProcessEventsType(t *testing.T) {
+	ev1 := createEvent(2, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600, "Normal")
+	ev2 := createEvent(3, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "Started", "Started container", 709662600, "Normal")
+	ev3 := createEvent(4, "default", "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "machine-blue", "BackOff", "Back-off restarting failed container", 709662600, "Warning")
+
+	kubeAPIEventsCheck := NewKubernetesAPIEventsCheck(core.NewCheckBase(kubernetesAPIEventsCheckName), &EventsConfig{})
+	kubeAPIEventsCheck.mapperFactory = func(d apiserver.OpenShiftDetector, clusterName string) *kubernetesEventMapper {
+		return &kubernetesEventMapper{
+			urn:         urn.NewURNBuilder(urn.Kubernetes, clusterName),
+			clusterName: clusterName,
+			sourceType:  string(urn.Kubernetes),
+		}
+	}
+	newKubeEventsBundle := []*v1.Event{
+		ev1,
+		ev2,
+		ev3,
+	}
+	mocked := mocksender.NewMockSender(kubeAPIEventsCheck.ID())
+	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+
+	_ = kubeAPIEventsCheck.processEvents(mocked, newKubeEventsBundle)
+	// We are only expecting two bundle events from the 3 kubernetes events because the event types differ.
+	// We need to check that the countByAction concatenated string contains the source events.
+	// As the order is not guaranteed we want to use contains.
+	calls := []string{
+		(mocked.Calls[0].Arguments.Get(0)).(metrics.Event).EventType,
+		(mocked.Calls[1].Arguments.Get(0)).(metrics.Event).EventType,
+		(mocked.Calls[2].Arguments.Get(0)).(metrics.Event).EventType,
+	}
+
+	// The order of calls is random in processEvents because of the map eventsByObject
+	// Mocked calls need to be sorted before making assertions
+	sort.Strings(calls)
+
+	assert.Contains(t, calls[0], "BackOff")
+	assert.Contains(t, calls[1], "Scheduled")
+	assert.Contains(t, calls[2], "Started")
+
+	mocked.AssertNumberOfCalls(t, "Event", 3)
 	mocked.AssertExpectations(t)
 }

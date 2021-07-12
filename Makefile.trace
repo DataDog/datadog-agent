@@ -1,5 +1,5 @@
-# This Makefile is used within the release process of the main Datadog Agent to pre-package datadog-trace-agent:
-# https://github.com/DataDog/datadog-agent/blob/2b7055c/omnibus/config/software/datadog-trace-agent.rb
+# This Makefile is used within the release process of the Datadog Agent 5:
+# https://github.com/DataDog/dd-agent-omnibus/blob/fad8aeb/config/software/datadog-trace-agent.rb#L105
 
 # if the TRACE_AGENT_VERSION environment variable isn't set, default to 0.99.0
 TRACE_AGENT_VERSION := $(if $(TRACE_AGENT_VERSION),$(TRACE_AGENT_VERSION), 0.99.0)
@@ -19,19 +19,6 @@ install:
 	# generate versioning information and installing the binary.
 	go generate ./pkg/trace/info
 	go install ./cmd/trace-agent
-
-binaries:
-	test -n "$(V)" # $$V must be set to the release version tag, e.g. "make binaries V=1.2.3"
-
-	# compiling release binaries for tag $(V)
-	git checkout $(V)
-	mkdir -p ./bin
-	TRACE_AGENT_VERSION=$(V) go generate ./internal/info
-	go get -u github.com/karalabe/xgo
-	xgo -dest=bin -go=1.11 -out=trace-agent-$(V) -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent
-	mv ./bin/trace-agent-$(V)-windows-6.1-amd64.exe ./bin/trace-agent-$(V)-windows-amd64.exe
-	mv ./bin/trace-agent-$(V)-darwin-10.11-amd64 ./bin/trace-agent-$(V)-darwin-amd64
-	git reset --hard head && git checkout -
 
 ci:
 	# task used by CI

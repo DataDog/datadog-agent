@@ -1,16 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build clusterchecks
 
 package clusterchecks
 
 import (
+	"sort"
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
+)
+
+const (
+	checkExecutionTimeWeight = 0.8
+	checkMetricSamplesWeight = 0.2
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -27,4 +34,32 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 // timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()
+}
+
+// calculateBusyness returns the busyness value of a node
+func calculateBusyness(checkStats types.CLCRunnersStats) int {
+	busyness := 0
+	for _, stats := range checkStats {
+		busyness += busynessFunc(stats)
+	}
+	return busyness
+}
+
+// busynessFunc returns the weight of a check
+func busynessFunc(s types.CLCRunnerStats) int {
+	if s.LastExecFailed {
+		// The check is failing, its weight is 0
+		return 0
+	}
+	return int(checkExecutionTimeWeight*float64(s.AverageExecutionTime) + checkMetricSamplesWeight*float64(s.MetricSamples))
+}
+
+// orderedKeys sorts the keys of a map and return them in a slice
+func orderedKeys(m map[string]int) []string {
+	keys := []string{}
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

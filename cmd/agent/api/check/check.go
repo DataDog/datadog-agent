@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Package check implements the api endpoints for the `/check` prefix.
 // This group of endpoints is meant to provide specific functionalities
@@ -15,10 +15,12 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /check endpoints
-func SetupHandlers(r *mux.Router) {
+func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/", listChecks).Methods("GET")
 	r.HandleFunc("/{name}", listCheck).Methods("GET", "DELETE")
 	r.HandleFunc("/{name}/reload", reloadCheck).Methods("POST")
+
+	return r
 }
 
 func reloadCheck(w http.ResponseWriter, r *http.Request) {

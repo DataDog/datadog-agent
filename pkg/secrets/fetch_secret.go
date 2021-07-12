@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
-// +build !windows
+// +build secrets
 
 package secrets
 
@@ -20,7 +20,8 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
-const payloadVersion = "1.0"
+// PayloadVersion defines the current payload version sent to a secret backend
+const PayloadVersion = "1.0"
 
 type limitBuffer struct {
 	max int
@@ -45,16 +46,14 @@ func execCommand(inputPayload string) ([]byte, error) {
 	}
 
 	cmd.Stdin = strings.NewReader(inputPayload)
-	// setting an empty env in case some secrets were set using the ENV (ex: API_KEY)
-	cmd.Env = []string{}
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: SecretBackendOutputMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: SecretBackendOutputMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -71,9 +70,10 @@ func execCommand(inputPayload string) ([]byte, error) {
 	return stdout.buf.Bytes(), nil
 }
 
-type secret struct {
-	Value    string
-	ErrorMsg string `json:"error"`
+// Secret defines the structure for secrets in JSON output
+type Secret struct {
+	Value    string `json:"value,omitempty"`
+	ErrorMsg string `json:"error,omitempty"`
 }
 
 // for testing purpose
@@ -84,7 +84,7 @@ var runCommand = execCommand
 // the name of the configuration where the secret was referenced.
 func fetchSecret(secretsHandle []string, origin string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": payloadVersion,
+		"version": PayloadVersion,
 		"secrets": secretsHandle,
 	}
 	jsonPayload, err := json.Marshal(payload)
@@ -97,7 +97,7 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		return nil, err
 	}
 
-	secrets := map[string]secret{}
+	secrets := map[string]Secret{}
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)

@@ -1,13 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package event
 
 import (
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
 	"github.com/StackVista/stackstate-agent/pkg/trace/sampler"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const maxEPSReportFrequency = 10 * time.Second

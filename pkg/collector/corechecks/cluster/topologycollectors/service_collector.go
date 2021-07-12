@@ -37,7 +37,7 @@ func NewServiceCollector(componentChannel chan<- *topology.Component, relationCh
 }
 
 // GetName returns the name of the Collector
-func (_ *ServiceCollector) GetName() string {
+func (*ServiceCollector) GetName() string {
 	return "Service Collector"
 }
 

@@ -1,14 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build zstd
 
 package compression
 
 import (
-	"github.com/DataDog/zstd"
+	zstd "github.com/DataDog/zstd"
 )
 
 // TODO: the intake still uses a pre-v1 (unstable) version of the zstd compression format.

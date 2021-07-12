@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -66,7 +66,7 @@ func (c *MemoryCheck) Run() error {
 		sender.Gauge("system.swap.total", float64(s.Total)/mbSize, "", nil)
 		sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
-		sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
+		sender.Gauge("system.swap.pct_free", (100-s.UsedPercent)/100, "", nil)
 	} else {
 		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
 	}

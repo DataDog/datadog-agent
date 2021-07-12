@@ -17,6 +17,7 @@ spec:
       containers:
       - name: shard
         image: quay.io/mhausenblas/mehdb:0.6
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9876
         env:

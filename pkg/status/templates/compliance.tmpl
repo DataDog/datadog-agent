@@ -1,0 +1,39 @@
+Running Compliance Checks
+=========================
+
+{{- with .RunnerStats }}
+  {{- if and (not .Runs) (not .Checks)}}
+    No checks have run yet
+  {{end -}}
+
+  {{- range $CheckName, $CheckInstances := .Checks}}
+    {{ $version := version $CheckInstances }}
+    {{$CheckName}}{{ if $version }} ({{$version}}){{ end }}
+    {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
+    {{- range $CheckInstances }}
+      Instance ID: {{.CheckID}} {{status .}}
+      Configuration Source: {{.CheckConfigSource}}
+      Total Runs: {{humanize .TotalRuns}}
+      Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
+      Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
+      Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+      {{- if $.CheckMetadata }}
+      {{- if index $.CheckMetadata .CheckID }}
+      metadata:
+      {{- range $k, $v := index $.CheckMetadata .CheckID }}
+        {{ $k }}: {{ $v }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{if .LastError -}}
+      Error: {{lastErrorMessage .LastError}}
+      {{lastErrorTraceback .LastError -}}
+      {{- end }}
+      {{- if .LastWarnings -}}
+        {{- range .LastWarnings }}
+      Warning: {{.}}
+        {{ end -}}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

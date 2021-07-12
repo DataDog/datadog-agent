@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import (
@@ -5,13 +10,13 @@ import (
 	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
-	log "github.com/cihub/seelog"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
 func getTestSampler() *Sampler {
 	// Disable debug logs in these tests
-	log.UseLogger(log.Disabled)
+	seelog.UseLogger(seelog.Disabled)
 
 	// No extra fixed sampling, no maximum TPS
 	extraRate := 1.0

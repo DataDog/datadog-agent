@@ -153,6 +153,28 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(data);
+
+      // Get the trace-agent status
+      sendMessage("agent/getConfig/apm_config.receiver_port", "", "GET",
+          function(data, status, xhr) {
+              var apmPort = data["apm_config.receiver_port"];
+              if (apmPort == null) {
+                  apmPort = "8126";
+              }
+              var url = "http://127.0.0.1:"+apmPort+"/debug/vars"
+              $.ajax({
+                url: url,
+                type: "GET",
+                success: function(data) {
+                    $("#apmStats > .stat_data").html(ejs.render(apmTemplate, data));
+                },
+                error: function() {
+                    $("#apmStats > .stat_data").text("Status: Not running or not on localhost.");
+                }
+              })
+          }, function() {
+              $("#apmStats > .stat_data").html("Could not obtain trace-agent port from API.");
+          })
   },function(){
       $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
   });
@@ -310,7 +332,8 @@ function loadCheckConfigFiles() {
       // filter out the example / disabled files
       if (item.endsWith(".example") ||
           item.endsWith(".disabled") ||
-          item.endsWith("metrics.yaml")) return;
+          item.endsWith("metrics.yaml")||
+          item.endsWith("auto_conf.yaml")) return;
 
       $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
@@ -340,7 +363,8 @@ function loadNewChecks() {
     data.forEach(function(fileName){
       if (fileName.endsWith(".example") ||
           fileName.endsWith(".disabled") ||
-          fileName.endsWith("metrics.yaml")) return;
+          fileName.endsWith("metrics.yaml")||
+          fileName.endsWith("auto_conf.yaml")) return;
       var checkName = fileName.substr(0, fileName.indexOf("."));
       enabledChecks.push(checkName);
     });

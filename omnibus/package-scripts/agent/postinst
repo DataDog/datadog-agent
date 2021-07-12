@@ -3,7 +3,7 @@
 # Perform necessary stackstate-agent setup steps after package is installed.
 # NOTE: for .rpm, see posttrans instead
 #
-# .deb: STEP 2 of 5
+# .deb: STEP 5 of 5
 # .rpm: STEP 3 of 6
 
 INSTALL_DIR=/opt/stackstate-agent
@@ -57,15 +57,15 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         #DEBHELPER#
     fi
 
-    # Set proper rights to the stackstate-agent user
+    # Set proper rights to the dd-agent user
     chown -R stackstate-agent:stackstate-agent ${CONFIG_DIR}
     chown -R stackstate-agent:stackstate-agent ${LOG_DIR}
     chown -R stackstate-agent:stackstate-agent ${INSTALL_DIR}
 
-    # Make network tracer configs read-only
-    chmod 0440 ${CONFIG_DIR}/network-tracer.yaml.example || true
-    if [ -f "$CONFIG_DIR/network-tracer.yaml" ]; then
-      chmod 0440 ${CONFIG_DIR}/network-tracer.yaml || true
+    # Make system-probe configs read-only
+    chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
+    if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
+      chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
     fi
 
 
@@ -87,8 +87,9 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             update-rc.d $SERVICE_NAME-process defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-process with update-rc.d"
             update-rc.d $SERVICE_NAME-trace defaults || echo "[ WARNING ]\tCannot enable $SERVICE_NAME-trace with update-rc.d"
         else
-            echo "[ WARNING ]\tCannot detect a supported init system. The stackstate-agent package only provides service files for systemd and upstart."
+            echo "[ WARNING ]\tCannot detect a supported init system. The stackstate-agent package only provides service files for systemd, upstart and sysvinit."
         fi
+
 
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
         # and avoid restarting when a check conf is invalid
@@ -133,6 +134,7 @@ else
     ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
 
     # Determine current user if he is using the Graphical installer
+    # shellcheck disable=SC2009
     INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
 
     # Otherwise, we hope he is using the install script and try to use this user
@@ -145,7 +147,7 @@ else
     echo "INSTALL_USER: $INSTALL_USER"
 
     echo "# Preparing log dir"
-    chown -vR $INSTALL_USER:admin $LOG_DIR
+    chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
     chmod -v 755 $LOG_DIR
 
     echo "# Installing the app"
@@ -153,7 +155,7 @@ else
 
     # Set the run directory for the agent
     mkdir -vp "$RUN_DIR"
-    chown -vR $INSTALL_USER:admin "$RUN_DIR"
+    chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
     chmod -v 755 "$RUN_DIR"
 
     echo "# Copying conf"
@@ -171,19 +173,19 @@ else
     fi
 
     echo "# Setting correct rights on conf"
-    chown -vR $INSTALL_USER:admin $CONF_DIR
+    chown -vR "${INSTALL_USER}:admin" $CONF_DIR
 
     # `stackstate-agent` command line
     mkdir -vp /usr/local/bin
     ln -vs $INSTALL_DIR/bin/agent/agent /usr/local/bin/stackstate-agent
 
     # Link for conf files (let's ease the user's life)
-    USER_HOME=`sudo -Hu $INSTALL_USER sh -c 'echo $HOME'`
-    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/.stackstate-agent"
+    USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+    sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.stackstate-agent"
     rm -vf "$USER_HOME/.stackstate-agent/conf.d" "$USER_HOME/.stackstate-agent/stackstate.yaml" "$USER_HOME/.stackstate-agent/checks.d"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/conf.d "$USER_HOME/.stackstate-agent/conf.d"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/stackstate.yaml "$USER_HOME/.stackstate-agent/stackstate.yaml"
-    sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/checks.d "$USER_HOME/.stackstate-agent/checks.d"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.stackstate-agent/conf.d"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/stackstate.yaml "$USER_HOME/.stackstate-agent/stackstate.yaml"
+    sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.stackstate-agent/checks.d"
 
     # Error if app not properly installed or root
     if [ "$INSTALL_USER" = "root" ]; then
@@ -193,9 +195,9 @@ else
     fi
 
     echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/Library/LaunchAgents"
-    sudo -Hu $INSTALL_USER cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-    sudo -Hu $INSTALL_USER launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+    sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
     if [ ! -e "$CONF_DIR/stackstate.yaml" ]; then
         exit 1
@@ -205,12 +207,13 @@ else
     if [ -z "$SCRIPT_INSTALL" ]; then
         echo "# Starting the app"
         # -a for application, -F for fresh, do not restore old app
-        export TMPDIR=`sudo -u $INSTALL_USER getconf DARWIN_USER_TEMP_DIR`
-        sudo -u $INSTALL_USER open -Fa 'Stackstate Agent'
+        TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
+        export TMPDIR
+        sudo -u "$INSTALL_USER" open -Fa 'Stackstate Agent'
     fi
 
     echo "# Configuring the login launch of the app"
-    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Stackstate Agent.app", name:"StackstateAgent", hidden:false}'
+    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Stackstate Agent", hidden:false}'
 
     # A little debriefing won't hurt
     echo "# State at the end"

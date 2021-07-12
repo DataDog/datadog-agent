@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package testsuite
 
 import (
@@ -45,7 +50,7 @@ func TestHostname(t *testing.T) {
 			if err := r.Post(payload); err != nil {
 				t.Fatal(err)
 			}
-			waitForTrace(t, r.Out(), func(v pb.TracePayload) {
+			waitForTrace(t, &r, func(v pb.TracePayload) {
 				if n := len(v.Traces); n != 1 {
 					t.Fatalf("expected %d traces, got %d", len(payload), n)
 				}
@@ -75,7 +80,7 @@ func TestHostname(t *testing.T) {
 		if err := r.Post(payload); err != nil {
 			t.Fatal(err)
 		}
-		waitForTrace(t, r.Out(), func(v pb.TracePayload) {
+		waitForTrace(t, &r, func(v pb.TracePayload) {
 			if n := len(v.Traces); n != 1 {
 				t.Fatalf("expected %d traces, got %d", len(payload), n)
 			}
@@ -88,13 +93,14 @@ func TestHostname(t *testing.T) {
 
 // waitForTrace waits on the out channel until it times out or receives an pb.TracePayload.
 // If the latter happens it will call fn.
-func waitForTrace(t *testing.T, out <-chan interface{}, fn func(pb.TracePayload)) {
-	waitForTraceTimeout(t, out, 3*time.Second, fn)
+func waitForTrace(t *testing.T, runner *test.Runner, fn func(pb.TracePayload)) {
+	waitForTraceTimeout(t, runner, 3*time.Second, fn)
 }
 
 // waitForTraceTimeout behaves like waitForTrace but allows a customizable wait time.
-func waitForTraceTimeout(t *testing.T, out <-chan interface{}, wait time.Duration, fn func(pb.TracePayload)) {
+func waitForTraceTimeout(t *testing.T, runner *test.Runner, wait time.Duration, fn func(pb.TracePayload)) {
 	timeout := time.After(wait)
+	out := runner.Out()
 	for {
 		select {
 		case p := <-out:
@@ -103,7 +109,7 @@ func waitForTraceTimeout(t *testing.T, out <-chan interface{}, wait time.Duratio
 				return
 			}
 		case <-timeout:
-			t.Fatal("timed out")
+			t.Fatalf("timed out, log was:\n%s", runner.AgentLog())
 		}
 	}
 }

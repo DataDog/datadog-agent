@@ -28,13 +28,13 @@ func TestReportClusterQuotas(t *testing.T) {
 
 	var instanceCfg = []byte("")
 	var initCfg = []byte("")
-	kubeApiMetricsCheck := KubernetesApiMetricsFactory().(*MetricsCheck)
-	err = kubeApiMetricsCheck.Configure(instanceCfg, initCfg)
+	kubeAPIMetricsCheck := KubernetesAPIMetricsFactory().(*MetricsCheck)
+	err = kubeAPIMetricsCheck.Configure(instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
-	mocked := mocksender.NewMockSender(kubeApiMetricsCheck.ID())
+	mocked := mocksender.NewMockSender(kubeAPIMetricsCheck.ID())
 	mocked.SetupAcceptAll()
-	kubeApiMetricsCheck.reportClusterQuotas(list.Items, mocked)
+	kubeAPIMetricsCheck.reportClusterQuotas(list.Items, mocked)
 	mocked.AssertNumberOfCalls(t, "Gauge", 9*3)
 
 	// Total

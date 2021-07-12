@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    It's possible now to reduce the risk of missing kubernetes tags on initial logs by configuring "logs_config.tagger_warmup_duration".
+    Configuring "logs_config.tagger_warmup_duration" delays the send of the first logs of a container.
+    Default value 0 seconds, the fix is disabled by default.
+    Setting "logs_config.tagger_warmup_duration" to 5 (seconds) should be enough to retrieve all the tags.

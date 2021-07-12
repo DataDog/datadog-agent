@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
@@ -13,6 +13,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 
+	"github.com/StackVista/stackstate-agent/pkg/errors"
 	"github.com/StackVista/stackstate-agent/pkg/status/health"
 	"github.com/StackVista/stackstate-agent/pkg/util/docker"
 )
@@ -55,7 +56,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 // Stream runs the continuous event watching loop and sends new info
 // to the channel. But be called in a goroutine.
 func (c *DockerCollector) Stream() error {
-	healthHandle := health.Register("tagger-docker")
+	healthHandle := health.RegisterLiveness("tagger-docker")
 
 	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
 	if err != nil {
@@ -65,7 +66,7 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			healthHandle.Deregister()
+			healthHandle.Deregister() //nolint:errcheck
 			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
 		case <-healthHandle.C:
 		case msg := <-messages:
@@ -88,11 +89,12 @@ func (c *DockerCollector) Stop() error {
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	runtime, cID := containers.SplitEntityName(entity)
-	if runtime != containers.RuntimeNameDocker || len(cID) == 0 {
+	entityType, cID := containers.SplitEntityName(entity)
+	if entityType != containers.ContainerEntityName || len(cID) == 0 {
 		return nil, nil, nil, nil
 	}
-	return c.fetchForDockerID(cID)
+	low, orchestrator, high, _, err := c.fetchForDockerID(cID)
+	return low, orchestrator, high, err
 }
 
 func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
@@ -102,13 +104,17 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	case "die":
 		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
 	case "start":
-		low, orchestrator, high, _ := c.fetchForDockerID(e.ContainerID)
+		low, orchestrator, high, standard, err := c.fetchForDockerID(e.ContainerID)
+		if err != nil {
+			log.Debugf("Error fetching tags for container '%s': %v", e.ContainerName, err)
+		}
 		info = &TagInfo{
 			Entity:               e.ContainerEntityName(),
 			Source:               dockerCollectorName,
 			LowCardTags:          low,
 			OrchestratorCardTags: orchestrator,
 			HighCardTags:         high,
+			StandardTags:         standard,
 		}
 	default:
 		return // Nothing to see here
@@ -116,14 +122,16 @@ func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	c.infoOut <- []*TagInfo{info}
 }
 
-func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, error) {
+func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, []string, []string, error) {
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
-		// TODO separate "not found" and inspect error
-		log.Debugf("Failed to inspect container %s - %s", cID, err)
-		return nil, nil, nil, err
+		if !errors.IsNotFound(err) {
+			log.Debugf("Failed to inspect container %s - %s", cID, err)
+		}
+		return nil, nil, nil, nil, err
 	}
-	return c.extractFromInspect(co)
+	low, orchestrator, high, standard := c.extractFromInspect(co)
+	return low, orchestrator, high, standard, nil
 }
 
 func dockerFactory() Collector {

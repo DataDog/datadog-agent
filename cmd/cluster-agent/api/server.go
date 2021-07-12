@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -53,10 +53,10 @@ func StartServer(sc clusteragent.ServerContext) error {
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 	// Internal token
-	util.SetAuthToken()
+	util.CreateAndSetAuthToken() //nolint:errcheck
 
 	// DCA client token
-	util.SetDCAAuthToken()
+	util.InitDCAAuthToken() //nolint:errcheck
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -90,7 +90,7 @@ func StartServer(sc clusteragent.ServerContext) error {
 
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(tlsListener)
+	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
 }
 
@@ -107,12 +107,14 @@ func StopServer() {
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.String()
-		if isExternalPath(path) {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
+		var isValid bool
+		if !isExternalPath(path) {
+			if err := util.Validate(w, r); err == nil {
+				isValid = true
 			}
-		} else {
-			if err := util.Validate(w, r); err != nil {
+		}
+		if !isValid {
+			if err := util.ValidateDCARequest(w, r); err != nil {
 				return
 			}
 		}
@@ -124,7 +126,9 @@ func validateToken(next http.Handler) http.Handler {
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
-		strings.HasPrefix(path, "/api/v1/tags/pod/") && len(strings.Split(path, "/")) == 8 ||
+		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
-		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6
+		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7
 }

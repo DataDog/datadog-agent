@@ -27,5 +27,5 @@ fi
 if [[ $MARATHON_URL ]] && [[ ! -e $CONFD/marathon.d/conf.yaml.default ]]; then
   mv $CONFD/marathon.d/conf.yaml.example \
      $CONFD/marathon.d/conf.yaml.default
-  sed -i -e "s@# - url: \"https://server:port\"@- url: ${MARATHON_URL}@" $CONFD/marathon.d/conf.yaml.default
+  sed -i -e "s@ - url: \"https://<SERVER>:<PORT>\"@- url: ${MARATHON_URL}@" $CONFD/marathon.d/conf.yaml.default
 fi

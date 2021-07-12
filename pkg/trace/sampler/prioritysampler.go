@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 // Package sampler contains all the logic of the agent-side trace sampling
 //
 // Currently implementation is based on the scoring of the "signature" of each trace
@@ -25,6 +30,9 @@ const (
 	// was sampled.
 	SamplingPriorityRateKey = "_sampling_priority_rate_v1"
 	syncPeriod              = 3 * time.Second
+	// prioritySamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
+	prioritySamplingRateThresholdTo1 = 0.3
 )
 
 // PriorityEngine is the main component of the sampling logic
@@ -45,6 +53,7 @@ func NewPriorityEngine(extraRate float64, maxTPS float64, rateByService *RateByS
 		catalog:       newServiceLookup(),
 		exit:          make(chan struct{}),
 	}
+	s.Sampler.setRateThresholdTo1(prioritySamplingRateThresholdTo1)
 
 	return s
 }
@@ -115,7 +124,7 @@ func (s *PriorityEngine) Sample(trace pb.Trace, root *pb.Span, env string) (samp
 	// fetching applied sample rate
 	var ok bool
 	rate, ok = root.Metrics[SamplingPriorityRateKey]
-	if !ok {
+	if !ok || rate > prioritySamplingRateThresholdTo1 {
 		rate = s.Sampler.GetSignatureSampleRate(signature)
 		root.Metrics[SamplingPriorityRateKey] = rate
 	}

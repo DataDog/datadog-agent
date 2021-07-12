@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Improve cluster name auto-detection on Azure AKS.

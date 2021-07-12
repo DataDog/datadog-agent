@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package secrets
 
 import (
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 )
 
@@ -31,8 +32,10 @@ func (si *SecretInfo) Print(w io.Writer) {
 	fmt.Fprintf(w, "\nRights Detail:\n")
 	fmt.Fprintf(w, "%s\n", si.RightDetails)
 
-	fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner)
-	fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup)
+	if runtime.GOOS != "windows" {
+		fmt.Fprintf(w, "Owner username: %s\n", si.UnixOwner)
+		fmt.Fprintf(w, "Group name: %s\n", si.UnixGroup)
+	}
 
 	fmt.Fprintf(w, "\n=== Secrets stats ===\n")
 	fmt.Fprintf(w, "Number of secrets decrypted: %d\n", len(si.SecretsHandles))

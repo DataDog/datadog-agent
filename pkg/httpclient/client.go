@@ -251,7 +251,7 @@ func (rc *RetryableHTTPClient) makeRequest(method, path string, body []byte) (*h
 
 	if resp.StatusCode < 200 || resp.StatusCode > 300 {
 		defer resp.Body.Close()
-		io.Copy(ioutil.Discard, resp.Body)
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
 		return resp, fmt.Errorf("unexpected response from %s. Status: %s", url, resp.Status)
 	}
 

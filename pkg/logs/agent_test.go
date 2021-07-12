@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package logs
 
@@ -16,12 +16,14 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/StackVista/stackstate-agent/pkg/config"
-	"github.com/StackVista/stackstate-agent/pkg/logs/client"
 	"github.com/StackVista/stackstate-agent/pkg/logs/client/mock"
+	"github.com/StackVista/stackstate-agent/pkg/logs/client/tcp"
 
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/logs/service"
+
+	"github.com/StackVista/stackstate-agent/pkg/util/testutil"
 )
 
 type AgentTestSuite struct {
@@ -72,7 +74,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.DestinationLogsDropped.Init()
 }
 
-func createAgent(endpoints *client.Endpoints) (*Agent, *config.LogSources, *service.Services) {
+func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *service.Services) {
 	// setup the sources and the services
 	sources := config.NewLogSources()
 	services := service.NewServices()
@@ -86,8 +88,8 @@ func (suite *AgentTestSuite) TestAgent() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	endpoint := client.AddrToEndPoint(l.Addr())
-	endpoints := client.NewEndpoints(endpoint, nil)
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -100,8 +102,10 @@ func (suite *AgentTestSuite) TestAgent() {
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most 4 second to send the logs. (seems to be slow on Windows/AppVeyor)
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
@@ -115,15 +119,17 @@ func (suite *AgentTestSuite) TestAgent() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
-	endpoint := client.Endpoint{Host: "fake:", Port: 0}
-	endpoints := client.NewEndpoints(endpoint, nil)
+	endpoint := config.Endpoint{Host: "fake:", Port: 0}
+	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
 
 	agent, sources, _ := createAgent(endpoints)
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most one second to process the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsProcessed.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())
@@ -137,17 +143,19 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
-	endpoint := client.AddrToEndPoint(l.Addr())
-	additionalEndpoint := client.Endpoint{Host: "still_fake", Port: 0}
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
 
-	endpoints := client.NewEndpoints(endpoint, []client.Endpoint{additionalEndpoint})
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false, 0)
 
 	agent, sources, _ := createAgent(endpoints)
 
 	agent.Start()
 	sources.AddSource(suite.source)
-	// Give the tailer some time to start its job.
-	time.Sleep(10 * time.Millisecond)
+	// Give the agent at most one second to send the logs.
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+		return int64(2) == metrics.LogsSent.Value()
+	})
 	agent.Stop()
 
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsDecoded.Value())

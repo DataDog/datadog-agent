@@ -40,20 +40,12 @@ def monitor_flask(app: Flask):
 
     app.add_url_rule('/metrics', 'metrics', collect)
 
-    additional_kwargs = {
-        'registry': metrics
-    }
+    additional_kwargs = {'registry': metrics}
     request_latency = Histogram(
-        'requests_duration_seconds',
-        'Backend API request latency',
-        ['method', 'path'],
-        **additional_kwargs
+        'requests_duration_seconds', 'Backend API request latency', ['method', 'path'], **additional_kwargs
     )
     status_count = Counter(
-        'responses_total',
-        'Backend API response count',
-        ['method', 'path', 'status_code'],
-        **additional_kwargs
+        'responses_total', 'Backend API response count', ['method', 'path', 'status_code'], **additional_kwargs
     )
     exception_latency = Histogram(
         'exceptions_duration_seconds',
@@ -76,9 +68,6 @@ def monitor_flask(app: Flask):
     def log_exception(exc_info):
         class_name = extract_exception_name(exc_info)
         exception_latency.labels(request.method, request.url_rule, class_name).observe(time.time() - g._start_time)
-        app.logger.error('Exception on %s [%s]' % (
-            request.path,
-            request.method
-        ), exc_info=exc_info)
+        app.logger.error('Exception on %s [%s]' % (request.path, request.method), exc_info=exc_info)
 
     app.log_exception = log_exception

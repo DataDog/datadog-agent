@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    JMXFetch (helper for JMX checks) is now restarted if it crashes on Windows.

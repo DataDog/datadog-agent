@@ -23,13 +23,13 @@ is_windows = node['platform_family'] == 'windows'
 #        in /etc/datadog-agent/trace-agent.conf for the trace agent.
 #        Remove them when these agents can read from datadog.yaml.
 trace_agent_config_file = ::File.join(node['dd-agent-install']['agent6_config_dir'], 'trace-agent.conf')
-config_dir = node['dd-agent-install']['agent6'] ? node['dd-agent-install']['agent6_config_dir'] : node['dd-agent-install']['config_dir']
+config_dir = node['dd-agent-install']['agent_major_version'].to_i > 5 ? node['dd-agent-install']['agent6_config_dir'] : node['dd-agent-install']['config_dir']
 
 
 template trace_agent_config_file do
   def conf_template_vars
     {
-      :api_keys => [Chef::Datadog.api_key(node)],
+      :api_keys => [node['dd-agent-install']['api_key']],
       :dd_urls => [node['dd-agent-install']['url']]
     }
   end
@@ -41,9 +41,7 @@ template trace_agent_config_file do
     end
   )
   if is_windows
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
+  # the windows installer takes care of setting the correct permissions
   else
     owner 'dd-agent'
     group 'dd-agent'
@@ -106,9 +104,6 @@ template agent6_config_file do # rubocop:disable Metrics/BlockLength
   end
 
   if node['platform_family'] == 'windows'
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
   else
     owner 'dd-agent'
     mode '600'

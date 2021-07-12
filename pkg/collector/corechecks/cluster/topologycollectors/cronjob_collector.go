@@ -25,7 +25,7 @@ func NewCronJobCollector(componentChannel chan<- *topology.Component, relationCh
 }
 
 // GetName returns the name of the Collector
-func (_ *CronJobCollector) GetName() string {
+func (*CronJobCollector) GetName() string {
 	return "CronJob Collector"
 }
 

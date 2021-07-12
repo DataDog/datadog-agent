@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2017-2020 Datadog, Inc.
 
 package containers
 
@@ -30,6 +30,7 @@ const (
 	ContainerPausedState            = "paused"
 	ContainerExitedState            = "exited"
 	ContainerDeadState              = "dead"
+	ContainerActiveState            = "active"
 )
 
 // Supported container health
@@ -40,37 +41,48 @@ const (
 	ContainerUnhealthy             = "unhealthy"
 )
 
-// Container represents a single container on a machine
-// and includes Cgroup-level statistics about the container.
-type Container struct {
-	Type     string
-	ID       string
-	EntityID string
-	Name     string
-	Image    string
-	ImageID  string
-	Created  int64
-	State    string
-	Health   string
-	Pids     []int32
-	Excluded bool
+// Container network modes
+const (
+	DefaultNetworkMode string = "default" // bridge
+	HostNetworkMode           = "host"
+	BridgeNetworkMode         = "bridge"
+	NoneNetworkMode           = "none"
+	AwsvpcNetworkMode         = "awsvpc"
+	UnknownNetworkMode        = "unknown"
+)
 
-	CPULimit       float64
-	SoftMemLimit   uint64
-	MemLimit       uint64
-	MemFailCnt     uint64
-	CPUNrThrottled uint64
-	CPU            *metrics.CgroupTimesStat
-	Memory         *metrics.CgroupMemStat
-	IO             *metrics.CgroupIOStat
-	Network        metrics.ContainerNetStats
-	AddressList    []NetworkAddress
-	StartedAt      int64
+// UTSMode is container UTS modes
+type UTSMode string
+
+// UTSMode is container UTS modes
+const (
+	DefaultUTSMode UTSMode = ""
+	HostUTSMode            = "host"
+	UnknownUTSMode         = "unknown"
+)
+
+// Container represents a single container on a machine
+// and includes system-level statistics about the container.
+type Container struct {
+	Type        string
+	ID          string
+	EntityID    string
+	Name        string
+	Image       string
+	ImageID     string
+	Created     int64
+	State       string
+	Health      string
+	Pids        []int32
+	Excluded    bool
+	AddressList []NetworkAddress
+	StartedAt   int64
 
 	Mounts []types.MountPoint
 
-	// For internal use only
-	cgroup *metrics.ContainerCgroup
+	metrics.ContainerMetrics
+	Limits  metrics.ContainerLimits
+	Network metrics.ContainerNetStats
 }
 
 // NetworkAddress represents a tuple IP/Port/Protocol
@@ -80,20 +92,58 @@ type NetworkAddress struct {
 	Protocol string
 }
 
+// NetworkDestination holds one network destination subnet and it's linked interface name
+type NetworkDestination struct {
+	Interface string
+	Subnet    uint64
+	Mask      uint64
+}
+
+// ContainerImplementation is a generic interface that defines a common interface across
+// different container implementation (Linux cgroup, windows containers, etc.)
+type ContainerImplementation interface {
+	// Asks provider to fetch data from system APIs in bulk
+	// It's required to call it before any other function
+	Prefetch() error
+
+	ContainerExists(containerID string) bool
+	GetContainerStartTime(containerID string) (int64, error)
+	DetectNetworkDestinations(pid int) ([]NetworkDestination, error)
+	GetAgentCID() (string, error)
+	GetPIDs(containerID string) ([]int32, error)
+	ContainerIDForPID(pid int) (string, error)
+	GetDefaultGateway() (net.IP, error)
+	GetDefaultHostIPs() ([]string, error)
+
+	metrics.ContainerMetricsProvider
+}
+
+// FilterType indicates the container filter type
+type FilterType string
+
+// GlobalFilter is used to cover both MetricsFilter and LogsFilter filter types
+const GlobalFilter FilterType = "GlobalFilter"
+
+// MetricsFilter refers to the Metrics filter type
+const MetricsFilter FilterType = "MetricsFilter"
+
+// LogsFilter refers to the Logs filter type
+const LogsFilter FilterType = "LogsFilter"
+
 // SwarmService represents a Swarm Service definition
 // sts
 type SwarmService struct {
 	ID             string
 	Name           string
 	ContainerImage string
-	Labels         map[string]string  `json:",omitempty"`
-	Version        swarm.Version      `json:",omitempty"`
-	CreatedAt      time.Time          `json:",omitempty"`
-	UpdatedAt      time.Time          `json:",omitempty"`
-	Spec           swarm.ServiceSpec  `json:",omitempty"`
-	PreviousSpec   *swarm.ServiceSpec `json:",omitempty"`
-	Endpoint       swarm.Endpoint     `json:",omitempty"`
-	UpdateStatus   swarm.UpdateStatus `json:",omitempty"`
+	Labels         map[string]string   `json:",omitempty"`
+	Version        swarm.Version       `json:",omitempty"`
+	CreatedAt      time.Time           `json:",omitempty"`
+	UpdatedAt      time.Time           `json:",omitempty"`
+	Spec           swarm.ServiceSpec   `json:",omitempty"`
+	PreviousSpec   *swarm.ServiceSpec  `json:",omitempty"`
+	Endpoint       swarm.Endpoint      `json:",omitempty"`
+	UpdateStatus   *swarm.UpdateStatus `json:",omitempty"`
 	TaskContainers []*SwarmTask
 	DesiredTasks   uint64
 	RunningTasks   uint64
@@ -105,7 +155,7 @@ type SwarmTask struct {
 	ID              string
 	Name            string
 	ContainerImage  string
-	ContainerSpec   swarm.ContainerSpec   `json:",omitempty"`
-	ContainerStatus swarm.ContainerStatus `json:",omitempty"`
-	DesiredState    swarm.TaskState       `json:",omitempty"`
+	ContainerSpec   *swarm.ContainerSpec   `json:",omitempty"`
+	ContainerStatus *swarm.ContainerStatus `json:",omitempty"`
+	DesiredState    swarm.TaskState        `json:",omitempty"`
 }

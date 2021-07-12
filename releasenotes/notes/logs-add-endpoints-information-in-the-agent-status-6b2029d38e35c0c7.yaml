@@ -1,0 +1,5 @@
+
+---
+features:
+  - |
+    Add information on endpoints inside the logs-agent section of the agent status.

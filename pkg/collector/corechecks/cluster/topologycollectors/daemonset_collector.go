@@ -25,7 +25,7 @@ func NewDaemonSetCollector(componentChannel chan<- *topology.Component, relation
 }
 
 // GetName returns the name of the Collector
-func (_ *DaemonSetCollector) GetName() string {
+func (*DaemonSetCollector) GetName() string {
 	return "DaemonSet Collector"
 }
 

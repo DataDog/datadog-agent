@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build consul
 
@@ -18,6 +18,7 @@ import (
 	consul "github.com/hashicorp/consul/api"
 
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers/names"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 )
 
@@ -99,7 +100,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 // String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
-	return Consul
+	return names.Consul
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them
@@ -109,6 +110,11 @@ func (p *ConsulConfigProvider) Collect() ([]integration.Config, error) {
 	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
+
+		for idx := range templates {
+			templates[idx].Source = "consul:" + id
+		}
+
 		configs = append(configs, templates...)
 	}
 	return configs, nil
@@ -251,7 +257,7 @@ func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([]integration.Data, error) {
+func (p *ConsulConfigProvider) getJSONValue(key string) ([][]integration.Data, error) {
 	rawValue, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)

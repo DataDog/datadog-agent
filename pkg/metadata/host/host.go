@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package host
 
@@ -11,35 +11,56 @@ import (
 	"sync"
 	"time"
 
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/metadata/common"
 	"github.com/StackVista/stackstate-agent/pkg/util"
 	"github.com/StackVista/stackstate-agent/pkg/util/alibaba"
 	"github.com/StackVista/stackstate-agent/pkg/util/cache"
+	"github.com/StackVista/stackstate-agent/pkg/util/flavor"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	"github.com/StackVista/stackstate-agent/pkg/util/tencent"
 
 	"github.com/StackVista/stackstate-agent/pkg/metadata/host/container"
 	"github.com/StackVista/stackstate-agent/pkg/util/azure"
 	"github.com/StackVista/stackstate-agent/pkg/util/cloudfoundry"
 	"github.com/StackVista/stackstate-agent/pkg/util/ec2"
 	"github.com/StackVista/stackstate-agent/pkg/util/gce"
-	k8s "github.com/StackVista/stackstate-agent/pkg/util/kubernetes/hostinfo"
+	kubelet "github.com/StackVista/stackstate-agent/pkg/util/hostname/kubelet"
+
+	"github.com/StackVista/stackstate-agent/pkg/logs"
+
+	"io/ioutil"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const packageCachePrefix = "host"
 
+type installInfo struct {
+	Method struct {
+		Tool             string `yaml:"tool"`
+		ToolVersion      string `yaml:"tool_version"`
+		InstallerVersion string `yaml:"installer_version"`
+	} `yaml:"install_method"`
+}
+
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(hostname string) *Payload {
-	meta := getMeta()
-	meta.Hostname = hostname
+func GetPayload(hostnameData util.HostnameData) *Payload {
+	meta := getMeta(hostnameData)
+	meta.Hostname = hostnameData.Hostname
 
 	p := &Payload{
 		Os:            osName,
+		AgentFlavor:   flavor.GetFlavor(),
 		PythonVersion: GetPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
 		ContainerMeta: getContainerMeta(1 * time.Second),
+		NetworkMeta:   getNetworkMeta(),
+		LogsMeta:      getLogsMeta(),
+		InstallMethod: getInstallMethod(getInstallInfoPath()),
 	}
 
 	// Cache the metadata for use in other payloads
@@ -51,22 +72,22 @@ func GetPayload(hostname string) *Payload {
 
 // GetPayloadFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetPayloadFromCache(hostname string) *Payload {
+func GetPayloadFromCache(hostnameData util.HostnameData) *Payload {
 	key := buildKey("payload")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Payload)
 	}
-	return GetPayload(hostname)
+	return GetPayload(hostnameData)
 }
 
 // GetMeta grabs the metadata from the cache and returns it,
 // if the cache is empty, then it queries the information directly
-func GetMeta() *Meta {
+func GetMeta(hostnameData util.HostnameData) *Meta {
 	key := buildKey("meta")
 	if x, found := cache.Cache.Get(key); found {
 		return x.(*Meta)
 	}
-	return getMeta()
+	return getMeta(hostnameData)
 }
 
 // GetPythonVersion returns the version string as provided by the embedded Python
@@ -106,28 +127,43 @@ func getHostAliases() []string {
 		aliases = append(aliases, gceAlias)
 	}
 
-	cfAlias, err := cloudfoudry.GetHostAlias()
+	cfAliases, err := cloudfoundry.GetHostAliases()
 	if err != nil {
 		log.Debugf("no Cloud Foundry Host Alias: %s", err)
-	} else if cfAlias != "" {
-		aliases = append(aliases, cfAlias)
+	} else if cfAliases != nil {
+		aliases = append(aliases, cfAliases...)
 	}
 
-	k8sAlias, err := k8s.GetHostAlias()
+	k8sAlias, err := kubelet.GetHostAlias()
 	if err != nil {
 		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
 	} else if k8sAlias != "" {
 		aliases = append(aliases, k8sAlias)
 	}
+
+	tencentAlias, err := tencent.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Tencent Host Alias: %s", err)
+	} else if tencentAlias != "" {
+		aliases = append(aliases, tencentAlias)
+	}
+
 	return aliases
 }
 
 // getMeta grabs the information and refreshes the cache
-func getMeta() *Meta {
+func getMeta(hostnameData util.HostnameData) *Meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
 	instanceID, _ := ec2.GetInstanceID()
+
+	var agentHostname string
+
+	if config.Datadog.GetBool("hostname_force_config_as_canonical") &&
+		hostnameData.Provider == util.HostnameProviderConfiguration {
+		agentHostname = hostnameData.Hostname
+	}
 
 	m := &Meta{
 		SocketHostname: hostname,
@@ -136,6 +172,7 @@ func getMeta() *Meta {
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    getHostAliases(),
 		InstanceID:     instanceID,
+		AgentHostname:  agentHostname,
 	}
 
 	// Cache the metadata for use in other payload
@@ -143,6 +180,15 @@ func getMeta() *Meta {
 	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
+}
+
+func getNetworkMeta() *NetworkMeta {
+	nid, err := util.GetNetworkID()
+	if err != nil {
+		log.Infof("could not get network metadata: %s", err)
+		return nil
+	}
+	return &NetworkMeta{ID: nid}
 }
 
 func getContainerMeta(timeout time.Duration) map[string]string {
@@ -188,6 +234,51 @@ func getContainerMeta(timeout time.Duration) map[string]string {
 	}
 }
 
+func getLogsMeta() *LogsMeta {
+	return &LogsMeta{Transport: string(logs.CurrentTransport)}
+}
+
 func buildKey(key string) string {
 	return path.Join(common.CachePrefix, packageCachePrefix, key)
+}
+
+func getInstallInfoPath() string {
+	return path.Join(config.FileUsedDir(), "install_info")
+}
+
+func getInstallInfo(infoPath string) (*installInfo, error) {
+	yamlContent, err := ioutil.ReadFile(infoPath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var install installInfo
+
+	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
+		// file was manipulated and is not relevant to format
+		return nil, err
+	}
+
+	return &install, nil
+}
+
+func getInstallMethod(infoPath string) *InstallMethod {
+	install, err := getInstallInfo(infoPath)
+
+	// if we could not get install info
+	if err != nil {
+		// consider install info is kept "undefined"
+		return &InstallMethod{
+			ToolVersion:      "undefined",
+			Tool:             nil,
+			InstallerVersion: nil,
+		}
+	}
+
+	return &InstallMethod{
+		ToolVersion:      install.Method.ToolVersion,
+		Tool:             &install.Method.Tool,
+		InstallerVersion: &install.Method.InstallerVersion,
+	}
 }

@@ -1,0 +1,251 @@
+####################################################################################################
+####################################################################################################
+###############  CONTAINS DUPLICATE CODE FROM GITLAB CI AGENT - TODO: CLEAN THIS UP ################
+####################################################################################################
+####################################################################################################
+
+image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+
+stages:
+  - prepare
+  - build_and_test
+  - pre_release
+  - acceptance
+  - release
+
+######################### pipeline bricks
+
+.retrieve_linux_go_deps_script: &retrieve_linux_go_deps_script |
+  echo "~~~~~> Trying to retrieve_linux_go_deps"
+  ls *.tar.gz || true
+  [ -e "go-bin.tar.gz" ] && mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
+  [ -e "go-pkg.tar.gz" ] && mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
+  [ -e "vendor.tar.gz" ] && mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz || true
+  echo "~~~~~> /Trying..."
+
+
+######################### /pipeline bricks
+
+before_script:
+  - *retrieve_linux_go_deps_script
+
+## prepare stage
+
+clear_deps_deb_cache:
+  stage: prepare
+  before_script: []
+  cache:
+    policy: push
+    key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
+    paths:
+      - vendor
+      - venv
+  when: manual
+  script:
+    - rm -rf $CI_PROJECT_DIR/venv
+    - rm -rf $CI_PROJECT_DIR/vendor
+
+deps_deb:
+  stage: prepare
+  cache:
+    key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
+    paths:
+      - vendor
+      - venv
+  script:
+    - conda activate $CONDA_ENV
+    - inv -e deps --verbose --dep-vendor-only
+    - inv agent.version --major-version $MAJOR_VERSION -u > version.txt
+    - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
+    - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
+    - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/go-pkg.tar.gz
+      - $CI_PROJECT_DIR/go-bin.tar.gz
+      - $CI_PROJECT_DIR/vendor.tar.gz
+    expire_in: 1 week
+
+## build_and_test stage
+
+unit_tests_cluster_agent:
+  stage: build_and_test
+  needs:
+    - deps_deb
+  script:
+    - conda activate $CONDA_ENV
+    # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
+    - inv deps
+    - inv -e agent.build --race --precompile-only --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    # TODO: check why formatting rules differ from previous step
+    - gofmt -l -w -s ./pkg ./cmd
+    # TODO: --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.test
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
+  tags:
+    - sts-aws
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+
+build_cluster_agent:
+  stage: build_and_test
+  needs:
+    - deps_deb
+  script:
+    - conda activate $CONDA_ENV
+    - inv -e cluster-agent.build
+    - ls -la $CI_PROJECT_DIR/bin/
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
+      - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
+      - $CI_PROJECT_DIR/version.txt
+
+build_deb:
+  stage: build_and_test
+  needs:
+    - deps_deb
+  tags:
+    - sts-k8s-xl-no-docker-runner
+  cache:
+    key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .omnibus
+      - .gems
+  script:
+    # We move .omnibus out of the CI root because this seems to cause issues with git
+    # cloning in omnibus and operations on datadog-agent
+    - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
+
+    - conda activate $CONDA_ENV
+    - inv agent.version --major-version $MAJOR_VERSION
+    - cat version.txt || true
+    - source ./.gitlab-scripts/setup_artifactory.sh
+
+    - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+
+    # Prepare outputs
+    - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
+    - cp -r $OMNIBUS_BASE_DIR/pkg $CI_PROJECT_DIR/outcomes
+    - cp -r $CI_PROJECT_DIR/Dockerfiles $CI_PROJECT_DIR/outcomes
+    - cp -r /opt/stackstate-agent/embedded/bin/trace-agent  $CI_PROJECT_DIR/outcomes/binary/
+
+    - ls -la $CI_PROJECT_DIR/outcomes/Dockerfiles
+
+    # Prepare cache
+    # Drop packages for cache
+    - rm -rf /omnibus/pkg
+    # Drop agent for cache (will be resynced anyway)
+    - rm -rf /omnibus/src/datadog-agent
+    # Drop symlink because it will fail the build when coming from a cache
+    - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
+    - mv /omnibus $CI_PROJECT_DIR/.omnibus
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/outcomes/pkg/*.deb
+      - $CI_PROJECT_DIR/outcomes/pkg/*.json
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/cluster-agent
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/dogstatsd
+      - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
+      - $CI_PROJECT_DIR/version.txt
+      - $CI_PROJECT_DIR/outcomes/binary/trace-agent
+    expire_in: 1 week
+
+pre_release_deb:
+  stage: pre_release
+  needs:
+    - deps_deb
+    - build_deb
+  script:
+    # //TODO: move to image
+    - apt-get install -y apt-utils libtool debsigs
+    - ls -la /usr/local/rvm/gems/ruby-2.4.2/bin/
+    - source /usr/local/rvm/scripts/rvm && gem install deb-s3
+    # //
+    - source /usr/local/rvm/scripts/rvm
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
+    - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
+    - cd $CI_PROJECT_DIR && inv release.generate-install -t
+    - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+
+pre_release_main_agent_image: &pre_release_image
+  stage: pre_release
+  image: docker:18.06.0
+  needs:
+    - build_deb
+  variables:
+    DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  services:
+    - docker:18.09-dind
+  before_script: []
+  script:
+    - cd $CI_PROJECT_DIR
+    - export VERSION=`cat version.txt`
+    - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb ./Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
+  tags:
+    - sts-k8s-m-runner
+
+pre_release_cluster_agent_image:
+  <<: *pre_release_image
+  needs:
+    - build_cluster_agent
+  script:
+    - cd $CI_PROJECT_DIR
+    - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
+
+## acceptance stage
+
+.molecule_base: &molecule_base
+  stage: acceptance
+  dependencies: []
+  before_script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export LC_CTYPE=en_US.UTF-8
+    - export LANG=en_US.UTF-8
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
+
+molecule_tests_kubernetes:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
+  resource_group: eks_test_cluster
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+    expire_in: 1 week
+
+molecule_tests_swarm:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+    expire_in: 1 week

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker,kubelet
 
@@ -24,7 +24,7 @@ const (
 // searching first in the docker labels, then in the pod specs.
 func ContainsADIdentifier(c *Container) bool {
 	var exists bool
-	_, exists = c.container.Labels[configPath]
+	_, exists = c.container.Config.Labels[configPath]
 	if exists {
 		return true
 	}
@@ -37,7 +37,7 @@ func ContainsADIdentifier(c *Container) bool {
 	if err != nil {
 		return false
 	}
-	for _, container := range pod.Status.Containers {
+	for _, container := range pod.Status.GetAllContainers() {
 		if container.ID == entityID {
 			// looks for the container name specified in the pod manifest as it's different from the name of the container
 			// returns by a docker inspect which is a concatenation of the container name specified in the pod manifest and a hash

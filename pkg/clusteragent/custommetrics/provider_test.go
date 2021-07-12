@@ -1,41 +1,97 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver
 
 package custommetrics
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
+	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
-
-	"fmt"
-
-	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
 )
-
-type mockDatadogProvider struct {
-	mockListAllExternalMetricValues func() ([]ExternalMetricValue, error)
-	metrics                         []ExternalMetricValue
-}
-
-func (m *mockDatadogProvider) ListAllExternalMetricValues() ([]ExternalMetricValue, error) {
-	return m.mockListAllExternalMetricValues()
-}
-func (m *mockDatadogProvider) SetExternalMetricValues([]ExternalMetricValue) error    { return nil }
-func (m *mockDatadogProvider) DeleteExternalMetricValues([]ExternalMetricValue) error { return nil }
-func (m *mockDatadogProvider) GetMetrics() (*MetricsBundle, error)                    { return nil, nil }
 
 type metricCompare struct {
 	name      provider.ExternalMetricInfo
 	namespace string
 	labels    labels.Set
+}
+
+func TestListAllExternalMetrics(t *testing.T) {
+	metricName := "m1"
+	metric2Name := "m2"
+	metric3Name := "m3"
+	tests := []struct {
+		name      string
+		res       []provider.ExternalMetricInfo
+		cached    []externalMetric
+		timestamp int64
+	}{
+		{
+			name:   "no metrics stored",
+			res:    []provider.ExternalMetricInfo{},
+			cached: nil,
+		},
+		{
+			name: "one nano metric stored",
+			res: []provider.ExternalMetricInfo{
+				{
+					Metric: metricName,
+				},
+			},
+			cached: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+			},
+			},
+		},
+		{
+			name: "multiple types",
+			cached: []externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metric2Name,
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metric3Name,
+				},
+			},
+			},
+			res: []provider.ExternalMetricInfo{
+				{
+					Metric: metricName,
+				},
+				{
+					Metric: metric2Name,
+				},
+				{
+					Metric: metric3Name,
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dp := datadogProvider{
+				externalMetrics: test.cached,
+				isServing:       true,
+			}
+			output := dp.ListAllExternalMetrics()
+			require.Equal(t, len(test.cached), len(output))
+		})
+	}
 }
 
 func TestGetExternalMetric(t *testing.T) {
@@ -50,25 +106,28 @@ func TestGetExternalMetric(t *testing.T) {
 	ns := "default"
 	tests := []struct {
 		name          string
-		metricsStored []ExternalMetricValue
+		metricsStored []externalMetric
 		compared      metricCompare
 		expected      []external_metrics.ExternalMetricValue
 	}{
 		{
 			"nothing stored",
-			nil,
+			[]externalMetric{},
 			metricCompare{},
 			[]external_metrics.ExternalMetricValue{},
 		},
 		{
 			"one matching metric stored",
-			[]ExternalMetricValue{
-				{
-					MetricName: metricName,
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}},
+			[]externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			},
+			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
 				ns,
@@ -82,13 +141,16 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one non matching metric stored",
-			[]ExternalMetricValue{
-				{
-					MetricName: metricName,
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}},
+			[]externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			},
+			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
 				ns,
@@ -98,18 +160,24 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one matching name metrics stored",
-			[]ExternalMetricValue{
-				{
-					MetricName: metricName,
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}, {
-					MetricName: metricName,
-					Labels:     badLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}},
+			[]externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: badLabel,
+				},
+			},
+			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
 				ns,
@@ -124,18 +192,24 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one non matching labels metrics stored",
-			[]ExternalMetricValue{
-				{
-					MetricName: metricName,
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}, {
-					MetricName: metricName,
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}},
+			[]externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			},
+			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
 				ns,
@@ -144,19 +218,25 @@ func TestGetExternalMetric(t *testing.T) {
 			[]external_metrics.ExternalMetricValue{},
 		},
 		{
-			"one matching metric with capital letterstored",
-			[]ExternalMetricValue{
-				{
-					MetricName: "CapitalMetric",
-					Labels:     goodLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}, {
-					MetricName: metricName,
-					Labels:     badLabel,
-					HPA:        ObjectReference{Namespace: ns},
-					Valid:      true,
-				}},
+			"one matching metric with capital letter stored",
+			[]externalMetric{{
+				info: provider.ExternalMetricInfo{
+					Metric: "CapitalMetric",
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: goodLabel,
+				},
+			}, {
+				info: provider.ExternalMetricInfo{
+					Metric: metricName,
+				},
+				value: external_metrics.ExternalMetricValue{
+					MetricName:   metricName,
+					MetricLabels: badLabel,
+				},
+			},
+			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: "capitalmetric"},
 				ns,
@@ -172,13 +252,10 @@ func TestGetExternalMetric(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m := &mockDatadogProvider{
-				mockListAllExternalMetricValues: func() ([]ExternalMetricValue, error) {
-					return test.metricsStored, nil
-				},
-			}
 			dp := datadogProvider{
-				store: Store(m),
+				externalMetrics: test.metricsStored,
+				isServing:       true,
+				maxAge:          math.MaxInt32, // to avoid flackiness
 			}
 			output, err := dp.GetExternalMetric(test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
 			require.NoError(t, err)
@@ -186,7 +263,6 @@ func TestGetExternalMetric(t *testing.T) {
 			// GetExternalMetric should only return one metric
 			if len(output.Items) == 1 {
 				require.Equal(t, test.expected[0].MetricName, output.Items[0].MetricName)
-				fmt.Printf("test is %#v \n \n output is %#v \n \n", test.expected[0].MetricLabels, output.Items[0].MetricLabels)
 				require.True(t, reflect.DeepEqual(test.expected[0].MetricLabels, output.Items[0].MetricLabels))
 			}
 		})

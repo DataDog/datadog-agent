@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 require 'pathname'
 
 name 'datadog-dogstatsd'
@@ -21,25 +21,44 @@ build do
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 
-  # we assume the go deps are already installed before running omnibus
-  command "invoke -e dogstatsd.build --rebuild --use-embedded-libs", env: env
+  if windows?
+    major_version_arg = "%MAJOR_VERSION%"
+  else
+    major_version_arg = "$MAJOR_VERSION"
+  end
 
-  mkdir "#{install_dir}/etc/stackstate-dogstatsd"
+  # we assume the go deps are already installed before running omnibus
+  command "invoke dogstatsd.build --rebuild --major-version #{major_version_arg}", env: env
+
+  mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
   end
 
   # move around bin and config files
-  copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  if windows?
+    mkdir "#{Omnibus::Config.source_dir()}/stackstate-agent/src/github.com/StackVista/stackstate-agent/bin/agent"
+    copy 'bin/dogstatsd/dogstatsd.exe', "#{Omnibus::Config.source_dir()}/stackstate-agent/src/github.com/StackVista/stackstate-agent/bin/agent"
+  else
+    copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
+  end
   move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/stackstate-dogstatsd/dogstatsd.yaml.example"
 
   if linux?
-    erb source: "upstart.conf.erb",
-        dest: "#{install_dir}/scripts/stackstate-dogstatsd.conf",
-        mode: 0644,
-        vars: { install_dir: install_dir }
-
+    if debian?
+      erb source: "upstart_debian.conf.erb",
+          dest: "#{install_dir}/scripts/stackstate-dogstatsd.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    # Ship a different upstart job definition on RHEL to accommodate the old
+    # version of upstart (0.6.5) that RHEL 6 provides.
+    elsif redhat? || suse?
+      erb source: "upstart_redhat.conf.erb",
+          dest: "#{install_dir}/scripts/stackstate-dogstatsd.conf",
+          mode: 0644,
+          vars: { install_dir: install_dir }
+    end
     erb source: "systemd.service.erb",
         dest: "#{install_dir}/scripts/stackstate-dogstatsd.service",
         mode: 0644,

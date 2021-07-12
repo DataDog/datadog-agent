@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package obfuscate
 
 import (
@@ -6,6 +11,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +27,9 @@ func TestObfuscateHTTP(t *testing.T) {
 	}, nil))
 
 	t.Run("query", func(t *testing.T) {
-		conf := &config.HTTPObfuscationConfig{RemoveQueryString: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemoveQueryString: true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -53,7 +61,9 @@ func TestObfuscateHTTP(t *testing.T) {
 	})
 
 	t.Run("digits", func(t *testing.T) {
-		conf := &config.HTTPObfuscationConfig{RemovePathDigits: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemovePathDigits: true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -97,7 +107,10 @@ func TestObfuscateHTTP(t *testing.T) {
 	})
 
 	t.Run("both", func(t *testing.T) {
-		conf := &config.HTTPObfuscationConfig{RemoveQueryString: true, RemovePathDigits: true}
+		conf := &config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemoveQueryString: true,
+			RemovePathDigits:  true,
+		}}
 		for ti, tt := range []inOutTest{
 			{
 				in:  "http://foo.com/",
@@ -135,16 +148,20 @@ func TestObfuscateHTTP(t *testing.T) {
 	t.Run("wrong-type", func(t *testing.T) {
 		assert := assert.New(t)
 		span := pb.Span{Type: "web_server", Meta: map[string]string{"http.url": testURL}}
-		cfg := config.HTTPObfuscationConfig{RemoveQueryString: true, RemovePathDigits: true}
-		NewObfuscator(&config.ObfuscationConfig{HTTP: cfg}).Obfuscate(&span)
+		NewObfuscator(&config.ObfuscationConfig{
+			HTTP: config.HTTPObfuscationConfig{
+				RemoveQueryString: true,
+				RemovePathDigits:  true,
+			},
+		}).Obfuscate(&span)
 		assert.Equal(testURL, span.Meta["http.url"])
 	})
 }
 
 // testHTTPObfuscation tests that the given input results in the given output using the passed configuration.
-func testHTTPObfuscation(tt *inOutTest, conf *config.HTTPObfuscationConfig) func(t *testing.T) {
+func testHTTPObfuscation(tt *inOutTest, conf *config.ObfuscationConfig) func(t *testing.T) {
 	return func(t *testing.T) {
-		var cfg config.HTTPObfuscationConfig
+		var cfg config.ObfuscationConfig
 		if conf != nil {
 			cfg = *conf
 		}
@@ -153,7 +170,7 @@ func testHTTPObfuscation(tt *inOutTest, conf *config.HTTPObfuscationConfig) func
 			Type: "http",
 			Meta: map[string]string{"http.url": tt.in},
 		}
-		NewObfuscator(&config.ObfuscationConfig{HTTP: cfg}).Obfuscate(&span)
+		NewObfuscator(&cfg).Obfuscate(&span)
 		assert.Equal(tt.out, span.Meta["http.url"])
 	}
 }

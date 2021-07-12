@@ -1,0 +1,13 @@
+api_key: apikey_20
+
+process_agent_enabled: true
+process_config:
+  enabled: 'disabled'
+  additional_endpoints:
+    https://process.datadoghq.eu:
+      - foo
+      - bar
+  queue_size: 10
+  intervals:
+      container: 8
+      process: 30

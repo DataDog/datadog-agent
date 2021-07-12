@@ -1,13 +1,17 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2019 Datadog, Inc.
+# Copyright 2016-2020 Datadog, Inc.
 
 name "sysstat"
-default_version "11.1.3"
+default_version "11.1.7" #[VS] https://github.com/sysstat/sysstat/issues/204
+skip_transitive_dependency_licensing true
+
+ship_source true
 
 source :url => "https://github.com/sysstat/sysstat/archive/v#{version}.tar.gz",
-       :sha256 => "e76dff7fa9246b94c4e1efc5ca858422856e110f09d6a58c5bf6000ae9c9d16e"
+       :sha256 => "6b8e395069a7a804f7b34c889a70284e0d7e35e32481fa021c20cc7297a4eb65" #[VS] https://github.com/sysstat/sysstat/issues/204
+       #:sha256 => "e76dff7fa9246b94c4e1efc5ca858422856e110f09d6a58c5bf6000ae9c9d16e"
 
 relative_path "sysstat-#{version}"
 
@@ -21,7 +25,6 @@ env = {
 }
 
 build do
-  ship_source "https://github.com/sysstat/sysstat/archive/v#{version}.tar.gz"
   ship_license "https://raw.githubusercontent.com/sysstat/sysstat/master/COPYING"
   command(["./configure",
        "--prefix=#{install_dir}/embedded",

@@ -8,21 +8,6 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('receiver_vm')
 
 
-def test_etc_docker_directory(host):
-    f = host.file('/etc/docker/')
-    assert f.is_directory
-
-
-def test_docker_compose_file(host):
-    f = host.file('/home/ubuntu/docker-compose.yml')
-    assert f.is_file
-
-
-def test_receiver_healthy(host):
-    c = "curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1618/readiness"
-    assert host.check_output(c) == "200"
-
-
 def test_generic_events(host):
     url = "http://localhost:7070/api/topic/sts_generic_events?offset=0&limit=80"
 
@@ -123,11 +108,11 @@ def _find_incoming_connection_in_namespace(json_data, port, scope, origin, dest)
                 )
 
 
-def test_created_connection_after_start_with_metrics(host, common_vars):
+def test_created_connection_after_start_with_metrics(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    fedora_conn_port = int(common_vars["connection_port_after_start_fedora"])
-    windows_conn_port = int(common_vars["connection_port_after_start_windows"])
+    fedora_conn_port = int(ansible_var("connection_port_after_start_fedora"))
+    windows_conn_port = int(ansible_var("connection_port_after_start_windows"))
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))
@@ -142,6 +127,8 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
         with open("./topic-correlate-endpoint-after.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
+        print("trying to find connection (fedora -> ubuntu OUTGOING) {} -> {}:{}".format(fedora_private_ip,
+              ubuntu_private_ip, fedora_conn_port))
         outgoing_conn = _find_outgoing_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
         assert outgoing_conn["direction"] == "OUTGOING"
@@ -149,6 +136,8 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
         assert outgoing_conn["bytesSentPerSecond"] > 10.0
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
+        print("trying to find connection (fedora -> ubuntu INCOMING) {} -> {}:{}".format(fedora_private_ip,
+              ubuntu_private_ip, fedora_conn_port))
         incoming_conn = _find_incoming_connection(json_data, fedora_conn_port, fedora_private_ip, ubuntu_private_ip)
         print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
@@ -156,28 +145,32 @@ def test_created_connection_after_start_with_metrics(host, common_vars):
         assert incoming_conn["bytesSentPerSecond"] == 0.0
         assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
+        print("trying to find connection (windows -> ubuntu OUTGOING) {} -> {}:{}".format(windows_private_ip,
+              ubuntu_private_ip, windows_conn_port))
         outgoing_conn = _find_outgoing_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(outgoing_conn)
         assert outgoing_conn["direction"] == "OUTGOING"
         assert outgoing_conn["connectionType"] == "TCP"
-        assert outgoing_conn["bytesSentPerSecond"] == 0.0       # We don't collect metrics on Windows
+        assert outgoing_conn["bytesSentPerSecond"] == 0.0 # We don't collect metrics on Windows
         assert outgoing_conn["bytesReceivedPerSecond"] == 0.0
 
+        print("trying to find connection (windows -> ubuntu INCOMING) {} -> {}:{}".format(windows_private_ip,
+              ubuntu_private_ip, windows_conn_port))
         incoming_conn = _find_incoming_connection(json_data, windows_conn_port, windows_private_ip, ubuntu_private_ip)
         print(incoming_conn)
         assert incoming_conn["direction"] == "INCOMING"
         assert incoming_conn["connectionType"] == "TCP"
-        assert incoming_conn["bytesSentPerSecond"] == 0.0
-        assert incoming_conn["bytesReceivedPerSecond"] == 0.0   # We don't send data from Windows
+        assert incoming_conn["bytesSentPerSecond"] == 0.0 # We don't collect metrics on Windows
+        assert incoming_conn["bytesReceivedPerSecond"] > 10.0
 
-    util.wait_until(wait_for_connection, 30, 3)
+    util.wait_until(wait_for_connection, 120, 3)
 
 
-def test_created_connection_before_start(host, common_vars):
+def test_created_connection_before_start(host, ansible_var):
     url = "http://localhost:7070/api/topic/sts_correlate_endpoints?limit=1000"
 
-    fedora_conn_port = int(common_vars["connection_port_before_start_fedora"])
-    windows_conn_port = int(common_vars["connection_port_before_start_windows"])
+    fedora_conn_port = int(ansible_var("connection_port_before_start_fedora"))
+    windows_conn_port = int(ansible_var("connection_port_before_start_windows"))
 
     ubuntu_private_ip = _get_instance_config("agent-ubuntu")["private_address"]
     print("ubuntu private: {}".format(ubuntu_private_ip))
@@ -258,7 +251,7 @@ def test_host_metrics(host):
         assert_metric("system.uptime", lambda v: v > 1.0, lambda v: v > 1.0, lambda v: v > 1.0)
 
         assert_metric("system.swap.total", lambda v: v == 0, lambda v: v == 0, lambda v: v > 2000)
-        assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v == 1.0)
+        assert_metric("system.swap.pct_free", lambda v: v == 1.0, lambda v: v == 1.0, lambda v: v > 0.0)
 
         # Memory
         assert_metric("system.mem.total", lambda v: v > 900.0, lambda v: v > 900.0, lambda v: v > 2000.0)
@@ -286,7 +279,7 @@ def test_host_metrics(host):
         assert_metric("stackstate.process.containers.host_count", lambda v: v == 0.0, lambda v: v == 0.0, lambda v: v == 0.0)
 
         # Assert that we don't see any Datadog metrics
-        datadog_metrics = [(key, value) for key, value in metrics.iteritems() if key.startswith("datadog")]
+        datadog_metrics = [(key, value) for key, value in metrics.items() if key.startswith("datadog")]
         assert len(datadog_metrics) == 0, 'Datadog metrics found in sts_metrics: [%s]' % ', '.join(map(str, datadog_metrics))
 
     util.wait_until(wait_for_metrics, 30, 3)

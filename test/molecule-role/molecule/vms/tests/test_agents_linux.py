@@ -4,14 +4,12 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent_linux_vm')
 
 
-def test_stackstate_agent_is_installed(host, common_vars):
+def test_stackstate_agent_is_installed(host, ansible_var):
     agent = host.package("stackstate-agent")
-    print(agent.version)
+    print(agent)
     assert agent.is_installed
-
-    agent_current_branch = common_vars["agent_current_branch"]
-    if agent_current_branch == "master":
-        assert agent.version.startswith("2")
+    expected_major_version = ansible_var("major_version")
+    assert agent.version.startswith(expected_major_version + ".")
 
 
 def test_stackstate_agent_status_output_no_datadog(host):
@@ -43,8 +41,7 @@ def test_stackstate_trace_agent_running_and_enabled(host):
     assert not host.ansible("service", "name=stackstate-agent-trace state=started", become=True)['changed']
 
 
-def test_agent_namespaces_docker(host):
-    hostname = host.ansible.get_variables()["inventory_hostname"]
+def test_agent_namespaces_docker(host, hostname):
     if hostname == "agent-connection-namespaces":
         f = host.file('/etc/docker/')
         assert f.is_directory

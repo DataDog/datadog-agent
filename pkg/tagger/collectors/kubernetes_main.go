@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -18,6 +18,7 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/clusteragent"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/apiserver"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
+	"github.com/StackVista/stackstate-agent/pkg/util/retry"
 )
 
 const (
@@ -25,13 +26,15 @@ const (
 )
 
 type KubeMetadataCollector struct {
-	kubeUtil  *kubelet.KubeUtil
+	kubeUtil  kubelet.KubeUtilInterface
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
-	dcaClient *clusteragent.DCAClient
+	dcaClient clusteragent.DCAClientInterface
 	// used to set a custom delay
 	lastUpdate time.Time
 	updateFreq time.Duration
+
+	clusterAgentEnabled bool
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
@@ -46,13 +49,26 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	if err != nil {
 		return NoCollection, err
 	}
-	// if no DCA or can't communicate with the DCA run the local service mapper.
+	// if DCA is enabled and can't communicate with the DCA, let the tagger retry.
 	if config.Datadog.GetBool("cluster_agent.enabled") {
+		c.clusterAgentEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
-			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
+			log.Errorf("Could not initialise the communication with the cluster agent: %s", errDCA.Error())
+			// continue to retry while we can
+			if retry.IsErrWillRetry(errDCA) {
+				return NoCollection, errDCA
+			}
+			// we return the permanent fail only if fallback is disabled
+			if retry.IsErrPermaFail(errDCA) && !config.Datadog.GetBool("cluster_agent.tagging_fallback") {
+				return NoCollection, errDCA
+			}
+			log.Errorf("Permanent failure in communication with the cluster agent, will fallback to local service mapper")
+		} else {
+			c.clusterAgentEnabled = true
 		}
 	}
+	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
 	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
 		c.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
@@ -77,7 +93,7 @@ func (c *KubeMetadataCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	if !config.Datadog.GetBool("cluster_agent.enabled") {
+	if !c.isClusterAgentEnabled() {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -104,7 +120,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 	}
 
 	pods := []*kubelet.Pod{pod}
-	if !config.Datadog.GetBool("cluster_agent.enabled") {
+	if !c.isClusterAgentEnabled() {
 		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
 		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
@@ -120,6 +136,16 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 		}
 	}
 	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
+}
+
+func (c *KubeMetadataCollector) isClusterAgentEnabled() bool {
+	if c.clusterAgentEnabled && c.dcaClient != nil {
+		v := c.dcaClient.Version()
+		if v.String() != "0.0.0" { // means not initialized
+			return true
+		}
+	}
+	return false
 }
 
 func kubernetesFactory() Collector {

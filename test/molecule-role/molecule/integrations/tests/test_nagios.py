@@ -6,7 +6,7 @@ from testinfra.utils.ansible_runner import AnsibleRunner
 
 import util
 
-testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-integrations-mysql')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('agent-integrations')
 
 
 def _get_key_value(tag_list):
@@ -34,7 +34,7 @@ def test_nagios_mysql(host):
         with open("./topic-nagios-topo-process-agents.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        external_id_pattern = re.compile(r"urn:container:/agent-integrations-mysql:.*")
+        external_id_pattern = re.compile(r"urn:container:/agent-integrations:.*")
         components = [
             {
                 "assertion": "Should find the nagios container",
@@ -83,6 +83,6 @@ def test_container_metrics(host):
                     'nagios.swap_usage.swap', 'nagios.host.pl', 'nagios.root_partition', 'nagios.current_users.users',
                     'nagios.current_load.load1', 'nagios.host.rta', 'nagios.ping.rta', 'nagios.current_load.load5',
                     'nagios.total_processes.procs'}
-        assert all([expectedMetric for expectedMetric in expected if expectedMetric in get_keys("agent-integrations-mysql")])
+        assert all([expectedMetric for expectedMetric in expected if expectedMetric in get_keys("agent-integrations")])
 
     util.wait_until(wait_for_metrics, 180, 3)

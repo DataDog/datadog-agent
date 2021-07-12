@@ -108,7 +108,7 @@ def test_dnat(host, ansible_var):
             type_name="directional_connection",
             external_id_assert_fn=lambda v: proc_to_service_id_match.findall(v))["outgoing"]["ip"] == pod_client
 
-    util.wait_until(wait_for_components, 600, 3)
+    util.wait_until(wait_for_components, 120, 3)
 
 
 def test_pod_container_to_container(host, ansible_var):
@@ -157,7 +157,7 @@ def test_pod_container_to_container(host, ansible_var):
                 external_id_assert_fn=lambda v: re.compile(request_process_to_server_relation_match).findall(v)
             ) is not None
 
-    util.wait_until(wait_for_components, 600, 3)
+    util.wait_until(wait_for_components, 120, 3)
 
 
 def test_headless_pod_to_pod(host, ansible_var):
@@ -208,4 +208,4 @@ def test_headless_pod_to_pod(host, ansible_var):
                 external_id_assert_fn=lambda v: request_process_to_server_relation_match.findall(v)
             ) is not None
 
-    util.wait_until(wait_for_components, 600, 3)
+    util.wait_until(wait_for_components, 120, 3)

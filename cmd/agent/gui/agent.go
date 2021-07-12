@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"fmt"
 	"html"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +31,7 @@ func agentHandler(r *mux.Router) {
 	r.HandleFunc("/flare", http.HandlerFunc(makeFlare)).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
 	r.HandleFunc("/getConfig", http.HandlerFunc(getConfigFile)).Methods("POST")
+	r.HandleFunc("/getConfig/{setting}", http.HandlerFunc(getConfigSetting)).Methods("GET")
 	r.HandleFunc("/setConfig", http.HandlerFunc(setConfigFile)).Methods("POST")
 }
 
@@ -62,7 +64,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 // Sends the current agent version
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	version, e := version.New(version.AgentVersion, version.Commit)
+	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))
@@ -156,12 +158,33 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 // Restarts the agent using the appropriate (platform-specific) restart function
 func restartAgent(w http.ResponseWriter, r *http.Request) {
+	log.Infof("got restart function")
 	e := restart()
 	if e != nil {
+		log.Warnf("restart failed %v", e)
 		w.Write([]byte(e.Error()))
 		return
 	}
+	log.Infof("restart success")
 	w.Write([]byte("Success"))
+}
+
+func getConfigSetting(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	setting := mux.Vars(r)["setting"]
+	if _, ok := map[string]bool{
+		// only allow whitelisted settings:
+		"apm_config.receiver_port": true,
+	}[setting]; !ok {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+	}
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		setting: config.Datadog.Get(setting),
+	}); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `"error": "%v"`, err)
+	}
 }
 
 // Sends the configuration (aka datadog.yaml) file

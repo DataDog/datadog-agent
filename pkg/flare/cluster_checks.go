@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -15,6 +15,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/StackVista/stackstate-agent/pkg/api/util"
+	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/providers"
 	"github.com/StackVista/stackstate-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/StackVista/stackstate-agent/pkg/config"
 )
@@ -105,4 +106,57 @@ func GetClusterChecks(w io.Writer) error {
 	}
 
 	return nil
+}
+
+// GetEndpointsChecks dumps the endpointschecks dispatching state to the writer
+func GetEndpointsChecks(w io.Writer) error {
+	if !endpointschecksEnabled() {
+		return nil
+	}
+
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog.GetInt("cluster_agent.cmd_port"))
+
+	if w != color.Output {
+		color.NoColor = true
+	}
+
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	if err := util.SetAuthToken(); err != nil {
+		return err
+	}
+
+	// Query the cluster agent API
+	r, err := util.DoGet(c, urlstr)
+	if err != nil {
+		if r != nil && string(r) != "" {
+			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
+		} else {
+			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+		}
+		return err
+	}
+
+	var cr types.ConfigResponse
+	if err = json.Unmarshal(r, &cr); err != nil {
+		return err
+	}
+
+	// Print summary of pod-backed endpointschecks
+	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
+	for _, c := range cr.Configs {
+		PrintConfig(w, c)
+	}
+
+	return nil
+}
+
+func endpointschecksEnabled() bool {
+	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
+		if provider == providers.KubeEndpointsProviderName {
+			return true
+		}
+	}
+	return false
 }

@@ -23,18 +23,18 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then
             systemctl stop $SERVICE_NAME-process || true
-            systemctl stop $SERVICE_NAME-network || true
+            systemctl stop $SERVICE_NAME-sysprobe || true
             systemctl stop $SERVICE_NAME-trace || true
             systemctl stop $SERVICE_NAME || true
         elif command -v initctl >/dev/null 2>&1; then
             initctl stop $SERVICE_NAME-process || true
-            initctl stop $SERVICE_NAME-network || true
+            initctl stop $SERVICE_NAME-sysprobe || true
             initctl stop $SERVICE_NAME-trace || true
             initctl stop $SERVICE_NAME || true
         elif [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
             if command -v service >/dev/null 2>&1; then
                 service $SERVICE_NAME-process stop || true
-                service $SERVICE_NAME-network stop || true
+                service $SERVICE_NAME-sysprobe stop || true
                 service $SERVICE_NAME-trace stop || true
                 service $SERVICE_NAME stop || true
             else
@@ -70,13 +70,38 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 -c "Stackstate Agent" stackstate-agent && \
                 { usermod -L stackstate-agent || echo "[ WARNING ]\tCannot lock the 'stackstate-agent' user account"; }
 
-        # Uninstall every datadog integration
+
         # Starting with 6.10, integrations are also uninstalled on package removal
-        # See https://github.com/DataDog/datadog-agent/pull/3066 for more details
-        PIP_PATH=$INSTALL_DIR/embedded/bin/pip
-        if [ -x $PIP_PATH ]; then
-            echo "Uninstalling integrations..."
-            $PIP_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP_PATH uninstall -y -q --no-cache-dir || true
+
+        # Since 6.18.0, a file containing all integrations files which have been installed by
+        # the package is available. We use it to remove only the datadog-related check files which
+        # have *NOT* been installed by the package (eg: installed using the `integration` command).
+
+        if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+            echo "Removing integrations installed with the 'agent integration' command"
+
+            # List all files in the embedded dir of the datadog-agent install dir
+            PREV_DIR=$(pwd)
+            cd $INSTALL_DIR
+            find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+
+            # List all files in the embedded dir of the datadog-agent install dir
+            # which were not installed by the package and rm them.
+            grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
+
+            rm $INSTALL_DIR/embedded/.all-integrations.txt
+            cd "$PREV_DIR"
+        else
+            PIP2_PATH=$INSTALL_DIR/embedded/bin/pip2
+            PIP3_PATH=$INSTALL_DIR/embedded/bin/pip3
+            if [ -x $PIP2_PATH ]; then
+                echo "Uninstalling Python 2 integrations..."
+                $PIP2_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP2_PATH uninstall -y -q --no-cache-dir || true
+            fi
+            if [ -x $PIP3_PATH ]; then
+                echo "Uninstalling Python 3 integrations..."
+                $PIP3_PATH freeze | grep ^datadog- | grep -v datadog-checks-base | xargs $PIP3_PATH uninstall -y -q --no-cache-dir || true
+            fi
         fi
 
         # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
@@ -85,11 +110,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
             # (commented lines are filtered out)
             cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
         fi
-        # Remove all the data that was downloaded using the integration command
-        DOWNLOADER_DATA="$INSTALL_DIR/embedded/lib/python2.7/site-packages/datadog_checks/downloader/data"
-        if [ -f $DOWNLOADER_DATA ]; then
-            rm -rf $DOWNLOADER_DATA
-        fi
+
     else
         echo "[ FAILED ]\tYour system is currently not supported by this script.";
         exit 1;
@@ -105,17 +126,17 @@ else
     exec > $LOG_FILE 2>&1
 
     # Determine current user if he is using the Graphical installer
+    # shellcheck disable=SC2009
     INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
 
     # Otherwise, we hope he is using the install script and try to use this user
     # If it fails, no choice but to use root :'(
     if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-        SCRIPT_INSTALL="yes"
-        INSTALL_USER=`cat /tmp/stackstate-install-user || echo 'root'`
+        INSTALL_USER=$(cat /tmp/stackstate-install-user || echo 'root')
     fi
     echo "INSTALL_USER: $INSTALL_USER"
 
-    USER_HOME=`sudo -Hu $INSTALL_USER sh -c 'echo $HOME'`
+    USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
 
     if [ -e "$CONF_DIR/stackstate.conf" ] || [ -e "$CONF_DIR/stackstate.yaml" ]; then
         echo "# State at the beginning"
@@ -131,12 +152,12 @@ else
         echo '## Trying to stop agent 5'
         $INSTALL_DIR/bin/stackstate-agent stop || true
         echo '## Trying to stop agent 6'
-        sudo -Hu $INSTALL_USER launchctl stop com.datadoghq.agent || true
+        sudo -Hu "$INSTALL_USER" launchctl stop com.datadoghq.agent || true
         echo '## Trying to kill agent GUI'
-        kill `ps aux | grep 'Stackstate Agent.app' | grep -v grep  | cut -d ' ' -f 4` || true
+        kill "$(pgrep -f 'Stackstate Agent.app')"
 
         echo '## Trying to unload agent 6 launchd service'
-        sudo -Hu $INSTALL_USER launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
+        sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
 
         # Save old conf
         rm -rvf /tmp/{checks,conf}.d/* /tmp/stackstate.conf /tmp/stackstate.yaml
@@ -156,7 +177,7 @@ else
     rm -rf $INSTALL_DIR/checks.d || true
 
     echo "# Disabling the login launch of the app"
-    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Stackstate Agent"'
+    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Stackstate Agent"'
 
     # Debriefing time
     echo "# State at the end"

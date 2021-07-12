@@ -1,11 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
+
+//+build zlib
 
 package metrics
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -14,6 +22,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/serializer/jsonstream"
 )
 
 func TestMarshal(t *testing.T) {
@@ -120,4 +129,248 @@ func TestSplitEvents(t *testing.T) {
 	newEvents, err = events.SplitPayload(3)
 	require.Nil(t, err)
 	require.Len(t, newEvents, 2)
+}
+
+// Test StreamJSONMarshaler
+func TestPayloadDescribeItem(t *testing.T) {
+	events := Events{createEvent("sourceTypeName")}
+	assert.Equal(t, `Source type: sourceTypeName, events count: 1`,
+		events.CreateSingleMarshaler().DescribeItem(0))
+	assert.Equal(t, `Title: 1, Text: 2, Source Type: sourceTypeName`,
+		events.CreateMarshalersBySourceType()[0].DescribeItem(0))
+}
+
+func TestPayloadsNoEvent(t *testing.T) {
+	assertEqualEventsToMarshalJSON(t, Events{})
+}
+
+func TestPayloadsSingleEvent(t *testing.T) {
+	events := createEvents("sourceTypeName")
+	assertEqualEventsToMarshalJSON(t, events)
+}
+
+func TestPayloadsEmptyEvent(t *testing.T) {
+	assertEqualEventsToMarshalJSON(t, Events{&Event{}})
+}
+
+func TestPayloadsEvents(t *testing.T) {
+	events := createEvents("1", "2", "3", "2", "1", "3")
+	assertEqualEventsToMarshalJSON(t, events)
+}
+
+func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
+	events := createEvents("3", "3", "2", "2", "1", "1")
+
+	config.Datadog.Set("serializer_max_payload_size", 500)
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
+
+	expectedPayloads, err := events.MarshalJSON()
+	assert.NoError(t, err)
+
+	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler())
+	assert.Equal(t, 3, len(payloadsBySourceType))
+	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
+}
+
+func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
+	events := createEvents("3", "3", "2", "2", "1", "1")
+
+	config.Datadog.Set("serializer_max_payload_size", 300)
+	defer config.Datadog.Set("serializer_max_payload_size", nil)
+
+	expectedPayloads, err := events.MarshalJSON()
+	assert.NoError(t, err)
+
+	marshalers := events.CreateMarshalersBySourceType()
+	assert.Equal(t, 3, len(marshalers))
+	var payloadForEachSourceType []payloadsType
+	for _, marshaler := range marshalers {
+		payloads := buildPayload(t, marshaler)
+		assert.Equal(t, 2, len(payloads))
+		payloadForEachSourceType = append(payloadForEachSourceType, payloads...)
+	}
+
+	assertEqualEventsPayloads(t, expectedPayloads, payloadForEachSourceType)
+}
+
+// Helpers
+type payloadsType = []byte
+
+func createEvent(sourceTypeName string) *Event {
+	return &Event{
+		Title:          "1",
+		Text:           "2",
+		Ts:             3,
+		Priority:       EventPriorityNormal,
+		Host:           "5",
+		Tags:           []string{"6", "7"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "9",
+		SourceTypeName: sourceTypeName,
+		EventType:      "10"}
+}
+
+func createEvents(sourceTypeNames ...string) Events {
+	var events []*Event
+	for _, s := range sourceTypeNames {
+		events = append(events, createEvent(s))
+	}
+	return events
+}
+
+// Check PayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
+// return the same results as for MarshalJSON.
+func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
+	json, err := events.MarshalJSON()
+	assert.NoError(t, err)
+
+	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler())
+	assertEqualEventsPayloads(t, json, payloadsBySourceType)
+
+	var payloads []payloadsType
+	for _, e := range events.CreateMarshalersBySourceType() {
+		payloads = append(payloads, buildPayload(t, e)...)
+	}
+	assertEqualEventsPayloads(t, json, payloads)
+}
+
+func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []payloadsType) {
+	// The payload order returned by Events is not deterministic because we use a map inside
+	// getEventsBySourceType().
+	expectedBySourceTypes, err := buildEventsJSON([]payloadsType{expected})
+	assert.NoError(t, err)
+
+	actualBySourceTypes, err := buildEventsJSON(actual)
+	assert.NoError(t, err)
+
+	assert.Truef(t,
+		reflect.DeepEqual(expectedBySourceTypes, actualBySourceTypes),
+		"\n%+p\nVS\n%+v", expectedBySourceTypes, actualBySourceTypes)
+}
+
+func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
+	var allEventsJSON *eventsJSON
+
+	for _, p := range payloads {
+		events := eventsJSON{}
+		err := json.Unmarshal(p, &events)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if allEventsJSON == nil {
+			allEventsJSON = &events
+		} else {
+			switch {
+			case allEventsJSON.APIKey != events.APIKey:
+				return nil, errors.New("APIKey missmatch")
+			case allEventsJSON.InternalHostname != events.InternalHostname:
+				return nil, errors.New("InternalHostname missmatch")
+			default:
+				for k, v := range events.Events {
+					allEventsJSON.Events[k] = append(allEventsJSON.Events[k], v...)
+				}
+			}
+		}
+	}
+	if allEventsJSON == nil {
+		allEventsJSON = &eventsJSON{}
+	}
+	return allEventsJSON, nil
+}
+
+type eventsJSON struct {
+	APIKey           string
+	Events           map[string][]Event
+	InternalHostname string
+}
+
+func createBenchmarkEvents(numberOfItem int) Events {
+	var events Events
+
+	maxValue := int(math.Sqrt(float64(numberOfItem)))
+	for i := 0; i < numberOfItem; i++ {
+		events = append(events, createEvent(strconv.Itoa(i%maxValue)))
+	}
+	return events
+}
+
+func runBenchmark(b *testing.B, bench func(*testing.B, int)) {
+	for i := 1; i <= 1000*1000; i *= 10 {
+		numberOfItem := i // To avoid linter waring
+		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+			bench(b, numberOfItem)
+		})
+	}
+}
+
+func BenchmarkCreateSingleMarshaler(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, createBenchmarkEvents)
+}
+
+func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
+	benchmarkCreateSingleMarshaler(b, func(numberOfItem int) Events {
+		var events Events
+
+		for i := 0; i < numberOfItem; i++ {
+			events = append(events, createEvent(strconv.Itoa(i)))
+		}
+		return events
+	})
+}
+
+func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+		events := createEvents(numberOfItem)
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			payloadBuilder.Build(events.CreateSingleMarshaler())
+		}
+	})
+}
+
+func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+		events := createBenchmarkEvents(numberOfItem)
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			for _, m := range events.CreateMarshalersBySourceType() {
+				payloadBuilder.Build(m)
+			}
+		}
+	})
+}
+
+func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		payloadBuilder := jsonstream.NewPayloadBuilder()
+
+		var events Events
+		// Half of events have the same source type
+		for i := 0; i < numberOfItem/2; i++ {
+			events = append(events, createEvent("sourceType"))
+		}
+		// Half of events have their own source type
+		for i := 0; i < numberOfItem/2; i++ {
+			events = append(events, createEvent(strconv.Itoa(i)))
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
+			// we also call CreateSingleMarshaler in this benchmark.
+			payloadBuilder.Build(events.CreateSingleMarshaler())
+			for _, m := range events.CreateMarshalersBySourceType() {
+				payloadBuilder.Build(m)
+			}
+		}
+	})
 }

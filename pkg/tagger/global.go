@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package tagger
 
@@ -55,6 +55,17 @@ func Init() {
 // or at orchestrator cardinality (pod/task level)
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	return defaultTagger.Tag(entity, cardinality)
+}
+
+// StandardTags queries the defaultTagger to get entity
+// standard tags (env, version, service) from cache or sources.
+func StandardTags(entity string) ([]string, error) {
+	return defaultTagger.Standard(entity)
+}
+
+// OrchestratorScopeTag queries tags for orchestrator scope (e.g. task_arn in ECS Fargate)
+func OrchestratorScopeTag() ([]string, error) {
+	return defaultTagger.Tag(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality)
 }
 
 // Stop queues a stop signal to the defaultTagger

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package ckey
 
@@ -22,42 +22,53 @@ func TestGenerateReproductible(t *testing.T) {
 	hostname := "hostname"
 	tags := []string{"bar", "foo", "key:value", "key:value2"}
 
-	firstKey := Generate(name, hostname, tags)
-	assert.Equal(t, "10c490eb35462b5a1e39489fe3944be7", firstKey.String())
+	generator := NewKeyGenerator()
+
+	firstKey := generator.Generate(name, hostname, tags)
+	assert.Equal(t, ContextKey(0x5a2b4635eb90c410), firstKey)
 
 	for n := 0; n < 10; n++ {
 		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
-			key := Generate(name, hostname, tags)
+			key := generator.Generate(name, hostname, tags)
 			assert.Equal(t, firstKey, key)
 		})
 	}
 
-	otherKey := Generate("othername", hostname, tags)
+	otherKey := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
-	assert.Equal(t, "cd3bca32c0520309fbb533e63ac0d40f", otherKey.String())
+	assert.Equal(t, ContextKey(0x90352c032ca3bcd), otherKey)
 }
 
 func TestCompare(t *testing.T) {
-	base, _ := Parse("cd3bca32c0520309fbb533e63ac0d40f")
-	veryHigh, _ := Parse("ff3bca32c0520309fbb533e63ac0d40f")
-	littleHigh, _ := Parse("ff3bca32c0520309fbb533e63ac0d4ff")
-	veryLow, _ := Parse("003bca32c0520309fbb533e63ac0d40f")
+	base := ContextKey(uint64(0xff3bca32c0520309))
+	same := ContextKey(uint64(0xff3bca32c0520309))
+	diff := ContextKey(uint64(0xcd3bca32c0520309))
 
-	assert.Equal(t, 0, Compare(base, base))
-	assert.Equal(t, 1, Compare(veryHigh, base))
-	assert.Equal(t, 1, Compare(littleHigh, base))
-	assert.Equal(t, -1, Compare(veryLow, base))
+	assert.True(t, Equals(base, base))
+	assert.True(t, Equals(base, same))
+	assert.False(t, Equals(base, diff))
 }
 
-// This benchmark is here to make sure we have
-// zero heap allocation for ContextKey generation
-//
-// run with `go test -bench=. -benchmem ./pkg/aggregator/ckey/`
-func BenchmarkGenerateNoAlloc(b *testing.B) {
+func genTags(count int) []string {
+	var tags []string
+	for i := 0; i < count; i++ {
+		tags = append(tags, fmt.Sprintf("tag%d:value%d", i, i))
+	}
+	return tags
+}
+
+func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
-	tags := []string{"foo", "bar"}
-	for n := 0; n < b.N; n++ {
-		Generate(name, host, tags)
+	for i := 1; i < 256; i *= 2 {
+		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
+			generator := NewKeyGenerator()
+			tags := genTags(i)
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				generator.Generate(name, host, tags)
+			}
+		})
+
 	}
 }

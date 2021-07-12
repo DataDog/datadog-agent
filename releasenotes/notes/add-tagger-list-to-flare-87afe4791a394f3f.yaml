@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds Tagger information to Datadog Agent flare for support investigations.

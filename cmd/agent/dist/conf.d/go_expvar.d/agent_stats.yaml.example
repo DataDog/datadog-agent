@@ -160,3 +160,7 @@ instances:
         type: rate
       - path: logs-agent/LogsSent
         type: rate
+      - path: logs-agent/BytesSent
+        type: rate
+      - path: logs-agent/EncodedBytesSent
+        type: rate

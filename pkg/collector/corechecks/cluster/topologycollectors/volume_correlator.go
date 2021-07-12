@@ -54,7 +54,7 @@ func NewVolumeCorrelator(componentChannel chan<- *topology.Component, relationCh
 }
 
 // GetName returns the name of the Correlator
-func (_ *VolumeCorrelator) GetName() string {
+func (VolumeCorrelator) GetName() string {
 	return "Volume Correlator"
 }
 
@@ -202,17 +202,6 @@ func (vc *VolumeCorrelator) containerToVolumeStackStateRelation(containerExterna
 	relation := vc.CreateRelationData(containerExternalID, volumeExternalID, "mounts", data)
 
 	log.Tracef("Created StackState container -> volume relation %s->%s", relation.SourceID, relation.TargetID)
-
-	return relation
-}
-
-// Create a StackState relation from a Kubernetes / OpenShift Projected Volume to a Projection
-func (vc *VolumeCorrelator) projectedVolumeToProjectionStackStateRelation(projectedVolumeExternalID, projectionExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes projected volume to projection relation: %s -> %s", projectedVolumeExternalID, projectionExternalID)
-
-	relation := vc.CreateRelation(projectedVolumeExternalID, projectionExternalID, "projects")
-
-	log.Tracef("Created StackState projected volume -> projection relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

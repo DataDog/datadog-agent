@@ -1,20 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package metrics
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
+	jsoniter "github.com/json-iterator/go"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/StackVista/stackstate-agent/pkg/serializer/marshaler"
+	"github.com/StackVista/stackstate-agent/pkg/telemetry"
+	utiljson "github.com/StackVista/stackstate-agent/pkg/util/json"
 )
 
 // ServiceCheckStatus represents the status associated with a service check
@@ -28,7 +32,12 @@ const (
 	ServiceCheckUnknown  ServiceCheckStatus = 3
 )
 
-var serviceCheckExpvar = expvar.NewMap("ServiceCheck")
+var (
+	serviceCheckExpvar = expvar.NewMap("ServiceCheck")
+
+	tlmServiceCheck = telemetry.NewCounter("metrics", "service_check_split",
+		[]string{"action"}, "Service check split")
+)
 
 // GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
 func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
@@ -111,9 +120,11 @@ func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 // SplitPayload breaks the payload into times number of pieces
 func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	serviceCheckExpvar.Add("TimesSplit", 1)
+	tlmServiceCheck.Inc("times_split")
 	// only split it up as much as possible
 	if len(sc) < times {
 		serviceCheckExpvar.Add("ServiceChecksShorter", 1)
+		tlmServiceCheck.Inc("shorter")
 		times = len(sc)
 	}
 	splitPayloads := make([]marshaler.Marshaler, times)
@@ -127,7 +138,7 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		} else {
 			end = len(sc)
 		}
-		newSC := ServiceChecks(sc[n:end])
+		newSC := sc[n:end]
 		splitPayloads[i] = newSC
 		n += batchSize
 	}
@@ -140,4 +151,79 @@ func (sc ServiceCheck) String() string {
 		return ""
 	}
 	return string(s)
+}
+
+//// The following methods implement the StreamJSONMarshaler interface
+//// for support of the enable_service_checks_stream_payload_serialization option.
+
+// WriteHeader writes the payload header for this type
+func (sc ServiceChecks) WriteHeader(stream *jsoniter.Stream) error {
+	stream.WriteArrayStart()
+	return stream.Flush()
+}
+
+// WriteFooter prints the payload footer for this type
+func (sc ServiceChecks) WriteFooter(stream *jsoniter.Stream) error {
+	stream.WriteArrayEnd()
+	return stream.Flush()
+}
+
+// WriteItem prints the json representation of an item
+func (sc ServiceChecks) WriteItem(stream *jsoniter.Stream, i int) error {
+	if i < 0 || i > len(sc)-1 {
+		return errors.New("out of range")
+	}
+
+	if err := writeServiceCheck(sc[i], stream); err != nil {
+		return err
+	}
+	return stream.Flush()
+}
+
+// Len returns the number of items to marshal
+func (sc ServiceChecks) Len() int {
+	return len(sc)
+}
+
+// DescribeItem returns a text description for logs
+func (sc ServiceChecks) DescribeItem(i int) string {
+	if i < 0 || i > len(sc)-1 {
+		return "out of range"
+	}
+	return fmt.Sprintf("CheckName:%q, Message:%q", sc[i].CheckName, sc[i].Message)
+}
+
+func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
+	writer := utiljson.NewRawObjectWriter(stream)
+
+	if err := writer.StartObject(); err != nil {
+		return err
+	}
+	writer.AddStringField("check", sc.CheckName, utiljson.AllowEmpty)
+	writer.AddStringField("host_name", sc.Host, utiljson.AllowEmpty)
+	writer.AddInt64Field("timestamp", sc.Ts)
+	writer.AddInt64Field("status", int64(sc.Status))
+	writer.AddStringField("message", sc.Message, utiljson.AllowEmpty)
+
+	tagsField := "tags"
+
+	if len(sc.Tags) == 0 {
+		stream.WriteMore()
+		stream.WriteObjectField(tagsField)
+		stream.WriteNil()
+	} else {
+		if err := writer.StartArrayField(tagsField); err != nil {
+			return err
+		}
+		for _, tag := range sc.Tags {
+			writer.AddStringValue(tag)
+		}
+		if err := writer.FinishArrayField(); err != nil {
+			return err
+		}
+	}
+	if err := writer.FinishObject(); err != nil {
+		return err
+	}
+	return writer.Flush()
 }

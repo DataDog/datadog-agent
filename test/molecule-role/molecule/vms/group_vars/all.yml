@@ -1,0 +1,24 @@
+---
+molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
+keypair_name: "molecule_key_{{ molecule_run_id }}"
+keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
+
+major_version: "{{ lookup('env', 'MAJOR_VERSION') or MAJOR_VERSION }}"
+agent_repo_url: "https://{{ lookup('env', 'STS_AWS_TEST_BUCKET') or STS_AWS_TEST_BUCKET }}.s3.amazonaws.com"
+agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
+quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"
+quay_user: "{{ lookup('env', 'quay_user') or QUAY_USER }}"
+stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }}"
+
+connection_port_before_start_fedora: 125
+connection_port_after_start_fedora: 126
+connection_port_before_start_windows: 127
+connection_port_after_start_windows: 128
+dnat_service_port: 1234
+dnat_server_port: 49123
+max_test_time: 3500  # in seconds
+process_filter_short_lived_qualifier_secs: 45
+network_relation_filter_short_lived_qualifier_secs: 20
+network_relation_test_server_port_single_request: 4321
+network_relation_test_server_port_multiple_requests: 4322
+network_relation_test_server_port_shared_connection: 4323

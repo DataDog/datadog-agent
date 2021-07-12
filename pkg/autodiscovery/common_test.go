@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package autodiscovery
 
 import (
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/integration"
 	"github.com/StackVista/stackstate-agent/pkg/autodiscovery/listeners"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
 )
 
 type dummyService struct {
@@ -18,10 +19,16 @@ type dummyService struct {
 	Pid           int
 	Hostname      string
 	CreationTime  integration.CreationTime
+	CheckNames    []string
 }
 
 // GetEntity returns the service entity name
 func (s *dummyService) GetEntity() string {
+	return s.ID
+}
+
+// GetEntity returns the service entity name
+func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
 
@@ -58,4 +65,24 @@ func (s *dummyService) GetHostname() (string, error) {
 // GetCreationTime return a dummy creation time
 func (s *dummyService) GetCreationTime() integration.CreationTime {
 	return s.CreationTime
+}
+
+// IsReady returns if the service is ready
+func (s *dummyService) IsReady() bool {
+	return true
+}
+
+// GetCheckNames returns slice of check names defined in docker labels
+func (s *dummyService) GetCheckNames() []string {
+	return s.CheckNames
+}
+
+// HasFilter returns false
+func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+	return false
+}
+
+// GetExtraConfig isn't supported
+func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
+	return []byte{}, nil
 }

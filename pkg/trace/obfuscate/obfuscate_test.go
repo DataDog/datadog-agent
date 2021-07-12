@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package obfuscate
 
 import (
@@ -8,6 +13,7 @@ import (
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/pb"
+
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,10 +48,7 @@ func TestNewObfuscator(t *testing.T) {
 	assert.Nil(o.es)
 	assert.Nil(o.mongo)
 
-	o = NewObfuscator(&config.ObfuscationConfig{
-		ES:    config.JSONObfuscationConfig{},
-		Mongo: config.JSONObfuscationConfig{},
-	})
+	o = NewObfuscator(nil)
 	assert.Nil(o.es)
 	assert.Nil(o.mongo)
 
@@ -133,9 +136,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{
-			Redis: config.Enablable{Enabled: true},
-		},
+		&config.ObfuscationConfig{Redis: config.Enablable{Enabled: true}},
 	))
 
 	t.Run("redis/disabled", testConfig(
@@ -151,12 +152,10 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{
-			HTTP: config.HTTPObfuscationConfig{
-				RemovePathDigits:  true,
-				RemoveQueryString: true,
-			},
-		},
+		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemovePathDigits:  true,
+			RemoveQueryString: true,
+		}},
 	))
 
 	t.Run("http/disabled", testConfig(
@@ -172,12 +171,10 @@ func TestObfuscateConfig(t *testing.T) {
 		"http.url",
 		"http://mysite.mydomain/1/2?q=asd",
 		"http://mysite.mydomain/?/??",
-		&config.ObfuscationConfig{
-			HTTP: config.HTTPObfuscationConfig{
-				RemovePathDigits:  true,
-				RemoveQueryString: true,
-			},
-		},
+		&config.ObfuscationConfig{HTTP: config.HTTPObfuscationConfig{
+			RemovePathDigits:  true,
+			RemoveQueryString: true,
+		}},
 	))
 
 	t.Run("web/disabled", testConfig(
@@ -211,9 +208,7 @@ func TestObfuscateConfig(t *testing.T) {
 		"memcached.command",
 		"set key 0 0 0\r\nvalue",
 		"set key 0 0 0",
-		&config.ObfuscationConfig{
-			Memcached: config.Enablable{Enabled: true},
-		},
+		&config.ObfuscationConfig{Memcached: config.Enablable{Enabled: true}},
 	))
 
 	t.Run("memcached/disabled", testConfig(
@@ -223,6 +218,24 @@ func TestObfuscateConfig(t *testing.T) {
 		"set key 0 0 0 noreply\r\nvalue",
 		&config.ObfuscationConfig{},
 	))
+}
+
+func TestLiteralEscapes(t *testing.T) {
+	o := NewObfuscator(nil)
+
+	t.Run("default", func(t *testing.T) {
+		assert.False(t, o.SQLLiteralEscapes())
+	})
+
+	t.Run("true", func(t *testing.T) {
+		o.SetSQLLiteralEscapes(true)
+		assert.True(t, o.SQLLiteralEscapes())
+	})
+
+	t.Run("false", func(t *testing.T) {
+		o.SetSQLLiteralEscapes(false)
+		assert.False(t, o.SQLLiteralEscapes())
+	})
 }
 
 func BenchmarkCompactWhitespaces(b *testing.B) {

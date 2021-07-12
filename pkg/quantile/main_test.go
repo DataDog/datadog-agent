@@ -46,7 +46,7 @@ func ParseSketch(t *testing.T, dsl string) *Sketch {
 
 		s.count += int(n)
 		s.bins = append(s.bins, bin{k: k, n: uint16(n)})
-		s.Basic.InsertN(c.f64(k), uint(n))
+		s.Basic.InsertN(c.f64(k), float64(n))
 	})
 
 	return s

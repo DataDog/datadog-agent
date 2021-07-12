@@ -173,3 +173,7 @@ The Datadog Cluster Agent is designed to be used in a containerized ecosystem.
 
 Start by creating the binary by running `inv -e cluster-agent.build` from the `datadog-agent` [package](../../../datadog-agent). This will add a binary in `./bin/datadog-cluster-agent/`
 Then from the current folder, run `inv -e cluster-agent.image-build`.
+
+
+[1]: https://docs.datadoghq.com/agent/cluster_agent/
+[2]: https://hub.docker.com/r/datadog/cluster-agent/

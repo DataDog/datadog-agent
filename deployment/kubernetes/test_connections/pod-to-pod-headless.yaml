@@ -8,6 +8,7 @@ metadata:
 spec:
   containers:
     - image: itsthenetwork/alpine-ncat
+      imagePullPolicy: IfNotPresent
       name: headless-server
       command: ["/bin/bash", "-c", "ncat -vv --broker --listen -p 543 > /dev/null"]
       ports:
@@ -40,6 +41,7 @@ metadata:
 spec:
   containers:
     - image: jgkamat/netcat
+      imagePullPolicy: IfNotPresent
       name: headless-client
       command: ["/bin/bash", "-c", "yes | nc -vv headless-service 543"]
   nodeSelector:

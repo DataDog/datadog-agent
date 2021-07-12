@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build containerd
 
@@ -56,7 +56,7 @@ func (s *subscriber) CheckEvents(ctrItf ctrUtil.ContainerdItf) {
 	ev := ctrItf.GetEvents()
 	log.Info("Starting routine to collect Containerd events ...")
 	ctxNamespace := namespaces.WithNamespace(ctx, s.Namespace)
-	go s.run(ctxNamespace, ev)
+	go s.run(ctxNamespace, ev) //nolint:errcheck
 }
 
 func processMessage(id string, message *containerdevents.Envelope) containerdEvent {
@@ -220,7 +220,7 @@ func (s *subscriber) run(ctx context.Context, ev containerd.EventService) error 
 				return nil
 			}
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
-			return fmt.Errorf("stopping Containerd event listener routine...")
+			return fmt.Errorf("stopping Containerd event listener routine")
 		}
 	}
 }

@@ -3,8 +3,11 @@ package batcher
 import (
 	"fmt"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
+	"github.com/StackVista/stackstate-agent/pkg/config"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"github.com/StackVista/stackstate-agent/pkg/serializer"
 	"github.com/StackVista/stackstate-agent/pkg/topology"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"sync"
 )
 
@@ -17,10 +20,18 @@ var (
 // not work on a fixed schedule like the aggregator but flushes either when data exceeds a threshold, when
 // data is complete.
 type Batcher interface {
+	// Topology
 	SubmitComponent(checkID check.ID, instance topology.Instance, component topology.Component)
 	SubmitRelation(checkID check.ID, instance topology.Instance, relation topology.Relation)
 	SubmitStartSnapshot(checkID check.ID, instance topology.Instance)
 	SubmitStopSnapshot(checkID check.ID, instance topology.Instance)
+
+	// Health
+	SubmitHealthCheckData(checkID check.ID, stream health.Stream, data health.CheckData)
+	SubmitHealthStartSnapshot(checkID check.ID, stream health.Stream, intervalSeconds int, expirySeconds int)
+	SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream)
+
+	// lifecycle
 	SubmitComplete(checkID check.ID)
 	Shutdown()
 }
@@ -34,7 +45,7 @@ func InitBatcher(serializer serializer.AgentV1Serializer, hostname, agentName st
 
 func newAsynchronousBatcher(serializer serializer.AgentV1Serializer, hostname, agentName string, maxCapacity int) AsynchronousBatcher {
 	batcher := AsynchronousBatcher{
-		builder:    NewTopologyBuilder(maxCapacity),
+		builder:    NewBatchBuilder(maxCapacity),
 		hostname:   hostname,
 		agentName:  agentName,
 		input:      make(chan interface{}),
@@ -58,7 +69,7 @@ func NewMockBatcher() MockBatcher {
 
 // AsynchronousBatcher is the implementation of the batcher. Works asynchronous. Publishes data to the serializer
 type AsynchronousBatcher struct {
-	builder             TopologyBuilder
+	builder             BatchBuilder
 	hostname, agentName string
 	input               chan interface{}
 	serializer          serializer.AgentV1Serializer
@@ -86,28 +97,79 @@ type submitStopSnapshot struct {
 	instance topology.Instance
 }
 
+type submitHealthCheckData struct {
+	checkID check.ID
+	stream  health.Stream
+	data    health.CheckData
+}
+
+type submitHealthStartSnapshot struct {
+	checkID         check.ID
+	stream          health.Stream
+	intervalSeconds int
+	expirySeconds   int
+}
+
+type submitHealthStopSnapshot struct {
+	checkID check.ID
+	stream  health.Stream
+}
+
 type submitComplete struct {
 	checkID check.ID
 }
 
 type submitShutdown struct{}
 
-func (batcher *AsynchronousBatcher) sendTopology(topologyMap map[check.ID]topology.Topology) {
-	if topologyMap != nil {
+func (batcher *AsynchronousBatcher) sendState(states CheckInstanceBatchStates) {
+	if states != nil {
 
-		topologies := make([]topology.Topology, len(topologyMap))
-		idx := 0
-		for _, topo := range topologyMap {
-			topologies[idx] = topo
-			idx++
+		// Create the topologies
+		topologies := make([]topology.Topology, 0)
+		for _, state := range states {
+			if state.Topology != nil {
+				topologies = append(topologies, *state.Topology)
+			}
+		}
+
+		// Create the healthData payload
+		healthData := make([]health.Health, 0)
+		for _, state := range states {
+			for _, healthRecord := range state.Health {
+				healthData = append(healthData, healthRecord)
+			}
 		}
 
 		payload := map[string]interface{}{
 			"internalHostname": batcher.hostname,
 			"topologies":       topologies,
+			"health":           healthData,
 		}
 
-		batcher.serializer.SendJSONToV1Intake(payload)
+		// For debug purposes print out all topologies payload
+		if config.Datadog.GetBool("log_payloads") {
+			log.Debug("Flushing the following topologies:")
+			for _, topo := range topologies {
+				log.Debugf("%v", topo)
+			}
+
+			log.Debug("Flushing the following health data:")
+			for _, health := range healthData {
+				log.Debugf("%v", health)
+			}
+		}
+
+		// For debug purposes print out all topologies payload
+		if config.Datadog.GetBool("log_payloads") {
+			log.Debug("Flushing the following topologies:")
+			for _, topo := range topologies {
+				log.Debugf("%v", topo)
+			}
+		}
+
+		if err := batcher.serializer.SendJSONToV1Intake(payload); err != nil {
+			_ = log.Errorf("error in SendJSONToV1Intake: %s", err)
+		}
 	}
 }
 
@@ -116,15 +178,23 @@ func (batcher *AsynchronousBatcher) run() {
 		s := <-batcher.input
 		switch submission := s.(type) {
 		case submitComponent:
-			batcher.sendTopology(batcher.builder.AddComponent(submission.checkID, submission.instance, submission.component))
+			batcher.sendState(batcher.builder.AddComponent(submission.checkID, submission.instance, submission.component))
 		case submitRelation:
-			batcher.sendTopology(batcher.builder.AddRelation(submission.checkID, submission.instance, submission.relation))
+			batcher.sendState(batcher.builder.AddRelation(submission.checkID, submission.instance, submission.relation))
 		case submitStartSnapshot:
-			batcher.sendTopology(batcher.builder.StartSnapshot(submission.checkID, submission.instance))
+			batcher.sendState(batcher.builder.TopologyStartSnapshot(submission.checkID, submission.instance))
 		case submitStopSnapshot:
-			batcher.sendTopology(batcher.builder.StopSnapshot(submission.checkID, submission.instance))
+			batcher.sendState(batcher.builder.TopologyStopSnapshot(submission.checkID, submission.instance))
+
+		case submitHealthCheckData:
+			batcher.sendState(batcher.builder.AddHealthCheckData(submission.checkID, submission.stream, submission.data))
+		case submitHealthStartSnapshot:
+			batcher.sendState(batcher.builder.HealthStartSnapshot(submission.checkID, submission.stream, submission.intervalSeconds, submission.expirySeconds))
+		case submitHealthStopSnapshot:
+			batcher.sendState(batcher.builder.HealthStopSnapshot(submission.checkID, submission.stream))
+
 		case submitComplete:
-			batcher.sendTopology(batcher.builder.FlushIfDataProduced(submission.checkID))
+			batcher.sendState(batcher.builder.FlushIfDataProduced(submission.checkID))
 		case submitShutdown:
 			return
 		default:
@@ -167,8 +237,37 @@ func (batcher AsynchronousBatcher) SubmitStopSnapshot(checkID check.ID, instance
 	}
 }
 
+// SubmitHealthCheckData submits a Health check data record to the batch
+func (batcher AsynchronousBatcher) SubmitHealthCheckData(checkID check.ID, stream health.Stream, data health.CheckData) {
+	log.Debugf("Submitting Health check data for check [%s] stream [%s]: %s", checkID, stream.GoString(), data.JSONString())
+	batcher.input <- submitHealthCheckData{
+		checkID: checkID,
+		stream:  stream,
+		data:    data,
+	}
+}
+
+// SubmitHealthStartSnapshot submits start of a Health snapshot
+func (batcher AsynchronousBatcher) SubmitHealthStartSnapshot(checkID check.ID, stream health.Stream, intervalSeconds int, expirySeconds int) {
+	batcher.input <- submitHealthStartSnapshot{
+		checkID:         checkID,
+		stream:          stream,
+		intervalSeconds: intervalSeconds,
+		expirySeconds:   expirySeconds,
+	}
+}
+
+// SubmitHealthStopSnapshot submits a stop of a Health snapshot. This always causes a flush of the data downstream
+func (batcher AsynchronousBatcher) SubmitHealthStopSnapshot(checkID check.ID, stream health.Stream) {
+	batcher.input <- submitHealthStopSnapshot{
+		checkID: checkID,
+		stream:  stream,
+	}
+}
+
 // SubmitComplete signals completion of a check. May trigger a flush only if the check produced data
 func (batcher AsynchronousBatcher) SubmitComplete(checkID check.ID) {
+	log.Debugf("Submitting complete for check [%s]", checkID)
 	batcher.input <- submitComplete{
 		checkID: checkID,
 	}

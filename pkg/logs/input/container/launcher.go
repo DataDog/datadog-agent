@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package container
 
 import (
+	"time"
+
 	"github.com/StackVista/stackstate-agent/pkg/logs/auditor"
 	"github.com/StackVista/stackstate-agent/pkg/logs/config"
 	"github.com/StackVista/stackstate-agent/pkg/logs/input/docker"
@@ -17,30 +19,56 @@ import (
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
-// NewLauncher returns a new container launcher.
-// By default, it returns a docker launcher that uses the docker socket to collect logs.
-// The docker launcher can be used both on a non kubernetes and kubernetes environment.
-// When a docker launcher cannot be initialized properly, the launcher will attempt to
-// initialize a kubernetes launcher which will tail logs files (in '/var/log/pods') of all
-// the containers running on the kubernetes cluster and matching the autodiscovery configuration.
-func NewLauncher(collectAll bool, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
-	// attempt to initialize a docker launcher
-	log.Info("Trying to initialize docker launcher")
-	launcher, err := docker.NewLauncher(sources, services, pipelineProvider, registry)
-	if err == nil {
-		log.Info("Docker launcher initialized")
-		return launcher
-	}
-	log.Infof("Could not setup the docker launcher: %v", err)
+// NewLauncher returns a new container launcher depending on the environment.
+// By default returns a docker launcher if the docker socket is mounted and fallback to
+// a kubernetes launcher if '/var/log/pods' is mounted ; this behaviour is reversed when
+// collectFromFiles is enabled.
+// If none of those volumes are mounted, returns a lazy docker launcher with a retrier to handle the cases
+// where docker is started after the agent.
+// dockerReadTimeout is a configurable read timeout for the docker client.
+func NewLauncher(collectAll bool, collectFromFiles bool, dockerReadTimeout time.Duration, sources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry) restart.Restartable {
+	var (
+		launcher restart.Restartable
+		err      error
+	)
 
-	// attempt to initialize a kubernetes launcher
-	log.Info("Trying to initialize kubernetes launcher")
-	kubernetesLauncher, err := kubernetes.NewLauncher(sources, services, collectAll)
-	if err == nil {
-		log.Info("Kubernetes launcher initialized")
-		return kubernetesLauncher
+	if collectFromFiles {
+		launcher, err = kubernetes.NewLauncher(sources, services, collectAll)
+		if err == nil {
+			log.Info("Kubernetes launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the kubernetes launcher: %v", err)
+
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
+		if err == nil {
+			log.Info("Docker launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the docker launcher: %v", err)
+	} else {
+		launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, false)
+		if err == nil {
+			log.Info("Docker launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the docker launcher: %v", err)
+
+		launcher, err = kubernetes.NewLauncher(sources, services, collectAll)
+		if err == nil {
+			log.Info("Kubernetes launcher initialized")
+			return launcher
+		}
+		log.Infof("Could not setup the kubernetes launcher: %v", err)
 	}
-	log.Infof("Could not setup the kubernetes launcher: %v", err)
-	log.Infof("Container logs won't be collected")
-	return NewNoopLauncher()
+
+	launcher, err = docker.NewLauncher(dockerReadTimeout, sources, services, pipelineProvider, registry, true)
+	if err != nil {
+		log.Warnf("Could not setup the docker launcher: %v. Will not be able to collect container logs", err)
+		return NewNoopLauncher()
+	}
+
+	log.Infof("Container logs won't be collected unless a docker daemon is eventually started")
+
+	return launcher
 }

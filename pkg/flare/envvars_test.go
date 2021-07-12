@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 package flare
 
@@ -42,6 +42,18 @@ func TestEnvvarWhitelisting(t *testing.T) {
 				"DOCKER_HOST": "tcp://10.0.0.10:8888",
 				"DD_API_KEY":  "don't pickup",
 				"GOGC":        "120",
+			},
+			out: []string{
+				"GOGC=120",
+				"DOCKER_HOST=tcp://10.0.0.10:8888",
+			},
+		},
+		{
+			name: "_auth_token env var case",
+			in: map[string]string{
+				"DOCKER_HOST":                 "tcp://10.0.0.10:8888",
+				"DD_CLUSTER_AGENT_AUTH_TOKEN": "don't pickup",
+				"GOGC":                        "120",
 			},
 			out: []string{
 				"GOGC=120",

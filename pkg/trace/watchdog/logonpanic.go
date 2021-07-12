@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package watchdog
 
 import (
@@ -5,7 +10,7 @@ import (
 	"runtime"
 
 	"github.com/StackVista/stackstate-agent/pkg/trace/metrics"
-	log "github.com/cihub/seelog"
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 )
 
 const shortErrMsgLen = 17 // 20 char max with tailing "..."

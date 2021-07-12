@@ -1,7 +1,7 @@
 [Unit]
-Description="Stackstate Agent"
+Description=Stackstate Agent
 After=network.target
-Wants=stackstate-agent-trace.service stackstate-agent-process.service
+Wants=stackstate-agent-trace.service stackstate-agent-process.service stackstate-agent-sysprobe.service
 
 [Service]
 Type=simple

@@ -22,10 +22,10 @@ func TestParseComponentStatus(t *testing.T) {
 	// We only test one Component Condition as only the Healthy Condition is supported.
 	// We check if the OK, Critical and Unknown Service Checks are returned accordingly to the condition and the status given.
 
-	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True"}
-	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True"}
-	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False"}
-	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other"}
+	expectedComp := v1.ComponentCondition{Type: "Healthy", Status: "True", Message: "imok"}
+	unExpectedComp := v1.ComponentCondition{Type: "Not Supported", Status: "True", Message: ""}
+	unHealthyComp := v1.ComponentCondition{Type: "Healthy", Status: "False", Error: "Connection closed"}
+	unExpectedStatus := v1.ComponentCondition{Type: "Healthy", Status: "Other", Message: ""}
 
 	expected := &v1.ComponentStatusList{
 		Items: []v1.ComponentStatus{
@@ -81,38 +81,31 @@ func TestParseComponentStatus(t *testing.T) {
 		Items: nil,
 	}
 
-	// FIXME: use the factory instead
-	kubeApiMetricsCheck := &MetricsCheck{
-		CommonCheck: CommonCheck{
-			CheckBase:             core.NewCheckBase(kubernetesAPIMetricsCheckName),
-			KubeAPIServerHostname: "hostname",
-		},
-		instance: &MetricsConfig{},
-	}
+	kubeAPIMetricsCheck := NewKubernetesAPIMetricsCheck(core.NewCheckBase(kubernetesAPIMetricsCheckName), &MetricsConfig{})
 
-	mocked := mocksender.NewMockSender(kubeApiMetricsCheck.ID())
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
-	_ = kubeApiMetricsCheck.parseComponentStatus(mocked, expected)
+	mocked := mocksender.NewMockSender(kubeAPIMetricsCheck.ID())
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
+	_ = kubeAPIMetricsCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"component:Zookeeper"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
 
-	err := kubeApiMetricsCheck.parseComponentStatus(mocked, unExpected)
+	err := kubeAPIMetricsCheck.parseComponentStatus(mocked, unExpected)
 	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
-	_ = kubeApiMetricsCheck.parseComponentStatus(mocked, unHealthy)
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
+	_ = kubeAPIMetricsCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"component:ETCD"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
 
-	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
-	_ = kubeApiMetricsCheck.parseComponentStatus(mocked, unknown)
+	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
+	_ = kubeAPIMetricsCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
-	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"component:DCA"}, "")
+	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
 
-	empty_resp := kubeApiMetricsCheck.parseComponentStatus(mocked, empty)
-	assert.Nil(t, empty_resp, "metadata structure has changed. Not collecting API Server's Components status")
+	emptyResp := kubeAPIMetricsCheck.parseComponentStatus(mocked, empty)
+	assert.Nil(t, emptyResp, "metadata structure has changed. Not collecting API Server's Components status")
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mocked.AssertExpectations(t)

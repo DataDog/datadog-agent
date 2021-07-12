@@ -2,29 +2,37 @@
 version: '2.4'
 
 services:
-
   zookeeper:
     image: wurstmeister/zookeeper
     ports:
       - 2181:2181
     mem_limit: 1G
+    healthcheck:
+      test: [ "CMD-SHELL", "echo ruok | nc -w 2 zookeeper 2181" ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
 
   kafka:
     image: wurstmeister/kafka:2.12-2.3.1
     ports:
       - 9092:9092
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_generic_events:1:1,sts_state_events:1:1,sts_multi_metrics:1:1,sts_correlate_endpoints:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1,sts_topology_events:1:1"
+      KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
+    volumes:
+      - "./verify-or-create-topics.sh:/usr/local/bin/verify-or-create-topics.sh"
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -q sts_trace_events"]
-      interval: 1s
-      timeout: 10s
+      test: [ "CMD", "verify-or-create-topics.sh" ]
+      interval: 10s
+      timeout: 45s
       retries: 10
+    restart: always
     mem_limit: 1G
 
   receiver:
@@ -37,6 +45,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
 
   correlate:
@@ -47,6 +56,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
+    restart: always
     mem_limit: 1G
 
   topic-api:
@@ -59,6 +69,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    restart: always
     mem_limit: 1G
 
   mysql:
@@ -80,13 +91,11 @@ services:
       - nagios_conf:/opt/nagios/etc
     depends_on:
       - mysql
-
   nginx:
     image: nginx:1.14.2
     container_name: nginx-1
-
   stackstate-agent:
-    image: docker.io/stackstate/stackstate-agent-2-test:${AGENT_VERSION}
+    image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
     pid: "host"
     privileged: true
@@ -103,7 +112,7 @@ services:
     environment:
       STS_API_KEY: "API_KEY"
       STS_STS_URL: "http://localhost:7077/stsAgent"
-      STS_HOSTNAME: "agent-integrations-mysql"
+      STS_HOSTNAME: "agent-integrations"
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "false"
@@ -114,6 +123,7 @@ services:
       HOST_SYS: "/host/sys"
       STS_LOG_LEVEL: "debug"
       STS_LOG_TO_CONSOLE: "true"
+      STS_LOG_PAYLOADS: "false"
     depends_on:
       - nagios
       - receiver

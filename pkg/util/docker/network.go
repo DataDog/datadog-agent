@@ -1,28 +1,28 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build docker
 
 package docker
 
 import (
-	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
-	"github.com/StackVista/stackstate-agent/pkg/config"
-	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers"
+	"github.com/StackVista/stackstate-agent/pkg/util/containers/providers"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
+
+	v3 "github.com/StackVista/stackstate-agent/pkg/util/ecs/metadata/v3"
 )
 
 type dockerNetwork struct {
@@ -43,14 +43,19 @@ func (a dockerNetworks) Less(i, j int) bool { return a[i].dockerName < a[j].dock
 
 var hostNetwork = dockerNetwork{iface: "eth0", dockerName: "bridge"}
 
+const (
+	ecsPauseContainerImage = "amazon/amazon-ecs-pause"
+	containerModePrefix    = "container:"
+)
+
 func findDockerNetworks(containerID string, pid int, container types.Container) []dockerNetwork {
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
 	// Other network modes will look at the docker NetworkSettings.
-	if netMode == "host" {
+	if netMode == containers.HostNetworkMode {
 		log.Debugf("Container %s is in network host mode, its network metrics are for the whole host", containerID)
 		return []dockerNetwork{hostNetwork}
-	} else if netMode == "none" {
+	} else if netMode == containers.NoneNetworkMode {
 		log.Debugf("Container %s is in network mode 'none', we will collect metrics for the whole host", containerID)
 		return []dockerNetwork{hostNetwork}
 	} else if strings.HasPrefix(netMode, "container:") {
@@ -96,7 +101,7 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	destinations, err := metrics.DetectNetworkDestinations(pid)
+	destinations, err := providers.ContainerImpl().DetectNetworkDestinations(pid)
 	if err != nil {
 		log.Warnf("Cannot list interfaces for container id %s: %s, skipping", containerID, err)
 		return nil
@@ -128,40 +133,116 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 			if cnw, ok := containerNetworks[nw.routingContainerID]; ok {
 				containerNetworks[cid] = cnw
 			} else {
-				log.Debugf("unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
+				log.Debugf("Unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
 				containerNetworks[cid] = nil
 			}
 		}
 	}
 }
 
-// DefaultGateway returns the default Docker gateway.
-func DefaultGateway() (net.IP, error) {
-	procRoot := config.Datadog.GetString("proc_root")
-	netRouteFile := filepath.Join(procRoot, "net", "route")
-	f, err := os.Open(netRouteFile)
-	if err != nil {
-		if os.IsNotExist(err) || os.IsPermission(err) {
-			log.Errorf("unable to open %s: %s", netRouteFile, err)
-			return nil, nil
-		}
-		// Unknown error types will bubble up for handling.
-		return nil, err
-	}
-	defer f.Close()
+// GetAgentContainerNetworkMode provides the network mode of the Agent container
+// To get this info in an optimal way, consider calling util.GetAgentNetworkMode	func GetContainerNetworkMode(cid string) (string, error) {
+// instead to benefit from the cache
+func GetAgentContainerNetworkMode() (string, error) {
+	agentCID, _ := providers.ContainerImpl().GetAgentCID()
+	return GetContainerNetworkMode(agentCID)
+}
 
-	ip := make(net.IP, 4)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) >= 3 && fields[1] == "00000000" {
-			ipInt, err := strconv.ParseUint(fields[2], 16, 32)
-			if err != nil {
-				return nil, fmt.Errorf("unable to parse ip %s, from %s: %s", fields[2], netRouteFile, err)
+// GetContainerNetworkAddresses returns internal container network address
+// representations from the container metadata retrieved at the given URL.
+func GetContainerNetworkAddresses(agentURL string) ([]containers.NetworkAddress, error) {
+	container, err := v3.NewClient(agentURL).GetContainer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get task from metadata v3 API: %s", err)
+	}
+	return parseContainerNetworkAddresses(container.Ports, container.Networks, container.DockerName), nil
+}
+
+// GetContainerNetworkMode returns the network mode of a container
+func GetContainerNetworkMode(cid string) (string, error) {
+	du, err := GetDockerUtil()
+	if err != nil {
+		return "", err
+	}
+	container, err := du.Inspect(cid, false)
+	if err != nil {
+		return "", err
+	}
+	mode, err := parseContainerNetworkMode(container.HostConfig)
+	if err != nil {
+		return mode, err
+	}
+
+	// Try to discover awsvpc mode
+	if strings.HasPrefix(mode, containerModePrefix) {
+		// Inspect the attached container
+		co, err := du.Inspect(mode[len(containerModePrefix):], false)
+		if err != nil {
+			return "", fmt.Errorf("cannot inspect attached container %s: %v", mode, err)
+		}
+		// In awsvpc mode, the attached container is an amazon ecs pause container
+		if co.Config != nil && strings.HasPrefix(co.Config.Image, ecsPauseContainerImage) {
+			return containers.AwsvpcNetworkMode, nil
+		}
+		return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
+	}
+	return mode, nil
+}
+
+// parseContainerNetworkAddresses converts ECS container ports
+// and networks into a list of NetworkAddress
+func parseContainerNetworkAddresses(ports []v3.Port, networks []v3.Network, container string) []containers.NetworkAddress {
+	addrList := []containers.NetworkAddress{}
+	if networks == nil {
+		log.Debugf("No network settings available in ECS metadata")
+		return addrList
+	}
+	for _, network := range networks {
+		for _, addr := range network.IPv4Addresses { // one-element list
+			IP := net.ParseIP(addr)
+			if IP == nil {
+				log.Warnf("Unable to parse IP: %v for container: %s", addr, container)
+				continue
 			}
-			binary.LittleEndian.PutUint32(ip, uint32(ipInt))
-			break
+			if len(ports) > 0 {
+				// Ports is not nil, get ports and protocols
+				for _, port := range ports {
+					addrList = append(addrList, containers.NetworkAddress{
+						IP:       IP,
+						Port:     int(port.ContainerPort),
+						Protocol: port.Protocol,
+					})
+				}
+			} else {
+				// Ports is nil (omitted by the ecs api if there are no ports exposed).
+				// Keep the container IP anyway.
+				addrList = append(addrList, containers.NetworkAddress{
+					IP: IP,
+				})
+			}
 		}
 	}
-	return ip, nil
+	return addrList
+}
+
+// parseContainerNetworkMode returns the network mode of a container
+func parseContainerNetworkMode(hostConfig *container.HostConfig) (string, error) {
+	if hostConfig == nil {
+		return "", errors.New("the HostConfig field is nil")
+	}
+	mode := string(hostConfig.NetworkMode)
+	switch mode {
+	case containers.DefaultNetworkMode:
+		return containers.DefaultNetworkMode, nil
+	case containers.HostNetworkMode:
+		return containers.HostNetworkMode, nil
+	case containers.BridgeNetworkMode:
+		return containers.BridgeNetworkMode, nil
+	case containers.NoneNetworkMode:
+		return containers.NoneNetworkMode, nil
+	}
+	if strings.HasPrefix(mode, containerModePrefix) {
+		return mode, nil
+	}
+	return containers.UnknownNetworkMode, fmt.Errorf("unknown network mode: %s", mode)
 }

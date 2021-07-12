@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // Portions of this code are taken from the gopsutil project
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
@@ -116,8 +116,8 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data) error {
-	if err := c.CommonConfigure(data); err != nil {
+func (c *CPUCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(data, source); err != nil {
 		return err
 	}
 

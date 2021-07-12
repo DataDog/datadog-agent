@@ -24,7 +24,7 @@ func NewClusterCollector(componentChannel chan<- *topology.Component, clusterTop
 }
 
 // GetName returns the name of the Collector
-func (_ *ClusterCollector) GetName() string {
+func (*ClusterCollector) GetName() string {
 	return "Cluster Collector"
 }
 

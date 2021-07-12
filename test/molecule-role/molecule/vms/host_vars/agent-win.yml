@@ -1,0 +1,5 @@
+---
+ansible_user: test
+ansible_password: Bionic!
+ansible_port: 5986
+ansible_connection: winrm

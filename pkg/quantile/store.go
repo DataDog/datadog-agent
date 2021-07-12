@@ -130,6 +130,61 @@ func (s *sparseStore) merge(c *Config, o *sparseStore) {
 	putBinList(tmp)
 }
 
+func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
+
+	// TODO|PERF: A custom uint16 sort should easily beat sort.Sort.
+	// TODO|PERF: Would it be cheaper to sort float64s and then convert to keys?
+	sort.Slice(kcs, func(i, j int) bool {
+		return kcs[i].k < kcs[j].k
+	})
+
+	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
+	// in the sketch (and no overflow happens) we can just directly update.
+	tmp := getBinList()
+
+	var (
+		sIdx, keyIdx int
+	)
+
+	for sIdx < len(s.bins) && keyIdx < len(kcs) {
+		b := s.bins[sIdx]
+		vk := kcs[keyIdx].k
+		kn := int(kcs[keyIdx].n)
+
+		switch {
+		case b.k < vk:
+			tmp = append(tmp, b)
+			sIdx++
+		case b.k > vk:
+			// When vk[i] == vk[i+1] we need to make sure they go in the same bucket.
+			tmp = appendSafe(tmp, vk, kn)
+			s.count += kn
+			keyIdx++
+		default:
+			tmp = appendSafe(tmp, b.k, int(b.n)+kn)
+			s.count += kn
+			sIdx++
+			keyIdx++
+		}
+	}
+
+	tmp = append(tmp, s.bins[sIdx:]...)
+
+	for keyIdx < len(kcs) {
+		kn := int(kcs[keyIdx].n)
+		tmp = appendSafe(tmp, kcs[keyIdx].k, int(kn))
+		s.count += kn
+		keyIdx++
+	}
+
+	tmp = trimLeft(tmp, c.binLimit)
+
+	// TODO|PERF: reallocate if cap(s.bins) >> len(s.bins)
+	s.bins = s.bins.ensureLen(len(tmp))
+	copy(s.bins, tmp)
+	putBinList(tmp)
+}
+
 func (s *sparseStore) insert(c *Config, keys []Key) {
 	s.count += len(keys)
 

@@ -1,0 +1,6 @@
+api_key: "ENC[encrypted_key]"
+
+process_config:
+  enabled: 'true'
+  process_dd_url: "ENC[burrito.com]"
+secret_backend_command: "./testdata/secret"

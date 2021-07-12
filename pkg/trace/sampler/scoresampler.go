@@ -1,6 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-2020 Datadog, Inc.
+
 package sampler
 
 import "github.com/StackVista/stackstate-agent/pkg/trace/pb"
+
+const (
+	// errorSamplingRateThresholdTo1 defines the maximum allowed sampling rate below 1.
+	// If this is surpassed, the rate is set to 1.
+	errorSamplingRateThresholdTo1 = 0.1
+)
 
 // ScoreEngine is the main component of the sampling logic
 type ScoreEngine struct {
@@ -27,6 +38,7 @@ func NewErrorsEngine(extraRate float64, maxTPS float64) *ScoreEngine {
 		Sampler:    newSampler(extraRate, maxTPS),
 		engineType: ErrorsScoreEngineType,
 	}
+	s.Sampler.setRateThresholdTo1(errorSamplingRateThresholdTo1)
 
 	return s
 }

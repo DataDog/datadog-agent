@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-2020 Datadog, Inc.
 
 // +build !windows
 
@@ -78,4 +78,52 @@ func TestAddPermsInfo(t *testing.T) {
 	os.Remove(filepath.Join(os.TempDir(), "permissions.log"))
 	os.Remove(f1.Name())
 	os.Remove(f2.Name())
+}
+
+func TestAddParentPerms(t *testing.T) {
+	assert := assert.New(t)
+
+	permsInfos := make(permissionsInfos)
+
+	// Basic Case
+	path := "/a/b/c/d"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms := map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a": {0, "", ""}, "/a/b": {0, "", ""}, "/a/b/c": {0, "", ""},
+	}
+	assert.EqualValues(expectedParentPerms, permsInfos)
+
+	// Empty Case
+	permsInfos = make(permissionsInfos)
+	path = ""
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{}
+	assert.EqualValues(expectedParentPerms, permsInfos)
+
+	// Only root
+	permsInfos = make(permissionsInfos)
+	path = "/"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""},
+	}
+	assert.EqualValues(expectedParentPerms, permsInfos)
+
+	// Space in path
+	permsInfos = make(permissionsInfos)
+	path = "/a b/c"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a b": {0, "", ""},
+	}
+	assert.EqualValues(expectedParentPerms, permsInfos)
+
+	// Dot in path
+	permsInfos = make(permissionsInfos)
+	path = "/a.b/c"
+	addParentPerms(path, permsInfos)
+	expectedParentPerms = map[string]filePermsInfo{
+		"/": {0, "", ""}, "/a.b": {0, "", ""},
+	}
+	assert.EqualValues(expectedParentPerms, permsInfos)
 }
