@@ -9,6 +9,9 @@ tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/agent-network
 security_go_generate_check           @DataDog/agent-security
 
+# Golang dependency list generation
+golang_deps_generate                 @DataDog/agent-core
+
 # Binary build
 build_system-probe*                  @DataDog/agent-network
 cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
