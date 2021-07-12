@@ -92,7 +92,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	}
 	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
 	if err != nil {
-		log.Error("appsec agent: ", err)
+		log.Errorf("Could not instantiate AppSec: %v", err)
 	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
