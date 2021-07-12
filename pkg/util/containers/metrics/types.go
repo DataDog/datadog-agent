@@ -88,7 +88,7 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU times for a cgroup.
 // Unit is userspace scheduling unit (USER_HZ, usually 1/100)
 type ContainerCPUStats struct {
-	Timestamp time.Time
+	Timestsamp time.Time
 
 	// docker.cpu.system
 	System uint64
