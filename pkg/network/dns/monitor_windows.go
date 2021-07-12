@@ -1,3 +1,5 @@
+// +build windows,npm
+
 package dns
 
 import (
