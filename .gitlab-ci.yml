@@ -85,7 +85,7 @@ cluster_agent:
   stage: triggers
   variables:
     <<: *commonvariables
-    <<: *agent2_variables
+    <<: *agent3_variables
   trigger:
     include: .gitlab-ci-cluster-agent.yml
     strategy: depend
