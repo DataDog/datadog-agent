@@ -80,7 +80,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		TraceWriter:           writer.NewTraceWriter(conf, out),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
 		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
-		SpanInterpreterEngine: interpreter.NewSpanInterpreterEngine(conf), //sts
+		SpanInterpreterEngine: interpreter.NewSpanInterpreterEngine(conf), // sts
 		In:                    in,
 		Out:                   out,
 		conf:                  conf,
@@ -193,7 +193,7 @@ func (a *Agent) Process(t *api.Trace) {
 	}
 	a.Replacer.Replace(t.Spans)
 
-	t = a.SpanInterpreterEngine.Interpret(t) //sts
+	t.Spans = a.SpanInterpreterEngine.Interpret(t.Spans) //sts
 
 	{
 		// this section sets up any necessary tags on the root:

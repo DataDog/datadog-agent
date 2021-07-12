@@ -133,6 +133,11 @@ func convertFilter(conf []string) string {
 
 // Run executes the check.
 func (k *EventsCheck) Run() error {
+	// Running the event collection.
+	if !k.instance.CollectEvent {
+		return nil
+	}
+
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
 		return err
@@ -150,6 +155,7 @@ func (k *EventsCheck) Run() error {
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
 				// Only the leader can instantiate the apiserver client.
+				log.Debug("Agent is not leader, will not run the check")
 				return nil
 			}
 			return err
@@ -234,8 +240,8 @@ func (k *EventsCheck) eventCollectionCheck() (newEvents []*v1.Event, err error) 
 
 // processEvents:
 // - iterates over the Kubernetes Events
-// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
-// - formats the bundle and submit the Datadog event
+// - extracts some attributes and builds a structure ready to be submitted as a StackState event
+// - convert each K8s event to a metrics event to be processed by the intake
 func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event) error {
 	clusterName := clustername.GetClusterName()
 	mapper := k.mapperFactory(k.ac, clusterName)
@@ -250,53 +256,9 @@ func (k *EventsCheck) processEvents(sender aggregator.Sender, events []*v1.Event
 		sender.Event(mappedEvent)
 	}
 
-	// eventsByObject := make(map[string]*kubernetesEventBundle)
-
-	// for _, event := range events {
-	// 	id := bundleID(event)
-	// 	bundle, found := eventsByObject[id]
-	// 	if found == false {
-	// 		bundle = newKubernetesEventBundler(event)
-	// 		eventsByObject[id] = bundle
-	// 	}
-	// 	err := bundle.addEvent(event)
-	// 	if err != nil {
-	// 		k.Warnf("Error while bundling events, %s.", err.Error()) //nolint:errcheck
-	// 	}
-	// }
-
-	// clusterName := clustername.GetClusterName()
-	// mapper := k.mapperFactory(k.ac, clusterName)
-	// for _, bundle := range eventsByObject {
-	// 	datadogEv, err := bundle.formatEvents(clusterName, k.providerIDCache)
-	// 	if err != nil {
-	// 		k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error()) //nolint:errcheck
-	// 		continue
-	// 	}
-	// 	mappedEvent, err := mapper.mapKubernetesEvent(event, false)
-	// 	if err != nil {
-	// 		_ = k.Warnf("Error while mapping event, %s.", err.Error())
-	// 		continue
-	// 	}
-	// 	sender.Event(datadogEv)
-	// }
 	return nil
 }
-
-// bundleID generates a unique ID to separate k8s events
-// based on their InvolvedObject UIDs and event Types
-// func bundleID(e *v1.Event) string {
-// 	return fmt.Sprintf("%s/%s", e.InvolvedObject.UID, e.Type)
-// }
 
 func init() {
 	core.RegisterCheck(kubernetesAPIEventsCheckName, KubernetesAPIEventsFactory)
 }
-
-// func formatStringIntMap(input map[string]int) string {
-// 	var parts []string
-// 	for k, v := range input {
-// 		parts = append(parts, fmt.Sprintf("%d %s", v, k))
-// 	}
-// 	return strings.Join(parts, " ")
-// }

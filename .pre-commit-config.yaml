@@ -2,6 +2,23 @@ default_language_version:
   python: 3.8.3
 
 repos:
+- repo: git://github.com/pre-commit/pre-commit-hooks
+  rev: v2.2.3
+  hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-executables-have-shebangs
+    - id: check-merge-conflict
+    - id: detect-private-key
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: detect-aws-credentials
+      args:
+        - --allow-missing-credentials
+- repo: https://github.com/voronenko/pre-commit-cdci.git
+  rev: a9a4baade8c0ef8fdcac73b03ad65b6b5c627595 # get latest tag from release tab
+  hooks:
+    - id: gitlabci_validate
 - repo: https://gitlab.com/pycqa/flake8
   rev: 3.8.3 # should match major Python version
   hooks:
@@ -17,3 +34,4 @@ repos:
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+

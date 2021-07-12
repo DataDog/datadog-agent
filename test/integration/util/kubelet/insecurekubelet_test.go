@@ -38,6 +38,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
 	mockConfig.Set("kubelet_auth_token_path", "")
 	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_fallback_to_insecure", true)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
@@ -60,8 +61,26 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 	require.EqualValues(suite.T(),
 		map[string]string{
-			"url": "http://127.0.0.1:10255",
+			"url":        "http://127.0.0.1:10255",
+			"verify_tls": "false",
 		}, ku.GetRawConnectionInfo())
+}
+
+func (suite *InsecureTestSuite) TestHTTPNotAllowed() {
+	mockConfig := config.Mock()
+
+	mockConfig.Set("kubernetes_http_kubelet_port", 10255)
+
+	// Giving 10255 http port to https setting will force an intended https discovery failure
+	// Then it forces the http usage
+	mockConfig.Set("kubernetes_https_kubelet_port", 10255)
+	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_fallback_to_insecure", false)
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+
+	_, err := kubelet.GetKubeUtil()
+	require.NotNil(suite.T(), err)
 }
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
@@ -71,6 +90,7 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	mockConfig.Set("kubernetes_https_kubelet_port", 10250)
 	mockConfig.Set("kubelet_auth_token_path", "")
 	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("kubelet_fallback_to_insecure", true)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()

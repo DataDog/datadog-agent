@@ -347,3 +347,28 @@ def test_connection_network_namespaces_relations(host):
         )
 
     util.wait_until(wait_for_connection, 30, 3)
+
+
+def test_process_http_metrics(host):
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
+
+    def wait_for_metrics():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        with open("./topic-multi-metrics-http.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
+
+        def get_keys(m_host):
+            return next(set(message["message"]["MultiMetric"]["values"].keys())
+                        for message in json_data["messages"]
+                        if message["message"]["MultiMetric"]["name"] == "connection metric" and
+                        message["message"]["MultiMetric"]["host"] == m_host and
+                        "code" in message["message"]["MultiMetric"]["tags"] and
+                        message["message"]["MultiMetric"]["tags"]["code"] == "any"
+                        )
+
+        expected = {"http_requests_per_second", "http_response_time_seconds"}
+
+        assert get_keys("agent-ubuntu").pop() in expected
+
+    util.wait_until(wait_for_metrics, 30, 3)

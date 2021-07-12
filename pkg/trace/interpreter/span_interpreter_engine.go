@@ -1,7 +1,6 @@
 package interpreter
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/trace/api"
 	"github.com/StackVista/stackstate-agent/pkg/trace/config"
 	interpreterConfig "github.com/StackVista/stackstate-agent/pkg/trace/interpreter/config"
 	"github.com/StackVista/stackstate-agent/pkg/trace/interpreter/interpreters"
@@ -41,24 +40,19 @@ func NewSpanInterpreterEngine(agentConfig *config.AgentConfig) *SpanInterpreterE
 }
 
 // Interpret interprets the trace using the configured SpanInterpreterEngine
-func (se *SpanInterpreterEngine) Interpret(origTrace *api.Trace) *api.Trace {
+func (se *SpanInterpreterEngine) Interpret(origTrace pb.Trace) pb.Trace {
 
 	// we do not mutate the original trace
-	//var interpretedTrace = make(api.Trace.Spans, 0)
-	var interpretedTrace = &api.Trace{
-		Source:        origTrace.Source,
-		ContainerTags: origTrace.ContainerTags,
-		Spans:         make(pb.Trace, 0),
-	}
+	var interpretedTrace = make(pb.Trace, 0)
 	groupedSourceSpans := make(map[string][]*pb.Span)
 
-	for _, _span := range origTrace.Spans {
+	for _, _span := range origTrace {
 		// we do not mutate the original span
 		span := proto.Clone(_span).(*pb.Span)
 
 		// check if span is pre-interpreted by the trace client
 		if _, found := span.Meta["span.serviceURN"]; found {
-			interpretedTrace.Spans = append(interpretedTrace.Spans, span)
+			interpretedTrace = append(interpretedTrace, span)
 		} else {
 			se.DefaultSpanInterpreter.Interpret(span)
 
@@ -69,7 +63,7 @@ func (se *SpanInterpreterEngine) Interpret(origTrace *api.Trace) *api.Trace {
 					//group spans that share the same source
 					groupedSourceSpans[source] = append(groupedSourceSpans[source], span)
 				} else {
-					interpretedTrace.Spans = append(interpretedTrace.Spans, span)
+					interpretedTrace = append(interpretedTrace, span)
 				}
 			} else {
 				// process different span types
@@ -77,11 +71,11 @@ func (se *SpanInterpreterEngine) Interpret(origTrace *api.Trace) *api.Trace {
 
 				// interpret the type if we have a interpreter, otherwise run it through the process interpreter.
 				if interpreter, found := se.TypeInterpreters[meta.Type]; found {
-					interpretedTrace.Spans = append(interpretedTrace.Spans, interpreter.Interpret(spanWithMeta))
+					interpretedTrace = append(interpretedTrace, interpreter.Interpret(spanWithMeta))
 				} else {
 					//defaults to a process interpreter
 					processInterpreter := se.TypeInterpreters[interpreters.ProcessSpanInterpreterName]
-					interpretedTrace.Spans = append(interpretedTrace.Spans, processInterpreter.Interpret(spanWithMeta))
+					interpretedTrace = append(interpretedTrace, processInterpreter.Interpret(spanWithMeta))
 				}
 			}
 		}
@@ -89,7 +83,7 @@ func (se *SpanInterpreterEngine) Interpret(origTrace *api.Trace) *api.Trace {
 
 	for source, spans := range groupedSourceSpans {
 		if interpreter, found := se.SourceInterpreters[source]; found {
-			interpretedTrace.Spans = append(interpretedTrace.Spans, interpreter.Interpret(spans)...)
+			interpretedTrace = append(interpretedTrace, interpreter.Interpret(spans)...)
 		}
 	}
 

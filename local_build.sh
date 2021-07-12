@@ -25,7 +25,7 @@ if [[ "$#" -eq "1" ]]; then
         CURBRANCH=`git rev-parse --abbrev-ref HEAD`
         MOUNT="/stackstate-agent-mount"
 
-        docker run \
+        docker run --rm \
             -e ARTIFACTORY_USER=$ARTIFACTORY_USER \
             -e ARTIFACTORY_PASSWORD=$ARTIFACTORY_PASSWORD \
             -e ARTIFACTORY_URL="artifactory.stackstate.io/artifactory/api/pypi/pypi-local" \

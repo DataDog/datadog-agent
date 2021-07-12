@@ -40,26 +40,37 @@
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
+
     - name: Copy Receiver files
       copy:
         src: "files/receiver/"
         dest: "/home/ubuntu/"
+
+    - name: Copy Verify and Create Script file
+      copy:
+        src: ./../verify-or-create-topics.sh
+        dest: /home/ubuntu
+        mode: u+x
+
     - name: Configure .env file used by docker-compose
       copy:
         content: |
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
+
     - name: Run Docker compose (1/2)
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
       ignore_errors: True
       register: docker_compose_result
+
     - name: Run Docker compose (2/2)
       command: docker-compose up -d
       args:
         chdir: /home/ubuntu/
       when: docker_compose_result is failed
+
     - import_tasks: ../wait-for-receiver.yml
 
 - name: Prepare Linux Agents (pre)
@@ -283,6 +294,13 @@
   hosts: agent-ubuntu
   gather_facts: false
   tasks:
+    - name: "Remove process_sts_url to test configuration fallback in Process Agent"
+      become: true
+      lineinfile:
+        path: "/etc/stackstate-agent/stackstate.yaml"
+        regexp: '^\s\sprocess_sts_url:.*'
+        line: |2
+            process_sts_url:
     - name: "Set process_config.filters.short_lived_processes and process_config.filters.short_lived_network_relations to get deterministic behaviour in the short-lived filtering tests"
       become: true
       lineinfile:

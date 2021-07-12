@@ -28,13 +28,13 @@ func (c Component) JSONString() string {
 // PutNonEmpty adds the value for the given key to the map if the value is not nil
 func (d Data) PutNonEmpty(key string, value interface{}) bool {
 	if value != nil {
-		switch value.(type) {
+		switch t := value.(type) {
 		case map[string]string:
-			if len(value.(map[string]string)) != 0 {
+			if len(t) != 0 {
 				d[key] = value
 			}
 		case string:
-			if value.(string) != "" {
+			if t != "" {
 				d[key] = value
 			}
 		default:

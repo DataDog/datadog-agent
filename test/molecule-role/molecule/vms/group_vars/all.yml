@@ -3,6 +3,7 @@ molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }
 keypair_name: "molecule_key_{{ molecule_run_id }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
 
+major_version: "{{ lookup('env', 'MAJOR_VERSION') or MAJOR_VERSION }}"
 agent_repo_url: "https://{{ lookup('env', 'STS_AWS_TEST_BUCKET') or STS_AWS_TEST_BUCKET }}.s3.amazonaws.com"
 agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
 quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"

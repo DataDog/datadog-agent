@@ -6,7 +6,10 @@
 package containers
 
 import (
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/swarm"
 	"net"
+	"time"
 
 	"github.com/StackVista/stackstate-agent/pkg/util/containers/metrics"
 )
@@ -75,6 +78,8 @@ type Container struct {
 	AddressList []NetworkAddress
 	StartedAt   int64
 
+	Mounts []types.MountPoint
+
 	metrics.ContainerMetrics
 	Limits  metrics.ContainerLimits
 	Network metrics.ContainerNetStats
@@ -124,3 +129,33 @@ const MetricsFilter FilterType = "MetricsFilter"
 
 // LogsFilter refers to the Logs filter type
 const LogsFilter FilterType = "LogsFilter"
+
+// SwarmService represents a Swarm Service definition
+// sts
+type SwarmService struct {
+	ID             string
+	Name           string
+	ContainerImage string
+	Labels         map[string]string   `json:",omitempty"`
+	Version        swarm.Version       `json:",omitempty"`
+	CreatedAt      time.Time           `json:",omitempty"`
+	UpdatedAt      time.Time           `json:",omitempty"`
+	Spec           swarm.ServiceSpec   `json:",omitempty"`
+	PreviousSpec   *swarm.ServiceSpec  `json:",omitempty"`
+	Endpoint       swarm.Endpoint      `json:",omitempty"`
+	UpdateStatus   *swarm.UpdateStatus `json:",omitempty"`
+	TaskContainers []*SwarmTask
+	DesiredTasks   uint64
+	RunningTasks   uint64
+}
+
+// SwarmTask represents a Swarm TaskContainer definition
+// sts
+type SwarmTask struct {
+	ID              string
+	Name            string
+	ContainerImage  string
+	ContainerSpec   *swarm.ContainerSpec   `json:",omitempty"`
+	ContainerStatus *swarm.ContainerStatus `json:",omitempty"`
+	DesiredState    swarm.TaskState        `json:",omitempty"`
+}

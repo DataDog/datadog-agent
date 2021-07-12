@@ -33,34 +33,47 @@
           aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
           aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
         dest: /home/ubuntu/.aws/credentials
+
     - name: Docker login
       docker_login:
         registry: quay.io
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
+
     - name: Copy Terraform Files and Manifests
       copy:
         src: "../../../../deployment/kubernetes/"
         dest: "/home/ubuntu/deployment"
+
     - name: Copy Receiver files
       copy:
         src: "files/receiver"
         dest: "/home/ubuntu/"
+
+    - name: Copy Verify and Create Script file
+      copy:
+        src: ./../verify-or-create-topics.sh
+        dest: /home/ubuntu/receiver
+        mode: u+x
+
     - name: Generate env token
       shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
       args:
         chdir: /home/ubuntu/deployment/agents/overlays
+
     - name: Kustomization template
       template:
         src: files/template/kustomization.yaml
         dest: /home/ubuntu/deployment/agents/overlays
+
     - name: Configure .env file used by docker-compose
       copy:
         content: |
           STACKSTATE_BRANCH={{ stackstate_branch }}
           CLUSTER_NAME={{ cluster_name }}
         dest: /home/ubuntu/receiver/.env
+
     - name: Run Docker compose
       command: docker-compose up -d
       args:
@@ -75,6 +88,7 @@
       with_items:
         - .terraform
         - kubeconfig
+
     - name: Run make plan
       make:
         chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
@@ -162,6 +176,12 @@
         chdir: /home/ubuntu/deployment/test_connections
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Apply the pod-http-metrics scenario
+      command: kubectl -n={{ namespace }} apply -f pod-http-metrics.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
     - name: Wait for the pod-to-service-cluster-ip scenario to become ready
       command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-service-cluster-ip pod
       args:
@@ -180,3 +200,12 @@
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Wait for the pod-http-metrics scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-http-metrics pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+    - name: Pause for 2 minutes to perform some http requests
+      pause:
+        minutes: 2
