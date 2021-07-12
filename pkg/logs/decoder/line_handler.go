@@ -269,14 +269,14 @@ type AutoMultilineHandler struct {
 	linesToAssess     int
 	linesTested       int
 	lineLimit         int
-	matchThreashold   float32
+	matchThreshold    float64
 	scoredMatches     []*scoredPattern
 	processsingFunc   func(message *Message)
 	flushTimeout      time.Duration
 }
 
 // NewAutoMultilineHandler returns a new SingleLineHandler.
-func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, flushTimeout time.Duration) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, flushTimeout time.Duration) *AutoMultilineHandler {
 	scoredMatches := make([]*scoredPattern, len(formatsToTry))
 	for i, v := range formatsToTry {
 		scoredMatches[i] = &scoredPattern{
@@ -285,14 +285,14 @@ func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess 
 		}
 	}
 	h := &AutoMultilineHandler{
-		inputChan:       make(chan *Message),
-		outputChan:      outputChan,
-		flipChan:        make(chan struct{}, 1),
-		lineLimit:       lineLimit,
-		matchThreashold: 0.9,
-		scoredMatches:   scoredMatches,
-		linesToAssess:   linesToAssess,
-		flushTimeout:    flushTimeout,
+		inputChan:      make(chan *Message),
+		outputChan:     outputChan,
+		flipChan:       make(chan struct{}, 1),
+		lineLimit:      lineLimit,
+		matchThreshold: matchThreshold,
+		scoredMatches:  scoredMatches,
+		linesToAssess:  linesToAssess,
+		flushTimeout:   flushTimeout,
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -356,9 +356,9 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 
 	if h.linesTested++; h.linesTested >= h.linesToAssess {
 		topMatch := h.scoredMatches[0]
-		matchRatio := float32(topMatch.score) / float32(h.linesTested)
+		matchRatio := float64(topMatch.score) / float64(h.linesTested)
 
-		if matchRatio > h.matchThreashold {
+		if matchRatio > h.matchThreshold {
 			log.Debug("At least one pattern matched all sampled lines")
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {

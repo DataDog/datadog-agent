@@ -116,11 +116,16 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	if lineHandler == nil {
 		if !(dd_conf.Datadog.GetBool("logs_config.disable_auto_multi_line") || source.Config.AutoMultiLineOff) {
 			log.Infof("Auto multi line log detection enabled")
-			n := source.Config.AutoMultiLineSampleSize
-			if n <= 0 {
-				n = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+			linesToSample := source.Config.AutoMultiLineSampleSize
+			if linesToSample <= 0 {
+				linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
 			}
-			lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, n, config.AggregationTimeout())
+			matchRatio := source.Config.AutoMultiLineMatchThreshold
+			if matchRatio == 0 {
+				matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+
+			}
+			lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, config.AggregationTimeout())
 		} else {
 			lineHandler = NewSingleLineHandler(outputChan, lineLimit)
 		}
