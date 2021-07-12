@@ -224,7 +224,7 @@ func TestMetrics(t *testing.T) {
 					},
 					Body: &apiutil.LimitedReader{Count: 1073741824},
 				},
-				expectedTags: []string{"path:/some/endpoint", "payload_size:1073741824"},
+				expectedTags: []string{"path:/some/endpoint"},
 			},
 			{
 				name: "path, content_type and payload_size",
@@ -237,7 +237,7 @@ func TestMetrics(t *testing.T) {
 					},
 					Body: &apiutil.LimitedReader{Count: 1025},
 				},
-				expectedTags: []string{"path:/some/endpoint", "content_type:application/json", "payload_size:1025"},
+				expectedTags: []string{"path:/some/endpoint", "content_type:application/json"},
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -296,15 +296,16 @@ func TestMetrics(t *testing.T) {
 		require.Equal(t, float64(1), calls[0].Rate)
 		// Not testing the time duration value as it can be 0 on Windows due to its time resolution
 
-		// Test the proxy error handler with an error that is not monitored
+		// Test the proxy error handler with a few errors
 		proxy.ErrorHandler(httptest.NewRecorder(), req, errors.New("an error occurred"))
-		calls = stats.CountCalls
-		require.Len(t, calls, 0)
-
-		// Test the proxy error handler with an error that is monitored
 		proxy.ErrorHandler(httptest.NewRecorder(), req, apiutil.ErrLimitedReaderLimitReached)
 		calls = stats.CountCalls
-		require.Len(t, calls, 1)
+		require.Len(t, calls, 3)
 		require.Equal(t, float64(1), calls[0].Value)
+		require.Equal(t, append(tags, "error:*errors.errorString"), calls[0].Tags)
+		require.Equal(t, float64(1), calls[1].Value)
+		require.Equal(t, append(tags, "error:*errors.errorString"), calls[1].Tags)
+		require.Equal(t, float64(1), calls[2].Value)
+		require.Equal(t, append(tags, "error:ErrLimitedReaderLimitReached"), calls[2].Tags)
 	})
 }

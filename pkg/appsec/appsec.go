@@ -94,7 +94,7 @@ func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
 			kind = fmt.Sprintf("%T", err)
 		}
 		tags := append(metricsTags(req), fmt.Sprintf("error:%s", kind))
-		metrics.Count(appSecRequestErrorMetricsID, 1, append(tags, "error:"), 1)
+		metrics.Count(appSecRequestErrorMetricsID, 1, tags, 1)
 		errorHandler(w, req, err)
 	}
 	// Request metrics through the reverse proxy handler
