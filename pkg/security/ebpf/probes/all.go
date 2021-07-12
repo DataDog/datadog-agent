@@ -32,6 +32,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -76,6 +77,9 @@ func AllMaps() []*manager.Map {
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
 		{Name: "str_array_buffers"},
+		// SELinux tables
+		{Name: "selinux_write_buffer"},
+		{Name: "selinux_enforce_status"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},

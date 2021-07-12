@@ -48,6 +48,7 @@ enum dr_kprobe_progs
     DR_LINK_SRC_CALLBACK_KPROBE_KEY,
     DR_LINK_DST_CALLBACK_KPROBE_KEY,
     DR_RENAME_CALLBACK_KPROBE_KEY,
+    DR_SELINUX_CALLBACK_KPROBE_KEY,
 };
 
 struct bpf_map_def SEC("maps/dentry_resolver_kprobe_callbacks") dentry_resolver_kprobe_callbacks = {

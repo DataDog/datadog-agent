@@ -467,6 +467,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
 	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
 	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
+	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -1068,7 +1069,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	SanitizeAPIKeyConfig(config, "api_key")
 	// Environment feature detection needs to run before applying override funcs
 	// as it may provide such overrides
-	detectFeatures()
+	DetectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)

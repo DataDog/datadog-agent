@@ -14,6 +14,7 @@
 // pkg/security/tests/schemas/process.json
 // pkg/security/tests/schemas/process_context.json
 // pkg/security/tests/schemas/rename.schema.json
+// pkg/security/tests/schemas/selinux.schema.json
 // pkg/security/tests/schemas/usr.json
 // +build functionaltests
 
@@ -110,7 +111,7 @@ func bindataChmodSchemaJson() (*asset, error) {
 		name:        "/chmod.schema.json",
 		size:        816,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -138,7 +139,7 @@ func bindataChownSchemaJson() (*asset, error) {
 		name:        "/chown.schema.json",
 		size:        533,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -222,7 +223,7 @@ func bindataContainereventJson() (*asset, error) {
 		name:        "/container_event.json",
 		size:        262,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -250,7 +251,7 @@ func bindataDatetimeJson() (*asset, error) {
 		name:        "/datetime.json",
 		size:        349,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -278,7 +279,7 @@ func bindataEventJson() (*asset, error) {
 		name:        "/event.json",
 		size:        737,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -306,7 +307,7 @@ func bindataExecSchemaJson() (*asset, error) {
 		name:        "/exec.schema.json",
 		size:        272,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -334,7 +335,7 @@ func bindataFileJson() (*asset, error) {
 		name:        "/file.json",
 		size:        2203,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -362,7 +363,7 @@ func bindataHosteventJson() (*asset, error) {
 		name:        "/host_event.json",
 		size:        476,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -390,7 +391,7 @@ func bindataOpenSchemaJson() (*asset, error) {
 		name:        "/open.schema.json",
 		size:        764,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -418,7 +419,7 @@ func bindataProcessJson() (*asset, error) {
 		name:        "/process.json",
 		size:        5280,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -474,7 +475,35 @@ func bindataRenameSchemaJson() (*asset, error) {
 		name:        "/rename.schema.json",
 		size:        817,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
+		modTime:     time.Unix(1, 0),
+	}
+
+	a := &asset{bytes: bytes, info: info}
+
+	return a, nil
+}
+
+var _bindataSelinuxSchemaJson = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xe4\x56\x5b\x6e\xdb\x30\x10\xfc\xd7\x29\x08\x36\x9f\x4d\x98\xfa\x53\x97\xe8\x01\x8a\x20\xa0\xa5\x95\xc5\x40\x22\x55\x72\x1d\x34\x28\x7c\xf7\x82\x7a\xc5\x92\x48\x7a\xdd\xa6\x0f\x34\xfe\x32\xc4\xd1\xec\x70\x77\x86\xd4\xf7\x8c\x31\xc6\xf8\x8d\x2b\x6a\x68\x25\xcf\x19\xaf\x11\x3b\x97\x0b\xf1\xe4\x8c\xbe\x1d\x1e\xdf\x19\x7b\x10\xa5\x95\x15\x8a\xdd\xfd\xee\xfe\xf6\xd3\x4e\x8c\xf8\x8f\xe3\xeb\xaa\xf4\xaf\x3a\x68\x94\x3e\x7e\xbb\xf3\xaf\x4e\x4b\x25\x54\x4a\x2b\x54\x46\x3b\x9e\xb3\xa1\x5c\xbf\xb0\x37\xa6\x59\x3c\xe9\x9f\xe2\x4b\x07\x9e\xca\xec\x9f\xa0\xc0\x91\x64\x5e\xed\xac\xe9\xc0\xa2\x02\xb7\x79\x33\xce\x49\xe3\xa6\xd6\x98\x71\x5a\xb6\x90\x44\x2c\x6a\x3a\xb4\x4a\x1f\x78\x14\x7c\x0a\xab\xe9\x39\x1c\x4a\x24\x94\x02\x7d\x6c\x79\xce\xbe\x24\x51\x3d\x72\x9e\x4e\x1a\x55\x55\x71\xbd\xfe\xf7\xf0\x53\xbb\x29\x6a\xa9\x0f\x50\xd2\x5b\xe7\x87\x0a\x52\x27\x7a\x17\x5c\x89\x68\xe0\x16\xbe\x1e\x95\xed\x05\xc4\x5b\x35\x4c\xf7\xe2\x4c\x08\xdb\x0c\x22\xb6\x9d\x5b\xee\x61\xa5\x3d\xad\x79\x70\x7d\x16\xe6\x3f\x63\xe2\xa0\x2b\x63\x8b\xad\x93\x7e\x31\x74\x31\x5a\x1a\x3d\xb5\xcc\x8c\xf3\x9d\x3f\xa6\x31\xec\xba\x38\x0c\x1b\xf0\xf1\x24\xa4\xa2\x03\xdb\x2a\xe7\xd4\x73\x6a\xfa\x33\xba\x54\x4e\xee\x9b\x98\x0d\xa6\xdf\xff\x1c\xa4\x71\x5c\xff\x46\x52\x26\xab\x12\xc2\xe2\x9b\xf5\x58\x98\xb6\x55\xf8\x3b\x6e\xa9\x18\x35\xad\x04\xb5\xd4\x8c\x23\x5e\x21\x7f\xdd\x29\xf0\xa7\xce\xcb\xa9\xff\x31\x27\x64\x67\xb4\xe1\x59\x70\xa9\x5f\x3e\x57\x8b\x0a\x2b\x97\xdc\x58\xf0\xeb\xbc\x52\x0d\xe4\x42\x88\xc2\x68\x94\x4a\x83\x7d\x84\x67\xd0\x38\x7c\x26\x85\xcc\x77\x81\xa7\x36\x0e\xc3\x14\xfd\xbf\x87\x51\x5f\xc4\x1b\xd3\x57\xda\xb5\xae\x36\x1a\x56\xdb\x0d\xcb\xdd\xc8\xfe\x20\xce\xbe\x01\xc5\xf6\xb2\x62\x61\xe7\x5c\xc5\x1a\x0c\xf6\x5b\x10\x47\xbd\xc2\x36\x26\x8c\xb9\x47\x36\x4d\xda\x27\xaa\x0a\x9f\x13\x84\x70\xf7\x9e\x48\x47\x9f\x74\x90\x30\x72\x4c\x7b\xe4\xab\x93\x3b\x89\x75\xfc\x98\x08\x5f\x6c\xdb\xc3\x23\x9d\x66\xac\x41\x87\x3b\x74\x51\xf1\xab\xd2\xad\xc8\xa5\xb8\x13\x21\x88\xb1\x41\xbd\xa5\x0c\xf2\xde\xdf\xad\x3b\xd6\xc7\x5d\x76\xca\x7e\x04\x00\x00\xff\xff\x8d\x3d\xfd\xba\xc6\x0e\x00\x00")
+
+func bindataSelinuxSchemaJsonBytes() ([]byte, error) {
+	return bindataRead(
+		_bindataSelinuxSchemaJson,
+		"/selinux.schema.json",
+	)
+}
+
+func bindataSelinuxSchemaJson() (*asset, error) {
+	bytes, err := bindataSelinuxSchemaJsonBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{
+		name:        "/selinux.schema.json",
+		size:        3782,
+		md5checksum: "",
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -502,7 +531,7 @@ func bindataUsrJson() (*asset, error) {
 		name:        "/usr.json",
 		size:        399,
 		md5checksum: "",
-		mode:        os.FileMode(438),
+		mode:        os.FileMode(420),
 		modTime:     time.Unix(1, 0),
 	}
 
@@ -588,6 +617,7 @@ var _bindata = map[string]func() (*asset, error){
 	"/process.json":           bindataProcessJson,
 	"/process_context.json":   bindataProcesscontextJson,
 	"/rename.schema.json":     bindataRenameSchemaJson,
+	"/selinux.schema.json":    bindataSelinuxSchemaJson,
 	"/usr.json":               bindataUsrJson,
 }
 
@@ -657,6 +687,7 @@ var _bintree = &bintree{Func: nil, Children: map[string]*bintree{
 		"process.json":           {Func: bindataProcessJson, Children: map[string]*bintree{}},
 		"process_context.json":   {Func: bindataProcesscontextJson, Children: map[string]*bintree{}},
 		"rename.schema.json":     {Func: bindataRenameSchemaJson, Children: map[string]*bintree{}},
+		"selinux.schema.json":    {Func: bindataSelinuxSchemaJson, Children: map[string]*bintree{}},
 		"usr.json":               {Func: bindataUsrJson, Children: map[string]*bintree{}},
 	}},
 }}

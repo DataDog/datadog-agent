@@ -275,16 +275,17 @@ func loadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
 	var err error
 
+	// For Agent 6 we will have a YAML config file to use.
+	if err := loadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
 	// Note: This only considers container sources that are already setup. It's possible that container sources may
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
-	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
@@ -527,7 +528,6 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
 	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
-
 	if err != nil {
 		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
 	}
