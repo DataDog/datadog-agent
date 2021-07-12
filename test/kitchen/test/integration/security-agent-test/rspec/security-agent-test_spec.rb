@@ -5,7 +5,7 @@ print `uname -a`
 
 describe 'successfully run functional test' do
   it 'displays PASS and returns 0' do
-    output = `sudo /tmp/security-agent/testsuite -test.v 1>&2`
+    output = `sudo /tmp/security-agent/testsuite -loglevel debug -test.v 1>&2`
     retval = $?
     expect(retval).to eq(0)
   end

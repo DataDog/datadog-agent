@@ -90,6 +90,8 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
 
     void *data = req + sizeof(op);
 
+    bpf_printk("ERPC request: op = %d\n", op);
+
     if (!is_flushing_discarders()) {
         switch (op) {
             case DISCARD_INODE_OP:
