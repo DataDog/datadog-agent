@@ -86,11 +86,11 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     void *req = (void *)PT_REGS_PARM4(ctx);
 
     u8 op;
-    bpf_probe_read(&op, sizeof(op), req);
+    int read_res = bpf_probe_read(&op, sizeof(op), req);
 
     void *data = req + sizeof(op);
 
-    bpf_printk("ERPC request: op = %d\n", op);
+    bpf_printk("ERPC request: op = %d, addr = %lx, read_res = %d\n", op, (long long)req, read_res);
 
     if (!is_flushing_discarders()) {
         switch (op) {

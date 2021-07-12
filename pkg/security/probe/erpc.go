@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -44,10 +45,11 @@ func (k *ERPC) GetConstants() []manager.ConstantEditor {
 
 // Request generates an ioctl syscall with the required request
 func (k *ERPC) Request(req *ERPCRequest) error {
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), rpcCmd, uintptr(unsafe.Pointer(req))); errno != 0 {
-		if errno != syscall.ENOTTY {
-			return errno
-		}
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), rpcCmd, uintptr(unsafe.Pointer(req)))
+	runtime.KeepAlive(req)
+
+	if errno != 0 && errno != syscall.ENOTTY {
+		return errno
 	}
 
 	return nil
