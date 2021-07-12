@@ -709,6 +709,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
 	config.BindEnvAndSetDefault("logs_config.disable_auto_multi_line", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 100)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.9)
 
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
